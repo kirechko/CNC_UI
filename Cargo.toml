@@ -1,0 +1,9 @@
+[package]
+name = "linuxcnc-ui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gtk4 = "0.7"
+tokio = { version = "1", features = ["full"] }
+glib = "0.18"
