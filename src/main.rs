@@ -1,4 +1,7 @@
 mod cnc_controller;
+#[allow(dead_code)]
+mod cnc_api;
+mod linuxcnc_api;
 mod ui;
 mod jog_dial;
 mod gcode_viewer;
@@ -58,6 +61,27 @@ button.destructive-action:hover { background-color: #c43030; }
 .title-1 { font-size: 20px; font-weight: bold; color: #007acc; }
 .status-badge { background-color: #2d2d2d; border: 1px solid #444; border-radius: 4px; padding: 3px 10px; color: #4ec9b0; font-size: 12px; }
 separator { background-color: #3c3c3c; min-height: 1px; }
+
+.alarm-badge {
+    color: #ff4d4f !important;
+    font-weight: bold;
+}
+
+.coolant-led {
+    color: #b8c7e0;
+    background-color: #10234a;
+    border: 1px solid #233c6a;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: bold;
+}
+.coolant-led-on {
+    color: #ffffff;
+    background-color: #1677ff;
+    border-color: #62a0ff;
+}
+.event-log-latest { font-size: 11px; }
 "#;
 
 fn main() {
@@ -97,7 +121,22 @@ fn main() {
         .application_id("com.kirechko.fluidnc-rust")
         .build();
 
-    let controller = Arc::new(Mutex::new(CNCController::new()));
+    let socket_path = std::env::var_os("CNC_EMULATOR_SOCKET")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/linuxcnc-ui-emulator.sock"));
+
+    let controller = Arc::new(Mutex::new(
+        CNCController::connect(&socket_path).unwrap_or_else(|error| {
+            eprintln!(
+                "Не удалось подключиться к эмулятору {}: {}: {}",
+                socket_path.display(),
+                error.code,
+                error.message
+            );
+            eprintln!("Сначала запустите отдельный процесс cnc-emulator.");
+            std::process::exit(1);
+        }),
+    ));
 
     app.connect_activate(move |app| {
         ui::build_ui(app, controller.clone());

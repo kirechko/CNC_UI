@@ -1,0 +1,25 @@
+# Machine-coordinate limits and motion dynamics.
+# Units: millimeters, millimeters per minute, millimeters per second squared.
+axes:
+  x:
+    min_mm: 0.0
+    max_mm: 300.0
+    max_velocity_mm_min: 15000.0
+    acceleration_mm_s2: 1000.0
+  y:
+    min_mm: 0.0
+    max_mm: 400.0
+    max_velocity_mm_min: 15000.0
+    acceleration_mm_s2: 1000.0
+  z:
+    min_mm: 0.0
+    max_mm: 100.0
+    max_velocity_mm_min: 5000.0
+    acceleration_mm_s2: 500.0
+
+# Spindle simulation settings.
+# RPM acceleration/deceleration rate.
+spindle:
+  max_rpm: 24000.0
+  acceleration_rpm_per_sec: 3000.0
+

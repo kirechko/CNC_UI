@@ -70,38 +70,40 @@ impl JogDial {
                 cr.stroke().unwrap();
             };
 
-            // Углы секторов
-            const ANG_XP: (f64, f64) = (-std::f64::consts::PI/4.0, std::f64::consts::PI/4.0);
-            const ANG_YN: (f64, f64) = (std::f64::consts::PI/4.0, 3.0*std::f64::consts::PI/4.0);
-            const ANG_XN: (f64, f64) = (3.0*std::f64::consts::PI/4.0, 5.0*std::f64::consts::PI/4.0);
-            const ANG_YP: (f64, f64) = (5.0*std::f64::consts::PI/4.0, 7.0*std::f64::consts::PI/4.0);
+            // Восемь секторов в каждом кольце:
+            // осевые — прежних цветов, диагональные — синие.
+            let blue_rings = [
+                (49.0 / 255.0, 73.0 / 255.0, 101.0 / 255.0), // внутреннее #314965
+                (70.0 / 255.0, 102.0 / 255.0, 139.0 / 255.0), // #46668b
+                (79.0 / 255.0, 116.0 / 255.0, 158.0 / 255.0), // #4f749e
+                (90.0 / 255.0, 133.0 / 255.0, 182.0 / 255.0), // внешнее #5a85b6
+            ];
 
-            // === РИСУЕМ КОЛЬЦА ПОСЛОЙНО (от внутреннего к внешнему) ===
-            
-            // Кольцо 1 (Самое темное, шаг 0.1)
-            draw_ring_segment(R_CENTER, BOUND_1, ANG_XP.0, ANG_XP.1, COLOR_X_RING1);
-            draw_ring_segment(R_CENTER, BOUND_1, ANG_YN.0, ANG_YN.1, COLOR_Y_RING1);
-            draw_ring_segment(R_CENTER, BOUND_1, ANG_XN.0, ANG_XN.1, COLOR_X_RING1);
-            draw_ring_segment(R_CENTER, BOUND_1, ANG_YP.0, ANG_YP.1, COLOR_Y_RING1);
+            let rings = [
+                (R_CENTER, BOUND_1, COLOR_X_RING1, COLOR_Y_RING1),
+                (BOUND_1, BOUND_2, COLOR_X_RING2, COLOR_Y_RING2),
+                (BOUND_2, BOUND_3, COLOR_X_RING3, COLOR_Y_RING3),
+                (BOUND_3, R_MAX, COLOR_X_RING4, COLOR_Y_RING4),
+            ];
 
-            // Кольцо 2 (Шаг 1.0)
-            draw_ring_segment(BOUND_1, BOUND_2, ANG_XP.0, ANG_XP.1, COLOR_X_RING2);
-            draw_ring_segment(BOUND_1, BOUND_2, ANG_YN.0, ANG_YN.1, COLOR_Y_RING2);
-            draw_ring_segment(BOUND_1, BOUND_2, ANG_XN.0, ANG_XN.1, COLOR_X_RING2);
-            draw_ring_segment(BOUND_1, BOUND_2, ANG_YP.0, ANG_YP.1, COLOR_Y_RING2);
+            for (ring_index, (r_inner, r_outer, color_x, color_y))
+                in rings.into_iter().enumerate()
+            {
+                for sector in 0..8 {
+                    let center_angle = sector as f64 * std::f64::consts::FRAC_PI_4;
+                    let start = center_angle - std::f64::consts::PI / 8.0;
+                    let end = center_angle + std::f64::consts::PI / 8.0;
 
-            // Кольцо 3 (Шаг 10.0)
-            draw_ring_segment(BOUND_2, BOUND_3, ANG_XP.0, ANG_XP.1, COLOR_X_RING3);
-            draw_ring_segment(BOUND_2, BOUND_3, ANG_YN.0, ANG_YN.1, COLOR_Y_RING3);
-            draw_ring_segment(BOUND_2, BOUND_3, ANG_XN.0, ANG_XN.1, COLOR_X_RING3);
-            draw_ring_segment(BOUND_2, BOUND_3, ANG_YP.0, ANG_YP.1, COLOR_Y_RING3);
+                    let color = match sector {
+                        0 | 4 => color_x, // +X / -X
+                        2 | 6 => color_y, // -Y / +Y
+                        _ => blue_rings[ring_index], // диагональный jog XY
+                    };
 
-            // Кольцо 4 (Самое яркое, шаг 100.0)
-            draw_ring_segment(BOUND_3, R_MAX, ANG_XP.0, ANG_XP.1, COLOR_X_RING4);
-            draw_ring_segment(BOUND_3, R_MAX, ANG_YN.0, ANG_YN.1, COLOR_Y_RING4);
-            draw_ring_segment(BOUND_3, R_MAX, ANG_XN.0, ANG_XN.1, COLOR_X_RING4);
-            draw_ring_segment(BOUND_3, R_MAX, ANG_YP.0, ANG_YP.1, COLOR_Y_RING4);
-            
+                    draw_ring_segment(r_inner, r_outer, start, end, color);
+                }
+            }
+
             // Центральная шайба
             cr.arc(cx, cy, radius * R_CENTER, 0.0, 2.0 * std::f64::consts::PI);
             cr.set_source_rgb(COLOR_CENTER.0, COLOR_CENTER.1, COLOR_CENTER.2);
@@ -116,6 +118,42 @@ impl JogDial {
             cr.set_source_rgb(0.35, 0.35, 0.36);
             cr.set_line_width(1.5);
             cr.stroke().unwrap();
+
+            // Подписи привязаны к радиусу, поэтому остаются по центру
+            // соответствующих секторов внешнего кольца при любом размере виджета.
+            let label_radius = radius * ((BOUND_3 + R_MAX) / 2.0);
+            let label_font_size = (radius * 0.12).clamp(9.0, 21.0);
+
+            cr.select_font_face(
+                "Roboto",
+                gtk4::cairo::FontSlant::Normal,
+                gtk4::cairo::FontWeight::Normal,
+            );
+            cr.set_font_size(label_font_size);
+            cr.set_source_rgb(0.95, 0.95, 0.95);
+
+            for (text, angle) in [
+                ("+X", 0.0),
+                ("-X", std::f64::consts::PI),
+                ("+Y", -std::f64::consts::FRAC_PI_2),
+                ("-Y", std::f64::consts::FRAC_PI_2),
+            ] {
+                let (label_x, label_y) = if text == "-Y" {
+                    (cx, cy + label_radius)
+                } else {
+                    (
+                        cx + label_radius * angle.cos(),
+                        cy + label_radius * angle.sin(),
+                    )
+                };
+
+                let extents = cr.text_extents(text).unwrap();
+                cr.move_to(
+                    label_x - extents.x_bearing() - extents.width() / 2.0,
+                    label_y - extents.y_bearing() - extents.height() / 2.0,
+                );
+                cr.show_text(text).unwrap();
+            }
         });
 
         // Логика кликов
@@ -137,14 +175,17 @@ impl JogDial {
             let mut angle = dy.atan2(dx); 
             if angle < 0.0 { angle += 2.0 * std::f64::consts::PI; }
 
-            let (axis, dir) = if (angle >= 0.0 && angle < std::f64::consts::PI/4.0) || (angle >= 7.0*std::f64::consts::PI/4.0) {
-                ('X', 1)
-            } else if angle >= std::f64::consts::PI/4.0 && angle < 3.0*std::f64::consts::PI/4.0 {
-                ('Y', -1)
-            } else if angle >= 3.0*std::f64::consts::PI/4.0 && angle < 5.0*std::f64::consts::PI/4.0 {
-                ('X', -1)
-            } else {
-                ('Y', 1)
+            let sector = ((angle / (std::f64::consts::PI / 4.0) + 0.5) as usize) % 8;
+            // Угол 0 — вправо; экранная Y направлена вниз.
+            let (axis, dir, diagonal) = match sector {
+                0 => ('X', 1, None),
+                1 => ('X', 1, Some(('Y', -1))),  // юго-восток: +X, -Y
+                2 => ('Y', -1, None),
+                3 => ('X', -1, Some(('Y', -1))), // юго-запад: -X, -Y
+                4 => ('X', -1, None),
+                5 => ('X', -1, Some(('Y', 1))),  // северо-запад: -X, +Y
+                6 => ('Y', 1, None),
+                _ => ('X', 1, Some(('Y', 1))),   // северо-восток: +X, +Y
             };
 
             let step = if dist_norm < R_CENTER { return; }
@@ -156,7 +197,14 @@ impl JogDial {
 
             let c = ctrl_click.lock().unwrap();
             c.set_jog_step(step);
-            c.jog_axis_step(axis, dir, step);
+
+            if let Some((y_axis, y_dir)) = diagonal {
+                debug_assert_eq!(axis, 'X');
+                debug_assert_eq!(y_axis, 'Y');
+                c.jog_xy_step(dir, y_dir, step);
+            } else {
+                c.jog_axis_step(axis, dir, step);
+            }
         });
 
         area.add_controller(click_gesture);
