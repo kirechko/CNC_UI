@@ -1,7 +1,8 @@
 mod cnc_controller;
 mod ui;
 mod jog_dial;
-mod gcode_viewer; // <-- НОВЫЙ МОДУЛЬ
+mod gcode_viewer;
+mod theme; // <-- НОВЫЙ МОДУЛЬ
 
 use gtk4::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -44,7 +45,9 @@ button:hover { background-color: #4a4a4a; border-color: #666; }
 button:active, button:checked { background-color: #2d2d2d; border-color: #007acc; }
 
 .jog-btn { min-width: 45px !important; min-height: 45px !important; font-size: 16px !important; font-weight: bold; padding: 0 !important; }
-.btn-z { min-width: 40px !important; min-height: 38px !important; font-size: 14px !important; font-weight: bold; padding: 0 !important; }
+.btn-z { min-width: 34px !important; min-height: 27px !important; padding: 0 !important;  font-family: inherit; font-size: 14px !important; font-weight: normal; }
+.z-direction { color: #40c4ff !important; }
+.z-gap { min-height: 8px !important; padding: 0 !important; font-size: 1px !important; }
 
 button.suggested-action { background-color: #0e639c; color: white; border: none; }
 button.suggested-action:hover { background-color: #1177bb; }
@@ -65,12 +68,28 @@ fn main() {
 
     let provider = gtk4::CssProvider::new();
     provider.load_from_data(DARK_THEME_CSS);
+
+    let palette_provider = gtk4::CssProvider::new();
+    let palette_css = format!(
+        "@define-color cnc-accent {};\
+         @define-color cnc-accent-hover {};\
+         button.suggested-action {{ background-color: @cnc-accent; color: white; }}\
+         button.suggested-action:hover {{ background-color: @cnc-accent-hover; }}",
+        theme::ACCENT_BLUE,
+        theme::ACCENT_BLUE_HOVER
+    );
+    palette_provider.load_from_data(&palette_css);
     
     if let Some(display) = gtk4::gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,
             &provider,
             gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+        gtk4::style_context_add_provider_for_display(
+            &display,
+            &palette_provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
         );
     }
 

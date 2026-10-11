@@ -33,10 +33,11 @@ pub struct JogDial {
 impl JogDial {
     pub fn new(controller: Arc<Mutex<CNCController>>) -> Self {
         let area = DrawingArea::new();
-        area.set_content_width(280);
-        area.set_content_height(280);
-        area.set_vexpand(true);
-        area.set_hexpand(true);
+        area.set_content_width(240);
+        area.set_content_height(240);
+        area.set_vexpand(false);
+        area.set_hexpand(false);
+        area.set_size_request(240, 240);
 
         area.set_draw_func(move |_, cr, width, height| {
             let w = width as f64;
@@ -46,7 +47,7 @@ impl JogDial {
             let radius = (w.min(h) / 2.0) * 0.92;
 
             // Фон
-            cr.set_source_rgb(0.12, 0.12, 0.13);
+            cr.set_source_rgb(0.145, 0.145, 0.149);
             cr.paint().unwrap();
 
             // Функция рисования одного кольца (дуги) сплошным цветом
