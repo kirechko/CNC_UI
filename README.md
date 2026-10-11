@@ -6,15 +6,15 @@ The UI communicates with the emulator over a local Unix-domain socket using a pr
 
 ## Features
 
-- GTK4 desktop interface with XY and Z jog controls.
-- Configurable XY and Z jog feed rates.
-- G-code file loading and toolpath visualization.
-- 3D orientation cube with clickable faces.
-- Tool visualization synchronized with emulator position and spindle telemetry.
-- Simulated spindle speed ramp, direction, and coolant states.
-- Simulated E-stop, alarm reset, homing, and work-coordinate selection.
-- Standalone emulator process communicating with the UI over a Unix socket.
-- YAML configuration for axis travel, maximum velocity, acceleration, and spindle settings.
+- GTK4 desktop interface with XY and Z jog controls
+- Configurable XY and Z jog feed rates
+- G-code file loading and toolpath visualization
+- 3D orientation cube with clickable faces
+- Tool visualization synchronized with emulator position and spindle telemetry
+- Simulated spindle speed ramp, direction, and coolant states
+- Simulated E-stop, alarm reset, homing, and work-coordinate selection
+- Standalone emulator communicating with the UI over a Unix socket
+- YAML configuration for axis travel, maximum velocity, acceleration, and spindle settings
 
 ## Requirements
 
@@ -27,7 +27,7 @@ Install the GTK4 development package using your distribution's package manager i
 
 ## Build
 
-From the repository root:
+Run these commands from the repository root:
 
 ```bash
 cargo check --all-targets
@@ -55,7 +55,7 @@ To use a different socket path, set `CNC_EMULATOR_SOCKET` when launching the UI:
 
 ```bash
 CNC_EMULATOR_SOCKET=/tmp/my-cnc.sock cargo run --bin linuxcnc-ui
-The emulator accepts an optional socket path and configuration-file path:
+The emulator accepts an optional socket path followed by an optional configuration-file path:
 
 ```bash
 cargo run --bin cnc-emulator -- /tmp/my-cnc.sock config/emulator.yaml
