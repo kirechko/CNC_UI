@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 default-run = "linuxcnc-ui"
+license = "GPL-3.0-or-later"
 [dependencies]
 serde_yaml_ng = "0.10"
 serde_json = "1"

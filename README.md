@@ -102,4 +102,4 @@ The UI and emulator expose the LinuxCNC-style work-coordinate systems `G54`–`G
 
 ## License
 
-No license has been specified yet. Until one is added to the repository, reuse and redistribution permissions are not explicitly granted.
+This project is licensed under the GNU General Public License v3.0 or, at your option, any later version. See [`LICENSE`](LICENSE) for the full text.
