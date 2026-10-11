@@ -33,21 +33,27 @@ Run these commands from the repository root:
 cargo check --all-targets
 cargo build --bin cnc-emulator
 cargo build --bin linuxcnc-ui
+```
+
 ## Run
 
 Start the emulator in one terminal from the repository root:
 
 ```bash
 cargo run --bin cnc-emulator
+```
 
 By default, the emulator reads `config/emulator.yaml` and listens on:
 
 ```text
 /tmp/linuxcnc-ui-emulator.sock
+```
+
 Start the UI in a second terminal:
 
 ```bash
 cargo run --bin linuxcnc-ui
+```
 
 The emulator must be running before the UI starts.
 
@@ -55,10 +61,13 @@ To use a different socket path, set `CNC_EMULATOR_SOCKET` when launching the UI:
 
 ```bash
 CNC_EMULATOR_SOCKET=/tmp/my-cnc.sock cargo run --bin linuxcnc-ui
+```
+
 The emulator accepts an optional socket path followed by an optional configuration-file path:
 
 ```bash
 cargo run --bin cnc-emulator -- /tmp/my-cnc.sock config/emulator.yaml
+```
 
 ## Emulator configuration
 
