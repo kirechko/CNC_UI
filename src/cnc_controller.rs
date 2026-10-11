@@ -1,11 +1,12 @@
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset,
-    LinuxCncApi, MachineStatus, SpindleCommand,
-    SpindleDirection as ApiSpindleDirection,
+    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi,
+    MachineStatus, SpindleCommand, SpindleDirection as ApiSpindleDirection,
 };
 use crate::linuxcnc_api::LinuxCncApiClient;
-use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -18,6 +19,9 @@ pub struct CNCStatus {
     pub machine_x: f64,
     pub machine_y: f64,
     pub machine_z: f64,
+    pub machine_origin_x: f64,
+    pub machine_origin_y: f64,
+    pub machine_origin_z: f64,
     pub active_coordinate_system: CoordinateSystem,
     pub coordinate_systems: Vec<CoordinateSystemOffset>,
     pub feed_rate: f64,
@@ -41,9 +45,25 @@ pub enum SpindleDirection {
     CCW,
 }
 
+enum Command {
+    LoadProgram(PathBuf),
+    ProgramRun,
+    ProgramPause,
+    ProgramResume,
+    ProgramAbort,
+    EmergencyStop,
+    ResetAlarm,
+    SelectCoordinateSystem(CoordinateSystem),
+    SetWorkZero(CoordinateSystem),
+    HomeAll,
+    Mdi(String),
+    Spindle(SpindleCommand),
+    JogIncrement(crate::cnc_api::JogRequest),
+}
+
 pub struct CNCController {
     pub status: Arc<Mutex<CNCStatus>>,
-    api: LinuxCncApiClient,
+    commands: mpsc::Sender<Command>,
     xy_jog_speed: Mutex<f64>,
     z_jog_speed: Mutex<f64>,
     spindle_speed_setpoint: Mutex<f64>,
@@ -52,107 +72,94 @@ pub struct CNCController {
 #[allow(dead_code)]
 impl CNCController {
     pub fn connect(socket_path: impl AsRef<Path>) -> CncResult<Self> {
+        // Начальное подключение до создания окна; последующие обращения — только worker.
         let api = LinuxCncApiClient::connect(socket_path)?;
         let initial = api.status()?;
+        let status = Arc::new(Mutex::new(from_api_status(initial)));
+        let worker_status = status.clone();
+        let (commands, receiver) = mpsc::channel();
+
+        thread::Builder::new()
+            .name("cnc-api-worker".into())
+            .spawn(move || api_worker(api, receiver, worker_status))
+            .map_err(|error| {
+                crate::cnc_api::ControllerError::new("worker", error.to_string())
+            })?;
+
         Ok(Self {
-            status: Arc::new(Mutex::new(from_api_status(initial))),
-            api,
+            status,
+            commands,
             xy_jog_speed: Mutex::new(1000.0),
             z_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
         })
     }
 
+    fn enqueue(&self, command: Command) {
+        if let Err(error) = self.commands.send(command) {
+            eprintln!("[LinuxCncApi] worker unavailable: {error}");
+        }
+    }
+
     pub fn load_program(&self, path: &Path) -> CncResult<()> {
-        self.api.load_program(path)?;
-        self.refresh_status()
-    }
-
-    pub fn program_run(&self) -> CncResult<()> {
-        self.api.program_run(0)?;
-        self.refresh_status()
-    }
-
-    pub fn program_pause(&self) -> CncResult<()> {
-        self.api.program_pause()?;
-        self.refresh_status()
-    }
-
-    pub fn program_resume(&self) -> CncResult<()> {
-        self.api.program_resume()?;
-        self.refresh_status()
-    }
-
-    pub fn program_abort(&self) -> CncResult<()> {
-        self.api.program_abort()?;
-        self.refresh_status()
-    }
-
-
-    pub fn start_program(&self) -> CncResult<()> {
-        self.api.program_run(0)?;
-        self.refresh_status()
-    }
-
-    pub fn emergency_stop(&self) {
-        if let Err(error) = self.api.estop() {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
-    }
-
-    pub fn reset_alarm(&self) {
-        if let Err(error) = self.api.clear_error() {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        } else if let Err(error) = self.api.power_on() {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
-    }
-
-    pub fn select_coordinate_system(&self, system: CoordinateSystem) {
-        if let Err(error) = self.api.select_coordinate_system(system) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
-    }
-
-    pub fn set_work_zero(&self, system: CoordinateSystem) {
-        if let Err(error) = self.api.set_work_zero(system) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
-    }
-
-    pub fn home_all(&self) {
-        if let Err(error) = self.api.home(None) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
-    }
-
-    fn refresh_status(&self) -> CncResult<()> {
-        let snapshot = self.api.status()?;
-        *self.status.lock().unwrap() = from_api_status(snapshot);
+        self.enqueue(Command::LoadProgram(path.to_path_buf()));
         Ok(())
     }
 
+    pub fn program_run(&self) -> CncResult<()> {
+        self.enqueue(Command::ProgramRun);
+        Ok(())
+    }
+
+    pub fn start_program(&self) -> CncResult<()> {
+        self.program_run()
+    }
+
+    pub fn program_pause(&self) -> CncResult<()> {
+        self.enqueue(Command::ProgramPause);
+        Ok(())
+    }
+
+    pub fn program_resume(&self) -> CncResult<()> {
+        self.enqueue(Command::ProgramResume);
+        Ok(())
+    }
+
+    pub fn program_abort(&self) -> CncResult<()> {
+        self.enqueue(Command::ProgramAbort);
+        Ok(())
+    }
+
+    pub fn emergency_stop(&self) {
+        self.enqueue(Command::EmergencyStop);
+    }
+
+    pub fn reset_alarm(&self) {
+        self.enqueue(Command::ResetAlarm);
+    }
+
+    pub fn select_coordinate_system(&self, system: CoordinateSystem) {
+        self.enqueue(Command::SelectCoordinateSystem(system));
+    }
+
+    pub fn set_work_zero(&self, system: CoordinateSystem) {
+        self.enqueue(Command::SetWorkZero(system));
+    }
+
+    pub fn home_all(&self) {
+        self.enqueue(Command::HomeAll);
+    }
+
     pub fn send_command(&self, command: &str) {
-        if let Err(error) = self.api.mdi(command) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
+        self.enqueue(Command::Mdi(command.to_string()));
     }
 
     pub fn set_spindle_speed(&self, speed: f64) {
-        if !speed.is_finite() || speed < 0.0 {
+        if speed.is_finite() && speed >= 0.0 {
+            *self.spindle_speed_setpoint.lock().unwrap() = speed;
+        } else {
             eprintln!("[UI] Ignored invalid spindle speed: {speed}");
-            return;
         }
-
-        // Слайдер меняет только выбранную скорость.
-        // В работающий шпиндель новая уставка не отправляется.
-        *self.spindle_speed_setpoint.lock().unwrap() = speed;
     }
 
     pub fn set_spindle_direction(&self, direction: SpindleDirection) {
@@ -161,9 +168,8 @@ impl CNCController {
             return;
         }
 
-        let current = self.status.lock().unwrap().clone();
-        if current.spindle_on && current.spindle_direction == direction {
-            // Повторное нажатие того же направления ничего не меняет.
+        let snapshot = self.get_status_snapshot();
+        if snapshot.spindle_on && snapshot.spindle_direction == direction {
             return;
         }
 
@@ -173,24 +179,19 @@ impl CNCController {
             return;
         }
 
-        let api_direction = match direction {
+        let direction = match direction {
             SpindleDirection::CW => ApiSpindleDirection::Clockwise,
             SpindleDirection::CCW => ApiSpindleDirection::CounterClockwise,
             SpindleDirection::Off => ApiSpindleDirection::Stopped,
         };
-
-        self.send_spindle(api_direction, rpm);
-    }
-
-    fn send_spindle(&self, direction: ApiSpindleDirection, rpm: f64) {
-        if let Err(error) = self.api.set_spindle(SpindleCommand { direction, rpm }) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
+        self.enqueue(Command::Spindle(SpindleCommand { direction, rpm }));
     }
 
     pub fn stop_spindle(&self) {
-        self.send_spindle(ApiSpindleDirection::Stopped, 0.0);
+        self.enqueue(Command::Spindle(SpindleCommand {
+            direction: ApiSpindleDirection::Stopped,
+            rpm: 0.0,
+        }));
     }
 
     pub fn set_xy_jog_speed(&self, speed: f64) {
@@ -211,7 +212,6 @@ impl CNCController {
         }
     }
 
-    /// Одновременный диагональный jog XY одной согласованной командой.
     pub fn jog_xy_step(&self, x_direction: i8, y_direction: i8, step: f64) {
         if !step.is_finite()
             || step <= 0.0
@@ -223,18 +223,12 @@ impl CNCController {
         }
 
         let feed = *self.xy_jog_speed.lock().unwrap();
-        let x = step * f64::from(x_direction);
-        let y = step * f64::from(y_direction);
-        let command = format!("G91 G1 X{x:.3} Y{y:.3} F{feed:.0}");
-
-        if let Err(error) = self.api.mdi(&command) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        // Возвращаем модальный абсолютный режим; команда не содержит движения осей.
-        if let Err(error) = self.api.mdi("G90") {
-            eprintln!("[LinuxCncApi] G90 restore: {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
+        self.enqueue(Command::Mdi(format!(
+            "G91 G1 X{:.3} Y{:.3} F{feed:.0}",
+            step * f64::from(x_direction),
+            step * f64::from(y_direction),
+        )));
+        self.enqueue(Command::Mdi("G90".into()));
     }
 
     pub fn jog_axis_step(&self, axis: char, direction: i8, step: f64) {
@@ -258,17 +252,12 @@ impl CNCController {
             Axis::X | Axis::Y => *self.xy_jog_speed.lock().unwrap(),
         };
 
-        let request = crate::cnc_api::JogRequest {
+        self.enqueue(Command::JogIncrement(crate::cnc_api::JogRequest {
             axis,
             direction,
             distance: step,
             feed_rate: Some(feed_rate),
-        };
-
-        if let Err(error) = self.api.jog_increment(request) {
-            eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
-        }
-        let _ = self.refresh_status();
+        }));
     }
 
     pub fn jog_axis(&self, axis: char, direction: i8) {
@@ -276,11 +265,54 @@ impl CNCController {
         self.jog_axis_step(axis, direction, step);
     }
 
+    /// Возвращает кэшированный снимок без сетевого запроса.
     pub fn get_status_snapshot(&self) -> CNCStatus {
-        if let Err(error) = self.refresh_status() {
-            eprintln!("[LinuxCncApi] status {}: {}", error.code, error.message);
-        }
         self.status.lock().unwrap().clone()
+    }
+}
+
+fn api_worker(
+    api: LinuxCncApiClient,
+    receiver: mpsc::Receiver<Command>,
+    shared_status: Arc<Mutex<CNCStatus>>,
+) {
+    loop {
+        match receiver.recv_timeout(Duration::from_millis(50)) {
+            Ok(command) => {
+                let result = match command {
+                    Command::LoadProgram(path) => api.load_program(&path),
+                    Command::ProgramRun => api.program_run(0),
+                    Command::ProgramPause => api.program_pause(),
+                    Command::ProgramResume => api.program_resume(),
+                    Command::ProgramAbort => api.program_abort(),
+                    Command::EmergencyStop => api.estop(),
+                    Command::ResetAlarm => api.clear_error().and_then(|_| api.power_on()),
+                    Command::SelectCoordinateSystem(system) => {
+                        api.select_coordinate_system(system)
+                    }
+                    Command::SetWorkZero(system) => api.set_work_zero(system),
+                    Command::HomeAll => api.home(None),
+                    Command::Mdi(command) => api.mdi(&command),
+                    Command::Spindle(command) => api.set_spindle(command),
+                    Command::JogIncrement(request) => api.jog_increment(request),
+                };
+
+                if let Err(error) = result {
+                    eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => return,
+        }
+
+        match api.status() {
+            Ok(status) => *shared_status.lock().unwrap() = from_api_status(status),
+            Err(error) => eprintln!(
+                "[LinuxCncApi] status {}: {}",
+                error.code,
+                error.message
+            ),
+        }
     }
 }
 
@@ -300,13 +332,15 @@ fn from_api_status(status: MachineStatus) -> CNCStatus {
         } else {
             format!("{:?}", status.interpreter_state).to_uppercase()
         },
-        // Панель и инструмент показывают рабочие координаты.
         x_position: status.position.x - status.work_offset.x,
         y_position: status.position.y - status.work_offset.y,
         z_position: status.position.z - status.work_offset.z,
         machine_x: status.position.x,
         machine_y: status.position.y,
         machine_z: status.position.z,
+        machine_origin_x: -status.work_offset.x,
+        machine_origin_y: -status.work_offset.y,
+        machine_origin_z: -status.work_offset.z,
         active_coordinate_system: status.active_coordinate_system,
         coordinate_systems: status.coordinate_systems.clone(),
         feed_rate: status.feed_rate,
