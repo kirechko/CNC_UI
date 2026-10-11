@@ -1,2 +1,5 @@
 /target/
 .env
+
+# Local machine/work-coordinate offsets; do not commit real setup values.
+/config/coordinate_systems.yaml

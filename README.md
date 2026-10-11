@@ -90,6 +90,14 @@ This is **not a complete LinuxCNC interpreter**. Unsupported commands may stop p
 
 ## Coordinate systems
 
+On the emulator's first launch, it creates `config/coordinate_systems.yaml`
+with zero offsets for `G54`–`G59.3`. The emulator saves subsequent changes
+there, so the offsets persist across emulator restarts.
+
+These values are specific to the machine/setup and are ignored by Git to avoid
+committing personal work-zero settings. `config/coordinate_systems.example.yaml`
+shows the file format with zero-valued example offsets.
+
 The UI and emulator expose the LinuxCNC-style work-coordinate systems `G54`–`G59.3`. Work coordinates are distinct from machine coordinates; machine-coordinate travel limits are checked independently.
 
 ## Safety and limitations

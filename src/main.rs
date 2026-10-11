@@ -47,10 +47,10 @@ button {
 button:hover { background-color: #4a4a4a; border-color: #666; }
 button:active, button:checked { background-color: #2d2d2d; border-color: #007acc; }
 
-.jog-btn { min-width: 45px !important; min-height: 45px !important; font-size: 16px !important; font-weight: bold; padding: 0 !important; }
-.btn-z { min-width: 34px !important; min-height: 27px !important; padding: 0 !important;  font-family: inherit; font-size: 14px !important; font-weight: normal; }
-.z-direction { color: #40c4ff !important; }
-.z-gap { min-height: 8px !important; padding: 0 !important; font-size: 1px !important; }
+.jog-btn { min-width: 45px; min-height: 45px; font-size: 16px; font-weight: bold; padding: 0; }
+.btn-z { min-width: 34px; min-height: 27px; padding: 0;  font-family: inherit; font-size: 14px; font-weight: normal; }
+.z-direction { color: #40c4ff; }
+.z-gap { min-height: 8px; padding: 0; font-size: 1px; }
 
 button.suggested-action { background-color: #0e639c; color: white; border: none; }
 button.suggested-action:hover { background-color: #1177bb; }
@@ -63,7 +63,7 @@ button.destructive-action:hover { background-color: #c43030; }
 separator { background-color: #3c3c3c; min-height: 1px; }
 
 .alarm-badge {
-    color: #ff4d4f !important;
+    color: #ff4d4f;
     font-weight: bold;
 }
 

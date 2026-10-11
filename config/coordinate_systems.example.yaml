@@ -1,0 +1,20 @@
+# Example only. The emulator generates config/coordinate_systems.yaml
+# with zero offsets on first run. Real offsets depend on the machine/setup.
+- system: G54
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G55
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G56
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G57
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G58
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G59
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G59_1
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G59_2
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
+- system: G59_3
+  offset: { x: 0.0, y: 0.0, z: 0.0 }
