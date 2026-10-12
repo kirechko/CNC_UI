@@ -39,8 +39,8 @@ pub fn build_ui(app: &Application, controller: Arc<Mutex<CNCController>>) {
 
     let viewer = Arc::new(Mutex::new(GCodeViewer::new()));
 
-    // Автоматически загружаем test.nc из рабочего каталога, если файл существует.
-    let startup_gcode = PathBuf::from("test.nc");
+    // Автоматически загружаем test.gcode из рабочего каталога, если файл существует.
+    let startup_gcode = PathBuf::from("test.gcode");
     if startup_gcode.is_file() {
         let mut viewer_guard = viewer.lock().unwrap();
         viewer_guard.load_file(&startup_gcode);
