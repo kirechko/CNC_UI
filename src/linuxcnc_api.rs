@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::sync::Mutex;
 
 #[derive(Serialize)]
 struct Request<'a> {
@@ -29,19 +30,23 @@ struct RemoteError {
 
 /// Клиент собственного LinuxCNC-подобного API поверх Unix-сокета.
 /// Протокол не является NML и рассчитан на этот UI и cnc-emulator.
+struct ApiConnection {
+    reader: BufReader<UnixStream>,
+}
+
 pub struct LinuxCncApiClient {
     socket_path: PathBuf,
     timeout: Duration,
+    connection: Mutex<Option<ApiConnection>>,
 }
 
 impl LinuxCncApiClient {
     pub fn connect(path: impl AsRef<Path>) -> CncResult<Self> {
         let path = path.as_ref().to_path_buf();
-        UnixStream::connect(&path)
-            .map_err(|e| ControllerError::new("connect", format!("{}: {e}", path.display())))?;
         Ok(Self {
             socket_path: path,
             timeout: Duration::from_secs(3),
+            connection: Mutex::new(None),
         })
     }
 
@@ -51,29 +56,57 @@ impl LinuxCncApiClient {
     }
 
     fn call(&self, method: &str, args: Value) -> CncResult<Value> {
-        let mut stream = UnixStream::connect(&self.socket_path)
-            .map_err(|e| ControllerError::new("connect", e.to_string()))?;
-        stream.set_read_timeout(Some(self.timeout))
-            .map_err(|e| ControllerError::new("socket", e.to_string()))?;
-        stream.set_write_timeout(Some(self.timeout))
-            .map_err(|e| ControllerError::new("socket", e.to_string()))?;
+        let mut slot = self.connection.lock().map_err(|_| {
+            ControllerError::new("connection", "API connection lock poisoned")
+        })?;
 
-        let request = serde_json::to_vec(&Request { method, args })
-            .map_err(|e| ControllerError::new("serialize", e.to_string()))?;
-        stream.write_all(&request)
-            .and_then(|_| stream.write_all(b"\n"))
-            .map_err(|e| ControllerError::new("io", e.to_string()))?;
-
-        let mut reader = BufReader::new(stream);
-        let mut line = String::new();
-        reader.read_line(&mut line)
-            .map_err(|e| ControllerError::new("io", e.to_string()))?;
-        if line.is_empty() {
-            return Err(ControllerError::new("disconnected", "emulator closed connection"));
+        if slot.is_none() {
+            let stream = UnixStream::connect(&self.socket_path)
+                .map_err(|e| ControllerError::new("connect", e.to_string()))?;
+            stream.set_read_timeout(Some(self.timeout))
+                .map_err(|e| ControllerError::new("socket", e.to_string()))?;
+            stream.set_write_timeout(Some(self.timeout))
+                .map_err(|e| ControllerError::new("socket", e.to_string()))?;
+            *slot = Some(ApiConnection {
+                reader: BufReader::new(stream),
+            });
         }
 
-        let response: Response = serde_json::from_str(&line)
-            .map_err(|e| ControllerError::new("protocol", e.to_string()))?;
+        let connection = slot.as_mut().expect("connection was initialized");
+        let request = serde_json::to_vec(&Request { method, args })
+            .map_err(|e| ControllerError::new("serialize", e.to_string()))?;
+
+        if let Err(error) = connection.reader.get_mut()
+            .write_all(&request)
+            .and_then(|_| connection.reader.get_mut().write_all(b"\n"))
+        {
+            *slot = None;
+            return Err(ControllerError::new("io", error.to_string()));
+        }
+
+        let mut line = String::new();
+        match connection.reader.read_line(&mut line) {
+            Ok(0) => {
+                *slot = None;
+                return Err(ControllerError::new(
+                    "disconnected",
+                    "emulator closed connection",
+                ));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                *slot = None;
+                return Err(ControllerError::new("io", error.to_string()));
+            }
+        }
+
+        let response: Response = match serde_json::from_str(&line) {
+            Ok(response) => response,
+            Err(error) => {
+                *slot = None;
+                return Err(ControllerError::new("protocol", error.to_string()));
+            }
+        };
 
         if !response.ok {
             let error = response.error.unwrap_or(RemoteError {

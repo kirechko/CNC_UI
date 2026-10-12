@@ -36,6 +36,8 @@ pub struct CNCStatus {
     pub jog_step: f64,
     pub current_line: u32,
     pub total_lines: u32,
+    /// Ошибка worker для отображения в интерфейсе: (тип, текст).
+    pub ui_alert: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,7 +53,6 @@ enum Command {
     ProgramPause,
     ProgramResume,
     ProgramAbort,
-    EmergencyStop,
     ResetAlarm,
     SelectCoordinateSystem(CoordinateSystem),
     SetWorkZero(CoordinateSystem),
@@ -64,6 +65,7 @@ enum Command {
 pub struct CNCController {
     pub status: Arc<Mutex<CNCStatus>>,
     commands: mpsc::Sender<Command>,
+    emergency_stop: mpsc::Sender<()>,
     xy_jog_speed: Mutex<f64>,
     z_jog_speed: Mutex<f64>,
     spindle_speed_setpoint: Mutex<f64>,
@@ -72,16 +74,40 @@ pub struct CNCController {
 #[allow(dead_code)]
 impl CNCController {
     pub fn connect(socket_path: impl AsRef<Path>) -> CncResult<Self> {
-        // Начальное подключение до создания окна; последующие обращения — только worker.
-        let api = LinuxCncApiClient::connect(socket_path)?;
-        let initial = api.status()?;
-        let status = Arc::new(Mutex::new(from_api_status(initial)));
+        // Создаём UI-controller без сетевых вызовов. Подключение и status poll
+        // выполняются только в worker, поэтому окно может открыться без эмулятора.
+        let socket_path = socket_path.as_ref().to_path_buf();
+        let status = Arc::new(Mutex::new(initial_disconnected_status()));
         let worker_status = status.clone();
         let (commands, receiver) = mpsc::channel();
+        let (emergency_stop, emergency_receiver) = mpsc::channel();
 
         thread::Builder::new()
             .name("cnc-api-worker".into())
-            .spawn(move || api_worker(api, receiver, worker_status))
+            .spawn(move || loop {
+                match LinuxCncApiClient::connect(&socket_path) {
+                    Ok(api) => match api.status() {
+                        Ok(initial_status) => {
+                            *worker_status.lock().unwrap() = from_api_status(initial_status);
+                            api_worker(
+                                api,
+                                receiver,
+                                emergency_receiver,
+                                worker_status.clone(),
+                            );
+                            return;
+                        }
+                        Err(error) => {
+                            set_ui_alert(&worker_status, &error.code, &error.message);
+                            thread::sleep(Duration::from_secs(1));
+                        }
+                    },
+                    Err(error) => {
+                        set_ui_alert(&worker_status, &error.code, &error.message);
+                        thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            })
             .map_err(|error| {
                 crate::cnc_api::ControllerError::new("worker", error.to_string())
             })?;
@@ -89,6 +115,7 @@ impl CNCController {
         Ok(Self {
             status,
             commands,
+            emergency_stop,
             xy_jog_speed: Mutex::new(1000.0),
             z_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
@@ -131,7 +158,9 @@ impl CNCController {
     }
 
     pub fn emergency_stop(&self) {
-        self.enqueue(Command::EmergencyStop);
+        if let Err(error) = self.emergency_stop.send(()) {
+            eprintln!("[LinuxCncApi] emergency-stop worker unavailable: {error}");
+        }
     }
 
     pub fn reset_alarm(&self) {
@@ -271,21 +300,63 @@ impl CNCController {
     }
 }
 
+fn error_alert(code: &str, message: &str) -> (String, String) {
+    let kind = match code {
+        "soft_limit" => "axis_limit",
+        "connect" | "connection" | "io" | "socket" | "disconnected" => "connection",
+        _ => "command_rejected",
+    };
+    (kind.to_string(), message.to_string())
+}
+
+fn set_ui_alert(
+    shared_status: &Arc<Mutex<CNCStatus>>,
+    code: &str,
+    message: &str,
+) {
+    shared_status.lock().unwrap().ui_alert =
+        Some(error_alert(code, message));
+}
+
 fn api_worker(
     api: LinuxCncApiClient,
     receiver: mpsc::Receiver<Command>,
+    emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
 ) {
     loop {
-        match receiver.recv_timeout(Duration::from_millis(50)) {
+        // E-Stop проверяется раньше обычной очереди.
+        match emergency_receiver.try_recv() {
+            Ok(()) => {
+                // Отбросить команды, накопившиеся до аварийной остановки.
+                while receiver.try_recv().is_ok() {}
+                if let Err(error) = api.estop() {
+                    eprintln!("[LinuxCncApi] E-Stop failed: {error:?}");
+                    set_ui_alert(&shared_status, &error.code, &error.message);
+                }
+                continue;
+            }
+            Err(mpsc::TryRecvError::Disconnected) => return,
+            Err(mpsc::TryRecvError::Empty) => {}
+        }
+
+        match receiver.recv_timeout(Duration::from_millis(10)) {
             Ok(command) => {
+                // E-Stop мог прийти, пока worker ожидал обычную команду.
+                if emergency_receiver.try_recv().is_ok() {
+                    while receiver.try_recv().is_ok() {}
+                    if let Err(error) = api.estop() {
+                        eprintln!("[LinuxCncApi] E-Stop failed: {error:?}");
+                        set_ui_alert(&shared_status, &error.code, &error.message);
+                    }
+                    continue;
+                }
                 let result = match command {
                     Command::LoadProgram(path) => api.load_program(&path),
                     Command::ProgramRun => api.program_run(0),
                     Command::ProgramPause => api.program_pause(),
                     Command::ProgramResume => api.program_resume(),
                     Command::ProgramAbort => api.program_abort(),
-                    Command::EmergencyStop => api.estop(),
                     Command::ResetAlarm => api.clear_error().and_then(|_| api.power_on()),
                     Command::SelectCoordinateSystem(system) => {
                         api.select_coordinate_system(system)
@@ -297,8 +368,14 @@ fn api_worker(
                     Command::JogIncrement(request) => api.jog_increment(request),
                 };
 
-                if let Err(error) = result {
-                    eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
+                match result {
+                    Ok(()) => {
+                        shared_status.lock().unwrap().ui_alert = None;
+                    }
+                    Err(error) => {
+                        eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
+                        set_ui_alert(&shared_status, &error.code, &error.message);
+                    }
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -306,13 +383,55 @@ fn api_worker(
         }
 
         match api.status() {
-            Ok(status) => *shared_status.lock().unwrap() = from_api_status(status),
-            Err(error) => eprintln!(
-                "[LinuxCncApi] status {}: {}",
-                error.code,
-                error.message
-            ),
+            Ok(status) => {
+                let mut fresh = from_api_status(status);
+                let mut current = shared_status.lock().unwrap();
+                if let Some((kind, _)) = current.ui_alert.as_ref() {
+                    if kind != "connection" {
+                        fresh.ui_alert = current.ui_alert.clone();
+                    }
+                }
+                *current = fresh;
+            }
+            Err(error) => {
+                eprintln!("[LinuxCncApi] status {}: {}", error.code, error.message);
+                set_ui_alert(&shared_status, "connection", &error.message);
+            }
         }
+    }
+}
+
+fn initial_disconnected_status() -> CNCStatus {
+    CNCStatus {
+        mode: "MANUAL".into(),
+        state: "DISCONNECTED".into(),
+        x_position: 0.0,
+        y_position: 0.0,
+        z_position: 0.0,
+        machine_x: 0.0,
+        machine_y: 0.0,
+        machine_z: 0.0,
+        machine_origin_x: 0.0,
+        machine_origin_y: 0.0,
+        machine_origin_z: 0.0,
+        active_coordinate_system: CoordinateSystem::G54,
+        coordinate_systems: Vec::new(),
+        feed_rate: 0.0,
+        spindle_speed: 0.0,
+        spindle_actual_speed: 0.0,
+        spindle_max_speed: 0.0,
+        mist_coolant_on: false,
+        flood_coolant_on: false,
+        message: Some("Waiting for CNC emulator connection".into()),
+        spindle_on: false,
+        spindle_direction: SpindleDirection::Off,
+        jog_step: 1.0,
+        current_line: 0,
+        total_lines: 0,
+        ui_alert: Some((
+            "connection".into(),
+            "Waiting for CNC emulator connection".into(),
+        )),
     }
 }
 
@@ -355,5 +474,6 @@ fn from_api_status(status: MachineStatus) -> CNCStatus {
         jog_step: 1.0,
         current_line: status.current_line,
         total_lines: status.total_lines,
+        ui_alert: None,
     }
 }
