@@ -189,21 +189,8 @@ impl Emulator {
                 Ok(Value::Null)
             }
 
-            "select_coordinate_system" => {
-                let system: CoordinateSystem = serde_json::from_value(
-                    args.get("system").cloned().unwrap_or(Value::Null)
-                ).map_err(|e| api_error("bad_request", e.to_string()))?;
-                self.select_coordinate_system(system);
-                Ok(Value::Null)
-            }
-
-            "set_work_zero" => {
-                let system: CoordinateSystem = serde_json::from_value(
-                    args.get("system").cloned().unwrap_or(Value::Null)
-                ).map_err(|e| api_error("bad_request", e.to_string()))?;
-                self.set_selected_work_zero(system)?;
-                Ok(Value::Null)
-            }
+            "select_coordinate_system" => commands::select_coordinate_system(self, args),
+            "set_work_zero" => commands::set_work_zero(self, args),
 
             "home" => {
                 self.ensure_motion_allowed()?;
