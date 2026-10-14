@@ -1,6 +1,6 @@
-use super::Emulator;
 use super::super::dynamics::{ActiveMove, Motion};
 use super::super::protocol::{api_error, Request, WireError};
+use super::Emulator;
 use crate::cnc_api::*;
 use serde_json::Value;
 
@@ -13,10 +13,7 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
             if let Some(object) = logged_args.as_object_mut() {
                 if let Some(content) = object.remove("content") {
                     let byte_count = content.as_str().map(str::len).unwrap_or(0);
-                    object.insert(
-                        "content_bytes".into(),
-                        Value::from(byte_count as u64),
-                    );
+                    object.insert("content_bytes".into(), Value::from(byte_count as u64));
                 }
             }
         }
@@ -63,10 +60,7 @@ pub(super) fn mdi(emulator: &mut Emulator, args: Value) -> Result<Value, WireErr
     Ok(Value::Null)
 }
 
-pub(super) fn program_run(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn program_run(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     emulator.ensure_motion_allowed()?;
     if emulator.stop_retract_active || emulator.active_move.is_some() {
         return Err(api_error(
@@ -74,10 +68,7 @@ pub(super) fn program_run(
             "cannot start while stop retract is active",
         ));
     }
-    let start = args
-        .get("start_line")
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as usize;
+    let start = args.get("start_line").and_then(Value::as_u64).unwrap_or(0) as usize;
     if emulator.program.is_empty() || start > emulator.program.len() {
         return Err(api_error(
             "bad_program",
@@ -165,10 +156,7 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
     Ok(Value::Null)
 }
 
-pub(super) fn set_spindle(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn set_spindle(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     if emulator.status.task_state != TaskState::On {
         return Err(api_error(
             "machine_not_ready",
@@ -176,10 +164,9 @@ pub(super) fn set_spindle(
         ));
     }
 
-    let command: SpindleCommand = serde_json::from_value(
-        args.get("command").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    let command: SpindleCommand =
+        serde_json::from_value(args.get("command").cloned().unwrap_or(Value::Null))
+            .map_err(|error| api_error("bad_request", error.to_string()))?;
     if !command.rpm.is_finite() || command.rpm < 0.0 {
         return Err(api_error(
             "bad_spindle",
@@ -215,10 +202,7 @@ pub(super) fn power_on(emulator: &mut Emulator) -> Result<Value, WireError> {
     Ok(Value::Null)
 }
 
-pub(super) fn power_off(
-    emulator: &mut Emulator,
-    emergency_stop: bool,
-) -> Result<Value, WireError> {
+pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result<Value, WireError> {
     emulator.dwell_remaining = 0.0;
     emulator.status.task_state = if emergency_stop {
         TaskState::Estop
@@ -258,32 +242,24 @@ pub(super) fn select_coordinate_system(
     emulator: &mut Emulator,
     args: Value,
 ) -> Result<Value, WireError> {
-    let system: crate::cnc_api::CoordinateSystem = serde_json::from_value(
-        args.get("system").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    let system: crate::cnc_api::CoordinateSystem =
+        serde_json::from_value(args.get("system").cloned().unwrap_or(Value::Null))
+            .map_err(|error| api_error("bad_request", error.to_string()))?;
 
     emulator.select_coordinate_system(system);
     Ok(Value::Null)
 }
 
-pub(super) fn set_work_zero(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
-    let system: crate::cnc_api::CoordinateSystem = serde_json::from_value(
-        args.get("system").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|error| api_error("bad_request", error.to_string()))?;
+pub(super) fn set_work_zero(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
+    let system: crate::cnc_api::CoordinateSystem =
+        serde_json::from_value(args.get("system").cloned().unwrap_or(Value::Null))
+            .map_err(|error| api_error("bad_request", error.to_string()))?;
 
     emulator.set_selected_work_zero(system)?;
     Ok(Value::Null)
 }
 
-pub(super) fn load_program(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn load_program(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     let name = args
         .get("name")
         .and_then(Value::as_str)
@@ -304,10 +280,7 @@ pub(super) fn load_program(
     Ok(Value::Null)
 }
 
-pub(super) fn jog_increment(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn jog_increment(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     emulator.ensure_motion_allowed()?;
     if emulator.active_move.is_some() {
         return Err(api_error(
@@ -316,10 +289,9 @@ pub(super) fn jog_increment(
         ));
     }
 
-    let request: JogRequest = serde_json::from_value(
-        args.get("request").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    let request: JogRequest =
+        serde_json::from_value(args.get("request").cloned().unwrap_or(Value::Null))
+            .map_err(|error| api_error("bad_request", error.to_string()))?;
 
     if ![-1, 1].contains(&request.direction)
         || !request.distance.is_finite()
@@ -359,15 +331,10 @@ pub(super) fn jog_increment(
     Ok(Value::Null)
 }
 
-pub(super) fn jog_continuous(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn jog_continuous(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     emulator.ensure_motion_allowed()?;
-    let axis: Axis = serde_json::from_value(
-        args.get("axis").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    let axis: Axis = serde_json::from_value(args.get("axis").cloned().unwrap_or(Value::Null))
+        .map_err(|error| api_error("bad_request", error.to_string()))?;
     let direction = args.get("direction").and_then(Value::as_i64).unwrap_or(0) as i8;
     let feed = args.get("feed_rate").and_then(Value::as_f64).unwrap_or(0.0);
 
@@ -375,10 +342,7 @@ pub(super) fn jog_continuous(
         emulator.continuous_jog = None;
         emulator.jog_velocity = 0.0;
     } else if ![-1, 1].contains(&direction) || !feed.is_finite() || feed <= 0.0 {
-        return Err(api_error(
-            "bad_jog",
-            "invalid continuous jog parameters",
-        ));
+        return Err(api_error("bad_jog", "invalid continuous jog parameters"));
     } else {
         let feed = feed.min(emulator.config.axis(axis).max_velocity_mm_min);
         emulator.continuous_jog = Some((axis, direction, feed));
@@ -387,10 +351,7 @@ pub(super) fn jog_continuous(
     Ok(Value::Null)
 }
 
-pub(super) fn home(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn home(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     emulator.ensure_motion_allowed()?;
     if emulator.active_move.is_some()
         || emulator.continuous_jog.is_some()
@@ -403,10 +364,9 @@ pub(super) fn home(
         ));
     }
 
-    let requested: Option<crate::cnc_api::Axis> = serde_json::from_value(
-        args.get("axis").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    let requested: Option<crate::cnc_api::Axis> =
+        serde_json::from_value(args.get("axis").cloned().unwrap_or(Value::Null))
+            .map_err(|error| api_error("bad_request", error.to_string()))?;
 
     emulator.homing_queue = match requested {
         Some(axis) => vec![axis],
@@ -429,7 +389,10 @@ pub(super) fn home(
 impl Emulator {
     pub(super) fn ensure_motion_allowed(&self) -> Result<(), WireError> {
         if self.status.task_state != TaskState::On {
-            return Err(api_error("machine_off", "virtual machine is not powered on"));
+            return Err(api_error(
+                "machine_off",
+                "virtual machine is not powered on",
+            ));
         }
         Ok(())
     }

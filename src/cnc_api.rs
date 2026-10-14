@@ -1,5 +1,5 @@
-use std::path::Path;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Axis {
@@ -62,8 +62,15 @@ pub enum CoordinateSystem {
 
 impl CoordinateSystem {
     pub const ALL: [Self; 9] = [
-        Self::G54, Self::G55, Self::G56, Self::G57, Self::G58,
-        Self::G59, Self::G59_1, Self::G59_2, Self::G59_3,
+        Self::G54,
+        Self::G55,
+        Self::G56,
+        Self::G57,
+        Self::G58,
+        Self::G59,
+        Self::G59_1,
+        Self::G59_2,
+        Self::G59_3,
     ];
 
     pub fn label(self) -> &'static str {
@@ -190,12 +197,7 @@ pub trait LinuxCncApi: Send + Sync {
     fn jog_increment(&self, request: JogRequest) -> CncResult<()>;
 
     /// Непрерывный Jog; direction=0 завершает движение.
-    fn jog_continuous(
-        &self,
-        axis: Axis,
-        direction: i8,
-        feed_rate: f64,
-    ) -> CncResult<()>;
+    fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()>;
 
     /// Отправка одной MDI-команды G-code.
     fn mdi(&self, command: &str) -> CncResult<()>;

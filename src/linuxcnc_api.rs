@@ -4,8 +4,8 @@ use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 use std::sync::Mutex;
+use std::time::Duration;
 
 #[derive(Serialize)]
 struct Request<'a> {
@@ -56,16 +56,19 @@ impl LinuxCncApiClient {
     }
 
     fn call(&self, method: &str, args: Value) -> CncResult<Value> {
-        let mut slot = self.connection.lock().map_err(|_| {
-            ControllerError::new("connection", "API connection lock poisoned")
-        })?;
+        let mut slot = self
+            .connection
+            .lock()
+            .map_err(|_| ControllerError::new("connection", "API connection lock poisoned"))?;
 
         if slot.is_none() {
             let stream = UnixStream::connect(&self.socket_path)
                 .map_err(|e| ControllerError::new("connect", e.to_string()))?;
-            stream.set_read_timeout(Some(self.timeout))
+            stream
+                .set_read_timeout(Some(self.timeout))
                 .map_err(|e| ControllerError::new("socket", e.to_string()))?;
-            stream.set_write_timeout(Some(self.timeout))
+            stream
+                .set_write_timeout(Some(self.timeout))
                 .map_err(|e| ControllerError::new("socket", e.to_string()))?;
             *slot = Some(ApiConnection {
                 reader: BufReader::new(stream),
@@ -76,7 +79,9 @@ impl LinuxCncApiClient {
         let request = serde_json::to_vec(&Request { method, args })
             .map_err(|e| ControllerError::new("serialize", e.to_string()))?;
 
-        if let Err(error) = connection.reader.get_mut()
+        if let Err(error) = connection
+            .reader
+            .get_mut()
             .write_all(&request)
             .and_then(|_| connection.reader.get_mut().write_all(b"\n"))
         {
@@ -127,8 +132,7 @@ impl LinuxCncApiClient {
 impl LinuxCncApi for LinuxCncApiClient {
     fn status(&self) -> CncResult<MachineStatus> {
         let value = self.call("status", json!({}))?;
-        serde_json::from_value(value)
-            .map_err(|e| ControllerError::new("protocol", e.to_string()))
+        serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
     }
 
     fn power_on(&self) -> CncResult<()> {
@@ -173,7 +177,8 @@ impl LinuxCncApi for LinuxCncApiClient {
     fn load_program(&self, path: &Path) -> CncResult<()> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| ControllerError::new("program_read", e.to_string()))?;
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("program.ngc");
         self.unit("load_program", json!({ "name": name, "content": content }))
