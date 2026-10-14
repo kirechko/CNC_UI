@@ -4,9 +4,7 @@ mod event_log;
 mod status_controls;
 use super::*;
 
-pub(super) fn create_status_panel(
-    controller: Arc<Mutex<CNCController>>,
-) -> (GtkBox, GtkBox) {
+pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (GtkBox, GtkBox) {
     let pos_box = GtkBox::new(Orientation::Vertical, 5);
     let header = GtkBox::new(Orientation::Horizontal, 10);
 
@@ -140,9 +138,8 @@ pub(super) fn create_status_panel(
     log_row.append(&log_button);
     log_row.append(&latest_event);
 
-    gtk4::glib::timeout_add_local(
-        std::time::Duration::from_millis(200),
-        move || update_status_indicators(
+    gtk4::glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
+        update_status_indicators(
             status_controller.clone(),
             status_values.clone(),
             status_machine_values.clone(),
@@ -154,9 +151,8 @@ pub(super) fn create_status_panel(
             event_log_poll.clone(),
             last_event_poll.clone(),
             latest_event_poll.clone(),
-        ),
-    );
-
+        )
+    });
 
     pos_box.append(&status_controls::create_machine_controls(
         controller.clone(),
@@ -165,7 +161,6 @@ pub(super) fn create_status_panel(
 
     (pos_box, log_row)
 }
-
 
 fn update_status_indicators(
     status_controller: Arc<Mutex<CNCController>>,
@@ -180,90 +175,86 @@ fn update_status_indicators(
     last_event_poll: Rc<RefCell<Option<String>>>,
     latest_event_poll: Label,
 ) -> gtk4::glib::ControlFlow {
-    let status = status_controller
-                    .lock()
-                    .unwrap()
-                    .get_status_snapshot();
-    
-                status_values[0].set_text(&format!("{:.3}", status.x_position));
-                status_values[1].set_text(&format!("{:.3}", status.y_position));
-                status_values[2].set_text(&format!("{:.3}", status.z_position));
-                status_machine_values[0].set_text(&format!("{:.3}", status.machine_x));
-                status_machine_values[1].set_text(&format!("{:.3}", status.machine_y));
-                status_machine_values[2].set_text(&format!("{:.3}", status.machine_z));
-    
-                let active_id = status.active_coordinate_system.label();
-                if status_coordinate_combo.active_id().as_deref() != Some(active_id) {
-                    status_coordinate_combo.set_active_id(Some(active_id));
-                }
-    
-                let spindle_text = match status.spindle_direction {
-                    SpindleDirection::CW => "CW",
-                    SpindleDirection::CCW => "CCW",
-                    SpindleDirection::Off => "Stopped",
-                };
-                spindle_status.set_text(&format!(
-                    "{} · {:.0} RPM",
-                    spindle_text,
-                    status.spindle_actual_speed
-                ));
-    
-                for (led, active) in [
-                    (&mist_led_poll, status.mist_coolant_on),
-                    (&flood_led_poll, status.flood_coolant_on),
-                ] {
-                    if active {
-                        led.add_css_class("coolant-led-on");
-                    } else {
-                        led.remove_css_class("coolant-led-on");
-                    }
-                }
-    
-                if let Some(message) = status.message.as_ref() {
-                    if last_event_poll.borrow().as_ref() != Some(message) {
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs();
-                        let timestamp = now % 86_400;
-                        let entry = format!(
-                            "{:02}:{:02}:{:02}  {}",
-                            timestamp / 3600,
-                            (timestamp / 60) % 60,
-                            timestamp % 60,
-                            message
-                        );
-                        let mut history = event_log_poll.borrow_mut();
-                        history.push(entry.clone());
-                        if history.len() > 1000 {
-                            history.remove(0);
-                        }
-                        latest_event_poll.set_text(&entry);
-                        *last_event_poll.borrow_mut() = Some(message.clone());
-                    }
-                }
-    
-                if let Some((kind, message)) = status.ui_alert.as_ref() {
-                    let title = match kind.as_str() {
-                        "connection" => "Нет связи",
-                        "axis_limit" => "Лимит оси",
-                        _ => "Команда отклонена",
-                    };
-                    status_badge.set_text(&format!("● {title}: {message}"));
-                    status_badge.add_css_class("alarm-badge");
-                } else if status.state == "ALARM" {
-                    status_badge.set_markup("<span foreground='#ff4d4f'>● ALARM</span>");
-                    status_badge.add_css_class("alarm-badge");
-                } else {
-                    let display_state = match status.state.as_str() {
-                        "READING" => "RUNNING",
-                        "PAUSED" => "PAUSED",
-                        "IDLE" => "IDLE",
-                        other => other,
-                    };
-                    status_badge.set_text(&format!("● {}", display_state));
-                    status_badge.remove_css_class("alarm-badge");
-                }
-    
-                gtk4::glib::ControlFlow::Continue
+    let status = status_controller.lock().unwrap().get_status_snapshot();
+
+    status_values[0].set_text(&format!("{:.3}", status.x_position));
+    status_values[1].set_text(&format!("{:.3}", status.y_position));
+    status_values[2].set_text(&format!("{:.3}", status.z_position));
+    status_machine_values[0].set_text(&format!("{:.3}", status.machine_x));
+    status_machine_values[1].set_text(&format!("{:.3}", status.machine_y));
+    status_machine_values[2].set_text(&format!("{:.3}", status.machine_z));
+
+    let active_id = status.active_coordinate_system.label();
+    if status_coordinate_combo.active_id().as_deref() != Some(active_id) {
+        status_coordinate_combo.set_active_id(Some(active_id));
+    }
+
+    let spindle_text = match status.spindle_direction {
+        SpindleDirection::CW => "CW",
+        SpindleDirection::CCW => "CCW",
+        SpindleDirection::Off => "Stopped",
+    };
+    spindle_status.set_text(&format!(
+        "{} · {:.0} RPM",
+        spindle_text, status.spindle_actual_speed
+    ));
+
+    for (led, active) in [
+        (&mist_led_poll, status.mist_coolant_on),
+        (&flood_led_poll, status.flood_coolant_on),
+    ] {
+        if active {
+            led.add_css_class("coolant-led-on");
+        } else {
+            led.remove_css_class("coolant-led-on");
+        }
+    }
+
+    if let Some(message) = status.message.as_ref() {
+        if last_event_poll.borrow().as_ref() != Some(message) {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let timestamp = now % 86_400;
+            let entry = format!(
+                "{:02}:{:02}:{:02}  {}",
+                timestamp / 3600,
+                (timestamp / 60) % 60,
+                timestamp % 60,
+                message
+            );
+            let mut history = event_log_poll.borrow_mut();
+            history.push(entry.clone());
+            if history.len() > 1000 {
+                history.remove(0);
+            }
+            latest_event_poll.set_text(&entry);
+            *last_event_poll.borrow_mut() = Some(message.clone());
+        }
+    }
+
+    if let Some((kind, message)) = status.ui_alert.as_ref() {
+        let title = match kind.as_str() {
+            "connection" => "Нет связи",
+            "axis_limit" => "Лимит оси",
+            _ => "Команда отклонена",
+        };
+        status_badge.set_text(&format!("● {title}: {message}"));
+        status_badge.add_css_class("alarm-badge");
+    } else if status.state == "ALARM" {
+        status_badge.set_markup("<span foreground='#ff4d4f'>● ALARM</span>");
+        status_badge.add_css_class("alarm-badge");
+    } else {
+        let display_state = match status.state.as_str() {
+            "READING" => "RUNNING",
+            "PAUSED" => "PAUSED",
+            "IDLE" => "IDLE",
+            other => other,
+        };
+        status_badge.set_text(&format!("● {}", display_state));
+        status_badge.remove_css_class("alarm-badge");
+    }
+
+    gtk4::glib::ControlFlow::Continue
 }
