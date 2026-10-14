@@ -10,15 +10,15 @@ pub(super) enum GWordAction {
 
 pub(super) fn handle_g_word(emulator: &mut Emulator, value: f64) -> Result<GWordAction, WireError> {
     if (value - 59.1).abs() < 1e-6 {
-        emulator.select_coordinate_system(CoordinateSystem::G59_1);
+        emulator.select_coordinate_system_from_gcode(CoordinateSystem::G59_1);
         return Ok(GWordAction::Handled);
     }
     if (value - 59.2).abs() < 1e-6 {
-        emulator.select_coordinate_system(CoordinateSystem::G59_2);
+        emulator.select_coordinate_system_from_gcode(CoordinateSystem::G59_2);
         return Ok(GWordAction::Handled);
     }
     if (value - 59.3).abs() < 1e-6 {
-        emulator.select_coordinate_system(CoordinateSystem::G59_3);
+        emulator.select_coordinate_system_from_gcode(CoordinateSystem::G59_3);
         return Ok(GWordAction::Handled);
     }
 
@@ -27,27 +27,27 @@ pub(super) fn handle_g_word(emulator: &mut Emulator, value: f64) -> Result<GWord
         4 => Ok(GWordAction::Dwell),
         17 | 21 => Ok(GWordAction::Handled),
         54 => {
-            emulator.select_coordinate_system(CoordinateSystem::G54);
+            emulator.select_coordinate_system_from_gcode(CoordinateSystem::G54);
             Ok(GWordAction::Handled)
         }
         55 => {
-            emulator.select_coordinate_system(CoordinateSystem::G55);
+            emulator.select_coordinate_system_from_gcode(CoordinateSystem::G55);
             Ok(GWordAction::Handled)
         }
         56 => {
-            emulator.select_coordinate_system(CoordinateSystem::G56);
+            emulator.select_coordinate_system_from_gcode(CoordinateSystem::G56);
             Ok(GWordAction::Handled)
         }
         57 => {
-            emulator.select_coordinate_system(CoordinateSystem::G57);
+            emulator.select_coordinate_system_from_gcode(CoordinateSystem::G57);
             Ok(GWordAction::Handled)
         }
         58 => {
-            emulator.select_coordinate_system(CoordinateSystem::G58);
+            emulator.select_coordinate_system_from_gcode(CoordinateSystem::G58);
             Ok(GWordAction::Handled)
         }
         59 => {
-            emulator.select_coordinate_system(CoordinateSystem::G59);
+            emulator.select_coordinate_system_from_gcode(CoordinateSystem::G59);
             Ok(GWordAction::Handled)
         }
         90 => {
@@ -131,7 +131,7 @@ pub(super) fn handle_g10_l2(
             .push(CoordinateSystemOffset { system, offset });
     }
 
-    emulator.persist_coordinate_offsets()?;
+    emulator.persist_coordinate_offsets_from_gcode()?;
     emulator.status.message = Some(format!("G10 L2 {} offset saved", system.label()));
     Ok(())
 }

@@ -1,7 +1,6 @@
 use super::dynamics::{ActiveMove, Motion};
 use super::protocol::{api_error, Request, WireError};
 use serde_json::Value;
-use std::fs;
 
 use super::config::EmulatorConfig;
 use crate::cnc_api::*;
@@ -118,9 +117,13 @@ impl Emulator {
         Ok(())
     }
 
+    pub(super) fn select_coordinate_system_from_gcode(&mut self, system: CoordinateSystem) {
+        self.select_coordinate_system(system);
+    }
 
-
-
+    pub(super) fn persist_coordinate_offsets_from_gcode(&self) -> Result<(), WireError> {
+        self.persist_coordinate_offsets()
+    }
 
     pub(super) fn handle(&mut self, request: Request) -> Result<Value, WireError> {
         if request.method != "status" {
