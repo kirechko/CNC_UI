@@ -1,4 +1,4 @@
-pub(super) fn parse_words(line: &str) -> Vec<(char, f64)> {
+pub fn parse_words(line: &str) -> Vec<(char, f64)> {
     let chars: Vec<char> = line.chars().collect();
     let mut words = Vec::new();
     let mut i = 0;
