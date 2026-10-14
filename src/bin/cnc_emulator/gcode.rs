@@ -1,17 +1,24 @@
+mod accessories;
+mod coordinates;
+mod execute;
+mod motion;
 mod parser;
 
 pub(super) fn parse_words(line: &str) -> Vec<(char, f64)> {
     parser::parse_words(line)
 }
 
-use super::dynamics::ActiveMove;
-use super::protocol::{api_error, WireError};
+use super::protocol::WireError;
 use super::state::Emulator;
 use crate::cnc_api::*;
-use std::f64::consts::PI;
 
 impl Emulator {
     pub(super) fn execute_gcode(&mut self, line: &str) -> Result<(), WireError> {
+        execute::execute_gcode(self, line)
+    }
+
+    #[cfg(any())]
+    fn execute_gcode_legacy(&mut self, line: &str) -> Result<(), WireError> {
         let upper = line.to_ascii_uppercase();
         if upper.contains("G59.1") {
             self.select_coordinate_system(CoordinateSystem::G59_1);
@@ -272,38 +279,7 @@ impl Emulator {
     }
 
     pub(super) fn set_spindle(&mut self, direction: SpindleDirection, rpm: Option<f64>) {
-        let requested_rpm = rpm.unwrap_or(self.status.spindle.commanded_rpm)
-            .clamp(0.0, self.config.spindle.max_rpm);
-
-        if direction == SpindleDirection::Stopped || requested_rpm <= 0.0 {
-            // STOP отменяет ожидающее реверсирование и начинает торможение.
-            self.pending_spindle = None;
-            self.status.spindle.commanded_rpm = 0.0;
-
-            if self.status.spindle.actual_rpm <= 0.01 {
-                self.status.spindle.actual_rpm = 0.0;
-                self.status.spindle.direction = SpindleDirection::Stopped;
-                self.status.spindle.enabled = false;
-            } else {
-                self.status.spindle.enabled = true;
-            }
-            return;
-        }
-
-        let current_direction = self.status.spindle.direction;
-        let is_running = self.status.spindle.actual_rpm > 0.01;
-
-        if is_running && current_direction != direction {
-            // Сначала тормозим до нуля. Tick запустит новый разгон после остановки.
-            self.pending_spindle = Some((direction, requested_rpm));
-            self.status.spindle.commanded_rpm = 0.0;
-            self.status.spindle.enabled = true;
-        } else {
-            self.pending_spindle = None;
-            self.status.spindle.direction = direction;
-            self.status.spindle.commanded_rpm = requested_rpm;
-            self.status.spindle.enabled = true;
-        }
+        accessories::set_spindle(self, direction, rpm);
     }
 }
 
