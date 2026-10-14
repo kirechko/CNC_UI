@@ -441,7 +441,7 @@ mod parse_words_coverage_tests {
 
 #[cfg(test)]
 mod execute_gcode_linear_motion_tests {
-    use super::{test_emulator, Emulator};
+    use super::test_emulator;
 
     #[test]
     fn g0_creates_rapid_move_to_requested_target() {
