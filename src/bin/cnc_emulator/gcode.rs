@@ -15,9 +15,6 @@ pub(super) mod test_support;
 #[cfg(test)]
 pub(super) use test_support::test_emulator;
 
-pub(super) fn parse_words(line: &str) -> Vec<(char, f64)> {
-    parser::parse_words(line)
-}
 
 use super::protocol::WireError;
 use super::state::Emulator;
