@@ -4,6 +4,159 @@ use super::super::protocol::{api_error, WireError};
 use crate::cnc_api::*;
 use serde_json::Value;
 
+pub(super) fn mdi(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
+    emulator.ensure_motion_allowed()?;
+    emulator.status.task_mode = TaskMode::Mdi;
+    emulator.execute_gcode(args.get("command").and_then(Value::as_str).unwrap_or(""))?;
+    Ok(Value::Null)
+}
+
+pub(super) fn program_run(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    emulator.ensure_motion_allowed()?;
+    if emulator.stop_retract_active || emulator.active_move.is_some() {
+        return Err(api_error(
+            "motion_busy",
+            "cannot start while stop retract is active",
+        ));
+    }
+    let start = args
+        .get("start_line")
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as usize;
+    if emulator.program.is_empty() || start > emulator.program.len() {
+        return Err(api_error(
+            "bad_program",
+            "no program loaded or invalid start line",
+        ));
+    }
+    emulator.status.current_line = start as u32;
+    emulator.status.task_mode = TaskMode::Auto;
+    emulator.status.interpreter_state = InterpreterState::Reading;
+    emulator.status.message = Some("Program running".into());
+    Ok(Value::Null)
+}
+
+pub(super) fn program_pause(emulator: &mut Emulator) -> Result<Value, WireError> {
+    if emulator.status.interpreter_state == InterpreterState::Reading
+        && !emulator.stop_retract_active
+    {
+        emulator.status.interpreter_state = InterpreterState::Paused;
+        emulator.status.message = Some("Program paused".into());
+    }
+    Ok(Value::Null)
+}
+
+pub(super) fn program_resume(emulator: &mut Emulator) -> Result<Value, WireError> {
+    if emulator.status.interpreter_state == InterpreterState::Paused {
+        emulator.status.interpreter_state = InterpreterState::Reading;
+    }
+    Ok(Value::Null)
+}
+
+pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError> {
+    emulator.dwell_remaining = 0.0;
+    emulator.status.interpreter_state = InterpreterState::Idle;
+    emulator.status.current_line = 0;
+    emulator.active_move = None;
+    emulator.continuous_jog = None;
+    emulator.jog_velocity = 0.0;
+
+    // STOP принудительно гасит шпиндель, не выполняя ramp-down.
+    emulator.pending_spindle = None;
+    emulator.status.spindle.commanded_rpm = 0.0;
+    emulator.status.spindle.actual_rpm = 0.0;
+    emulator.status.spindle.direction = SpindleDirection::Stopped;
+    emulator.status.spindle.enabled = false;
+    emulator.status.mist_coolant_on = false;
+    emulator.status.flood_coolant_on = false;
+
+    emulator.stop_retract_active = false;
+    if let Some(safe_machine_z) = emulator.last_rapid_z {
+        let mut target = emulator.position_array();
+        target[2] = safe_machine_z;
+        if emulator.check_target(target).is_ok()
+            && (target[2] - emulator.status.position.z).abs() > 1e-6
+        {
+            let rapid_feed = emulator.config.axes.z.max_velocity_mm_min;
+            match Motion::new(
+                emulator.position_array(),
+                target,
+                rapid_feed,
+                true,
+                &emulator.config,
+            ) {
+                Ok(Some(motion)) => {
+                    emulator.active_move = Some(ActiveMove::from_motion(motion));
+                    emulator.stop_retract_active = true;
+                    emulator.status.message = Some(format!(
+                        "Program stopped; retracting Z to {:.3} mm",
+                        safe_machine_z - emulator.status.work_offset.z
+                    ));
+                    return Ok(Value::Null);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    emulator.status.message = Some(format!(
+                        "Program stopped; retract failed: {}",
+                        error.message
+                    ));
+                    return Ok(Value::Null);
+                }
+            }
+        }
+    }
+
+    emulator.status.message = Some("Program stopped; no retract required".into());
+    Ok(Value::Null)
+}
+
+pub(super) fn set_spindle(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    if emulator.status.task_state != TaskState::On {
+        return Err(api_error(
+            "machine_not_ready",
+            "spindle command rejected while machine is in Alarm or powered off",
+        ));
+    }
+
+    let command: SpindleCommand = serde_json::from_value(
+        args.get("command").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    if !command.rpm.is_finite() || command.rpm < 0.0 {
+        return Err(api_error(
+            "bad_spindle",
+            "RPM must be finite and non-negative",
+        ));
+    }
+    if command.rpm > emulator.config.spindle.max_rpm {
+        return Err(api_error(
+            "spindle_limit",
+            format!(
+                "requested {:.0} RPM exceeds configured maximum {:.0} RPM",
+                command.rpm, emulator.config.spindle.max_rpm
+            ),
+        ));
+    }
+    emulator.set_spindle(command.direction, Some(command.rpm));
+    Ok(Value::Null)
+}
+
+pub(super) fn clear_error(emulator: &mut Emulator) -> Result<Value, WireError> {
+    if emulator.status.task_state == TaskState::Estop {
+        emulator.status.task_state = TaskState::EstopReset;
+        emulator.status.message = Some("Alarm reset".into());
+    } else {
+        emulator.status.message = None;
+    }
+    Ok(Value::Null)
+}
+
 pub(super) fn power_on(emulator: &mut Emulator) -> Result<Value, WireError> {
     emulator.status.task_state = TaskState::On;
     emulator.status.message = Some("Machine powered on".into());
