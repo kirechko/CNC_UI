@@ -111,6 +111,16 @@ impl GCodeViewer {
         self.widget.queue_draw();
     }
 
+    /// Сбрасывает масштаб и панорамирование, чтобы вся траектория помещалась в окне.
+    pub fn fit_to_trajectory(&self) {
+        let mut camera = self.camera.borrow_mut();
+        camera.zoom = 1.0;
+        camera.pan_x = 0.0;
+        camera.pan_y = 0.0;
+        drop(camera);
+        self.widget.queue_draw();
+    }
+
     pub fn reset_path_progress(&self) {
         self.telemetry_progress.set(0.0);
         self.widget.queue_draw();

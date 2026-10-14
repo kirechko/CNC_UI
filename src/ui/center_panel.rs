@@ -197,6 +197,14 @@ pub(super) fn create_center_panel(
         toolbar.append(&Button::with_label(text));
     }
 
+    let fit_button = Button::from_icon_name("zoom-fit-best-symbolic");
+    fit_button.set_tooltip_text(Some("Fit trajectory to view"));
+    let fit_viewer = viewer.clone();
+    fit_button.connect_clicked(move |_| {
+        fit_viewer.lock().unwrap().fit_to_trajectory();
+    });
+    toolbar.append(&fit_button);
+
     let center_button = Button::with_label("B");
     center_button.set_tooltip_text(Some("Center work origin"));
     let center_viewer = viewer.clone();
