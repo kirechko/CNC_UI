@@ -1,6 +1,7 @@
 use super::Emulator;
+use super::super::dynamics::{ActiveMove, Motion};
 use super::super::protocol::{api_error, WireError};
-use crate::cnc_api::TaskState;
+use crate::cnc_api::*;
 use serde_json::Value;
 
 pub(super) fn select_coordinate_system(
@@ -50,6 +51,89 @@ pub(super) fn load_program(
     emulator.status.task_mode = crate::cnc_api::TaskMode::Auto;
     emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Idle;
     emulator.status.message = Some(format!("Loaded {} blocks", emulator.program.len()));
+    Ok(Value::Null)
+}
+
+pub(super) fn jog_increment(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    emulator.ensure_motion_allowed()?;
+    if emulator.active_move.is_some() {
+        return Err(api_error(
+            "motion_busy",
+            "another movement is already in progress",
+        ));
+    }
+
+    let request: JogRequest = serde_json::from_value(
+        args.get("request").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|error| api_error("bad_request", error.to_string()))?;
+
+    if ![-1, 1].contains(&request.direction)
+        || !request.distance.is_finite()
+        || request.distance < 0.0
+    {
+        return Err(api_error("bad_jog", "invalid jog direction or distance"));
+    }
+
+    let index = super::axis_index(request.axis);
+    let feed = request.feed_rate.unwrap_or(emulator.status.feed_rate);
+    let max_feed = emulator.config.axis(request.axis).max_velocity_mm_min;
+    if !feed.is_finite() || feed <= 0.0 {
+        return Err(api_error("bad_feed", "feed rate must be positive"));
+    }
+
+    let mut target = emulator.position_array();
+    target[index] += request.distance * f64::from(request.direction);
+    emulator.check_target(target)?;
+
+    emulator.status.feed_rate = feed.min(max_feed);
+    emulator.status.task_mode = TaskMode::Manual;
+    emulator.status.message = Some(format!(
+        "Jog {:?} {:+.3} at {:.0} mm/min",
+        request.axis,
+        request.distance * f64::from(request.direction),
+        emulator.status.feed_rate
+    ));
+
+    let motion = Motion::new(
+        emulator.position_array(),
+        target,
+        emulator.status.feed_rate,
+        false,
+        &emulator.config,
+    )?;
+    emulator.active_move = motion.map(ActiveMove::from_motion);
+    Ok(Value::Null)
+}
+
+pub(super) fn jog_continuous(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    emulator.ensure_motion_allowed()?;
+    let axis: Axis = serde_json::from_value(
+        args.get("axis").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|error| api_error("bad_request", error.to_string()))?;
+    let direction = args.get("direction").and_then(Value::as_i64).unwrap_or(0) as i8;
+    let feed = args.get("feed_rate").and_then(Value::as_f64).unwrap_or(0.0);
+
+    if direction == 0 {
+        emulator.continuous_jog = None;
+        emulator.jog_velocity = 0.0;
+    } else if ![-1, 1].contains(&direction) || !feed.is_finite() || feed <= 0.0 {
+        return Err(api_error(
+            "bad_jog",
+            "invalid continuous jog parameters",
+        ));
+    } else {
+        let feed = feed.min(emulator.config.axis(axis).max_velocity_mm_min);
+        emulator.continuous_jog = Some((axis, direction, feed));
+        emulator.status.feed_rate = feed;
+    }
     Ok(Value::Null)
 }
 

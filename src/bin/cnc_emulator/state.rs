@@ -194,68 +194,9 @@ impl Emulator {
 
             "home" => commands::home(self, args),
 
-            "jog_increment" => {
-                self.ensure_motion_allowed()?;
-                if self.active_move.is_some() {
-                    return Err(api_error("motion_busy", "another movement is already in progress"));
-                }
+            "jog_increment" => commands::jog_increment(self, args),
 
-                let req: JogRequest = serde_json::from_value(
-                    args.get("request").cloned().unwrap_or(Value::Null)
-                ).map_err(|e| api_error("bad_request", e.to_string()))?;
-
-                if ![-1, 1].contains(&req.direction) || !req.distance.is_finite() || req.distance < 0.0 {
-                    return Err(api_error("bad_jog", "invalid jog direction or distance"));
-                }
-
-                let index = axis_index(req.axis);
-                let feed = req.feed_rate.unwrap_or(self.status.feed_rate);
-                let max_feed = self.config.axis(req.axis).max_velocity_mm_min;
-                if !feed.is_finite() || feed <= 0.0 {
-                    return Err(api_error("bad_feed", "feed rate must be positive"));
-                }
-
-                let mut target = self.position_array();
-                target[index] += req.distance * f64::from(req.direction);
-                self.check_target(target)?;
-
-                self.status.feed_rate = feed.min(max_feed);
-                self.status.task_mode = TaskMode::Manual;
-                self.status.message = Some(format!(
-                    "Jog {:?} {:+.3} at {:.0} mm/min",
-                    req.axis, req.distance * f64::from(req.direction), self.status.feed_rate
-                ));
-
-                let motion = Motion::new(
-                    self.position_array(),
-                    target,
-                    self.status.feed_rate,
-                    false,
-                    &self.config,
-                )?;
-                self.active_move = motion.map(ActiveMove::from_motion);
-                Ok(Value::Null)
-            }
-
-            "jog_continuous" => {
-                self.ensure_motion_allowed()?;
-                let axis: Axis = serde_json::from_value(
-                    args.get("axis").cloned().unwrap_or(Value::Null)
-                ).map_err(|e| api_error("bad_request", e.to_string()))?;
-                let direction = args.get("direction").and_then(Value::as_i64).unwrap_or(0) as i8;
-                let feed = args.get("feed_rate").and_then(Value::as_f64).unwrap_or(0.0);
-
-                if direction == 0 {
-                    self.continuous_jog = None;
-                    self.jog_velocity = 0.0;
-                } else if ![-1, 1].contains(&direction) || !feed.is_finite() || feed <= 0.0 {
-                    return Err(api_error("bad_jog", "invalid continuous jog parameters"));
-                } else {
-                    self.continuous_jog = Some((axis, direction, feed.min(self.config.axis(axis).max_velocity_mm_min)));
-                    self.status.feed_rate = feed.min(self.config.axis(axis).max_velocity_mm_min);
-                }
-                Ok(Value::Null)
-            }
+            "jog_continuous" => commands::jog_continuous(self, args),
 
             "mdi" => {
                 self.ensure_motion_allowed()?;
