@@ -19,6 +19,7 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
 
     for &(letter, value) in &words {
         match letter {
+            'G' if (value - 10.0).abs() < 1e-6 => {}
             'G' => match coordinates::handle_g_word(emulator, value)? {
                 coordinates::GWordAction::Motion(code) => motion_code = Some(code),
                 coordinates::GWordAction::Dwell => dwell = true,
