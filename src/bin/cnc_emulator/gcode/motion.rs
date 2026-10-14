@@ -130,3 +130,81 @@ pub(super) fn execute_motion(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_emulator;
+
+    #[test]
+    fn linear_move_inside_limits_is_accepted() {
+        let mut emulator = test_emulator();
+        assert!(emulator.execute_gcode("G1 X100 Y200 Z50").is_ok());
+        assert!(emulator.active_move.is_some());
+    }
+
+    #[test]
+    fn linear_moves_outside_axis_limits_are_rejected() {
+        for command in [
+            "G1 X-1", "G1 X301", "G1 Y-1", "G1 Y401", "G1 Z-1", "G1 Z101",
+        ] {
+            let mut emulator = test_emulator();
+            assert!(
+                emulator.execute_gcode(command).is_err(),
+                "expected {command:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn axis_words_without_motion_code_are_rejected() {
+        let mut emulator = test_emulator();
+        assert!(emulator.execute_gcode("X10").is_err());
+    }
+
+    #[test]
+    fn g0_and_g1_create_moves() {
+        for command in ["G0 X10 Y20 Z5", "G1 X10 Y20 Z5"] {
+            let mut emulator = test_emulator();
+            assert!(emulator.execute_gcode(command).is_ok());
+            assert!(emulator.active_move.is_some());
+        }
+    }
+
+    #[test]
+    fn no_op_lines_and_moves_do_not_create_active_moves() {
+        let mut emulator = test_emulator();
+        assert!(emulator.execute_gcode("M7").is_ok());
+        assert!(emulator.active_move.is_none());
+
+        assert!(emulator.execute_gcode("G0 X0 Y0 Z0").is_ok());
+        assert!(emulator.active_move.is_none());
+        assert!(emulator.execute_gcode("G1 X0 Y0 Z0").is_ok());
+        assert!(emulator.active_move.is_none());
+    }
+
+    #[test]
+    fn valid_feed_is_saved_and_invalid_feed_is_rejected() {
+        let mut emulator = test_emulator();
+        assert!(emulator.execute_gcode("F1200 G1 X10").is_ok());
+        assert_eq!(emulator.status.feed_rate, 1200.0);
+        assert!(emulator.active_move.is_some());
+
+        for command in ["F0", "F-1"] {
+            let mut emulator = test_emulator();
+            assert!(
+                emulator.execute_gcode(command).is_err(),
+                "expected {command:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn overflowing_feed_is_rejected_without_changing_saved_feed() {
+        let mut emulator = test_emulator();
+        let initial_feed = emulator.status.feed_rate;
+        let command = format!("F{}", "9".repeat(400));
+
+        assert!(emulator.execute_gcode(&command).is_err());
+        assert_eq!(emulator.status.feed_rate, initial_feed);
+    }
+}

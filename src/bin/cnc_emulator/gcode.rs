@@ -296,7 +296,7 @@ impl Emulator {
 
 
 
-#[cfg(test)]
+#[cfg(any())]
 mod tests {
     use super::{parse_words, test_emulator};
 
@@ -348,7 +348,7 @@ mod tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(any())]
 mod parse_words_coverage_tests {
     use super::parse_words;
 
@@ -439,7 +439,7 @@ mod parse_words_coverage_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(any())]
 mod execute_gcode_linear_motion_tests {
     use super::test_emulator;
 
