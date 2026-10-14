@@ -1,5 +1,5 @@
-use super::types::{Camera, MoveType, Segment, ToolVisual};
 use super::tool::draw_hex_pencil;
+use super::types::{Camera, MoveType, Segment, ToolVisual};
 
 pub(super) fn draw_scene(
     cr: &gtk4::cairo::Context,
@@ -35,7 +35,15 @@ pub(super) fn draw_scene(
 
     let project = |x, y, z| {
         camera.orientation.project(
-            x, y, z, camera.pan_x, camera.pan_y, scale, width, height, camera.perspective,
+            x,
+            y,
+            z,
+            camera.pan_x,
+            camera.pan_y,
+            scale,
+            width,
+            height,
+            camera.perspective,
         )
     };
 
@@ -47,9 +55,7 @@ pub(super) fn draw_scene(
         let (base_color, line_width, dashed) = match segment.move_type {
             MoveType::Rapid => ((0.48, 0.68, 1.0), 1.0, true),
             MoveType::Linear => ((0.9, 0.7, 0.2), 1.5, false),
-            MoveType::ArcClockwise | MoveType::ArcCounterClockwise => {
-                ((0.2, 0.8, 0.4), 1.5, false)
-            }
+            MoveType::ArcClockwise | MoveType::ArcCounterClockwise => ((0.2, 0.8, 0.4), 1.5, false),
         };
 
         let faded_color = (
@@ -68,10 +74,7 @@ pub(super) fn draw_scene(
         // Пройденную долю рисуем тёмным непрозрачным цветом,
         // а остаток сегмента — обычным цветом.
         if fraction > 0.0 {
-            let faded_end = (
-                x1 + (x2 - x1) * fraction,
-                y1 + (y2 - y1) * fraction,
-            );
+            let faded_end = (x1 + (x2 - x1) * fraction, y1 + (y2 - y1) * fraction);
             cr.set_source_rgb(faded_color.0, faded_color.1, faded_color.2);
             cr.move_to(x1, y1);
             cr.line_to(faded_end.0, faded_end.1);
@@ -79,10 +82,7 @@ pub(super) fn draw_scene(
         }
 
         if fraction < 1.0 {
-            let active_start = (
-                x1 + (x2 - x1) * fraction,
-                y1 + (y2 - y1) * fraction,
-            );
+            let active_start = (x1 + (x2 - x1) * fraction, y1 + (y2 - y1) * fraction);
             cr.set_source_rgb(base_color.0, base_color.1, base_color.2);
             cr.move_to(active_start.0, active_start.1);
             cr.line_to(x2, y2);
@@ -98,7 +98,11 @@ pub(super) fn draw_scene(
     for (end, color, label) in [
         (project(axis_len, 0.0, 0.0), (1.0, 0.3, 0.3), "X"),
         (project(0.0, axis_len, 0.0), (0.3, 1.0, 0.3), "Y"),
-        (project(0.0, 0.0, axis_len), crate::theme::ACCENT_BLUE_RGB, "Z"),
+        (
+            project(0.0, 0.0, axis_len),
+            crate::theme::ACCENT_BLUE_RGB,
+            "Z",
+        ),
     ] {
         draw_axis_arrow(cr, (ox, oy), end, color, label);
     }
