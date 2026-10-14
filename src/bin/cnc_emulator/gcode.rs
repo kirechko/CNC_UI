@@ -1,6 +1,8 @@
 mod parser;
 
-pub(super) use parser::parse_words;
+pub(super) fn parse_words(line: &str) -> Vec<(char, f64)> {
+    parser::parse_words(line)
+}
 
 use super::dynamics::ActiveMove;
 use super::protocol::{api_error, WireError};
