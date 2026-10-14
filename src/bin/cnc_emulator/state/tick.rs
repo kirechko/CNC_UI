@@ -1,3 +1,4 @@
+ //! Advances simulated spindle, motion, homing, jogging, and program execution.
 use super::super::dynamics::{ActiveMove, Motion};
 use super::Emulator;
 use crate::cnc_api::*;

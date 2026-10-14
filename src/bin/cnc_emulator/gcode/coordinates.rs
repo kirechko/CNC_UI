@@ -1,3 +1,4 @@
+ //! Applies G-code coordinate-system selection and G10 work-offset updates.
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
 use crate::cnc_api::*;

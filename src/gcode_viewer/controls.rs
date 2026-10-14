@@ -1,3 +1,4 @@
+ //! Connects mouse gestures and orientation-cube clicks to camera controls.
 use super::camera::orientation_for_face;
 use super::orientation_cube::{cube_face_at, draw_orientation_cube};
 use super::types::Camera;

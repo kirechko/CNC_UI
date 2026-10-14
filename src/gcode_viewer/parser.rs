@@ -1,3 +1,4 @@
+ //! Converts supported G-code moves into renderable toolpath segments and bounds.
 use super::types::{MoveType, Segment};
 use super::GCodeViewer;
 

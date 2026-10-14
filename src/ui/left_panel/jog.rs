@@ -1,3 +1,4 @@
+ //! Builds the jog dial, Z-axis controls, and jog-feed selectors.
 use super::*;
 
 pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox {

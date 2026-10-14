@@ -1,3 +1,4 @@
+ //! Loads and validates axis and spindle limits from the emulator configuration.
 use crate::cnc_api::Axis;
 use serde::Deserialize;
 use std::fs;

@@ -1,3 +1,4 @@
+ //! Builds the file and macro sidebar alongside the terminal area.
 use super::*;
 
 pub(super) fn create_right_panel(viewer: Arc<Mutex<GCodeViewer>>) -> GtkBox {

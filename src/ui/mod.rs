@@ -1,3 +1,4 @@
+ //! Composes the application window from its left, center, and right panels.
 mod center_panel;
 mod left_panel;
 mod right_panel;

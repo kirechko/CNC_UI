@@ -1,3 +1,4 @@
+ //! Draws the spindle tool at its reported position and rotation phase.
 use super::types::{Camera, ToolVisual};
 use std::f64::consts::PI;
 

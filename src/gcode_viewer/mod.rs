@@ -1,3 +1,4 @@
+ //! Builds the G-code viewer widget and coordinates rendering, camera, and telemetry.
 mod camera;
 mod controls;
 mod orientation_cube;

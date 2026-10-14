@@ -1,3 +1,4 @@
+ //! Draws the orientation cube and maps pointer clicks to visible faces.
 use super::types::Camera;
 
 const CUBE_VERTICES: [[f64; 3]; 8] = [

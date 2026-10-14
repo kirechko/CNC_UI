@@ -1,3 +1,4 @@
+ //! Assembles the left-side position, jog, and spindle control panels.
 mod jog;
 mod spindle;
 mod status;

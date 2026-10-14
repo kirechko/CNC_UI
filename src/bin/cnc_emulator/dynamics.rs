@@ -1,3 +1,4 @@
+ //! Calculates constrained moves and advances their simulated motion over time.
 use crate::cnc_api::Axis;
 use crate::config::EmulatorConfig;
 use crate::protocol::{api_error, WireError};

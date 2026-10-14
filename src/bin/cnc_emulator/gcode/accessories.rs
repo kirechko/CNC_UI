@@ -1,3 +1,4 @@
+ //! Handles G-code M-words and simulated spindle state transitions.
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
 use crate::cnc_api::*;

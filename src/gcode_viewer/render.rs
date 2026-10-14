@@ -1,3 +1,4 @@
+ //! Renders the toolpath, machine axes, and animated tool into the viewer.
 use super::tool::draw_hex_pencil;
 use super::types::{Camera, MoveType, Segment, ToolVisual};
 
