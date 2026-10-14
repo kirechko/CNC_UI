@@ -1,5 +1,5 @@
-use super::Emulator;
 use super::super::protocol::{api_error, WireError};
+use super::Emulator;
 use crate::cnc_api::*;
 use std::fs;
 
@@ -67,8 +67,7 @@ impl Emulator {
         let yaml = serde_yaml_ng::to_string(&self.status.coordinate_systems)
             .map_err(|e| api_error("coordinates_save", e.to_string()))?;
         if let Some(parent) = self.coordinate_offsets_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| api_error("coordinates_save", e.to_string()))?;
+            fs::create_dir_all(parent).map_err(|e| api_error("coordinates_save", e.to_string()))?;
         }
         fs::write(&self.coordinate_offsets_path, yaml)
             .map_err(|e| api_error("coordinates_save", e.to_string()))
