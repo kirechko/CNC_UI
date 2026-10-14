@@ -1,7 +1,7 @@
 use super::accessories;
 use super::coordinates;
 use super::motion;
-use super::parse_words;
+use super::parser::parse_words;
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
 
