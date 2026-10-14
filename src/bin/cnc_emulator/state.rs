@@ -7,6 +7,8 @@ use crate::cnc_api::*;
 use std::path::PathBuf;
 use std::time::Instant;
 
+#[path = "state/commands.rs"]
+mod commands;
 #[path = "state/coordinates.rs"]
 mod coordinates;
 #[path = "state/tick.rs"]
@@ -105,12 +107,6 @@ impl Emulator {
         Ok(())
     }
 
-    fn ensure_motion_allowed(&self) -> Result<(), WireError> {
-        if self.status.task_state != TaskState::On {
-            return Err(api_error("machine_off", "virtual machine is not powered on"));
-        }
-        Ok(())
-    }
 
     pub(super) fn queue_move(&mut self, target: [f64; 3], feed: f64, rapid: bool) -> Result<(), WireError> {
         self.check_target(target)?;
