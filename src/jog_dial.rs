@@ -1,6 +1,8 @@
 use crate::cnc_controller::CNCController;
 use gtk4::prelude::*;
 use gtk4::DrawingArea;
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 // Геометрия
@@ -26,6 +28,53 @@ const COLOR_Y_RING1: (f64, f64, f64) = (0.169, 0.224, 0.216); // Внутрен�
 
 const COLOR_CENTER: (f64, f64, f64) = (0.12, 0.12, 0.13);
 
+#[derive(Clone, Copy, PartialEq)]
+struct HoveredJog {
+    sector: usize,
+    step: f64,
+}
+
+fn jog_selection(x: f64, y: f64, width: f64, height: f64) -> Option<HoveredJog> {
+    let dx = x - width / 2.0;
+    let dy = y - height / 2.0;
+    let distance = (dx * dx + dy * dy).sqrt() / (width.min(height) / 2.0);
+
+    let step = if distance < R_CENTER {
+        return None;
+    } else if distance < BOUND_1 {
+        0.1
+    } else if distance < BOUND_2 {
+        1.0
+    } else if distance < BOUND_3 {
+        10.0
+    } else if distance <= 1.10 {
+        100.0
+    } else {
+        return None;
+    };
+
+    let mut angle = dy.atan2(dx);
+    if angle < 0.0 {
+        angle += 2.0 * std::f64::consts::PI;
+    }
+
+    let sector = ((angle / (std::f64::consts::PI / 4.0) + 0.5) as usize) % 8;
+    Some(HoveredJog { sector, step })
+}
+
+fn jog_direction(sector: usize) -> &'static str {
+    match sector {
+        0 => "+X",
+        1 => "+X / -Y",
+        2 => "-Y",
+        3 => "-X / -Y",
+        4 => "-X",
+        5 => "-X / +Y",
+        6 => "+Y",
+        _ => "+X / +Y",
+    }
+}
+
 pub struct JogDial {
     pub widget: DrawingArea,
 }
@@ -38,6 +87,9 @@ impl JogDial {
         area.set_vexpand(false);
         area.set_hexpand(false);
         area.set_size_request(240, 240);
+
+        let hover = Rc::new(Cell::new(None));
+        let draw_hover = hover.clone();
 
         area.set_draw_func(move |_, cr, width, height| {
             let w = width as f64;
@@ -106,6 +158,25 @@ impl JogDial {
                 }
             }
 
+            if let Some(selection) = draw_hover.get() {
+                let (r_inner, r_outer, _, _) = rings[selection.step.log10() as usize];
+                let center_angle = selection.sector as f64 * std::f64::consts::FRAC_PI_4;
+                let start = center_angle - std::f64::consts::PI / 8.0;
+                let end = center_angle + std::f64::consts::PI / 8.0;
+                let r_in = radius * r_inner;
+                let r_out = radius * r_outer;
+
+                cr.move_to(cx + r_in * start.cos(), cy + r_in * start.sin());
+                cr.arc(cx, cy, r_out, start, end);
+                cr.arc_negative(cx, cy, r_in, end, start);
+                cr.close_path();
+                cr.set_source_rgba(1.0, 1.0, 1.0, 0.28);
+                cr.fill_preserve().unwrap();
+                cr.set_source_rgba(1.0, 1.0, 1.0, 0.9);
+                cr.set_line_width(2.0);
+                cr.stroke().unwrap();
+            }
+
             // Центральная шайба
             cr.arc(cx, cy, radius * R_CENTER, 0.0, 2.0 * std::f64::consts::PI);
             cr.set_source_rgb(COLOR_CENTER.0, COLOR_CENTER.1, COLOR_CENTER.2);
@@ -122,6 +193,35 @@ impl JogDial {
             cr.set_source_rgb(0.35, 0.35, 0.36);
             cr.set_line_width(1.5);
             cr.stroke().unwrap();
+
+            if let Some(selection) = draw_hover.get() {
+                let step = if selection.step == 0.1 {
+                    "0.1".to_string()
+                } else {
+                    format!("{:.0}", selection.step)
+                };
+                let text = format!("{} · {} mm", jog_direction(selection.sector), step);
+                cr.select_font_face(
+                    "Roboto",
+                    gtk4::cairo::FontSlant::Normal,
+                    gtk4::cairo::FontWeight::Bold,
+                );
+                cr.set_font_size(11.0);
+                let extents = cr.text_extents(&text).unwrap();
+                let text_x = cx - extents.width() / 2.0 - extents.x_bearing();
+                let text_y = cy - radius * 0.42;
+                cr.set_source_rgba(0.05, 0.05, 0.06, 0.88);
+                cr.rectangle(
+                    text_x - 5.0,
+                    text_y + extents.y_bearing() - 3.0,
+                    extents.width() + 10.0,
+                    extents.height() + 6.0,
+                );
+                cr.fill().unwrap();
+                cr.set_source_rgb(0.98, 0.98, 0.98);
+                cr.move_to(text_x, text_y);
+                cr.show_text(&text).unwrap();
+            }
 
             // Подписи привязаны к радиусу, поэтому остаются по центру
             // соответствующих секторов внешнего кольца при любом размере виджета.
@@ -160,6 +260,33 @@ impl JogDial {
             }
         });
 
+        let motion_controller = gtk4::EventControllerMotion::new();
+        let motion_hover = hover.clone();
+        let motion_area = area.clone();
+        motion_controller.connect_motion(move |_, x, y| {
+            let allocation = motion_area.allocation();
+            let selection = jog_selection(
+                x,
+                y,
+                allocation.width() as f64,
+                allocation.height() as f64,
+            );
+            if motion_hover.get() != selection {
+                motion_hover.set(selection);
+                motion_area.queue_draw();
+            }
+        });
+
+        let leave_hover = hover.clone();
+        let leave_area = area.clone();
+        motion_controller.connect_leave(move |_| {
+            if leave_hover.get().is_some() {
+                leave_hover.set(None);
+                leave_area.queue_draw();
+            }
+        });
+        area.add_controller(motion_controller);
+
         // Логика кликов
         let click_gesture = gtk4::GestureClick::new();
         let ctrl_click = controller.clone();
@@ -167,21 +294,15 @@ impl JogDial {
         click_gesture.connect_released(move |gesture, _, x, y| {
             gesture.set_state(gtk4::EventSequenceState::Claimed);
             let rect = gesture.widget().allocation();
-            let w = rect.width() as f64;
-            let h = rect.height() as f64;
-            let cx = w / 2.0;
-            let cy = h / 2.0;
-
-            let dx = x - cx;
-            let dy = y - cy;
-            let dist_norm = (dx * dx + dy * dy).sqrt() / (w.min(h) / 2.0);
-
-            let mut angle = dy.atan2(dx);
-            if angle < 0.0 {
-                angle += 2.0 * std::f64::consts::PI;
-            }
-
-            let sector = ((angle / (std::f64::consts::PI / 4.0) + 0.5) as usize) % 8;
+            let Some(selection) = jog_selection(
+                x,
+                y,
+                rect.width() as f64,
+                rect.height() as f64,
+            ) else {
+                return;
+            };
+            let sector = selection.sector;
             // Угол 0 — вправо; экранная Y направлена вниз.
             let (axis, dir, diagonal) = match sector {
                 0 => ('X', 1, None),
@@ -194,19 +315,7 @@ impl JogDial {
                 _ => ('X', 1, Some(('Y', 1))), // северо-восток: +X, +Y
             };
 
-            let step = if dist_norm < R_CENTER {
-                return;
-            } else if dist_norm < BOUND_1 {
-                0.1_f64
-            } else if dist_norm < BOUND_2 {
-                1.0_f64
-            } else if dist_norm < BOUND_3 {
-                10.0_f64
-            } else if dist_norm <= 1.10 {
-                100.0_f64
-            } else {
-                return;
-            };
+            let step = selection.step;
 
             let c = ctrl_click.lock().unwrap();
             c.set_jog_step(step);
