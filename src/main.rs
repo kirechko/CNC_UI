@@ -1,15 +1,15 @@
-mod cnc_controller;
 #[allow(dead_code)]
 mod cnc_api;
-mod linuxcnc_api;
-mod ui;
-mod jog_dial;
+mod cnc_controller;
 mod gcode_viewer;
-mod theme; // <-- НОВЫЙ МОДУЛЬ
+mod jog_dial;
+mod linuxcnc_api;
+mod theme;
+mod ui; // <-- НОВЫЙ МОДУЛЬ
 
+use cnc_controller::CNCController;
 use gtk4::prelude::*;
 use std::sync::{Arc, Mutex};
-use cnc_controller::CNCController;
 
 const DARK_THEME_CSS: &str = r#"
 window { 
@@ -103,7 +103,7 @@ fn main() {
         theme::ACCENT_BLUE_HOVER
     );
     palette_provider.load_from_data(&palette_css);
-    
+
     if let Some(display) = gtk4::gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,

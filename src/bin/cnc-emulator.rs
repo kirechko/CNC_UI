@@ -3,16 +3,15 @@
 mod cnc_api;
 #[path = "cnc_emulator/config.rs"]
 mod config;
-#[path = "cnc_emulator/state.rs"]
-mod state;
 #[path = "cnc_emulator/gcode.rs"]
 mod gcode;
+#[path = "cnc_emulator/state.rs"]
+mod state;
 use state::Emulator;
 #[path = "cnc_emulator/dynamics.rs"]
 mod dynamics;
 #[path = "cnc_emulator/protocol.rs"]
 mod protocol;
-
 
 use cnc_api::*;
 use std::fs;
@@ -23,21 +22,18 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-
-
-
-
-
-
-
-
-
-
 fn default_coordinate_offsets() -> Vec<CoordinateSystemOffset> {
-    CoordinateSystem::ALL.iter().map(|system| CoordinateSystemOffset {
-        system: *system,
-        offset: Position { x: 0.0, y: 0.0, z: 0.0 },
-    }).collect()
+    CoordinateSystem::ALL
+        .iter()
+        .map(|system| CoordinateSystemOffset {
+            system: *system,
+            offset: Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        })
+        .collect()
 }
 
 fn load_coordinate_offsets(path: &Path) -> Result<Vec<CoordinateSystemOffset>, String> {
@@ -54,7 +50,10 @@ fn load_coordinate_offsets(path: &Path) -> Result<Vec<CoordinateSystemOffset>, S
         fs::write(path, yaml)
             .map_err(|error| format!("cannot create {}: {error}", path.display()))?;
 
-        println!("Created default coordinate-system offsets at {}", path.display());
+        println!(
+            "Created default coordinate-system offsets at {}",
+            path.display()
+        );
         return Ok(defaults);
     }
 
@@ -67,7 +66,11 @@ fn load_coordinate_offsets(path: &Path) -> Result<Vec<CoordinateSystemOffset>, S
         if !offsets.iter().any(|entry| entry.system == system) {
             offsets.push(CoordinateSystemOffset {
                 system,
-                offset: Position { x: 0.0, y: 0.0, z: 0.0 },
+                offset: Position {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
             });
         }
     }
@@ -75,13 +78,15 @@ fn load_coordinate_offsets(path: &Path) -> Result<Vec<CoordinateSystemOffset>, S
     Ok(offsets)
 }
 
-
-
 fn main() {
     let mut args = std::env::args_os().skip(1);
-    let socket_path = args.next().map(PathBuf::from)
+    let socket_path = args
+        .next()
+        .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/tmp/linuxcnc-ui-emulator.sock"));
-    let config_path = args.next().map(PathBuf::from)
+    let config_path = args
+        .next()
+        .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("config/emulator.yaml"));
 
     let config = config::load_config(&config_path).unwrap_or_else(|e| {
@@ -110,7 +115,10 @@ fn main() {
                 }
             }
             Ok(_) => {
-                eprintln!("Refusing to replace non-socket path {}", socket_path.display());
+                eprintln!(
+                    "Refusing to replace non-socket path {}",
+                    socket_path.display()
+                );
                 std::process::exit(1);
             }
             Err(e) => {
@@ -128,7 +136,11 @@ fn main() {
     println!("Loaded configuration from {}", config_path.display());
     println!("CNC emulator listening on {}", socket_path.display());
 
-    let state = Arc::new(Mutex::new(Emulator::new(config, offsets_path, coordinate_offsets)));
+    let state = Arc::new(Mutex::new(Emulator::new(
+        config,
+        offsets_path,
+        coordinate_offsets,
+    )));
     let ticker = state.clone();
     thread::spawn(move || {
         let period = Duration::from_millis(10);
@@ -136,7 +148,10 @@ fn main() {
             thread::sleep(period);
             if let Ok(mut emulator) = ticker.lock() {
                 let now = Instant::now();
-                let dt = now.duration_since(emulator.last_tick).as_secs_f64().clamp(0.001, 0.05);
+                let dt = now
+                    .duration_since(emulator.last_tick)
+                    .as_secs_f64()
+                    .clamp(0.001, 0.05);
                 emulator.last_tick = now;
                 emulator.tick(dt);
             }

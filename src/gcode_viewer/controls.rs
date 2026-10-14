@@ -99,17 +99,14 @@ pub(super) fn attach_controls(
 
         let mut cam = scroll_camera.borrow_mut();
         let old_zoom = cam.zoom;
-        let new_zoom = (old_zoom * if dy > 0.0 { 0.95 } else { 1.05 })
-            .clamp(0.1, 10.0);
+        let new_zoom = (old_zoom * if dy > 0.0 { 0.95 } else { 1.05 }).clamp(0.1, 10.0);
         let zoom_ratio = new_zoom / old_zoom;
 
         // Сохраняем экранную позицию точки сцены под курсором.
         let cursor_x_from_center = pointer_x - width / 2.0;
         let cursor_y_from_center = pointer_y - height / 2.0;
-        cam.pan_x = cursor_x_from_center
-            - (cursor_x_from_center - cam.pan_x) * zoom_ratio;
-        cam.pan_y = cursor_y_from_center
-            - (cursor_y_from_center - cam.pan_y) * zoom_ratio;
+        cam.pan_x = cursor_x_from_center - (cursor_x_from_center - cam.pan_x) * zoom_ratio;
+        cam.pan_y = cursor_y_from_center - (cursor_y_from_center - cam.pan_y) * zoom_ratio;
         cam.zoom = new_zoom;
         drop(cam);
 

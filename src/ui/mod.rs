@@ -1,22 +1,21 @@
-
-mod left_panel;
 mod center_panel;
+mod left_panel;
 mod right_panel;
-use self::left_panel::create_left_panel;
 use self::center_panel::create_center_panel;
+use self::left_panel::create_left_panel;
 use self::right_panel::create_right_panel;
 use gtk4::prelude::*;
 use gtk4::{
-    Application, ApplicationWindow, Box as GtkBox, Button, FileChooserAction,
-    FileFilter, Grid, Label, Orientation, Overlay, ResponseType, Scale,
+    Application, ApplicationWindow, Box as GtkBox, Button, FileChooserAction, FileFilter, Grid,
+    Label, Orientation, Overlay, ResponseType, Scale,
 };
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::cnc_controller::{CNCController, SpindleDirection};
 use crate::cnc_api::CoordinateSystem;
+use crate::cnc_controller::{CNCController, SpindleDirection};
 use crate::gcode_viewer::GCodeViewer;
 use crate::jog_dial::JogDial;
 
@@ -48,7 +47,10 @@ pub fn build_ui(app: &Application, controller: Arc<Mutex<CNCController>>) {
         drop(viewer_guard);
 
         if let Err(error) = controller.lock().unwrap().load_program(&startup_gcode) {
-            eprintln!("[LinuxCncApi] load program: {}: {}", error.code, error.message);
+            eprintln!(
+                "[LinuxCncApi] load program: {}: {}",
+                error.code, error.message
+            );
         }
     }
 
@@ -67,32 +69,20 @@ pub fn build_ui(app: &Application, controller: Arc<Mutex<CNCController>>) {
     // Передаём телеметрию станка в 3D-вид. Фаза вращения анимируется viewer-ом.
     let telemetry_controller = controller.clone();
     let telemetry_viewer = viewer.clone();
-    gtk4::glib::timeout_add_local(
-        std::time::Duration::from_millis(50),
-        move || {
-            let status = telemetry_controller
-                .lock()
-                .unwrap()
-                .get_status_snapshot();
-            let viewer = telemetry_viewer.lock().unwrap();
-            viewer.set_tool_telemetry(
-                status.x_position,
-                status.y_position,
-                status.z_position,
-                status.spindle_actual_speed,
-                status.spindle_max_speed,
-                status.spindle_direction == SpindleDirection::CW,
-            );
-            gtk4::glib::ControlFlow::Continue
-        },
-    );
+    gtk4::glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+        let status = telemetry_controller.lock().unwrap().get_status_snapshot();
+        let viewer = telemetry_viewer.lock().unwrap();
+        viewer.set_tool_telemetry(
+            status.x_position,
+            status.y_position,
+            status.z_position,
+            status.spindle_actual_speed,
+            status.spindle_max_speed,
+            status.spindle_direction == SpindleDirection::CW,
+        );
+        gtk4::glib::ControlFlow::Continue
+    });
 
     window.set_child(Some(&main_row));
     window.present();
 }
-
-
-
-
-
-

@@ -7,8 +7,8 @@ pub(super) struct Motion {
     start: [f64; 3],
     target: [f64; 3],
     distance: f64,
-    max_velocity: f64,    // mm/s along path
-    acceleration: f64,   // mm/s^2 along path
+    max_velocity: f64, // mm/s along path
+    acceleration: f64, // mm/s^2 along path
 }
 
 impl Motion {
@@ -46,7 +46,10 @@ impl Motion {
         }
 
         if !max_velocity.is_finite() || !acceleration.is_finite() {
-            return Err(api_error("motion_config", "could not calculate motion limits"));
+            return Err(api_error(
+                "motion_config",
+                "could not calculate motion limits",
+            ));
         }
 
         Ok(Some(Self {
@@ -57,8 +60,6 @@ impl Motion {
             acceleration,
         }))
     }
-
-
 }
 
 #[derive(Clone, Copy)]
@@ -128,17 +129,16 @@ impl ActiveMove {
         for (component, axis) in ratios {
             if component > 1e-9 {
                 let limits = config.axis(axis);
-                max_velocity = max_velocity.min(
-                    limits.max_velocity_mm_min / 60.0 / component
-                );
-                acceleration = acceleration.min(
-                    limits.acceleration_mm_s2 / component
-                );
+                max_velocity = max_velocity.min(limits.max_velocity_mm_min / 60.0 / component);
+                acceleration = acceleration.min(limits.acceleration_mm_s2 / component);
             }
         }
 
         if !acceleration.is_finite() {
-            acceleration = config.axes.x.acceleration_mm_s2
+            acceleration = config
+                .axes
+                .x
+                .acceleration_mm_s2
                 .min(config.axes.y.acceleration_mm_s2);
         }
 

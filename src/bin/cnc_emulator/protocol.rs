@@ -1,6 +1,6 @@
 use super::state::Emulator;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value};
+use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
@@ -25,14 +25,27 @@ struct Response {
     error: Option<WireError>,
 }
 
-
 pub(super) fn api_error(code: impl Into<String>, message: impl Into<String>) -> WireError {
-    WireError { code: code.into(), message: message.into() }
+    WireError {
+        code: code.into(),
+        message: message.into(),
+    }
 }
-fn write_response(stream: &mut UnixStream, result: Result<Value, WireError>) -> std::io::Result<()> {
+fn write_response(
+    stream: &mut UnixStream,
+    result: Result<Value, WireError>,
+) -> std::io::Result<()> {
     let response = match result {
-        Ok(result) => Response { ok: true, result, error: None },
-        Err(error) => Response { ok: false, result: Value::Null, error: Some(error) },
+        Ok(result) => Response {
+            ok: true,
+            result,
+            error: None,
+        },
+        Err(error) => Response {
+            ok: false,
+            result: Value::Null,
+            error: Some(error),
+        },
     };
     serde_json::to_writer(&mut *stream, &response)?;
     stream.write_all(b"\n")?;
@@ -40,7 +53,13 @@ fn write_response(stream: &mut UnixStream, result: Result<Value, WireError>) -> 
 }
 
 pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
-    let reader_stream = match stream.try_clone() { Ok(s) => s, Err(e) => { eprintln!("{e}"); return; } };
+    let reader_stream = match stream.try_clone() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{e}");
+            return;
+        }
+    };
     let mut reader = BufReader::new(reader_stream);
     let mut writer = stream;
 
@@ -49,7 +68,10 @@ pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
         match reader.read_line(&mut line) {
             Ok(0) => return,
             Ok(_) => {}
-            Err(e) => { eprintln!("Socket read error: {e}"); return; }
+            Err(e) => {
+                eprintln!("Socket read error: {e}");
+                return;
+            }
         }
 
         let parsed = serde_json::from_str::<Request>(&line)

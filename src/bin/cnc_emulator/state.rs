@@ -11,11 +11,11 @@ use std::time::Instant;
 mod commands;
 #[path = "state/coordinates.rs"]
 mod coordinates;
-#[path = "state/tick.rs"]
-mod tick;
 #[cfg(test)]
 #[path = "state/tests.rs"]
 mod tests;
+#[path = "state/tick.rs"]
+mod tick;
 
 pub(super) struct Emulator {
     pub(super) status: MachineStatus,
@@ -37,19 +37,31 @@ pub(super) struct Emulator {
 }
 
 impl Emulator {
-    pub(super) fn new(config: EmulatorConfig, coordinate_offsets_path: PathBuf, offsets: Vec<CoordinateSystemOffset>) -> Self {
+    pub(super) fn new(
+        config: EmulatorConfig,
+        coordinate_offsets_path: PathBuf,
+        offsets: Vec<CoordinateSystemOffset>,
+    ) -> Self {
         Self {
             status: MachineStatus {
                 connected: true,
                 task_mode: TaskMode::Manual,
                 task_state: TaskState::On,
                 interpreter_state: InterpreterState::Idle,
-                position: Position { x: 0.0, y: 0.0, z: 0.0 },
+                position: Position {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
                 work_offset: offsets
                     .iter()
                     .find(|entry| entry.system == CoordinateSystem::G54)
                     .map(|entry| entry.offset)
-                    .unwrap_or(Position { x: 0.0, y: 0.0, z: 0.0 }),
+                    .unwrap_or(Position {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    }),
                 active_coordinate_system: CoordinateSystem::G54,
                 coordinate_systems: offsets,
                 feed_rate: 100.0,
@@ -87,13 +99,20 @@ impl Emulator {
         }
     }
 
-
     pub(super) fn position_array(&self) -> [f64; 3] {
-        [self.status.position.x, self.status.position.y, self.status.position.z]
+        [
+            self.status.position.x,
+            self.status.position.y,
+            self.status.position.z,
+        ]
     }
 
     fn set_position(&mut self, p: [f64; 3]) {
-        self.status.position = Position { x: p[0], y: p[1], z: p[2] };
+        self.status.position = Position {
+            x: p[0],
+            y: p[1],
+            z: p[2],
+        };
     }
 
     pub(super) fn check_target(&self, target: [f64; 3]) -> Result<(), WireError> {
@@ -102,16 +121,22 @@ impl Emulator {
             if target[index] < limits.min_mm - 1e-8 || target[index] > limits.max_mm + 1e-8 {
                 return Err(api_error(
                     "soft_limit",
-                    format!("{:?} target {:.3} outside [{:.3}, {:.3}] mm",
-                        axis, target[index], limits.min_mm, limits.max_mm),
+                    format!(
+                        "{:?} target {:.3} outside [{:.3}, {:.3}] mm",
+                        axis, target[index], limits.min_mm, limits.max_mm
+                    ),
                 ));
             }
         }
         Ok(())
     }
 
-
-    pub(super) fn queue_move(&mut self, target: [f64; 3], feed: f64, rapid: bool) -> Result<(), WireError> {
+    pub(super) fn queue_move(
+        &mut self,
+        target: [f64; 3],
+        feed: f64,
+        rapid: bool,
+    ) -> Result<(), WireError> {
         self.check_target(target)?;
         let motion = Motion::new(self.position_array(), target, feed, rapid, &self.config)?;
         self.active_move = motion.map(ActiveMove::from_motion);
@@ -136,8 +161,9 @@ impl Emulator {
 }
 
 fn axis_index(axis: Axis) -> usize {
-    match axis { Axis::X => 0, Axis::Y => 1, Axis::Z => 2 }
+    match axis {
+        Axis::X => 0,
+        Axis::Y => 1,
+        Axis::Z => 2,
+    }
 }
-
-
-

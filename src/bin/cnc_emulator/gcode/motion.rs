@@ -42,8 +42,7 @@ pub(super) fn execute_motion(
         let center_y = current[1] + j_word.unwrap_or(0.0);
         let radius_start =
             ((current[0] - center_x).powi(2) + (current[1] - center_y).powi(2)).sqrt();
-        let radius_end =
-            ((target[0] - center_x).powi(2) + (target[1] - center_y).powi(2)).sqrt();
+        let radius_end = ((target[0] - center_x).powi(2) + (target[1] - center_y).powi(2)).sqrt();
 
         if radius_start <= 1e-9
             || (radius_start - radius_end).abs() > (0.02_f64).max(radius_start * 0.002)
@@ -56,8 +55,8 @@ pub(super) fn execute_motion(
 
         let start_angle = (current[1] - center_y).atan2(current[0] - center_x);
         let end_angle = (target[1] - center_y).atan2(target[0] - center_x);
-        let same_xy = (target[0] - current[0]).abs() < 1e-8
-            && (target[1] - current[1]).abs() < 1e-8;
+        let same_xy =
+            (target[0] - current[0]).abs() < 1e-8 && (target[1] - current[1]).abs() < 1e-8;
 
         let sweep = if same_xy {
             if code == 2 {

@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::cnc_api::Axis;
+use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
@@ -40,7 +40,11 @@ impl EmulatorConfig {
     }
 
     pub(super) fn validate(&self) -> Result<(), String> {
-        for (name, a) in [("X", &self.axes.x), ("Y", &self.axes.y), ("Z", &self.axes.z)] {
+        for (name, a) in [
+            ("X", &self.axes.x),
+            ("Y", &self.axes.y),
+            ("Z", &self.axes.z),
+        ] {
             if !a.min_mm.is_finite()
                 || !a.max_mm.is_finite()
                 || a.min_mm >= a.max_mm
@@ -64,8 +68,8 @@ impl EmulatorConfig {
 }
 
 pub(super) fn load_config(path: &Path) -> Result<EmulatorConfig, String> {
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let config: EmulatorConfig = serde_yaml_ng::from_str(&content)
         .map_err(|e| format!("invalid YAML {}: {e}", path.display()))?;
     config.validate()?;

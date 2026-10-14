@@ -11,7 +11,9 @@ pub(super) fn create_machine_controls(
     let zero_controller = controller.clone();
     let zero_system_combo = coordinate_combo.clone();
     zero_btn.connect_clicked(move |_| {
-        let Some(id) = zero_system_combo.active_id() else { return; };
+        let Some(id) = zero_system_combo.active_id() else {
+            return;
+        };
         if let Some(system) = CoordinateSystem::ALL
             .iter()
             .copied()
