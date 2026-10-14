@@ -124,71 +124,7 @@ impl Emulator {
     }
 
     pub(super) fn handle(&mut self, request: Request) -> Result<Value, WireError> {
-        if request.method != "status" {
-            let mut logged_args = request.args.clone();
-
-            // Не засоряем терминал содержимым загружаемой программы.
-            if request.method == "load_program" {
-                if let Some(object) = logged_args.as_object_mut() {
-                    if let Some(content) = object.remove("content") {
-                        let byte_count = content.as_str().map(str::len).unwrap_or(0);
-                        object.insert(
-                            "content_bytes".into(),
-                            Value::from(byte_count as u64),
-                        );
-                    }
-                }
-            }
-
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-
-            eprintln!(
-                "[API {timestamp}] {} {}",
-                request.method,
-                logged_args
-            );
-        }
-
-        let args = request.args;
-        match request.method.as_str() {
-            "status" => Ok(serde_json::to_value(&self.status)
-                .map_err(|e| api_error("serialization", e.to_string()))?),
-
-            "power_on" => commands::power_on(self),
-
-            "power_off" => commands::power_off(self, false),
-            "estop" => commands::power_off(self, true),
-
-            "select_coordinate_system" => commands::select_coordinate_system(self, args),
-            "set_work_zero" => commands::set_work_zero(self, args),
-
-            "home" => commands::home(self, args),
-
-            "jog_increment" => commands::jog_increment(self, args),
-
-            "jog_continuous" => commands::jog_continuous(self, args),
-
-            "mdi" => commands::mdi(self, args),
-
-            "load_program" => commands::load_program(self, args),
-
-            "program_run" => commands::program_run(self, args),
-
-            "program_pause" => commands::program_pause(self),
-
-            "program_resume" => commands::program_resume(self),
-
-            "program_abort" => commands::program_abort(self),
-
-            "set_spindle" => commands::set_spindle(self, args),
-
-            "clear_error" => commands::clear_error(self),
-
-            _ => Err(api_error("unknown_method", format!("unsupported method: {}", request.method))),
-        }
+        commands::handle(self, request)
     }
 
     pub(super) fn tick(&mut self, dt: f64) {

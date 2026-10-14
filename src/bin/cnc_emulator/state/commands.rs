@@ -1,8 +1,60 @@
 use super::Emulator;
 use super::super::dynamics::{ActiveMove, Motion};
-use super::super::protocol::{api_error, WireError};
+use super::super::protocol::{api_error, Request, WireError};
 use crate::cnc_api::*;
 use serde_json::Value;
+
+pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value, WireError> {
+    if request.method != "status" {
+        let mut logged_args = request.args.clone();
+
+        // Не засоряем терминал содержимым загружаемой программы.
+        if request.method == "load_program" {
+            if let Some(object) = logged_args.as_object_mut() {
+                if let Some(content) = object.remove("content") {
+                    let byte_count = content.as_str().map(str::len).unwrap_or(0);
+                    object.insert(
+                        "content_bytes".into(),
+                        Value::from(byte_count as u64),
+                    );
+                }
+            }
+        }
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        eprintln!("[API {timestamp}] {} {}", request.method, logged_args);
+    }
+
+    let args = request.args;
+    match request.method.as_str() {
+        "status" => Ok(serde_json::to_value(&emulator.status)
+            .map_err(|error| api_error("serialization", error.to_string()))?),
+        "power_on" => power_on(emulator),
+        "power_off" => power_off(emulator, false),
+        "estop" => power_off(emulator, true),
+        "select_coordinate_system" => select_coordinate_system(emulator, args),
+        "set_work_zero" => set_work_zero(emulator, args),
+        "home" => home(emulator, args),
+        "jog_increment" => jog_increment(emulator, args),
+        "jog_continuous" => jog_continuous(emulator, args),
+        "mdi" => mdi(emulator, args),
+        "load_program" => load_program(emulator, args),
+        "program_run" => program_run(emulator, args),
+        "program_pause" => program_pause(emulator),
+        "program_resume" => program_resume(emulator),
+        "program_abort" => program_abort(emulator),
+        "set_spindle" => set_spindle(emulator, args),
+        "clear_error" => clear_error(emulator),
+        _ => Err(api_error(
+            "unknown_method",
+            format!("unsupported method: {}", request.method),
+        )),
+    }
+}
 
 pub(super) fn mdi(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     emulator.ensure_motion_allowed()?;
