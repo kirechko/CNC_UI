@@ -192,33 +192,7 @@ impl Emulator {
             "select_coordinate_system" => commands::select_coordinate_system(self, args),
             "set_work_zero" => commands::set_work_zero(self, args),
 
-            "home" => {
-                self.ensure_motion_allowed()?;
-                if self.active_move.is_some()
-                    || self.continuous_jog.is_some()
-                    || self.status.interpreter_state == InterpreterState::Reading
-                    || self.status.homing
-                {
-                    return Err(api_error("motion_busy", "cannot home while motion or program is active"));
-                }
-
-                let requested: Option<Axis> = serde_json::from_value(
-                    args.get("axis").cloned().unwrap_or(Value::Null)
-                ).map_err(|e| api_error("bad_request", e.to_string()))?;
-
-                self.homing_queue = match requested {
-                    Some(axis) => vec![axis],
-                    None => vec![Axis::X, Axis::Y, Axis::Z],
-                };
-                for axis in &self.homing_queue {
-                    self.status.homed[axis_index(*axis)] = false;
-                }
-
-                self.status.homing = true;
-                self.status.task_mode = TaskMode::Manual;
-                self.status.message = Some("Homing started".into());
-                Ok(Value::Null)
-            }
+            "home" => commands::home(self, args),
 
             "jog_increment" => {
                 self.ensure_motion_allowed()?;
