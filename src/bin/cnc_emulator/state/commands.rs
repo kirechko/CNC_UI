@@ -1,3 +1,4 @@
+ //! Implements the emulator's API commands and request dispatch.
 use super::super::dynamics::{ActiveMove, Motion};
 use super::super::protocol::{api_error, Request, WireError};
 use super::Emulator;

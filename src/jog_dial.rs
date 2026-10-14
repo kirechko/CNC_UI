@@ -1,3 +1,4 @@
+ //! Renders the XY jog dial and translates clicks into incremental jog commands.
 use crate::cnc_controller::CNCController;
 use gtk4::prelude::*;
 use gtk4::DrawingArea;

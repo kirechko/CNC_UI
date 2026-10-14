@@ -1,3 +1,4 @@
+ //! Builds spindle-speed and direction controls with alarm-state safeguards.
 use super::*;
 
 pub(super) fn create_spindle_controls(controller: Arc<Mutex<CNCController>>) -> GtkBox {

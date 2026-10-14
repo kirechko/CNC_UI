@@ -1,3 +1,4 @@
+ //! Builds the central toolpath view, file controls, and program toolbar.
 use super::*;
 
 pub(super) fn create_center_panel(

@@ -1,3 +1,4 @@
+ //! Defines the toolpath, camera, and tool-telemetry data used by the viewer.
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,3 +1,4 @@
+ //! Displays the controller message history in a separate dialog.
 use super::*;
 
 pub(super) fn connect_log_button(

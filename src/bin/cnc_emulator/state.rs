@@ -1,3 +1,4 @@
+ //! Stores emulator state and delegates commands, coordinates, and ticking to submodules.
 use super::dynamics::{ActiveMove, Motion};
 use super::protocol::{api_error, Request, WireError};
 use serde_json::Value;

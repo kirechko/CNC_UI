@@ -1,3 +1,4 @@
+ //! Builds the position/status panel and periodically reflects controller telemetry.
 #[path = "event_log.rs"]
 mod event_log;
 #[path = "status_controls.rs"]

@@ -1,3 +1,4 @@
+ //! Defines the shared CNC API types, status models, and controller interface.
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

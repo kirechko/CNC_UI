@@ -1,3 +1,4 @@
+ //! Tests emulator soft limits and program-loading behavior.
 use super::super::gcode::test_emulator;
 use super::super::protocol::Request;
 

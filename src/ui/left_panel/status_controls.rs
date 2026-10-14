@@ -1,3 +1,4 @@
+ //! Builds machine-wide zero, homing, alarm-reset, and emergency-stop controls.
 use super::*;
 
 pub(super) fn create_machine_controls(
