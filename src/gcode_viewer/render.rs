@@ -37,7 +37,7 @@ pub(super) fn draw_scene(
         .max(bounds.4 - bounds.1)
         .max(bounds.5 - bounds.2);
     let scale = if extent > 0.001 {
-        (width.min(height) / extent) * 0.45 * camera.zoom
+        (width.min(height) / extent) * 0.675 * camera.zoom
     } else {
         camera.zoom
     };

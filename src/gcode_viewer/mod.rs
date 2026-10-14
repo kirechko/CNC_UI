@@ -34,9 +34,9 @@ impl GCodeViewer {
         area.set_cursor_from_name(Some("crosshair"));
 
         let orientation_widget = DrawingArea::new();
-        orientation_widget.set_content_width(180);
-        orientation_widget.set_content_height(180);
-        orientation_widget.set_size_request(180, 180);
+        orientation_widget.set_content_width(120);
+        orientation_widget.set_content_height(120);
+        orientation_widget.set_size_request(120, 120);
         orientation_widget.set_halign(gtk4::Align::Center);
         orientation_widget.set_can_target(true);
 
