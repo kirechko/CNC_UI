@@ -157,37 +157,10 @@ impl Emulator {
             "status" => Ok(serde_json::to_value(&self.status)
                 .map_err(|e| api_error("serialization", e.to_string()))?),
 
-            "power_on" => {
-                self.status.task_state = TaskState::On;
-                self.status.message = Some("Machine powered on".into());
-                Ok(Value::Null)
-            }
+            "power_on" => commands::power_on(self),
 
-            "power_off" | "estop" => {
-                self.dwell_remaining = 0.0;
-                self.status.task_state = if request.method == "estop" { TaskState::Estop } else { TaskState::Off };
-                self.status.interpreter_state = InterpreterState::Idle;
-                self.status.spindle.enabled = false;
-                self.status.mist_coolant_on = false;
-                self.status.flood_coolant_on = false;
-                self.status.spindle.commanded_rpm = 0.0;
-                self.status.spindle.actual_rpm = 0.0;
-                self.status.spindle.direction = SpindleDirection::Stopped;
-                self.pending_spindle = None;
-                self.pending_spindle = None;
-                self.active_move = None;
-                self.continuous_jog = None;
-                self.jog_velocity = 0.0;
-                self.homing_queue.clear();
-                self.homing_axis = None;
-                self.active_move_is_homing = false;
-                self.status.homing = false;
-                if request.method == "estop" {
-                    self.status.homed = [false; 3];
-                }
-                self.status.message = Some(if request.method == "estop" { "Emergency stop" } else { "Machine powered off" }.into());
-                Ok(Value::Null)
-            }
+            "power_off" => commands::power_off(self, false),
+            "estop" => commands::power_off(self, true),
 
             "select_coordinate_system" => commands::select_coordinate_system(self, args),
             "set_work_zero" => commands::set_work_zero(self, args),
