@@ -1,9 +1,9 @@
+use super::super::protocol::{api_error, WireError};
+use super::super::state::Emulator;
 use super::accessories;
 use super::coordinates;
 use super::motion;
 use super::parser::parse_words;
-use super::super::protocol::{api_error, WireError};
-use super::super::state::Emulator;
 
 pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), WireError> {
     let words = parse_words(line);
@@ -19,13 +19,11 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
 
     for &(letter, value) in &words {
         match letter {
-            'G' => {
-                match coordinates::handle_g_word(emulator, value)? {
-                    coordinates::GWordAction::Motion(code) => motion_code = Some(code),
-                    coordinates::GWordAction::Dwell => dwell = true,
-                    coordinates::GWordAction::Handled => {}
-                }
-            }
+            'G' => match coordinates::handle_g_word(emulator, value)? {
+                coordinates::GWordAction::Motion(code) => motion_code = Some(code),
+                coordinates::GWordAction::Dwell => dwell = true,
+                coordinates::GWordAction::Handled => {}
+            },
             'X' => x_word = Some(value),
             'Y' => y_word = Some(value),
             'Z' => z_word = Some(value),
@@ -47,14 +45,22 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
                 }
                 emulator.status.spindle.commanded_rpm = value;
             }
-            'S' => return Err(api_error("bad_spindle", "S must be finite and non-negative")),
+            'S' => {
+                return Err(api_error(
+                    "bad_spindle",
+                    "S must be finite and non-negative",
+                ))
+            }
             'M' => accessories::handle_m_word(emulator, value)?,
             'N' | 'T' | 'H' => {}
             _ => {}
         }
     }
 
-    if words.iter().any(|(letter, value)| *letter == 'G' && (*value - 10.0).abs() < 1e-6) {
+    if words
+        .iter()
+        .any(|(letter, value)| *letter == 'G' && (*value - 10.0).abs() < 1e-6)
+    {
         coordinates::handle_g10_l2(emulator, l_word, p_word, x_word, y_word, z_word)?;
         return Ok(());
     }
