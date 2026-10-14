@@ -57,6 +57,7 @@ enum Command {
     SelectCoordinateSystem(CoordinateSystem),
     SetWorkZero(CoordinateSystem),
     HomeAll,
+    Home(Axis),
     Mdi(String),
     Spindle(SpindleCommand),
     JogIncrement(crate::cnc_api::JogRequest),
@@ -170,6 +171,36 @@ impl CNCController {
 
     pub fn home_all(&self) {
         self.enqueue(Command::HomeAll);
+    }
+
+    pub fn home_axis(&self, axis: Axis) {
+        self.enqueue(Command::Home(axis));
+    }
+
+    pub fn zero_axis(&self, axis: Axis) {
+        let status = self.get_status_snapshot();
+        let system_index = match status.active_coordinate_system {
+            CoordinateSystem::G54 => 1,
+            CoordinateSystem::G55 => 2,
+            CoordinateSystem::G56 => 3,
+            CoordinateSystem::G57 => 4,
+            CoordinateSystem::G58 => 5,
+            CoordinateSystem::G59 => 6,
+            CoordinateSystem::G59_1 => 7,
+            CoordinateSystem::G59_2 => 8,
+            CoordinateSystem::G59_3 => 9,
+        };
+        let (word, machine_position) = match axis {
+            Axis::X => ("X", status.machine_x),
+            Axis::Y => ("Y", status.machine_y),
+            Axis::Z => ("Z", status.machine_z),
+        };
+
+        if machine_position.is_finite() {
+            self.enqueue(Command::Mdi(format!(
+                "G10 L2 P{system_index} {word}{machine_position:.6}"
+            )));
+        }
     }
 
     pub fn send_command(&self, command: &str) {
@@ -349,6 +380,7 @@ fn api_worker(
                     Command::SelectCoordinateSystem(system) => api.select_coordinate_system(system),
                     Command::SetWorkZero(system) => api.set_work_zero(system),
                     Command::HomeAll => api.home(None),
+                    Command::Home(axis) => api.home(Some(axis)),
                     Command::Mdi(command) => api.mdi(&command),
                     Command::Spindle(command) => api.set_spindle(command),
                     Command::JogIncrement(request) => api.jog_increment(request),

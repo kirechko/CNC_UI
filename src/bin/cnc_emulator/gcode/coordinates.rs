@@ -131,6 +131,10 @@ pub(super) fn handle_g10_l2(
             .push(CoordinateSystemOffset { system, offset });
     }
 
+    if emulator.status.active_coordinate_system == system {
+        emulator.status.work_offset = offset;
+    }
+
     emulator.persist_coordinate_offsets_from_gcode()?;
     emulator.status.message = Some(format!("G10 L2 {} offset saved", system.label()));
     Ok(())

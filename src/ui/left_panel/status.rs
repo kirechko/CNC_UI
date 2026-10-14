@@ -92,9 +92,30 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         machine_val.add_css_class("monospace");
         machine_val.set_halign(gtk4::Align::End);
 
+        let axis = match *axis {
+            "X" => crate::cnc_api::Axis::X,
+            "Y" => crate::cnc_api::Axis::Y,
+            _ => crate::cnc_api::Axis::Z,
+        };
+        let home_button = Button::from_icon_name("go-home-symbolic");
+        home_button.set_tooltip_text(Some(&format!("Homing оси {}", axis_label(axis))));
+        home_button.set_has_frame(false);
+        home_button.add_css_class("flat");
+        let home_controller = controller.clone();
+        home_button.connect_clicked(move |_| home_controller.lock().unwrap().home_axis(axis));
+
+        let zero_button = Button::from_icon_name("edit-clear-symbolic");
+        zero_button.set_tooltip_text(Some(&format!("Установить ноль оси {}", axis_label(axis))));
+        zero_button.set_has_frame(false);
+        zero_button.add_css_class("flat");
+        let zero_controller = controller.clone();
+        zero_button.connect_clicked(move |_| zero_controller.lock().unwrap().zero_axis(axis));
+
         coord_grid.attach(&lbl, 0, i as i32 + 1, 1, 1);
         coord_grid.attach(&val, 1, i as i32 + 1, 1, 1);
         coord_grid.attach(&machine_val, 2, i as i32 + 1, 1, 1);
+        coord_grid.attach(&home_button, 3, i as i32 + 1, 1, 1);
+        coord_grid.attach(&zero_button, 4, i as i32 + 1, 1, 1);
     }
 
     pos_box.append(&coord_grid);
@@ -160,6 +181,14 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     ));
 
     (pos_box, log_row)
+}
+
+fn axis_label(axis: crate::cnc_api::Axis) -> &'static str {
+    match axis {
+        crate::cnc_api::Axis::X => "X",
+        crate::cnc_api::Axis::Y => "Y",
+        crate::cnc_api::Axis::Z => "Z",
+    }
 }
 
 fn update_status_indicators(
