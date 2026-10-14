@@ -139,40 +139,7 @@ fn axis_index(axis: Axis) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::Emulator;
-    use super::super::config::{
-        AxesConfig, AxisLimits, EmulatorConfig, SpindleConfig,
-    };
-    use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};
-    use std::path::PathBuf;
-
-    fn test_emulator() -> Emulator {
-        let config = EmulatorConfig {
-            axes: AxesConfig {
-                x: AxisLimits {
-                    min_mm: 0.0, max_mm: 300.0,
-                    max_velocity_mm_min: 6000.0, acceleration_mm_s2: 100.0,
-                },
-                y: AxisLimits {
-                    min_mm: 0.0, max_mm: 400.0,
-                    max_velocity_mm_min: 6000.0, acceleration_mm_s2: 100.0,
-                },
-                z: AxisLimits {
-                    min_mm: 0.0, max_mm: 100.0,
-                    max_velocity_mm_min: 3000.0, acceleration_mm_s2: 50.0,
-                },
-            },
-            spindle: SpindleConfig {
-                max_rpm: 24_000.0,
-                acceleration_rpm_per_sec: 1000.0,
-            },
-        };
-        let offsets = vec![CoordinateSystemOffset {
-            system: CoordinateSystem::G54,
-            offset: Position { x: 0.0, y: 0.0, z: 0.0 },
-        }];
-        Emulator::new(config, PathBuf::from("unused-test-offsets.yaml"), offsets)
-    }
+    use super::super::gcode::test_emulator;
 
     #[test]
     fn target_inside_limits_is_accepted() {
@@ -212,47 +179,8 @@ mod tests {
 
 #[cfg(test)]
 mod load_program_comment_tests {
-    use super::Emulator;
-    use super::super::config::{
-        AxesConfig, AxisLimits, EmulatorConfig, SpindleConfig,
-    };
+    use super::super::gcode::test_emulator;
     use super::super::protocol::Request;
-    use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};
-    use std::path::PathBuf;
-
-    fn test_emulator() -> Emulator {
-        let config = EmulatorConfig {
-            axes: AxesConfig {
-                x: AxisLimits {
-                    min_mm: 0.0, max_mm: 300.0,
-                    max_velocity_mm_min: 6000.0, acceleration_mm_s2: 100.0,
-                },
-                y: AxisLimits {
-                    min_mm: 0.0, max_mm: 400.0,
-                    max_velocity_mm_min: 6000.0, acceleration_mm_s2: 100.0,
-                },
-                z: AxisLimits {
-                    min_mm: 0.0, max_mm: 100.0,
-                    max_velocity_mm_min: 3000.0, acceleration_mm_s2: 50.0,
-                },
-            },
-            spindle: SpindleConfig {
-                max_rpm: 24_000.0,
-                acceleration_rpm_per_sec: 1000.0,
-            },
-        };
-
-        let offsets = vec![CoordinateSystemOffset {
-            system: CoordinateSystem::G54,
-            offset: Position { x: 0.0, y: 0.0, z: 0.0 },
-        }];
-
-        Emulator::new(
-            config,
-            PathBuf::from("unused-test-offsets.yaml"),
-            offsets,
-        )
-    }
 
     #[test]
     fn load_program_strips_semicolon_comments_but_keeps_parenthesis_comments() {
