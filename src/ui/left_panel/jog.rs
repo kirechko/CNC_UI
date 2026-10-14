@@ -128,6 +128,11 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
     speed_row.append(&xy_speed);
     speed_row.append(&z_speed_label);
     speed_row.append(&z_speed);
+
+    let speed_unit = Label::new(Some("mm/min"));
+    speed_unit.add_css_class("dim-label");
+    speed_row.append(&speed_unit);
+
     jog_panel.append(&speed_row);
 
     jog_panel
