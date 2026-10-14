@@ -7,38 +7,6 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
     jog_title.set_halign(gtk4::Align::Center);
     jog_panel.append(&jog_title);
 
-    let speed_row = GtkBox::new(Orientation::Horizontal, 8);
-    speed_row.set_halign(gtk4::Align::Center);
-
-    let xy_speed_label = Label::new(Some("XY mm/min"));
-    let xy_speed = gtk4::SpinButton::with_range(1.0, 10000.0, 50.0);
-    xy_speed.set_value(1000.0);
-    xy_speed.set_width_chars(5);
-    let xy_speed_controller = controller.clone();
-    xy_speed.connect_value_changed(move |spin| {
-        xy_speed_controller
-            .lock()
-            .unwrap()
-            .set_xy_jog_speed(spin.value());
-    });
-
-    let z_speed_label = Label::new(Some("Z mm/min"));
-    let z_speed = gtk4::SpinButton::with_range(1.0, 10000.0, 10.0);
-    z_speed.set_value(300.0);
-    z_speed.set_width_chars(5);
-    let z_speed_controller = controller.clone();
-    z_speed.connect_value_changed(move |spin| {
-        z_speed_controller
-            .lock()
-            .unwrap()
-            .set_z_jog_speed(spin.value());
-    });
-
-    speed_row.append(&xy_speed_label);
-    speed_row.append(&xy_speed);
-    speed_row.append(&z_speed_label);
-    speed_row.append(&z_speed);
-    jog_panel.append(&speed_row);
 
     let jog_container = GtkBox::new(Orientation::Horizontal, 10);
     jog_container.set_halign(gtk4::Align::Center);
@@ -113,6 +81,54 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
 
     jog_container.append(&z_col);
     jog_panel.append(&jog_container);
+
+    let speed_row = GtkBox::new(Orientation::Horizontal, 8);
+    speed_row.set_halign(gtk4::Align::Center);
+    speed_row.set_margin_top(4);
+
+    let xy_speed_label = Label::new(Some("XY mm/min"));
+    let xy_speed = gtk4::ComboBoxText::new();
+    let xy_speeds = [100.0, 300.0, 500.0, 1000.0, 1500.0, 2000.0, 3000.0, 5000.0, 10000.0];
+    for speed in xy_speeds {
+        let id = speed.to_string();
+        let label = format!("{speed:.0}");
+        xy_speed.append(Some(&id), &label);
+    }
+    xy_speed.set_active_id(Some("1000"));
+    let xy_speed_controller = controller.clone();
+    xy_speed.connect_changed(move |combo| {
+        if let Some(speed) = combo.active_id().and_then(|id| id.parse::<f64>().ok()) {
+            xy_speed_controller
+                .lock()
+                .unwrap()
+                .set_xy_jog_speed(speed);
+        }
+    });
+
+    let z_speed_label = Label::new(Some("Z mm/min"));
+    let z_speed = gtk4::ComboBoxText::new();
+    let z_speeds = [50.0, 100.0, 200.0, 300.0, 500.0, 750.0, 1000.0, 1500.0, 2000.0];
+    for speed in z_speeds {
+        let id = speed.to_string();
+        let label = format!("{speed:.0}");
+        z_speed.append(Some(&id), &label);
+    }
+    z_speed.set_active_id(Some("300"));
+    let z_speed_controller = controller.clone();
+    z_speed.connect_changed(move |combo| {
+        if let Some(speed) = combo.active_id().and_then(|id| id.parse::<f64>().ok()) {
+            z_speed_controller
+                .lock()
+                .unwrap()
+                .set_z_jog_speed(speed);
+        }
+    });
+
+    speed_row.append(&xy_speed_label);
+    speed_row.append(&xy_speed);
+    speed_row.append(&z_speed_label);
+    speed_row.append(&z_speed);
+    jog_panel.append(&speed_row);
 
     jog_panel
 }
