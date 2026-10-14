@@ -125,7 +125,7 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         let home_controller = controller.clone();
         home_button.connect_clicked(move |_| home_controller.lock().unwrap().home_axis(axis));
 
-        let zero_button = Button::from_icon_name("edit-clear-symbolic");
+        let zero_button = Button::from_icon_name("crosshair-symbolic");
         zero_button.set_tooltip_text(Some(&format!("Установить ноль оси {}", axis_label(axis))));
         zero_button.set_has_frame(false);
         zero_button.set_size_request(30, 30);

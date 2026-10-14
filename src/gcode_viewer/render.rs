@@ -26,18 +26,27 @@ pub(super) fn draw_scene(
         cr.stroke().unwrap();
     }
 
-    let range = ((bounds.3 - bounds.0) + (bounds.4 - bounds.1) + (bounds.5 - bounds.2)) / 3.0;
-    let scale = if range > 0.001 {
-        (width.min(height) / range) * 0.8 * camera.zoom
+    // Центрируем сцену по габаритам траектории и подбираем масштаб по самой
+    // длинной оси, чтобы вся траектория помещалась в области просмотра.
+    let center = (
+        (bounds.0 + bounds.3) / 2.0,
+        (bounds.1 + bounds.4) / 2.0,
+        (bounds.2 + bounds.5) / 2.0,
+    );
+    let extent = (bounds.3 - bounds.0)
+        .max(bounds.4 - bounds.1)
+        .max(bounds.5 - bounds.2);
+    let scale = if extent > 0.001 {
+        (width.min(height) / extent) * 0.45 * camera.zoom
     } else {
         camera.zoom
     };
 
     let project = |x, y, z| {
         camera.orientation.project(
-            x,
-            y,
-            z,
+            x - center.0,
+            y - center.1,
+            z - center.2,
             camera.pan_x,
             camera.pan_y,
             scale,
