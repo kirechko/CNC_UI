@@ -3,6 +3,32 @@ use super::super::protocol::{api_error, WireError};
 use crate::cnc_api::TaskState;
 use serde_json::Value;
 
+pub(super) fn select_coordinate_system(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    let system: crate::cnc_api::CoordinateSystem = serde_json::from_value(
+        args.get("system").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|error| api_error("bad_request", error.to_string()))?;
+
+    emulator.select_coordinate_system(system);
+    Ok(Value::Null)
+}
+
+pub(super) fn set_work_zero(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    let system: crate::cnc_api::CoordinateSystem = serde_json::from_value(
+        args.get("system").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|error| api_error("bad_request", error.to_string()))?;
+
+    emulator.set_selected_work_zero(system)?;
+    Ok(Value::Null)
+}
+
 pub(super) fn load_program(
     emulator: &mut Emulator,
     args: Value,
