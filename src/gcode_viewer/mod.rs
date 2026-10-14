@@ -1,9 +1,9 @@
-mod controls;
-mod tool;
-mod orientation_cube;
-mod render;
 mod camera;
+mod controls;
+mod orientation_cube;
 mod parser;
+mod render;
+mod tool;
 use self::render::draw_scene;
 mod types;
 use self::types::{Camera, CameraOrientation, Segment, ToolVisual};
@@ -71,24 +71,20 @@ impl GCodeViewer {
         // Анимация инструмента: 30 кадров/с, максимум 5 оборотов в секунду.
         let animation_area = area.clone();
         let animation_tool = tool.clone();
-        gtk4::glib::timeout_add_local(
-            std::time::Duration::from_millis(33),
-            move || {
-                let mut t = animation_tool.borrow_mut();
-                let now = Instant::now();
-                let dt = now.duration_since(t.last_update).as_secs_f64().min(0.1);
-                t.last_update = now;
-                if t.max_rpm > 0.0 && t.rpm > 0.0 {
-                    let rev_per_sec = (t.rpm / t.max_rpm).clamp(0.0, 1.0) * 5.0;
-                    t.phase = (t.phase
-                        + t.direction_sign * rev_per_sec * 2.0 * PI * dt)
-                        .rem_euclid(2.0 * PI);
-                }
-                drop(t);
-                animation_area.queue_draw();
-                gtk4::glib::ControlFlow::Continue
-            },
-        );
+        gtk4::glib::timeout_add_local(std::time::Duration::from_millis(33), move || {
+            let mut t = animation_tool.borrow_mut();
+            let now = Instant::now();
+            let dt = now.duration_since(t.last_update).as_secs_f64().min(0.1);
+            t.last_update = now;
+            if t.max_rpm > 0.0 && t.rpm > 0.0 {
+                let rev_per_sec = (t.rpm / t.max_rpm).clamp(0.0, 1.0) * 5.0;
+                t.phase =
+                    (t.phase + t.direction_sign * rev_per_sec * 2.0 * PI * dt).rem_euclid(2.0 * PI);
+            }
+            drop(t);
+            animation_area.queue_draw();
+            gtk4::glib::ControlFlow::Continue
+        });
 
         Self {
             widget: area,
@@ -176,8 +172,7 @@ impl GCodeViewer {
                 let px = segment.x_start + dx * t;
                 let py = segment.y_start + dy * t;
                 let pz = segment.z_start + dz * t;
-                let distance_sq =
-                    (x - px).powi(2) + (y - py).powi(2) + (z - pz).powi(2);
+                let distance_sq = (x - px).powi(2) + (y - py).powi(2) + (z - pz).powi(2);
 
                 if distance_sq < best_distance_sq {
                     best_distance_sq = distance_sq;
@@ -188,7 +183,6 @@ impl GCodeViewer {
             if best_distance_sq.is_finite() {
                 let next_progress = previous.max(best_progress);
                 self.telemetry_progress.set(next_progress);
-
             }
         }
 
@@ -216,10 +210,6 @@ impl GCodeViewer {
         }
     }
 
-
-
-
-
     pub fn update_draw(&mut self) {
         let segments = self.segments.clone();
         let bounds = self.bounds;
@@ -242,15 +232,3 @@ impl GCodeViewer {
         self.widget.queue_draw();
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-

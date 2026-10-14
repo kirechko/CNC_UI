@@ -134,7 +134,10 @@ pub(super) fn create_center_panel(
         };
 
         if let Err(error) = result {
-            eprintln!("[LinuxCncApi] pause/resume: {}: {}", error.code, error.message);
+            eprintln!(
+                "[LinuxCncApi] pause/resume: {}: {}",
+                error.code, error.message
+            );
         }
 
         let updated = controller.get_status_snapshot();
@@ -154,25 +157,19 @@ pub(super) fn create_center_panel(
     let state_controller = controller.clone();
     let state_stack = program_stack.clone();
     let state_pause_icon_area = pause_icon_area.clone();
-    gtk4::glib::timeout_add_local(
-        std::time::Duration::from_millis(200),
-        move || {
-            let status = state_controller
-                .lock()
-                .unwrap()
-                .get_status_snapshot();
+    gtk4::glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
+        let status = state_controller.lock().unwrap().get_status_snapshot();
 
-            if status.state == "READING" || status.state == "PAUSED" {
-                state_stack.set_visible_child_name("running");
-                show_play_icon.set(status.state == "PAUSED");
-                state_pause_icon_area.queue_draw();
-            } else {
-                state_stack.set_visible_child_name("stopped");
-            }
+        if status.state == "READING" || status.state == "PAUSED" {
+            state_stack.set_visible_child_name("running");
+            show_play_icon.set(status.state == "PAUSED");
+            state_pause_icon_area.queue_draw();
+        } else {
+            state_stack.set_visible_child_name("stopped");
+        }
 
-            gtk4::glib::ControlFlow::Continue
-        },
-    );
+        gtk4::glib::ControlFlow::Continue
+    });
 
     let mode_3d = gtk4::ToggleButton::with_label("3D");
     let mode_ortho = gtk4::ToggleButton::with_label("Ortho");
@@ -249,7 +246,10 @@ pub(super) fn create_center_panel(
                         viewer.update_draw();
                     }
                     if let Err(error) = controller.lock().unwrap().load_program(&path) {
-                        eprintln!("[LinuxCncApi] load program: {}: {}", error.code, error.message);
+                        eprintln!(
+                            "[LinuxCncApi] load program: {}: {}",
+                            error.code, error.message
+                        );
                     }
                 }
             }
