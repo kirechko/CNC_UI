@@ -1,7 +1,12 @@
+#[path = "gcode/accessories.rs"]
 mod accessories;
+#[path = "gcode/coordinates.rs"]
 mod coordinates;
+#[path = "gcode/execute.rs"]
 mod execute;
+#[path = "gcode/motion.rs"]
 mod motion;
+#[path = "gcode/parser.rs"]
 mod parser;
 
 pub(super) fn parse_words(line: &str) -> Vec<(char, f64)> {
