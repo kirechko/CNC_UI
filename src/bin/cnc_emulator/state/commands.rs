@@ -35,6 +35,7 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
         "estop" => power_off(emulator, true),
         "select_coordinate_system" => select_coordinate_system(emulator, args),
         "set_work_zero" => set_work_zero(emulator, args),
+        "set_axis_work_zero" => set_axis_work_zero(emulator, args),
         "home" => home(emulator, args),
         "jog_increment" => jog_increment(emulator, args),
         "jog_continuous" => jog_continuous(emulator, args),
@@ -256,6 +257,17 @@ pub(super) fn set_work_zero(emulator: &mut Emulator, args: Value) -> Result<Valu
             .map_err(|error| api_error("bad_request", error.to_string()))?;
 
     emulator.set_selected_work_zero(system)?;
+    Ok(Value::Null)
+}
+
+pub(super) fn set_axis_work_zero(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    let axis: Axis = serde_json::from_value(args.get("axis").cloned().unwrap_or(Value::Null))
+        .map_err(|error| api_error("bad_request", error.to_string()))?;
+
+    emulator.set_axis_work_zero(axis)?;
     Ok(Value::Null)
 }
 
