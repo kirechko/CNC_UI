@@ -303,21 +303,7 @@ impl Emulator {
                 Ok(Value::Null)
             }
 
-            "load_program" => {
-                let name = args.get("name").and_then(Value::as_str).unwrap_or("program.ngc");
-                let content = args.get("content").and_then(Value::as_str).unwrap_or("");
-                self.program = content.lines()
-                    .map(|line| line.split(';').next().unwrap_or("").trim().to_string())
-                    .filter(|line| !line.is_empty())
-                    .collect();
-                self.status.loaded_program = Some(name.to_string());
-                self.status.total_lines = self.program.len() as u32;
-                self.status.current_line = 0;
-                self.status.task_mode = TaskMode::Auto;
-                self.status.interpreter_state = InterpreterState::Idle;
-                self.status.message = Some(format!("Loaded {} blocks", self.program.len()));
-                Ok(Value::Null)
-            }
+            "load_program" => commands::load_program(self, args),
 
             "program_run" => {
                 self.ensure_motion_allowed()?;
