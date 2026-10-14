@@ -9,6 +9,8 @@ use std::time::Instant;
 
 #[path = "state/coordinates.rs"]
 mod coordinates;
+#[path = "state/tick.rs"]
+mod tick;
 
 pub(super) struct Emulator {
     pub(super) status: MachineStatus,
@@ -443,143 +445,7 @@ impl Emulator {
     }
 
     pub(super) fn tick(&mut self, dt: f64) {
-        if self.dwell_remaining > 0.0
-            && self.status.interpreter_state != InterpreterState::Paused
-        {
-            self.dwell_remaining = (self.dwell_remaining - dt).max(0.0);
-            if self.dwell_remaining > 0.0 {
-                return;
-            }
-            self.status.message = Some("Dwell complete".into());
-            return;
-        }
-        let target_rpm = self.status.spindle.commanded_rpm;
-        let actual_rpm = self.status.spindle.actual_rpm;
-        let max_delta = self.config.spindle.acceleration_rpm_per_sec * dt;
-        let next_rpm = if actual_rpm < target_rpm {
-            (actual_rpm + max_delta).min(target_rpm)
-        } else {
-            (actual_rpm - max_delta).max(target_rpm)
-        };
-        self.status.spindle.actual_rpm = next_rpm;
-        if target_rpm <= 0.0 && next_rpm <= 0.01 {
-            self.status.spindle.actual_rpm = 0.0;
-
-            if let Some((direction, rpm)) = self.pending_spindle.take() {
-                self.status.spindle.direction = direction;
-                self.status.spindle.commanded_rpm = rpm;
-                self.status.spindle.enabled = rpm > 0.0;
-            } else {
-                self.status.spindle.direction = SpindleDirection::Stopped;
-                self.status.spindle.enabled = false;
-            }
-        } else {
-            self.status.spindle.enabled = next_rpm > 0.01 || target_rpm > 0.0;
-        }
-
-        let movement_may_advance =
-            self.stop_retract_active
-                || self.status.interpreter_state != InterpreterState::Paused;
-
-        if movement_may_advance {
-            if let Some(mut movement) = self.active_move.take() {
-                let (position, done) = movement.tick(dt);
-                self.set_position(position);
-
-                if done {
-                    if self.stop_retract_active {
-                        self.stop_retract_active = false;
-                        self.status.message = Some("Stop retract complete".into());
-                    }
-                    if self.active_move_is_homing {
-                    if let Some(axis) = self.homing_axis.take() {
-                        self.status.homed[axis_index(axis)] = true;
-                    }
-                    self.active_move_is_homing = false;
-                }
-                } else {
-                    self.active_move = Some(movement);
-                }
-            }
-        }
-
-        if self.active_move.is_none() && self.status.homing {
-            if let Some(axis) = self.homing_queue.first().copied() {
-                self.homing_queue.remove(0);
-                let mut target = self.position_array();
-                let index = axis_index(axis);
-                target[index] = self.config.axis(axis).min_mm;
-                self.homing_axis = Some(axis);
-
-                match Motion::new(
-                    self.position_array(),
-                    target,
-                    self.config.axis(axis).max_velocity_mm_min,
-                    true,
-                    &self.config,
-                ) {
-                    Ok(Some(motion)) => {
-                        self.active_move = Some(ActiveMove::from_motion(motion));
-                        self.active_move_is_homing = true;
-                    }
-                    Ok(None) => {
-                        self.status.homed[index] = true;
-                        self.homing_axis = None;
-                    }
-                    Err(error) => {
-                        self.status.homing = false;
-                        self.status.task_state = TaskState::Estop;
-                        self.status.message = Some(format!("Homing error: {}", error.message));
-                        self.homing_queue.clear();
-                        self.homing_axis = None;
-                        self.active_move_is_homing = false;
-                        return;
-                    }
-                }
-            } else {
-                self.status.homing = false;
-                self.status.message = Some("Homing complete".into());
-            }
-        }
-
-        if let Some((axis, direction, feed)) = self.continuous_jog {
-            let limits = self.config.axis(axis);
-            let max_v = (feed / 60.0).min(limits.max_velocity_mm_min / 60.0);
-            self.jog_velocity = (self.jog_velocity + limits.acceleration_mm_s2 * dt).min(max_v);
-            let delta = f64::from(direction) * self.jog_velocity * dt;
-            let mut p = self.position_array();
-            let index = axis_index(axis);
-            p[index] = (p[index] + delta).clamp(limits.min_mm, limits.max_mm);
-            self.set_position(p);
-        } else {
-            self.jog_velocity = 0.0;
-        }
-
-        if self.status.interpreter_state != InterpreterState::Reading || self.active_move.is_some() || self.status.homing {
-            return;
-        }
-
-        let index = self.status.current_line as usize;
-        if index >= self.program.len() {
-            self.status.interpreter_state = InterpreterState::Idle;
-            self.status.message = Some("Program finished".into());
-            return;
-        }
-
-        let line = self.program[index].clone();
-        match self.execute_gcode(&line) {
-            Ok(()) => {
-                self.status.current_line += 1;
-                if self.status.current_line as usize >= self.program.len() && self.active_move.is_none() {
-                    self.status.interpreter_state = InterpreterState::Idle;
-                    self.status.message = Some("Program finished".into());
-                }
-            }
-            Err(error) => {
-                self.status.interpreter_state = InterpreterState::Idle;
-                self.status.message = Some(format!("{}: {}", error.code, error.message));
-            }
-        }
+        tick::tick(self, dt);
     }
 }
 
