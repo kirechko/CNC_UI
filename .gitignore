@@ -4,3 +4,6 @@
 # Local machine/work-coordinate offsets; do not commit real setup values.
 /config/coordinate_systems.yaml
 .aider*
+
+# Personal plans and work notes; keep these local to this checkout.
+.local-plans/
