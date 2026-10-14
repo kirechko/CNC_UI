@@ -2,22 +2,22 @@ use super::types::Camera;
 
 const CUBE_VERTICES: [[f64; 3]; 8] = [
     [-1.0, -1.0, -1.0],
-    [ 1.0, -1.0, -1.0],
-    [ 1.0,  1.0, -1.0],
-    [-1.0,  1.0, -1.0],
-    [-1.0, -1.0,  1.0],
-    [ 1.0, -1.0,  1.0],
-    [ 1.0,  1.0,  1.0],
-    [-1.0,  1.0,  1.0],
+    [1.0, -1.0, -1.0],
+    [1.0, 1.0, -1.0],
+    [-1.0, 1.0, -1.0],
+    [-1.0, -1.0, 1.0],
+    [1.0, -1.0, 1.0],
+    [1.0, 1.0, 1.0],
+    [-1.0, 1.0, 1.0],
 ];
 
 const CUBE_FACES: [([usize; 4], [f64; 3], &str, (f64, f64, f64)); 6] = [
-    ([1, 2, 6, 5], [ 1.0,  0.0,  0.0], "Right",  (0.50, 0.52, 0.56)),
-    ([0, 4, 7, 3], [-1.0,  0.0,  0.0], "Left",   (0.42, 0.44, 0.48)),
-    ([3, 7, 6, 2], [ 0.0,  1.0,  0.0], "Top",    (0.66, 0.67, 0.70)),
-    ([0, 1, 5, 4], [ 0.0, -1.0,  0.0], "Bottom", (0.36, 0.38, 0.42)),
-    ([4, 5, 6, 7], [ 0.0,  0.0,  1.0], "Front",  (0.56, 0.58, 0.61)),
-    ([0, 3, 2, 1], [ 0.0,  0.0, -1.0], "Back",   (0.46, 0.48, 0.51)),
+    ([1, 2, 6, 5], [1.0, 0.0, 0.0], "Right", (0.50, 0.52, 0.56)),
+    ([0, 4, 7, 3], [-1.0, 0.0, 0.0], "Left", (0.42, 0.44, 0.48)),
+    ([3, 7, 6, 2], [0.0, 1.0, 0.0], "Top", (0.66, 0.67, 0.70)),
+    ([0, 1, 5, 4], [0.0, -1.0, 0.0], "Bottom", (0.36, 0.38, 0.42)),
+    ([4, 5, 6, 7], [0.0, 0.0, 1.0], "Front", (0.56, 0.58, 0.61)),
+    ([0, 3, 2, 1], [0.0, 0.0, -1.0], "Back", (0.46, 0.48, 0.51)),
 ];
 
 fn cube_points(camera: &Camera, width: f64, height: f64) -> Vec<(f64, f64, f64)> {
@@ -42,12 +42,7 @@ fn cube_points(camera: &Camera, width: f64, height: f64) -> Vec<(f64, f64, f64)>
         .collect()
 }
 
-
-fn rounded_polygon_path(
-    cr: &gtk4::cairo::Context,
-    points: &[(f64, f64)],
-    radius: f64,
-) {
+fn rounded_polygon_path(cr: &gtk4::cairo::Context, points: &[(f64, f64)], radius: f64) {
     if points.len() < 3 {
         return;
     }
@@ -63,8 +58,7 @@ fn rounded_polygon_path(
         let to_previous = (previous.0 - current.0, previous.1 - current.1);
         let to_next = (next.0 - current.0, next.1 - current.1);
 
-        let len_previous =
-            (to_previous.0 * to_previous.0 + to_previous.1 * to_previous.1).sqrt();
+        let len_previous = (to_previous.0 * to_previous.0 + to_previous.1 * to_previous.1).sqrt();
         let len_next = (to_next.0 * to_next.0 + to_next.1 * to_next.1).sqrt();
 
         if len_previous < 1e-6 || len_next < 1e-6 {
@@ -206,8 +200,8 @@ pub(super) fn draw_orientation_cube(
                 cr.set_font_size(11.0);
                 let initial = cr.text_extents(label).unwrap();
                 let available_width = edge_length * 0.68;
-                let font_size = (11.0 * available_width / initial.width().max(1.0))
-                    .clamp(6.0, 11.0);
+                let font_size =
+                    (11.0 * available_width / initial.width().max(1.0)).clamp(6.0, 11.0);
                 cr.set_font_size(font_size);
 
                 let extents = cr.text_extents(label).unwrap();
@@ -266,9 +260,7 @@ fn point_in_polygon(x: f64, y: f64, polygon: &[(f64, f64)]) -> bool {
     for i in 0..polygon.len() {
         let (xi, yi) = polygon[i];
         let (xj, yj) = polygon[j];
-        if (yi > y) != (yj > y)
-            && x < (xj - xi) * (y - yi) / (yj - yi) + xi
-        {
+        if (yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi {
             inside = !inside;
         }
         j = i;

@@ -32,11 +32,7 @@ pub(super) fn handle_m_word(emulator: &mut Emulator, value: f64) -> Result<(), W
     Ok(())
 }
 
-pub(super) fn set_spindle(
-    emulator: &mut Emulator,
-    direction: SpindleDirection,
-    rpm: Option<f64>,
-) {
+pub(super) fn set_spindle(emulator: &mut Emulator, direction: SpindleDirection, rpm: Option<f64>) {
     let requested_rpm = rpm
         .unwrap_or(emulator.status.spindle.commanded_rpm)
         .clamp(0.0, emulator.config.spindle.max_rpm);

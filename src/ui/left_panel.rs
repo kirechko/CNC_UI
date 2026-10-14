@@ -1,6 +1,6 @@
-mod status;
 mod jog;
 mod spindle;
+mod status;
 use super::*;
 
 pub(super) fn create_left_panel(controller: Arc<Mutex<CNCController>>) -> (GtkBox, GtkBox) {

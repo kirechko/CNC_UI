@@ -37,9 +37,8 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         emulator.status.spindle.enabled = next_rpm > 0.01 || target_rpm > 0.0;
     }
 
-    let movement_may_advance =
-        emulator.stop_retract_active
-            || emulator.status.interpreter_state != InterpreterState::Paused;
+    let movement_may_advance = emulator.stop_retract_active
+        || emulator.status.interpreter_state != InterpreterState::Paused;
 
     if movement_may_advance {
         if let Some(mut movement) = emulator.active_move.take() {
@@ -105,8 +104,7 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     if let Some((axis, direction, feed)) = emulator.continuous_jog {
         let limits = emulator.config.axis(axis);
         let max_v = (feed / 60.0).min(limits.max_velocity_mm_min / 60.0);
-        emulator.jog_velocity =
-            (emulator.jog_velocity + limits.acceleration_mm_s2 * dt).min(max_v);
+        emulator.jog_velocity = (emulator.jog_velocity + limits.acceleration_mm_s2 * dt).min(max_v);
         let delta = f64::from(direction) * emulator.jog_velocity * dt;
         let mut position = emulator.position_array();
         let index = super::axis_index(axis);

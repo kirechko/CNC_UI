@@ -26,8 +26,6 @@ pub(super) struct CameraOrientation {
     pub(super) fwd: [f64; 3],
 }
 
-
-
 #[derive(Clone)]
 pub(super) struct ToolVisual {
     pub(super) x: f64,

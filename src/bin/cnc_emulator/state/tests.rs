@@ -52,9 +52,6 @@ fn load_program_strips_semicolon_comments_but_keeps_parenthesis_comments() {
 
     assert_eq!(
         emulator.program,
-        vec![
-            "G1 X10".to_string(),
-            "G1 X30 (G99 Y42)".to_string(),
-        ]
+        vec!["G1 X10".to_string(), "G1 X30 (G99 Y42)".to_string(),]
     );
 }

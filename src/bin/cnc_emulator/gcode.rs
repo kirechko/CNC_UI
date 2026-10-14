@@ -15,7 +15,6 @@ pub(super) mod test_support;
 #[cfg(test)]
 pub(super) use test_support::test_emulator;
 
-
 use super::protocol::WireError;
 use super::state::Emulator;
 use crate::cnc_api::*;
@@ -25,14 +24,7 @@ impl Emulator {
         execute::execute_gcode(self, line)
     }
 
-
     pub(super) fn set_spindle(&mut self, direction: SpindleDirection, rpm: Option<f64>) {
         accessories::set_spindle(self, direction, rpm);
     }
 }
-
-
-
-
-
-

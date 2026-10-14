@@ -56,10 +56,7 @@ mod tests {
                 ('F', 1200.0),
             ]
         );
-        assert_eq!(
-            parse_words("g59.3 x-1.25"),
-            vec![('G', 59.3), ('X', -1.25)]
-        );
+        assert_eq!(parse_words("g59.3 x-1.25"), vec![('G', 59.3), ('X', -1.25)]);
     }
 
     #[test]
@@ -98,10 +95,7 @@ mod tests {
     fn ignores_unparseable_values_and_continues_scanning() {
         assert_eq!(parse_words("G X Y7"), vec![('Y', 7.0)]);
         assert!(parse_words("X. Y.").is_empty());
-        assert_eq!(
-            parse_words("X1.2.3 Y4"),
-            vec![('X', 1.2), ('Y', 4.0)]
-        );
+        assert_eq!(parse_words("X1.2.3 Y4"), vec![('X', 1.2), ('Y', 4.0)]);
     }
 
     #[test]

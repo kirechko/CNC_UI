@@ -13,7 +13,8 @@ pub(super) fn connect_log_button(
             .default_width(600)
             .default_height(400)
             .transient_for(
-                &parent.root()
+                &parent
+                    .root()
                     .and_then(|root| root.downcast::<ApplicationWindow>().ok())
                     .expect("event log parent window"),
             )

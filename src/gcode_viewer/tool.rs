@@ -1,13 +1,12 @@
-use std::f64::consts::PI;
 use super::types::{Camera, ToolVisual};
+use std::f64::consts::PI;
 
 pub(super) fn draw_hex_pencil<F>(
     cr: &gtk4::cairo::Context,
     project: F,
     camera: &Camera,
     tool: &ToolVisual,
-)
-where
+) where
     F: Fn(f64, f64, f64) -> (f64, f64),
 {
     const SIDES: usize = 6;
@@ -29,10 +28,7 @@ where
         })
         .collect();
 
-    let top_ring: Vec<[f64; 3]> = ring
-        .iter()
-        .map(|p| [p[0], p[1], body_top_z])
-        .collect();
+    let top_ring: Vec<[f64; 3]> = ring.iter().map(|p| [p[0], p[1], body_top_z]).collect();
 
     let tip = [tool.x, tool.y, tip_z];
 
@@ -50,14 +46,12 @@ where
         let j = (i + 1) % SIDES;
 
         // Боковая грань корпуса.
-        let body_points = [
-            ring[i],
-            ring[j],
-            top_ring[j],
-            top_ring[i],
-        ];
+        let body_points = [ring[i], ring[j], top_ring[j], top_ring[i]];
         let body_depth = body_points.iter().map(|p| camera_depth(*p)).sum::<f64>() / 4.0;
-        let body_poly = body_points.iter().map(|p| project(p[0], p[1], p[2])).collect();
+        let body_poly = body_points
+            .iter()
+            .map(|p| project(p[0], p[1], p[2]))
+            .collect();
         // Одна золотистая грань служит меткой вращения; красного цвета нет.
         let base_color = match i {
             0 => (0.92, 0.66, 0.25),
@@ -81,7 +75,10 @@ where
         // Треугольная заточка использует те же вершины кольца — щели быть не может.
         let tip_points = [tip, ring[i], ring[j]];
         let tip_depth = tip_points.iter().map(|p| camera_depth(*p)).sum::<f64>() / 3.0;
-        let tip_poly = tip_points.iter().map(|p| project(p[0], p[1], p[2])).collect();
+        let tip_poly = tip_points
+            .iter()
+            .map(|p| project(p[0], p[1], p[2]))
+            .collect();
         let tip_shade: f64 = if i % 2 == 0 { 0.78 } else { 0.55 };
         let tip_brightness = brightness;
         faces.push((

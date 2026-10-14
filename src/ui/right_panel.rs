@@ -13,7 +13,12 @@ pub(super) fn create_right_panel(viewer: Arc<Mutex<GCodeViewer>>) -> GtkBox {
     panel.append(&tabs);
 
     let list = GtkBox::new(Orientation::Vertical, 5);
-    let files = ["test.gcode", "Ray-Gear.nc", "Pocket-Test.nc", "Engrave-Logo.gcode"];
+    let files = [
+        "test.gcode",
+        "Ray-Gear.nc",
+        "Pocket-Test.nc",
+        "Engrave-Logo.gcode",
+    ];
 
     for item in files {
         let label = Label::new(Some(item));
