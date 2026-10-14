@@ -1,7 +1,7 @@
+use crate::cnc_controller::CNCController;
 use gtk4::prelude::*;
 use gtk4::DrawingArea;
 use std::sync::{Arc, Mutex};
-use crate::cnc_controller::CNCController;
 
 // Геометрия
 const R_CENTER: f64 = 0.15;
@@ -13,16 +13,16 @@ const BOUND_3: f64 = R_CENTER + 3.0 * RING_WIDTH;
 
 // ЦВЕТА ПОЛЬЗОВАТЕЛЯ (пересчитаны из HEX в f64)
 // Ось X (Красные/Бордовые): 8d3837, 6e3332, 532e2e, 3f2a2b
-const COLOR_X_RING4: (f64,f64,f64) = (0.553, 0.220, 0.216); // Внешнее (самое яркое) #8d3837
-const COLOR_X_RING3: (f64,f64,f64) = (0.431, 0.200, 0.196); // #6e3332
-const COLOR_X_RING2: (f64,f64,f64) = (0.325, 0.180, 0.180); // #532e2e
-const COLOR_X_RING1: (f64,f64,f64) = (0.247, 0.165, 0.169); // Внутреннее (самое темное) #3f2a2b
+const COLOR_X_RING4: (f64, f64, f64) = (0.553, 0.220, 0.216); // Внешнее (самое яркое) #8d3837
+const COLOR_X_RING3: (f64, f64, f64) = (0.431, 0.200, 0.196); // #6e3332
+const COLOR_X_RING2: (f64, f64, f64) = (0.325, 0.180, 0.180); // #532e2e
+const COLOR_X_RING1: (f64, f64, f64) = (0.247, 0.165, 0.169); // Внутреннее (самое темное) #3f2a2b
 
 // Ось Y (Зеленые/Хаки): 3d766c, 375e56, 314945, 2b3937
-const COLOR_Y_RING4: (f64,f64,f64) = (0.239, 0.463, 0.424); // Внешнее #3d766c
-const COLOR_Y_RING3: (f64,f64,f64) = (0.216, 0.369, 0.337); // #375e56
-const COLOR_Y_RING2: (f64,f64,f64) = (0.192, 0.286, 0.271); // #314945
-const COLOR_Y_RING1: (f64,f64,f64) = (0.169, 0.224, 0.216); // Внутреннее #2b3937
+const COLOR_Y_RING4: (f64, f64, f64) = (0.239, 0.463, 0.424); // Внешнее #3d766c
+const COLOR_Y_RING3: (f64, f64, f64) = (0.216, 0.369, 0.337); // #375e56
+const COLOR_Y_RING2: (f64, f64, f64) = (0.192, 0.286, 0.271); // #314945
+const COLOR_Y_RING1: (f64, f64, f64) = (0.169, 0.224, 0.216); // Внутреннее #2b3937
 
 const COLOR_CENTER: (f64, f64, f64) = (0.12, 0.12, 0.13);
 
@@ -51,19 +51,22 @@ impl JogDial {
             cr.paint().unwrap();
 
             // Функция рисования одного кольца (дуги) сплошным цветом
-            let draw_ring_segment = |r_inner_frac: f64, r_outer_frac: f64, 
-                                     start: f64, end: f64, color: (f64,f64,f64)| {
+            let draw_ring_segment = |r_inner_frac: f64,
+                                     r_outer_frac: f64,
+                                     start: f64,
+                                     end: f64,
+                                     color: (f64, f64, f64)| {
                 let r_in = radius * r_inner_frac;
                 let r_out = radius * r_outer_frac;
-                
+
                 cr.move_to(cx + r_in * start.cos(), cy + r_in * start.sin());
                 cr.arc(cx, cy, r_out, start, end);
                 cr.arc_negative(cx, cy, r_in, end, start);
                 cr.close_path();
-                
+
                 cr.set_source_rgb(color.0, color.1, color.2);
                 cr.fill_preserve().unwrap();
-                
+
                 // Тонкая темная обводка
                 cr.set_source_rgb(0.05, 0.05, 0.06);
                 cr.set_line_width(1.5);
@@ -86,8 +89,7 @@ impl JogDial {
                 (BOUND_3, R_MAX, COLOR_X_RING4, COLOR_Y_RING4),
             ];
 
-            for (ring_index, (r_inner, r_outer, color_x, color_y))
-                in rings.into_iter().enumerate()
+            for (ring_index, (r_inner, r_outer, color_x, color_y)) in rings.into_iter().enumerate()
             {
                 for sector in 0..8 {
                     let center_angle = sector as f64 * std::f64::consts::FRAC_PI_4;
@@ -95,8 +97,8 @@ impl JogDial {
                     let end = center_angle + std::f64::consts::PI / 8.0;
 
                     let color = match sector {
-                        0 | 4 => color_x, // +X / -X
-                        2 | 6 => color_y, // -Y / +Y
+                        0 | 4 => color_x,            // +X / -X
+                        2 | 6 => color_y,            // -Y / +Y
                         _ => blue_rings[ring_index], // диагональный jog XY
                     };
 
@@ -111,10 +113,12 @@ impl JogDial {
             cr.set_source_rgb(0.05, 0.05, 0.06);
             cr.set_line_width(2.0);
             cr.stroke().unwrap();
-            
+
             // Крестик в центре
-            cr.move_to(cx - 6.0, cy); cr.line_to(cx + 6.0, cy);
-            cr.move_to(cx, cy - 6.0); cr.line_to(cx, cy + 6.0);
+            cr.move_to(cx - 6.0, cy);
+            cr.line_to(cx + 6.0, cy);
+            cr.move_to(cx, cy - 6.0);
+            cr.line_to(cx, cy + 6.0);
             cr.set_source_rgb(0.35, 0.35, 0.36);
             cr.set_line_width(1.5);
             cr.stroke().unwrap();
@@ -159,7 +163,7 @@ impl JogDial {
         // Логика кликов
         let click_gesture = gtk4::GestureClick::new();
         let ctrl_click = controller.clone();
-        
+
         click_gesture.connect_released(move |gesture, _, x, y| {
             gesture.set_state(gtk4::EventSequenceState::Claimed);
             let rect = gesture.widget().allocation();
@@ -167,33 +171,42 @@ impl JogDial {
             let h = rect.height() as f64;
             let cx = w / 2.0;
             let cy = h / 2.0;
-            
+
             let dx = x - cx;
             let dy = y - cy;
-            let dist_norm = (dx*dx + dy*dy).sqrt() / (w.min(h)/2.0);
-            
-            let mut angle = dy.atan2(dx); 
-            if angle < 0.0 { angle += 2.0 * std::f64::consts::PI; }
+            let dist_norm = (dx * dx + dy * dy).sqrt() / (w.min(h) / 2.0);
+
+            let mut angle = dy.atan2(dx);
+            if angle < 0.0 {
+                angle += 2.0 * std::f64::consts::PI;
+            }
 
             let sector = ((angle / (std::f64::consts::PI / 4.0) + 0.5) as usize) % 8;
             // Угол 0 — вправо; экранная Y направлена вниз.
             let (axis, dir, diagonal) = match sector {
                 0 => ('X', 1, None),
-                1 => ('X', 1, Some(('Y', -1))),  // юго-восток: +X, -Y
+                1 => ('X', 1, Some(('Y', -1))), // юго-восток: +X, -Y
                 2 => ('Y', -1, None),
                 3 => ('X', -1, Some(('Y', -1))), // юго-запад: -X, -Y
                 4 => ('X', -1, None),
-                5 => ('X', -1, Some(('Y', 1))),  // северо-запад: -X, +Y
+                5 => ('X', -1, Some(('Y', 1))), // северо-запад: -X, +Y
                 6 => ('Y', 1, None),
-                _ => ('X', 1, Some(('Y', 1))),   // северо-восток: +X, +Y
+                _ => ('X', 1, Some(('Y', 1))), // северо-восток: +X, +Y
             };
 
-            let step = if dist_norm < R_CENTER { return; }
-                       else if dist_norm < BOUND_1 { 0.1_f64 }
-                       else if dist_norm < BOUND_2 { 1.0_f64 }
-                       else if dist_norm < BOUND_3 { 10.0_f64 }
-                       else if dist_norm <= 1.10 { 100.0_f64 }
-                       else { return; };
+            let step = if dist_norm < R_CENTER {
+                return;
+            } else if dist_norm < BOUND_1 {
+                0.1_f64
+            } else if dist_norm < BOUND_2 {
+                1.0_f64
+            } else if dist_norm < BOUND_3 {
+                10.0_f64
+            } else if dist_norm <= 1.10 {
+                100.0_f64
+            } else {
+                return;
+            };
 
             let c = ctrl_click.lock().unwrap();
             c.set_jog_step(step);
