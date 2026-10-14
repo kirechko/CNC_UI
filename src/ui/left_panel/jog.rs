@@ -86,7 +86,7 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
     speed_row.set_halign(gtk4::Align::Center);
     speed_row.set_margin_top(4);
 
-    let xy_speed_label = Label::new(Some("XY mm/min"));
+    let xy_speed_label = Label::new(Some("XY"));
     let xy_speed = gtk4::ComboBoxText::new();
     let xy_speeds = [100.0, 300.0, 500.0, 1000.0, 1500.0, 2000.0, 3000.0, 5000.0, 10000.0];
     for speed in xy_speeds {
@@ -105,7 +105,7 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
         }
     });
 
-    let z_speed_label = Label::new(Some("Z mm/min"));
+    let z_speed_label = Label::new(Some("Z"));
     let z_speed = gtk4::ComboBoxText::new();
     let z_speeds = [50.0, 100.0, 200.0, 300.0, 500.0, 750.0, 1000.0, 1500.0, 2000.0];
     for speed in z_speeds {
