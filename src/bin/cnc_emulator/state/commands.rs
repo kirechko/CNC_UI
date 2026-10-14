@@ -4,6 +4,51 @@ use super::super::protocol::{api_error, WireError};
 use crate::cnc_api::*;
 use serde_json::Value;
 
+pub(super) fn power_on(emulator: &mut Emulator) -> Result<Value, WireError> {
+    emulator.status.task_state = TaskState::On;
+    emulator.status.message = Some("Machine powered on".into());
+    Ok(Value::Null)
+}
+
+pub(super) fn power_off(
+    emulator: &mut Emulator,
+    emergency_stop: bool,
+) -> Result<Value, WireError> {
+    emulator.dwell_remaining = 0.0;
+    emulator.status.task_state = if emergency_stop {
+        TaskState::Estop
+    } else {
+        TaskState::Off
+    };
+    emulator.status.interpreter_state = InterpreterState::Idle;
+    emulator.status.spindle.enabled = false;
+    emulator.status.mist_coolant_on = false;
+    emulator.status.flood_coolant_on = false;
+    emulator.status.spindle.commanded_rpm = 0.0;
+    emulator.status.spindle.actual_rpm = 0.0;
+    emulator.status.spindle.direction = SpindleDirection::Stopped;
+    emulator.pending_spindle = None;
+    emulator.active_move = None;
+    emulator.continuous_jog = None;
+    emulator.jog_velocity = 0.0;
+    emulator.homing_queue.clear();
+    emulator.homing_axis = None;
+    emulator.active_move_is_homing = false;
+    emulator.status.homing = false;
+    if emergency_stop {
+        emulator.status.homed = [false; 3];
+    }
+    emulator.status.message = Some(
+        if emergency_stop {
+            "Emergency stop"
+        } else {
+            "Machine powered off"
+        }
+        .into(),
+    );
+    Ok(Value::Null)
+}
+
 pub(super) fn select_coordinate_system(
     emulator: &mut Emulator,
     args: Value,
