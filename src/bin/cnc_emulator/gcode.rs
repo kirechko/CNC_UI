@@ -9,6 +9,12 @@ mod motion;
 #[path = "gcode/parser.rs"]
 mod parser;
 
+#[cfg(test)]
+#[path = "gcode/test_support.rs"]
+pub(super) mod test_support;
+#[cfg(test)]
+pub(super) use test_support::test_emulator;
+
 pub(super) fn parse_words(line: &str) -> Vec<(char, f64)> {
     parser::parse_words(line)
 }
@@ -292,40 +298,7 @@ impl Emulator {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_words, Emulator};
-    use super::super::config::{
-        AxesConfig, AxisLimits, EmulatorConfig, SpindleConfig,
-    };
-    use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};
-    use std::path::PathBuf;
-
-    fn test_emulator() -> Emulator {
-        let config = EmulatorConfig {
-            axes: AxesConfig {
-                x: AxisLimits {
-                    min_mm: 0.0, max_mm: 300.0,
-                    max_velocity_mm_min: 6000.0, acceleration_mm_s2: 100.0,
-                },
-                y: AxisLimits {
-                    min_mm: 0.0, max_mm: 400.0,
-                    max_velocity_mm_min: 6000.0, acceleration_mm_s2: 100.0,
-                },
-                z: AxisLimits {
-                    min_mm: 0.0, max_mm: 100.0,
-                    max_velocity_mm_min: 3000.0, acceleration_mm_s2: 50.0,
-                },
-            },
-            spindle: SpindleConfig {
-                max_rpm: 24_000.0,
-                acceleration_rpm_per_sec: 1000.0,
-            },
-        };
-        let offsets = vec![CoordinateSystemOffset {
-            system: CoordinateSystem::G54,
-            offset: Position { x: 0.0, y: 0.0, z: 0.0 },
-        }];
-        Emulator::new(config, PathBuf::from("unused-test-offsets.yaml"), offsets)
-    }
+    use super::{parse_words, test_emulator};
 
     #[test]
     fn parse_words_reads_signed_decimal_values() {
@@ -468,52 +441,7 @@ mod parse_words_coverage_tests {
 
 #[cfg(test)]
 mod execute_gcode_linear_motion_tests {
-    use super::Emulator;
-    use super::super::config::{
-        AxesConfig, AxisLimits, EmulatorConfig, SpindleConfig,
-    };
-    use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};
-    use std::path::PathBuf;
-
-    fn test_emulator() -> Emulator {
-        let config = EmulatorConfig {
-            axes: AxesConfig {
-                x: AxisLimits {
-                    min_mm: 0.0,
-                    max_mm: 300.0,
-                    max_velocity_mm_min: 6000.0,
-                    acceleration_mm_s2: 100.0,
-                },
-                y: AxisLimits {
-                    min_mm: 0.0,
-                    max_mm: 400.0,
-                    max_velocity_mm_min: 6000.0,
-                    acceleration_mm_s2: 100.0,
-                },
-                z: AxisLimits {
-                    min_mm: 0.0,
-                    max_mm: 100.0,
-                    max_velocity_mm_min: 3000.0,
-                    acceleration_mm_s2: 50.0,
-                },
-            },
-            spindle: SpindleConfig {
-                max_rpm: 24_000.0,
-                acceleration_rpm_per_sec: 1000.0,
-            },
-        };
-
-        let offsets = vec![CoordinateSystemOffset {
-            system: CoordinateSystem::G54,
-            offset: Position { x: 0.0, y: 0.0, z: 0.0 },
-        }];
-
-        Emulator::new(
-            config,
-            PathBuf::from("unused-test-offsets.yaml"),
-            offsets,
-        )
-    }
+    use super::{test_emulator, Emulator};
 
     #[test]
     fn g0_creates_rapid_move_to_requested_target() {
