@@ -53,6 +53,45 @@ pub(super) fn load_program(
     Ok(Value::Null)
 }
 
+pub(super) fn home(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    emulator.ensure_motion_allowed()?;
+    if emulator.active_move.is_some()
+        || emulator.continuous_jog.is_some()
+        || emulator.status.interpreter_state == crate::cnc_api::InterpreterState::Reading
+        || emulator.status.homing
+    {
+        return Err(api_error(
+            "motion_busy",
+            "cannot home while motion or program is active",
+        ));
+    }
+
+    let requested: Option<crate::cnc_api::Axis> = serde_json::from_value(
+        args.get("axis").cloned().unwrap_or(Value::Null),
+    )
+    .map_err(|error| api_error("bad_request", error.to_string()))?;
+
+    emulator.homing_queue = match requested {
+        Some(axis) => vec![axis],
+        None => vec![
+            crate::cnc_api::Axis::X,
+            crate::cnc_api::Axis::Y,
+            crate::cnc_api::Axis::Z,
+        ],
+    };
+    for axis in &emulator.homing_queue {
+        emulator.status.homed[super::axis_index(*axis)] = false;
+    }
+
+    emulator.status.homing = true;
+    emulator.status.task_mode = crate::cnc_api::TaskMode::Manual;
+    emulator.status.message = Some("Homing started".into());
+    Ok(Value::Null)
+}
+
 impl Emulator {
     pub(super) fn ensure_motion_allowed(&self) -> Result<(), WireError> {
         if self.status.task_state != TaskState::On {
