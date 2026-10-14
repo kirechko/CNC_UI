@@ -56,6 +56,7 @@ enum Command {
     ResetAlarm,
     SelectCoordinateSystem(CoordinateSystem),
     SetWorkZero(CoordinateSystem),
+    SetAxisWorkZero(Axis),
     HomeAll,
     Home(Axis),
     Mdi(String),
@@ -178,29 +179,7 @@ impl CNCController {
     }
 
     pub fn zero_axis(&self, axis: Axis) {
-        let status = self.get_status_snapshot();
-        let system_index = match status.active_coordinate_system {
-            CoordinateSystem::G54 => 1,
-            CoordinateSystem::G55 => 2,
-            CoordinateSystem::G56 => 3,
-            CoordinateSystem::G57 => 4,
-            CoordinateSystem::G58 => 5,
-            CoordinateSystem::G59 => 6,
-            CoordinateSystem::G59_1 => 7,
-            CoordinateSystem::G59_2 => 8,
-            CoordinateSystem::G59_3 => 9,
-        };
-        let (word, machine_position) = match axis {
-            Axis::X => ("X", status.machine_x),
-            Axis::Y => ("Y", status.machine_y),
-            Axis::Z => ("Z", status.machine_z),
-        };
-
-        if machine_position.is_finite() {
-            self.enqueue(Command::Mdi(format!(
-                "G10 L2 P{system_index} {word}{machine_position:.6}"
-            )));
-        }
+        self.enqueue(Command::SetAxisWorkZero(axis));
     }
 
     pub fn send_command(&self, command: &str) {
@@ -379,6 +358,7 @@ fn api_worker(
                     Command::ResetAlarm => api.clear_error().and_then(|_| api.power_on()),
                     Command::SelectCoordinateSystem(system) => api.select_coordinate_system(system),
                     Command::SetWorkZero(system) => api.set_work_zero(system),
+                    Command::SetAxisWorkZero(axis) => api.set_axis_work_zero(axis),
                     Command::HomeAll => api.home(None),
                     Command::Home(axis) => api.home(Some(axis)),
                     Command::Mdi(command) => api.mdi(&command),

@@ -159,6 +159,10 @@ impl LinuxCncApi for LinuxCncApiClient {
         self.unit("set_work_zero", json!({ "system": system }))
     }
 
+    fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
+        self.unit("set_axis_work_zero", json!({ "axis": axis }))
+    }
+
     fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
         self.unit("jog_increment", json!({ "request": request }))
     }

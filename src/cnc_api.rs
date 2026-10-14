@@ -193,6 +193,9 @@ pub trait LinuxCncApi: Send + Sync {
     /// Установить ноль выбранной системы в текущей машинной позиции (G10 L2 Pn).
     fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()>;
 
+    /// Установить ноль одной оси активной системы координат.
+    fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()>;
+
     /// Инкрементальный Jog по оси.
     fn jog_increment(&self, request: JogRequest) -> CncResult<()>;
 
