@@ -1,7 +1,6 @@
-use super::dynamics::ActiveMove;
-use super::protocol::{api_error, WireError};
-use super::state::Emulator;
-use crate::cnc_api::*;
+use super::super::dynamics::ActiveMove;
+use super::super::protocol::{api_error, WireError};
+use super::super::state::Emulator;
 use std::f64::consts::PI;
 
 pub(super) fn execute_motion(

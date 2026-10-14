@@ -2,9 +2,8 @@ use super::accessories;
 use super::coordinates;
 use super::motion;
 use super::parse_words;
-use super::protocol::{api_error, WireError};
-use super::state::Emulator;
-use crate::cnc_api::*;
+use super::super::protocol::{api_error, WireError};
+use super::super::state::Emulator;
 
 pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), WireError> {
     let words = parse_words(line);

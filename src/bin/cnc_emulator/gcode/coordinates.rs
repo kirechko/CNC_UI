@@ -1,5 +1,5 @@
-use super::protocol::{api_error, WireError};
-use super::state::Emulator;
+use super::super::protocol::{api_error, WireError};
+use super::super::state::Emulator;
 use crate::cnc_api::*;
 
 pub(super) enum GWordAction {
