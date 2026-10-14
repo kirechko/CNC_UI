@@ -88,7 +88,7 @@ impl JogDial {
         area.set_hexpand(false);
         area.set_size_request(240, 240);
 
-        let hover = Rc::new(Cell::new(None));
+        let hover: Rc<Cell<Option<HoveredJog>>> = Rc::new(Cell::new(None));
         let draw_hover = hover.clone();
 
         area.set_draw_func(move |_, cr, width, height| {
