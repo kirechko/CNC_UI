@@ -3,7 +3,7 @@ use super::super::state::Emulator;
 use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};
 use std::path::PathBuf;
 
-pub(super) fn test_emulator() -> Emulator {
+pub fn test_emulator() -> Emulator {
     let config = EmulatorConfig {
         axes: AxesConfig {
             x: AxisLimits {
