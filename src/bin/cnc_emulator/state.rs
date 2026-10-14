@@ -171,131 +171,21 @@ impl Emulator {
 
             "jog_continuous" => commands::jog_continuous(self, args),
 
-            "mdi" => {
-                self.ensure_motion_allowed()?;
-                self.status.task_mode = TaskMode::Mdi;
-                self.execute_gcode(args.get("command").and_then(Value::as_str).unwrap_or(""))?;
-                Ok(Value::Null)
-            }
+            "mdi" => commands::mdi(self, args),
 
             "load_program" => commands::load_program(self, args),
 
-            "program_run" => {
-                self.ensure_motion_allowed()?;
-                if self.stop_retract_active || self.active_move.is_some() {
-                    return Err(api_error("motion_busy", "cannot start while stop retract is active"));
-                }
-                let start = args.get("start_line").and_then(Value::as_u64).unwrap_or(0) as usize;
-                if self.program.is_empty() || start > self.program.len() {
-                    return Err(api_error("bad_program", "no program loaded or invalid start line"));
-                }
-                self.status.current_line = start as u32;
-                self.status.task_mode = TaskMode::Auto;
-                self.status.interpreter_state = InterpreterState::Reading;
-                self.status.message = Some("Program running".into());
-                Ok(Value::Null)
-            }
+            "program_run" => commands::program_run(self, args),
 
-            "program_pause" => {
-                if self.status.interpreter_state == InterpreterState::Reading
-                    && !self.stop_retract_active
-                {
-                    self.status.interpreter_state = InterpreterState::Paused;
-                    self.status.message = Some("Program paused".into());
-                }
-                Ok(Value::Null)
-            }
+            "program_pause" => commands::program_pause(self),
 
-            "program_resume" => {
-                if self.status.interpreter_state == InterpreterState::Paused {
-                    self.status.interpreter_state = InterpreterState::Reading;
-                }
-                Ok(Value::Null)
-            }
+            "program_resume" => commands::program_resume(self),
 
-            "program_abort" => {
-                self.dwell_remaining = 0.0;
-                self.status.interpreter_state = InterpreterState::Idle;
-                self.status.current_line = 0;
-                self.active_move = None;
-                self.continuous_jog = None;
-                self.jog_velocity = 0.0;
+            "program_abort" => commands::program_abort(self),
 
-                // STOP принудительно гасит шпиндель, не выполняя ramp-down.
-                self.pending_spindle = None;
-                self.status.spindle.commanded_rpm = 0.0;
-                self.status.spindle.actual_rpm = 0.0;
-                self.status.spindle.direction = SpindleDirection::Stopped;
-                self.status.spindle.enabled = false;
-                self.status.mist_coolant_on = false;
-                self.status.flood_coolant_on = false;
+            "set_spindle" => commands::set_spindle(self, args),
 
-                self.stop_retract_active = false;
-                if let Some(safe_machine_z) = self.last_rapid_z {
-                    let mut target = self.position_array();
-                    target[2] = safe_machine_z;
-                    if self.check_target(target).is_ok() && (target[2] - self.status.position.z).abs() > 1e-6 {
-                        let rapid_feed = self.config.axes.z.max_velocity_mm_min;
-                        match Motion::new(self.position_array(), target, rapid_feed, true, &self.config) {
-                            Ok(Some(motion)) => {
-                                self.active_move = Some(ActiveMove::from_motion(motion));
-                                self.stop_retract_active = true;
-                                self.status.message = Some(format!(
-                                    "Program stopped; retracting Z to {:.3} mm",
-                                    safe_machine_z - self.status.work_offset.z
-                                ));
-                                return Ok(Value::Null);
-                            }
-                            Ok(None) => {}
-                            Err(error) => {
-                                self.status.message = Some(format!(
-                                    "Program stopped; retract failed: {}",
-                                    error.message
-                                ));
-                                return Ok(Value::Null);
-                            }
-                        }
-                    }
-                }
-
-                self.status.message = Some("Program stopped; no retract required".into());
-                Ok(Value::Null)
-            }
-
-            "set_spindle" => {
-                if self.status.task_state != TaskState::On {
-                    return Err(api_error(
-                        "machine_not_ready",
-                        "spindle command rejected while machine is in Alarm or powered off",
-                    ));
-                }
-
-                let command: SpindleCommand = serde_json::from_value(
-                    args.get("command").cloned().unwrap_or(Value::Null)
-                ).map_err(|e| api_error("bad_request", e.to_string()))?;
-                if !command.rpm.is_finite() || command.rpm < 0.0 {
-                    return Err(api_error("bad_spindle", "RPM must be finite and non-negative"));
-                }
-                if command.rpm > self.config.spindle.max_rpm {
-                    return Err(api_error(
-                        "spindle_limit",
-                        format!("requested {:.0} RPM exceeds configured maximum {:.0} RPM",
-                            command.rpm, self.config.spindle.max_rpm),
-                    ));
-                }
-                self.set_spindle(command.direction, Some(command.rpm));
-                Ok(Value::Null)
-            }
-
-            "clear_error" => {
-                if self.status.task_state == TaskState::Estop {
-                    self.status.task_state = TaskState::EstopReset;
-                    self.status.message = Some("Alarm reset".into());
-                } else {
-                    self.status.message = None;
-                }
-                Ok(Value::Null)
-            }
+            "clear_error" => commands::clear_error(self),
 
             _ => Err(api_error("unknown_method", format!("unsupported method: {}", request.method))),
         }
