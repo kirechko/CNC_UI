@@ -1,6 +1,6 @@
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi,
-    MachineStatus, SpindleCommand, SpindleDirection as ApiSpindleDirection,
+    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi, MachineStatus,
+    SpindleCommand, SpindleDirection as ApiSpindleDirection,
 };
 use crate::linuxcnc_api::LinuxCncApiClient;
 use std::path::{Path, PathBuf};
@@ -89,12 +89,7 @@ impl CNCController {
                     Ok(api) => match api.status() {
                         Ok(initial_status) => {
                             *worker_status.lock().unwrap() = from_api_status(initial_status);
-                            api_worker(
-                                api,
-                                receiver,
-                                emergency_receiver,
-                                worker_status.clone(),
-                            );
+                            api_worker(api, receiver, emergency_receiver, worker_status.clone());
                             return;
                         }
                         Err(error) => {
@@ -108,9 +103,7 @@ impl CNCController {
                     }
                 }
             })
-            .map_err(|error| {
-                crate::cnc_api::ControllerError::new("worker", error.to_string())
-            })?;
+            .map_err(|error| crate::cnc_api::ControllerError::new("worker", error.to_string()))?;
 
         Ok(Self {
             status,
@@ -309,13 +302,8 @@ fn error_alert(code: &str, message: &str) -> (String, String) {
     (kind.to_string(), message.to_string())
 }
 
-fn set_ui_alert(
-    shared_status: &Arc<Mutex<CNCStatus>>,
-    code: &str,
-    message: &str,
-) {
-    shared_status.lock().unwrap().ui_alert =
-        Some(error_alert(code, message));
+fn set_ui_alert(shared_status: &Arc<Mutex<CNCStatus>>, code: &str, message: &str) {
+    shared_status.lock().unwrap().ui_alert = Some(error_alert(code, message));
 }
 
 fn api_worker(
@@ -358,9 +346,7 @@ fn api_worker(
                     Command::ProgramResume => api.program_resume(),
                     Command::ProgramAbort => api.program_abort(),
                     Command::ResetAlarm => api.clear_error().and_then(|_| api.power_on()),
-                    Command::SelectCoordinateSystem(system) => {
-                        api.select_coordinate_system(system)
-                    }
+                    Command::SelectCoordinateSystem(system) => api.select_coordinate_system(system),
                     Command::SetWorkZero(system) => api.set_work_zero(system),
                     Command::HomeAll => api.home(None),
                     Command::Mdi(command) => api.mdi(&command),
