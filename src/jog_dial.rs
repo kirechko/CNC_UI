@@ -159,7 +159,14 @@ impl JogDial {
             }
 
             if let Some(selection) = draw_hover.get() {
-                let (r_inner, r_outer, _, _) = rings[selection.step.log10() as usize];
+                let ring_index = match selection.step {
+                    0.1 => 0,
+                    1.0 => 1,
+                    10.0 => 2,
+                    100.0 => 3,
+                    _ => continue,
+                };
+                let (r_inner, r_outer, _, _) = rings[ring_index];
                 let center_angle = selection.sector as f64 * std::f64::consts::FRAC_PI_4;
                 let start = center_angle - std::f64::consts::PI / 8.0;
                 let end = center_angle + std::f64::consts::PI / 8.0;
