@@ -5,11 +5,15 @@ mod status_controls;
 use super::*;
 
 pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (GtkBox, GtkBox) {
-    let pos_box = GtkBox::new(Orientation::Vertical, 5);
+    let pos_box = GtkBox::new(Orientation::Vertical, 8);
+    pos_box.add_css_class("position-panel");
     let header = GtkBox::new(Orientation::Horizontal, 10);
+    header.set_margin_bottom(2);
 
     let title = Label::new(Some("POSITION"));
     title.add_css_class("heading");
+    title.add_css_class("title-3");
+    title.set_halign(gtk4::Align::Start);
     header.append(&title);
 
     let badge = Label::new(Some("● IDLE"));
@@ -17,8 +21,11 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     header.append(&badge);
     pos_box.append(&header);
 
-    let coordinate_row = GtkBox::new(Orientation::Horizontal, 6);
-    let coordinate_label = Label::new(Some("Coordinate system"));
+    let coordinate_row = GtkBox::new(Orientation::Horizontal, 8);
+    coordinate_row.add_css_class("position-coordinate-row");
+    let coordinate_label = Label::new(Some("WORK OFFSET"));
+    coordinate_label.add_css_class("dim-label");
+    coordinate_label.add_css_class("caption");
     let coordinate_combo = gtk4::ComboBoxText::new();
     let coordinate_systems = CoordinateSystem::ALL;
 
@@ -43,13 +50,17 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         }
     });
 
+    coordinate_combo.set_hexpand(true);
+    coordinate_combo.set_halign(gtk4::Align::End);
     coordinate_row.append(&coordinate_label);
     coordinate_row.append(&coordinate_combo);
     pos_box.append(&coordinate_row);
 
     let coord_grid = Grid::new();
-    coord_grid.set_row_spacing(5);
-    coord_grid.set_column_spacing(10);
+    coord_grid.add_css_class("position-coordinate-grid");
+    coord_grid.set_row_spacing(7);
+    coord_grid.set_column_spacing(8);
+    coord_grid.set_column_homogeneous(false);
 
     let position_values = vec![
         Label::new(Some("0.000")),
@@ -63,9 +74,13 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     ];
 
     let work_header = Label::new(Some("WORK"));
-    work_header.add_css_class("heading");
+    work_header.add_css_class("caption");
+    work_header.add_css_class("dim-label");
+    work_header.set_halign(gtk4::Align::End);
     let machine_header = Label::new(Some("MACHINE"));
-    machine_header.add_css_class("heading");
+    machine_header.add_css_class("caption");
+    machine_header.add_css_class("dim-label");
+    machine_header.set_halign(gtk4::Align::End);
     coord_grid.attach(&work_header, 1, 0, 1, 1);
     coord_grid.attach(&machine_header, 2, 0, 1, 1);
 
@@ -85,11 +100,15 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
 
         let val = position_values[i].clone();
         val.add_css_class("monospace");
+        val.add_css_class("title-3");
+        val.add_css_class("position-work-value");
         val.set_halign(gtk4::Align::End);
         val.set_hexpand(true);
 
         let machine_val = machine_values[i].clone();
         machine_val.add_css_class("monospace");
+        machine_val.add_css_class("dim-label");
+        machine_val.add_css_class("position-machine-value");
         machine_val.set_halign(gtk4::Align::End);
 
         let axis = match *axis {
@@ -100,14 +119,18 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         let home_button = Button::from_icon_name("go-home-symbolic");
         home_button.set_tooltip_text(Some(&format!("Homing оси {}", axis_label(axis))));
         home_button.set_has_frame(false);
+        home_button.set_size_request(30, 30);
         home_button.add_css_class("flat");
+        home_button.add_css_class("position-action-button");
         let home_controller = controller.clone();
         home_button.connect_clicked(move |_| home_controller.lock().unwrap().home_axis(axis));
 
         let zero_button = Button::from_icon_name("edit-clear-symbolic");
         zero_button.set_tooltip_text(Some(&format!("Установить ноль оси {}", axis_label(axis))));
         zero_button.set_has_frame(false);
+        zero_button.set_size_request(30, 30);
         zero_button.add_css_class("flat");
+        zero_button.add_css_class("position-action-button");
         let zero_controller = controller.clone();
         zero_button.connect_clicked(move |_| zero_controller.lock().unwrap().zero_axis(axis));
 
