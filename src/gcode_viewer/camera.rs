@@ -1,3 +1,4 @@
+ //! Camera orientation math and projection helpers for the G-code viewer.
 use super::types::CameraOrientation;
 
 impl CameraOrientation {
