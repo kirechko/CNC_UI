@@ -1,3 +1,4 @@
+ //! Parses letter-number words from a G-code line without changing emulator state.
 pub(super) fn parse_words(input: &str) -> Vec<(char, f64)> {
     let bytes = input.as_bytes();
     let mut words = Vec::new();
