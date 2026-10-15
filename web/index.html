@@ -997,9 +997,12 @@
         let absolute = true;
         let units = 1;
         let motion = 0;
+        let programLine = 0;
 
         for (const originalLine of source.split(/\r?\n/)) {
-          const line = originalLine.replace(/\([^)]*\)/g, "").split(";")[0];
+          const line = originalLine.replace(/\([^)]*\)/g, "").split(";")[0].trim();
+          if (!line) continue;
+          programLine += 1;
           const words = [...line.matchAll(/([A-Za-z])\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/g)]
             .map((match) => [match[1].toUpperCase(), Number(match[2])]);
           const values = new Map(words);
