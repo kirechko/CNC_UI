@@ -12,6 +12,7 @@ mod em_adapter;
 mod theme;
 mod ui; // <-- НОВЫЙ МОДУЛЬ
 mod web_server;
+mod tauri_app;
 
 use cnc_controller::CNCController;
 use gtk4::prelude::*;
@@ -104,117 +105,8 @@ fn main() {
         return;
     }
 
-    gtk4::init().expect("Failed to initialize GTK");
-    if let Some(settings) = gtk4::Settings::default() {
-        settings.set_property("gtk-application-prefer-dark-theme", true);
-    }
-
-    let provider = gtk4::CssProvider::new();
-    provider.load_from_data(DARK_THEME_CSS);
-
-    let palette_provider = gtk4::CssProvider::new();
-    let palette_css = format!(
-        "@define-color cnc-accent {};\
-         @define-color cnc-accent-hover {};\
-         button.suggested-action {{ background-color: @cnc-accent; color: white; }}\
-         button.suggested-action:hover {{ background-color: @cnc-accent-hover; }}",
-        theme::ACCENT_BLUE,
-        theme::ACCENT_BLUE_HOVER
-    );
-    palette_provider.load_from_data(&palette_css);
-
-    if let Some(display) = gtk4::gdk::Display::default() {
-        gtk4::style_context_add_provider_for_display(
-            &display,
-            &provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
-        gtk4::style_context_add_provider_for_display(
-            &display,
-            &palette_provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-        );
-    }
-
-    let app = gtk4::Application::builder()
-        .application_id("com.kirechko.fluidnc-rust")
-        .build();
-
-    let config_path = std::env::var_os("CNC_UI_CONFIG")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("cnc-ui.yaml"));
-    let config = config::AppConfig::load(&config_path).unwrap_or_else(|error| {
-        eprintln!(
-            "Не удалось загрузить конфигурацию {}: {error}",
-            config_path.display()
-        );
+    if let Err(error) = tauri_app::run() {
+        eprintln!("Tauri application failed: {error}");
         std::process::exit(1);
-    });
-
-    let emulator_socket = std::env::var_os("CNC_EMULATOR_SOCKET")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| config.emulator.socket_path.clone().into());
-
-    let api: Arc<dyn cnc_api::LinuxCncApi> = match config.backend {
-        config::Backend::Emulator => Arc::new(
-            em_adapter::EmAdapter::connect(&emulator_socket).unwrap_or_else(|error| {
-                eprintln!(
-                    "Не удалось создать адаптер эмулятора {}: {}: {}",
-                    emulator_socket.display(),
-                    error.code,
-                    error.message
-                );
-                std::process::exit(1);
-            }),
-        ),
-        config::Backend::LinuxCnc => {
-            eprintln!(
-                "[config] LinuxCNC debug adapter; socket={}",
-                config.linuxcnc.socket_path
-            );
-            Arc::new(adapters::LinuxCncAdapter::new())
-        }
-        config::Backend::Grbl => {
-            eprintln!(
-                "[config] GRBL debug adapter; serial_port={}, baud_rate={}",
-                config.grbl.serial_port, config.grbl.baud_rate
-            );
-            Arc::new(
-                grbl_adapter::GrblAdapter::connect(
-                    &config.grbl.serial_port,
-                    config.grbl.baud_rate,
-                )
-                .unwrap_or_else(|error| {
-                    eprintln!(
-                        "Не удалось подключиться к GRBL на {}: {}: {}",
-                        config.grbl.serial_port, error.code, error.message
-                    );
-                    std::process::exit(1);
-                }),
-            )
-        }
-        config::Backend::FluidNc => {
-            eprintln!(
-                "[config] FluidNC debug adapter; base_url={}",
-                config.fluidnc.base_url
-            );
-            Arc::new(adapters::FluidNcAdapter::new())
-        }
-    };
-
-    let controller = Arc::new(Mutex::new(
-        CNCController::connect_with_api(api).unwrap_or_else(|error| {
-            eprintln!(
-                "Не удалось запустить CNC controller: {}: {}",
-                error.code, error.message
-            );
-            std::process::exit(1);
-        }),
-    ));
-
-    app.connect_activate(move |app| {
-        ui::build_ui(app, controller.clone());
-    });
-
-    app.run();
+    }
 }

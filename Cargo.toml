@@ -15,3 +15,7 @@ serialport = { version = "4", default-features = false }
 axum = "0.7"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 tower-http = { version = "0.5", features = ["fs"] }
+tauri = "2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

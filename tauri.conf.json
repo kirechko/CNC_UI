@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CNC UI",
+  "version": "0.1.0",
+  "identifier": "com.kirechko.cnc-ui",
+  "build": {
+    "frontendDist": "web"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "CNC UI",
+        "width": 1200,
+        "height": 800
+      }
+    ]
+  },
+  "bundle": {
+    "active": true
+  }
+}
