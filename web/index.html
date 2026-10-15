@@ -347,6 +347,27 @@
         inset: 0;
         width: 100%;
         height: 100%;
+        cursor: grab;
+        touch-action: none;
+      }
+
+      .trajectory-canvas.dragging { cursor: grabbing; }
+
+      .orientation-cube {
+        position: absolute;
+        z-index: 1;
+        top: 10px;
+        right: 10px;
+        width: 112px;
+        height: 112px;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .viewer-toolbar .active {
+        border-color: #4385a1;
+        background: #1a2b33;
+        color: #a3d5e9;
       }
 
       .empty-viewer {
@@ -622,10 +643,12 @@
               <input id="program-file" type="file" accept=".nc,.ngc,.gcode" hidden>
               <button class="toolbar-button" id="load-program" type="button">Загрузить G-code</button>
               <button class="toolbar-button" id="fit-program" type="button">Fit</button>
+              <button class="toolbar-button active" id="projection-toggle" type="button" aria-pressed="true">3D</button>
             </div>
           </div>
           <div class="viewer-stage">
-            <canvas class="trajectory-canvas" id="trajectory-canvas" aria-label="Траектория G-code"></canvas>
+            <canvas class="trajectory-canvas" id="trajectory-canvas" aria-label="3D-траектория G-code"></canvas>
+            <canvas class="orientation-cube" id="orientation-cube" aria-label="Куб ориентации: нажмите на метку оси для выбора вида"></canvas>
             <div class="empty-viewer" id="viewer-empty">
               <div class="viewer-icon" aria-hidden="true">⌘</div>
               <strong>Просмотр траектории</strong>
@@ -634,10 +657,10 @@
           </div>
           <div class="viewer-footer">
             <span id="program-name">NO PROGRAM · mm</span>
-            <div class="viewer-legend" aria-label="Цвета осей">
-              <span class="legend-item"><i class="legend-dot x"></i>X</span>
-              <span class="legend-item"><i class="legend-dot y"></i>Y</span>
-              <span class="legend-item"><i class="legend-dot z"></i>Z</span>
+            <div class="viewer-legend" aria-label="Цвета траектории">
+              <span class="legend-item"><i class="legend-dot x"></i>Rapid</span>
+              <span class="legend-item"><i class="legend-dot y"></i>Linear</span>
+              <span class="legend-item"><i class="legend-dot z"></i>Arc</span>
             </div>
           </div>
         </section>
@@ -695,10 +718,15 @@
 
       const trajectoryCanvas = document.querySelector("#trajectory-canvas");
       const trajectoryContext = trajectoryCanvas.getContext("2d");
+      const orientationCube = document.querySelector("#orientation-cube");
+      const orientationContext = orientationCube.getContext("2d");
       const viewerStage = document.querySelector(".viewer-stage");
       const viewerEmpty = document.querySelector("#viewer-empty");
       const programName = document.querySelector("#program-name");
       const fileInput = document.querySelector("#program-file");
+      const camera = { yaw: -0.72, pitch: 0.62, zoom: 1, panX: 0, panY: 0, perspective: true };
+      const toolPosition = [0, 0, 0];
+      let dragState = null;
 
       function parseToolpath(source) {
         const segments = [];
@@ -828,8 +856,452 @@
         trajectoryContext.fill();
       }
 
+      function parseToolpath(source) {
+        const segments = [];
+        let position = [0, 0, 0];
+        let absolute = true;
+        let units = 1;
+        let motion = 0;
+
+        for (const originalLine of source.split(/\r?\n/)) {
+          const line = originalLine.replace(/\([^)]*\)/g, "").split(";")[0];
+          const words = [...line.matchAll(/([A-Za-z])\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/g)]
+            .map((match) => [match[1].toUpperCase(), Number(match[2])]);
+          const values = new Map(words);
+          let nextMotion = motion;
+
+          for (const [letter, value] of words) {
+            if (letter !== "G") continue;
+            if (value === 90) absolute = true;
+            else if (value === 91) absolute = false;
+            else if (value === 20) units = 25.4;
+            else if (value === 21) units = 1;
+            else if ([0, 1, 2, 3].includes(value)) nextMotion = value;
+          }
+
+          const target = [...position];
+          let hasAxis = false;
+          for (const [index, letter] of ["X", "Y", "Z"].entries()) {
+            if (!values.has(letter)) continue;
+            hasAxis = true;
+            const value = values.get(letter) * units;
+            target[index] = absolute ? value : position[index] + value;
+          }
+
+          if (hasAxis && (nextMotion === 2 || nextMotion === 3) &&
+              (values.has("I") || values.has("J"))) {
+            const centerX = position[0] + (values.get("I") || 0) * units;
+            const centerY = position[1] + (values.get("J") || 0) * units;
+            const radius = Math.hypot(position[0] - centerX, position[1] - centerY);
+
+            if (radius > 1e-9) {
+              const startAngle = Math.atan2(position[1] - centerY, position[0] - centerX);
+              const endAngle = Math.atan2(target[1] - centerY, target[0] - centerX);
+              let sweep = endAngle - startAngle;
+              if (nextMotion === 2) {
+                while (sweep >= 0) sweep -= Math.PI * 2;
+              } else {
+                while (sweep <= 0) sweep += Math.PI * 2;
+              }
+
+              if (Math.hypot(target[0] - position[0], target[1] - position[1]) < 1e-8) {
+                sweep = nextMotion === 2 ? -Math.PI * 2 : Math.PI * 2;
+              }
+
+              const count = Math.min(384, Math.max(16, Math.ceil(Math.abs(sweep) * radius / 1.5)));
+              let previous = position;
+              for (let step = 1; step <= count; step++) {
+                const t = step / count;
+                const angle = startAngle + sweep * t;
+                const point = [
+                  centerX + radius * Math.cos(angle),
+                  centerY + radius * Math.sin(angle),
+                  position[2] + (target[2] - position[2]) * t,
+                ];
+                segments.push({
+                  from: previous,
+                  to: point,
+                  type: nextMotion === 2 ? "arc-cw" : "arc-ccw",
+                });
+                previous = point;
+              }
+            } else {
+              segments.push({ from: position, to: target, type: "linear" });
+            }
+          } else if (hasAxis) {
+            segments.push({
+              from: position,
+              to: target,
+              type: nextMotion === 0 ? "rapid" : "linear",
+            });
+          }
+
+          position = target;
+          motion = nextMotion;
+        }
+
+        return segments;
+      }
+
+      function resizeCanvas(canvas, context) {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = window.devicePixelRatio || 1;
+        const width = Math.max(1, Math.round(rect.width * ratio));
+        const height = Math.max(1, Math.round(rect.height * ratio));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        return { width: rect.width, height: rect.height };
+      }
+
+      function rotatePoint(point, yaw = camera.yaw, pitch = camera.pitch) {
+        const [x, y, z] = point;
+        const cosYaw = Math.cos(yaw);
+        const sinYaw = Math.sin(yaw);
+        const horizontal = cosYaw * x - sinYaw * y;
+        const depthPlane = sinYaw * x + cosYaw * y;
+        return [
+          horizontal,
+          Math.cos(pitch) * z - Math.sin(pitch) * depthPlane,
+          Math.sin(pitch) * z + Math.cos(pitch) * depthPlane,
+        ];
+      }
+
+      function sceneBounds() {
+        const points = loadedProgram?.segments.flatMap(({ from, to }) => [from, to]) || [];
+        points.push([0, 0, 0]);
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+
+        for (const point of points) {
+          for (let axis = 0; axis < 3; axis++) {
+            min[axis] = Math.min(min[axis], point[axis]);
+            max[axis] = Math.max(max[axis], point[axis]);
+          }
+        }
+        return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
+      }
+
+      function makeProjector(width, height, bounds) {
+        const rotated = [
+          ...bounds.min.map((_, index) => {
+            const point = [bounds.min[0], bounds.min[1], bounds.min[2]];
+            point[index] = bounds.max[index];
+            return rotatePoint(point.map((value, axis) => value - bounds.center[axis]));
+          }),
+          ...[
+            [bounds.min[0], bounds.min[1], bounds.min[2]],
+            [bounds.min[0], bounds.min[1], bounds.max[2]],
+            [bounds.min[0], bounds.max[1], bounds.min[2]],
+            [bounds.min[0], bounds.max[1], bounds.max[2]],
+            [bounds.max[0], bounds.min[1], bounds.min[2]],
+            [bounds.max[0], bounds.min[1], bounds.max[2]],
+            [bounds.max[0], bounds.max[1], bounds.min[2]],
+            [bounds.max[0], bounds.max[1], bounds.max[2]],
+          ].map((point) => rotatePoint(point.map((value, axis) => value - bounds.center[axis]))),
+        ];
+
+        const extentX = Math.max(...rotated.map((point) => Math.abs(point[0])), 1);
+        const extentY = Math.max(...rotated.map((point) => Math.abs(point[1])), 1);
+        const scale = Math.min((width - 76) / (2 * extentX), (height - 76) / (2 * extentY)) * camera.zoom;
+        const focalLength = Math.max(width, height) * 2.5;
+
+        return (point) => {
+          const rotatedPoint = rotatePoint(point.map((value, axis) => value - bounds.center[axis]));
+          const depthScale = camera.perspective
+            ? focalLength / Math.max(focalLength + rotatedPoint[2], focalLength * 0.35)
+            : 1;
+          return {
+            x: width / 2 + camera.panX + rotatedPoint[0] * scale * depthScale,
+            y: height / 2 + camera.panY - rotatedPoint[1] * scale * depthScale,
+            depth: rotatedPoint[2],
+          };
+        };
+      }
+
+      function drawGrid(context, width, height, project, bounds) {
+        const corners = [
+          [bounds.min[0], bounds.min[1], 0],
+          [bounds.max[0], bounds.min[1], 0],
+          [bounds.max[0], bounds.max[1], 0],
+          [bounds.min[0], bounds.max[1], 0],
+        ].map(project);
+        context.beginPath();
+        corners.forEach((point, index) => {
+          if (index === 0) context.moveTo(point.x, point.y);
+          else context.lineTo(point.x, point.y);
+        });
+        context.closePath();
+        context.fillStyle = "rgba(17, 25, 29, .26)";
+        context.fill();
+        context.strokeStyle = "rgba(102, 127, 137, .19)";
+        context.lineWidth = 1;
+        context.stroke();
+
+        const rangeX = Math.max(bounds.max[0] - bounds.min[0], 1);
+        const rangeY = Math.max(bounds.max[1] - bounds.min[1], 1);
+        const step = Math.pow(10, Math.floor(Math.log10(Math.max(rangeX, rangeY) / 8)));
+        const minorStep = step / 5;
+        context.lineWidth = 1;
+
+        for (let x = Math.ceil(bounds.min[0] / minorStep) * minorStep; x <= bounds.max[0]; x += minorStep) {
+          const a = project([x, bounds.min[1], 0]);
+          const b = project([x, bounds.max[1], 0]);
+          context.beginPath();
+          context.moveTo(a.x, a.y);
+          context.lineTo(b.x, b.y);
+          const major = Math.abs(x / step - Math.round(x / step)) < 1e-6;
+          context.strokeStyle = major ? "rgba(104, 131, 142, .15)" : "rgba(104, 131, 142, .065)";
+          context.stroke();
+        }
+
+        for (let y = Math.ceil(bounds.min[1] / minorStep) * minorStep; y <= bounds.max[1]; y += minorStep) {
+          const a = project([bounds.min[0], y, 0]);
+          const b = project([bounds.max[0], y, 0]);
+          context.beginPath();
+          context.moveTo(a.x, a.y);
+          context.lineTo(b.x, b.y);
+          const major = Math.abs(y / step - Math.round(y / step)) < 1e-6;
+          context.strokeStyle = major ? "rgba(104, 131, 142, .15)" : "rgba(104, 131, 142, .065)";
+          context.stroke();
+        }
+
+        const origin = project([0, 0, 0]);
+        context.fillStyle = "#ef7777";
+        context.beginPath();
+        context.arc(origin.x, origin.y, 3, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      function drawAxes(context, project, bounds) {
+        const length = Math.max(
+          bounds.max[0] - bounds.min[0],
+          bounds.max[1] - bounds.min[1],
+          bounds.max[2] - bounds.min[2],
+          10,
+        ) * 0.14;
+        const origin = project([bounds.min[0], bounds.min[1], 0]);
+
+        for (const [axis, end, color] of [
+          ["X", [bounds.min[0] + length, bounds.min[1], 0], "#ef7777"],
+          ["Y", [bounds.min[0], bounds.min[1] + length, 0], "#68ce9e"],
+          ["Z", [bounds.min[0], bounds.min[1], length], "#57b5e2"],
+        ]) {
+          const point = project(end);
+          context.beginPath();
+          context.moveTo(origin.x, origin.y);
+          context.lineTo(point.x, point.y);
+          context.strokeStyle = color;
+          context.lineWidth = 2;
+          context.stroke();
+          context.fillStyle = color;
+          context.font = "bold 11px system-ui";
+          context.fillText(axis, point.x + 4, point.y - 4);
+        }
+      }
+
+      function drawTool(context, project) {
+        if (!machineConnected) return;
+        const tip = project(toolPosition);
+        const above = project([toolPosition[0], toolPosition[1], toolPosition[2] + 10]);
+        const radius = Math.max(3, Math.min(8, Math.hypot(above.x - tip.x, above.y - tip.y) * 0.16));
+
+        context.beginPath();
+        context.moveTo(tip.x - radius * 0.7, above.y);
+        context.lineTo(tip.x + radius * 0.7, above.y);
+        context.lineTo(tip.x + radius * 0.34, tip.y - 5);
+        context.lineTo(tip.x - radius * 0.34, tip.y - 5);
+        context.closePath();
+        context.fillStyle = "#b9c6ca";
+        context.fill();
+        context.strokeStyle = "#e0e8ea";
+        context.lineWidth = 1;
+        context.stroke();
+
+        context.beginPath();
+        context.moveTo(tip.x, tip.y - 5);
+        context.lineTo(tip.x, tip.y + 2);
+        context.strokeStyle = "#f3c969";
+        context.lineWidth = 2;
+        context.stroke();
+
+        context.beginPath();
+        context.arc(tip.x, tip.y + 2, 3, 0, Math.PI * 2);
+        context.fillStyle = "#f3c969";
+        context.fill();
+      }
+
+      function drawToolpath() {
+        const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
+        const bounds = sceneBounds();
+        const project = makeProjector(width, height, bounds);
+        trajectoryContext.clearRect(0, 0, width, height);
+
+        if (!loadedProgram || loadedProgram.segments.length === 0) {
+          viewerEmpty.hidden = false;
+          drawOrientationCube();
+          return;
+        }
+
+        viewerEmpty.hidden = true;
+        drawGrid(trajectoryContext, width, height, project, bounds);
+
+        const colors = {
+          rapid: "rgba(153, 168, 174, .58)",
+          linear: "#55bd91",
+          "arc-cw": "#f1aa58",
+          "arc-ccw": "#9d8bef",
+        };
+        for (const segment of loadedProgram.segments) {
+          const from = project(segment.from);
+          const to = project(segment.to);
+          trajectoryContext.beginPath();
+          trajectoryContext.moveTo(from.x, from.y);
+          trajectoryContext.lineTo(to.x, to.y);
+          trajectoryContext.strokeStyle = colors[segment.type] || colors.linear;
+          trajectoryContext.lineWidth = segment.type === "rapid" ? 1 : 1.7;
+          trajectoryContext.setLineDash(segment.type === "rapid" ? [4, 5] : []);
+          trajectoryContext.stroke();
+        }
+        trajectoryContext.setLineDash([]);
+
+        drawAxes(trajectoryContext, project, bounds);
+        drawTool(trajectoryContext, project);
+        drawOrientationCube();
+      }
+
+      function drawOrientationCube() {
+        const { width, height } = resizeCanvas(orientationCube, orientationContext);
+        orientationContext.clearRect(0, 0, width, height);
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const size = Math.min(width, height) * 0.24;
+        const vertices = [
+          [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+          [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
+        ];
+        const projected = vertices.map((vertex) => {
+          const point = rotatePoint(vertex);
+          return { x: centerX + point[0] * size, y: centerY - point[1] * size, depth: point[2] };
+        });
+        const faces = [
+          { vertices: [0, 1, 2, 3], color: "rgba(74, 83, 88, .8)", label: "Z−", axis: "Z" },
+          { vertices: [4, 5, 6, 7], color: "rgba(40, 126, 170, .78)", label: "Z+", axis: "Z" },
+          { vertices: [0, 1, 5, 4], color: "rgba(151, 74, 77, .82)", label: "Y−", axis: "Y" },
+          { vertices: [2, 3, 7, 6], color: "rgba(67, 139, 103, .82)", label: "Y+", axis: "Y" },
+          { vertices: [1, 2, 6, 5], color: "rgba(166, 83, 83, .82)", label: "X+", axis: "X" },
+          { vertices: [0, 3, 7, 4], color: "rgba(87, 132, 102, .82)", label: "X−", axis: "X" },
+        ].map((face) => ({
+          ...face,
+          depth: face.vertices.reduce((sum, index) => sum + projected[index].depth, 0) / 4,
+        })).sort((a, b) => a.depth - b.depth);
+
+        for (const face of faces) {
+          const points = face.vertices.map((index) => projected[index]);
+          orientationContext.beginPath();
+          orientationContext.moveTo(points[0].x, points[0].y);
+          points.slice(1).forEach((point) => orientationContext.lineTo(point.x, point.y));
+          orientationContext.closePath();
+          orientationContext.fillStyle = face.color;
+          orientationContext.fill();
+          orientationContext.strokeStyle = "rgba(206, 220, 225, .58)";
+          orientationContext.lineWidth = 1;
+          orientationContext.stroke();
+
+          const labelPoint = points.reduce(
+            (sum, point) => ({ x: sum.x + point.x / 4, y: sum.y + point.y / 4 }),
+            { x: 0, y: 0 },
+          );
+          orientationContext.fillStyle = "#f0f4f5";
+          orientationContext.font = "bold 9px system-ui";
+          orientationContext.textAlign = "center";
+          orientationContext.textBaseline = "middle";
+          orientationContext.fillText(face.label, labelPoint.x, labelPoint.y);
+        }
+      }
+
+      function setView(axis, sign = 1) {
+        if (axis === "Z") {
+          camera.yaw = -0.72;
+          camera.pitch = sign > 0 ? Math.PI / 2 - 0.001 : -Math.PI / 2 + 0.001;
+        } else if (axis === "X") {
+          camera.yaw = sign > 0 ? 0 : Math.PI;
+          camera.pitch = 0.001;
+        } else {
+          camera.yaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+          camera.pitch = 0.001;
+        }
+        camera.panX = 0;
+        camera.panY = 0;
+        drawToolpath();
+      }
+
+      orientationCube.addEventListener("click", (event) => {
+        const rect = orientationCube.getBoundingClientRect();
+        const x = (event.clientX - rect.left) * (orientationCube.width / rect.width);
+        const y = (event.clientY - rect.top) * (orientationCube.height / rect.height);
+        let nearest = null;
+        for (const axis of ["X", "Y", "Z"]) {
+          for (const sign of [-1, 1]) {
+            const end = rotatePoint(axis === "X" ? [sign, 0, 0] : axis === "Y" ? [0, sign, 0] : [0, 0, sign]);
+            const px = rect.width / 2 + end[0] * rect.width * 0.24;
+            const py = rect.height / 2 - end[1] * rect.height * 0.24;
+            const distance = Math.hypot(x - px, y - py);
+            if (!nearest || distance < nearest.distance) nearest = { axis, sign, distance };
+          }
+        }
+        if (nearest && nearest.distance < 28) setView(nearest.axis, nearest.sign);
+      });
+
+      trajectoryCanvas.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 && event.button !== 2) return;
+        trajectoryCanvas.setPointerCapture(event.pointerId);
+        trajectoryCanvas.classList.add("dragging");
+        dragState = {
+          x: event.clientX,
+          y: event.clientY,
+          button: event.button,
+          yaw: camera.yaw,
+          pitch: camera.pitch,
+          panX: camera.panX,
+          panY: camera.panY,
+        };
+      });
+
+      trajectoryCanvas.addEventListener("pointermove", (event) => {
+        if (!dragState) return;
+        const dx = event.clientX - dragState.x;
+        const dy = event.clientY - dragState.y;
+        if (dragState.button === 2) {
+          camera.panX = dragState.panX + dx;
+          camera.panY = dragState.panY + dy;
+        } else {
+          camera.yaw = dragState.yaw + dx * 0.008;
+          camera.pitch = Math.max(-1.52, Math.min(1.52, dragState.pitch + dy * 0.008));
+        }
+        drawToolpath();
+      });
+
+      function endCameraDrag() {
+        dragState = null;
+        trajectoryCanvas.classList.remove("dragging");
+      }
+      trajectoryCanvas.addEventListener("pointerup", endCameraDrag);
+      trajectoryCanvas.addEventListener("pointercancel", endCameraDrag);
+      trajectoryCanvas.addEventListener("contextmenu", (event) => event.preventDefault());
+      trajectoryCanvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+        camera.zoom = Math.max(0.25, Math.min(8, camera.zoom * Math.exp(-event.deltaY * 0.001)));
+        drawToolpath();
+      }, { passive: false });
+
       function showProgram(name, content) {
         loadedProgram = { name, content, segments: parseToolpath(content) };
+        camera.zoom = 1;
+        camera.panX = 0;
+        camera.panY = 0;
         programName.textContent = `${name} · ${loadedProgram.segments.length} SEGMENTS`;
         drawToolpath();
       }
@@ -882,7 +1354,22 @@
           fileInput.value = "";
         }
       });
-      document.querySelector("#fit-program").addEventListener("click", drawToolpath);
+      document.querySelector("#fit-program").addEventListener("click", () => {
+        camera.zoom = 1;
+        camera.panX = 0;
+        camera.panY = 0;
+        drawToolpath();
+      });
+
+      const projectionToggle = document.querySelector("#projection-toggle");
+      projectionToggle.addEventListener("click", () => {
+        camera.perspective = !camera.perspective;
+        projectionToggle.textContent = camera.perspective ? "3D" : "Ortho";
+        projectionToggle.classList.toggle("active", camera.perspective);
+        projectionToggle.setAttribute("aria-pressed", String(camera.perspective));
+        drawToolpath();
+      });
+
       window.addEventListener("resize", drawToolpath);
 
       async function requestStatus() {
@@ -925,6 +1412,10 @@
 
           document.querySelector("#message").textContent =
             status.error || status.message || "Контроллер готов.";
+          toolPosition[0] = Number(status.x) || 0;
+          toolPosition[1] = Number(status.y) || 0;
+          toolPosition[2] = Number(status.z) || 0;
+          drawToolpath();
         } catch (error) {
           machineConnected = false;
           connection.textContent = "Ошибка связи";
