@@ -192,7 +192,7 @@
 
       .dro-header, .axis-row {
         display: grid;
-        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 25px 25px;
         align-items: center;
         gap: 9px;
       }
@@ -232,6 +232,93 @@
       }
 
       .axis-value.machine { color: #a0aaae; font-size: 12px; }
+
+      .axis-value.work {
+        cursor: pointer;
+        border-radius: 4px;
+      }
+
+      .axis-value.work:hover,
+      .axis-value.work:focus-visible { color: var(--accent-bright); }
+
+      .position-action {
+        width: 25px;
+        min-height: 27px;
+        padding: 0;
+        color: #aeb9bc;
+        font-size: 10px;
+      }
+
+      .position-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 11px;
+        border-top: 1px solid var(--border);
+      }
+
+      .position-actions button {
+        min-height: 34px;
+        color: #b9c3c6;
+        font-size: 10px;
+      }
+
+      .position-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 9px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .position-meta strong {
+        color: #d8e0e2;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 600;
+      }
+
+      .position-dialog {
+        width: min(360px, calc(100vw - 32px));
+        padding: 0;
+        border: 1px solid #3b484d;
+        border-radius: 10px;
+        background: #202629;
+        color: #e7ecee;
+        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+      }
+
+      .position-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+      .position-dialog-content {
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .position-dialog h2 { margin: 0; font-size: 15px; }
+      .position-dialog label { color: var(--muted); font-size: 11px; }
+      .position-dialog input {
+        min-height: 42px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: 16px ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .position-dialog-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 7px;
+      }
+
+      .position-dialog-actions button { min-height: 38px; font-size: 11px; }
+      .position-dialog-actions .primary { border-color: #287eaa; background: #1d5f80; }
 
       .jog-step-row {
         justify-content: space-between;
@@ -550,27 +637,49 @@
           <div class="panel-heading">
             <span class="panel-title">POSITION</span>
             <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
-              <option>G54</option>
+              <option value="g54">G54</option>
+              <option value="g55">G55</option>
+              <option value="g56">G56</option>
+              <option value="g57">G57</option>
+              <option value="g58">G58</option>
+              <option value="g59">G59</option>
+              <option value="g59_1">G59.1</option>
+              <option value="g59_2">G59.2</option>
+              <option value="g59_3">G59.3</option>
             </select>
           </div>
           <div class="panel-body">
             <div class="dro-header" aria-hidden="true">
-              <span></span><span>WORK</span><span>MACHINE</span>
+              <span></span><span>WORK</span><span>MACHINE</span><span></span><span></span>
             </div>
             <div class="axis-row">
               <span class="axis-label x">X</span>
-              <strong class="axis-value" id="x">0.000</strong>
+              <strong class="axis-value work" id="x" tabindex="0" role="button">0.000</strong>
               <span class="axis-value machine" id="machine-x">0.000</span>
+              <button class="position-action" type="button" data-home-axis="X" title="Home X">H</button>
+              <button class="position-action" type="button" data-zero-axis="X" title="Установить ноль X">0</button>
             </div>
             <div class="axis-row">
               <span class="axis-label y">Y</span>
-              <strong class="axis-value" id="y">0.000</strong>
+              <strong class="axis-value work" id="y" tabindex="0" role="button">0.000</strong>
               <span class="axis-value machine" id="machine-y">0.000</span>
+              <button class="position-action" type="button" data-home-axis="Y" title="Home Y">H</button>
+              <button class="position-action" type="button" data-zero-axis="Y" title="Установить ноль Y">0</button>
             </div>
             <div class="axis-row">
               <span class="axis-label z">Z</span>
-              <strong class="axis-value" id="z">0.000</strong>
+              <strong class="axis-value work" id="z" tabindex="0" role="button">0.000</strong>
               <span class="axis-value machine" id="machine-z">0.000</span>
+              <button class="position-action" type="button" data-home-axis="Z" title="Home Z">H</button>
+              <button class="position-action" type="button" data-zero-axis="Z" title="Установить ноль Z">0</button>
+            </div>
+            <div class="position-actions">
+              <button id="zero-all" type="button">Zero all</button>
+              <button id="home-all" type="button">Home all</button>
+            </div>
+            <div class="position-meta">
+              <span>FEED <strong id="feed-rate">0 mm/min</strong></span>
+              <span>SPINDLE <strong id="spindle-rpm">0 RPM</strong></span>
             </div>
           </div>
         </section>
@@ -707,12 +816,31 @@
       </aside>
     </main>
 
+    <dialog class="position-dialog" id="position-dialog">
+      <form class="position-dialog-content" method="dialog">
+        <h2 id="position-dialog-title">Позиция оси</h2>
+        <label for="position-value">Рабочая координата, mm</label>
+        <input id="position-value" type="number" step="any" inputmode="decimal" required>
+        <div class="position-dialog-actions">
+          <button type="button" id="position-cancel">Отмена</button>
+          <button type="button" id="position-set" class="primary">Set</button>
+          <button type="button" id="position-go" class="primary">Go</button>
+        </div>
+      </form>
+    </dialog>
+
     <script>
       const connection = document.querySelector("#connection");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#feedback");
       const jogButtons = [...document.querySelectorAll("[data-axis]")];
+      const zeroAxisButtons = [...document.querySelectorAll("[data-zero-axis]")];
+      const homeAxisButtons = [...document.querySelectorAll("[data-home-axis]")];
+      const positionDialog = document.querySelector("#position-dialog");
+      const positionValue = document.querySelector("#position-value");
+      const coordinateSystem = document.querySelector("#coordinate-system");
+      let editingAxis = null;
       let machineConnected = false;
       let statusRequestInFlight = false;
       let loadedProgram = null;
@@ -1344,6 +1472,148 @@
         }
       }
 
+      async function sendPositionAction(command, endpoint, args) {
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (invoke) return invoke(command, args);
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+          body: JSON.stringify(args),
+        });
+        if (!response.ok) {
+          throw new Error((await response.text()) || `HTTP ${response.status}`);
+        }
+      }
+
+      function openPositionDialog(axis) {
+        editingAxis = axis;
+        const option = coordinateSystem.options[coordinateSystem.selectedIndex];
+        document.querySelector("#position-dialog-title").textContent =
+          `Ось ${axis} · ${option.text}`;
+        positionValue.value = document.querySelector(`#${axis.toLowerCase()}`).textContent;
+        positionDialog.showModal();
+        positionValue.focus();
+        positionValue.select();
+      }
+
+      async function executePositionAction(action) {
+        if (!editingAxis) return;
+
+        const value = Number(positionValue.value);
+        if (!Number.isFinite(value) || Math.abs(value) > 100000) {
+          positionValue.setCustomValidity("Введите конечное значение в диапазоне ±100000 mm");
+          positionValue.reportValidity();
+          return;
+        }
+        positionValue.setCustomValidity("");
+
+        const args = {
+          axis: editingAxis,
+          system: coordinateSystem.value,
+          value,
+        };
+        const setPosition = action === "set";
+        try {
+          await sendPositionAction(
+            setPosition ? "set_axis_work_value" : "go_to_axis_work_value",
+            setPosition ? "/api/position/set" : "/api/position/go",
+            args,
+          );
+          positionDialog.close();
+          document.querySelector("#message").textContent = setPosition
+            ? `Рабочая координата ${editingAxis} задана.`
+            : `Команда перемещения ${editingAxis} отправлена.`;
+          await refreshStatus();
+        } catch (error) {
+          document.querySelector("#message").textContent = `Ошибка позиции: ${error.message}`;
+        }
+      }
+
+      for (const axis of ["X", "Y", "Z"]) {
+        const value = document.querySelector(`#${axis.toLowerCase()}`);
+        value.addEventListener("click", () => openPositionDialog(axis));
+        value.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openPositionDialog(axis);
+          }
+        });
+      }
+
+      document.querySelector("#position-cancel").addEventListener("click", () => positionDialog.close());
+      document.querySelector("#position-set").addEventListener("click", () => executePositionAction("set"));
+      document.querySelector("#position-go").addEventListener("click", () => executePositionAction("go"));
+      positionValue.addEventListener("input", () => positionValue.setCustomValidity(""));
+
+      coordinateSystem.addEventListener("change", async () => {
+        try {
+          await sendPositionAction(
+            "select_coordinate_system",
+            "/api/position/select",
+            { system: coordinateSystem.value },
+          );
+          await refreshStatus();
+        } catch (error) {
+          document.querySelector("#message").textContent =
+            `Ошибка выбора системы координат: ${error.message}`;
+        }
+      });
+
+      document.querySelector("#zero-all").addEventListener("click", async () => {
+        try {
+          await sendPositionAction(
+            "zero_all",
+            "/api/position/zero",
+            { system: coordinateSystem.value },
+          );
+          await refreshStatus();
+        } catch (error) {
+          document.querySelector("#message").textContent = `Ошибка Zero all: ${error.message}`;
+        }
+      });
+
+      zeroAxisButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          try {
+            await sendPositionAction(
+              "zero_axis",
+              "/api/position/zero-axis",
+              { axis: button.dataset.zeroAxis },
+            );
+            await refreshStatus();
+          } catch (error) {
+            document.querySelector("#message").textContent = `Ошибка установки нуля: ${error.message}`;
+          }
+        });
+      });
+
+      document.querySelector("#home-all").addEventListener("click", async () => {
+        try {
+          await sendPositionAction("home_all", "/api/position/home-all", {});
+          document.querySelector("#message").textContent = "Запущено homing всех осей.";
+        } catch (error) {
+          document.querySelector("#message").textContent = `Ошибка homing: ${error.message}`;
+        }
+      });
+
+      homeAxisButtons.forEach((button) => {
+        button.addEventListener("click", async () => {
+          try {
+            await sendPositionAction(
+              "home_axis",
+              "/api/position/home",
+              { axis: button.dataset.homeAxis },
+            );
+            document.querySelector("#message").textContent =
+              `Запущено homing оси ${button.dataset.homeAxis}.`;
+          } catch (error) {
+            document.querySelector("#message").textContent = `Ошибка homing: ${error.message}`;
+          }
+        });
+      });
+
       async function sendJobCommand(command) {
         const invoke = window.__TAURI__?.core?.invoke;
         if (invoke) {
@@ -1474,6 +1744,15 @@
         jogButtons.forEach((button) => {
           button.disabled = !enabled;
         });
+        zeroAxisButtons.forEach((button) => {
+          button.disabled = !enabled;
+        });
+        homeAxisButtons.forEach((button) => {
+          button.disabled = !enabled;
+        });
+        document.querySelector("#zero-all").disabled = !enabled;
+        document.querySelector("#home-all").disabled = !enabled;
+        coordinateSystem.disabled = !enabled;
       }
 
       async function refreshStatus() {
@@ -1490,6 +1769,11 @@
           state.textContent = status.state || "—";
           setJogEnabled(machineConnected);
           updateJobControls(status);
+          coordinateSystem.value = status.coordinate_system || "g54";
+          document.querySelector("#feed-rate").textContent =
+            `${Number(status.feed_rate || 0).toFixed(0)} mm/min`;
+          document.querySelector("#spindle-rpm").textContent =
+            `${Number(status.spindle_rpm || 0).toFixed(0)} RPM`;
 
           for (const axis of ["x", "y", "z"]) {
             const workPosition = Number(status[axis]);

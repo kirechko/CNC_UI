@@ -34,6 +34,158 @@ pub(crate) struct AppState {
     pub(crate) program: Mutex<Option<LoadedProgram>>,
 }
 
+fn parse_coordinate_system(value: &str) -> Result<crate::cnc_api::CoordinateSystem, String> {
+    use crate::cnc_api::CoordinateSystem::*;
+
+    match value {
+        "g54" | "G54" => Ok(G54),
+        "g55" | "G55" => Ok(G55),
+        "g56" | "G56" => Ok(G56),
+        "g57" | "G57" => Ok(G57),
+        "g58" | "G58" => Ok(G58),
+        "g59" | "G59" => Ok(G59),
+        "g59_1" | "G59.1" => Ok(G59_1),
+        "g59_2" | "G59.2" => Ok(G59_2),
+        "g59_3" | "G59.3" => Ok(G59_3),
+        _ => Err(format!("Неизвестная система координат: {value}")),
+    }
+}
+
+fn coordinate_system_number(system: crate::cnc_api::CoordinateSystem) -> u8 {
+    use crate::cnc_api::CoordinateSystem::*;
+
+    match system {
+        G54 => 1,
+        G55 => 2,
+        G56 => 3,
+        G57 => 4,
+        G58 => 5,
+        G59 => 6,
+        G59_1 => 7,
+        G59_2 => 8,
+        G59_3 => 9,
+    }
+}
+
+fn axis_letter(axis: Axis) -> char {
+    match axis {
+        Axis::X => 'X',
+        Axis::Y => 'Y',
+        Axis::Z => 'Z',
+    }
+}
+
+impl AppState {
+    pub(crate) fn select_coordinate_system(&self, key: &str) -> Result<(), String> {
+        let system = parse_coordinate_system(key)?;
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller.select_coordinate_system(system);
+        Ok(())
+    }
+
+    pub(crate) fn zero_all(&self, key: &str) -> Result<(), String> {
+        let system = parse_coordinate_system(key)?;
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller.set_work_zero(system);
+        Ok(())
+    }
+
+    pub(crate) fn zero_axis(&self, axis: Axis) -> Result<(), String> {
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller.zero_axis(axis);
+        Ok(())
+    }
+
+    pub(crate) fn home_axis(&self, axis: Axis) -> Result<(), String> {
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller.home_axis(axis);
+        Ok(())
+    }
+
+    pub(crate) fn home_all(&self) -> Result<(), String> {
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller.home_all();
+        Ok(())
+    }
+
+    pub(crate) fn set_axis_work_value(
+        &self,
+        axis: Axis,
+        key: &str,
+        value: f64,
+    ) -> Result<(), String> {
+        if !value.is_finite() || value.abs() > 100_000.0 {
+            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000 mm".into());
+        }
+
+        let system = parse_coordinate_system(key)?;
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        if controller.get_status_snapshot().state == "DISCONNECTED" {
+            return Err("Нет соединения со станком".into());
+        }
+
+        let command = format!(
+            "G10 L2 P{} {}{value:.6}",
+            coordinate_system_number(system),
+            axis_letter(axis)
+        );
+        controller.send_command(&command);
+        Ok(())
+    }
+
+    pub(crate) fn go_to_axis_work_value(
+        &self,
+        axis: Axis,
+        key: &str,
+        value: f64,
+    ) -> Result<(), String> {
+        if !value.is_finite() || value.abs() > 100_000.0 {
+            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000 mm".into());
+        }
+
+        let system = parse_coordinate_system(key)?;
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        let status = controller.get_status_snapshot();
+        if status.state == "DISCONNECTED" {
+            return Err("Нет соединения со станком".into());
+        }
+
+        let feed_rate = if status.feed_rate.is_finite() && status.feed_rate > 0.0 {
+            status.feed_rate
+        } else {
+            100.0
+        };
+        let command = format!(
+            "{} G90 G1 {}{value:.6} F{feed_rate:.0}",
+            system.label(),
+            axis_letter(axis)
+        );
+        controller.send_command(&command);
+        Ok(())
+    }
+}
+
 impl AppState {
     pub(crate) fn new() -> io::Result<Self> {
         let state = Self {
@@ -142,6 +294,92 @@ struct JogRequest {
     distance: f64,
 }
 
+#[derive(Deserialize)]
+struct CoordinateRequest {
+    system: String,
+}
+
+#[derive(Deserialize)]
+struct AxisRequest {
+    axis: Axis,
+}
+
+#[derive(Deserialize)]
+struct AxisPositionRequest {
+    axis: Axis,
+    system: String,
+    value: f64,
+}
+
+async fn select_coordinate_system(
+    State(state): State<SharedController>,
+    Json(request): Json<CoordinateRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .select_coordinate_system(&request.system)
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
+async fn zero_all(
+    State(state): State<SharedController>,
+    Json(request): Json<CoordinateRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .zero_all(&request.system)
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
+async fn zero_axis(
+    State(state): State<SharedController>,
+    Json(request): Json<AxisRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .zero_axis(request.axis)
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
+async fn home_axis(
+    State(state): State<SharedController>,
+    Json(request): Json<AxisRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .home_axis(request.axis)
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
+async fn home_all(
+    State(state): State<SharedController>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .home_all()
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
+async fn set_axis_work_value(
+    State(state): State<SharedController>,
+    Json(request): Json<AxisPositionRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .set_axis_work_value(request.axis, &request.system, request.value)
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
+async fn go_to_axis_work_value(
+    State(state): State<SharedController>,
+    Json(request): Json<AxisPositionRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    state
+        .go_to_axis_work_value(request.axis, &request.system, request.value)
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
 #[derive(Serialize)]
 pub(crate) struct StatusResponse {
     connected: bool,
@@ -152,6 +390,9 @@ pub(crate) struct StatusResponse {
     machine_x: f64,
     machine_y: f64,
     machine_z: f64,
+    coordinate_system: String,
+    feed_rate: f64,
+    spindle_rpm: f64,
     current_line: u32,
     total_lines: u32,
     message: Option<String>,
@@ -169,6 +410,9 @@ impl From<CNCStatus> for StatusResponse {
             machine_x: status.machine_x,
             machine_y: status.machine_y,
             machine_z: status.machine_z,
+            coordinate_system: status.active_coordinate_system.label().to_ascii_lowercase().replace('.', "_"),
+            feed_rate: status.feed_rate,
+            spindle_rpm: status.spindle_actual_speed,
             current_line: status.current_line,
             total_lines: status.total_lines,
             message: status.message,
@@ -348,6 +592,13 @@ pub async fn run() -> io::Result<()> {
         .route("/api/program/resume", post(resume_program))
         .route("/api/program/abort", post(abort_program))
         .route("/api/jog", post(jog))
+        .route("/api/position/select", post(select_coordinate_system))
+        .route("/api/position/zero", post(zero_all))
+        .route("/api/position/zero-axis", post(zero_axis))
+        .route("/api/position/home", post(home_axis))
+        .route("/api/position/home-all", post(home_all))
+        .route("/api/position/set", post(set_axis_work_value))
+        .route("/api/position/go", post(go_to_axis_work_value))
         .fallback_service(static_files)
         .with_state(controller);
 
