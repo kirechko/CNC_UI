@@ -5,8 +5,10 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
@@ -17,7 +19,121 @@ use crate::cnc_controller::{CNCController, CNCStatus};
 const DEFAULT_ADDRESS: &str = "0.0.0.0:8080";
 const WEB_ROOT: &str = "web";
 
-type SharedController = Arc<Mutex<CNCController>>;
+type SharedController = Arc<AppState>;
+static UPLOADED_PROGRAM_ID: AtomicU64 = AtomicU64::new(0);
+const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
+
+#[derive(Clone, Serialize)]
+pub(crate) struct LoadedProgram {
+    pub(crate) name: String,
+    pub(crate) content: String,
+}
+
+pub(crate) struct AppState {
+    pub(crate) controller: Mutex<CNCController>,
+    pub(crate) program: Mutex<Option<LoadedProgram>>,
+}
+
+impl AppState {
+    pub(crate) fn new() -> io::Result<Self> {
+        let state = Self {
+            controller: Mutex::new(create_controller()?),
+            program: Mutex::new(None),
+        };
+        let default_path = PathBuf::from("test.gcode");
+
+        match fs::read_to_string(&default_path) {
+            Ok(content) => {
+                if let Ok(controller) = state.controller.lock() {
+                    if let Err(error) = controller.load_program(&default_path) {
+                        eprintln!(
+                            "Could not load default program {}: {}: {}",
+                            default_path.display(),
+                            error.code,
+                            error.message
+                        );
+                    } else if let Ok(mut program) = state.program.lock() {
+                        *program = Some(LoadedProgram {
+                            name: default_path
+                                .file_name()
+                                .and_then(|name| name.to_str())
+                                .unwrap_or("test.gcode")
+                                .to_string(),
+                            content,
+                        });
+                        eprintln!("Loaded default G-code trajectory from {}", default_path.display());
+                    }
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                eprintln!("Default G-code file {} not found; starting without a trajectory", default_path.display());
+            }
+            Err(error) => {
+                eprintln!("Could not read default G-code file {}: {error}", default_path.display());
+            }
+        }
+
+        Ok(state)
+    }
+}
+
+#[derive(Deserialize)]
+struct ProgramRequest {
+    #[serde(rename = "fileName")]
+    file_name: String,
+    content: String,
+}
+
+fn validate_program(name: &str, content: &str) -> Result<(), String> {
+    if name.is_empty() || name.len() > 255 || name.contains(['/', '\\\\']) {
+        return Err("Имя файла должно быть именем файла без пути и не длиннее 255 символов".into());
+    }
+    let extension = Path::new(name)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !["nc", "ngc", "gcode"].contains(&extension.as_str()) {
+        return Err("Поддерживаются файлы .nc, .ngc и .gcode".into());
+    }
+    if content.len() > MAX_PROGRAM_BYTES {
+        return Err("Размер G-code превышает лимит 5 MiB".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn load_program(
+    state: &AppState,
+    name: &str,
+    content: &str,
+) -> Result<LoadedProgram, String> {
+    validate_program(name, content)?;
+
+    let directory = std::env::temp_dir().join("cnc-ui-programs");
+    fs::create_dir_all(&directory).map_err(|error| format!("Не удалось создать каталог программы: {error}"))?;
+    let id = UPLOADED_PROGRAM_ID.fetch_add(1, Ordering::Relaxed);
+    let path = directory.join(format!("program-{}-{id}.ngc", std::process::id()));
+    fs::write(&path, content).map_err(|error| format!("Не удалось сохранить G-code: {error}"))?;
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller
+        .load_program(&path)
+        .map_err(|error| format!("{}: {}", error.code, error.message))?;
+
+    let program = LoadedProgram {
+        name: name.to_string(),
+        content: content.to_string(),
+    };
+    *state
+        .program
+        .lock()
+        .map_err(|_| "program lock poisoned".to_string())? = Some(program.clone());
+
+    Ok(program)
+}
 
 #[derive(Deserialize)]
 struct JogRequest {
@@ -100,12 +216,39 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
 }
 
 async fn get_status(
-    State(controller): State<SharedController>,
+    State(state): State<SharedController>,
 ) -> Result<Json<StatusResponse>, (StatusCode, String)> {
-    let controller = controller
+    let controller = state
+        .controller
         .lock()
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
     Ok(Json(controller.get_status_snapshot().into()))
+}
+
+async fn get_program(
+    State(state): State<SharedController>,
+) -> Result<Json<Option<LoadedProgram>>, (StatusCode, String)> {
+    let program = state
+        .program
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "program lock poisoned".into()))?;
+    Ok(Json(program.clone()))
+}
+
+async fn post_program(
+    State(state): State<SharedController>,
+    Json(request): Json<ProgramRequest>,
+) -> Result<Json<LoadedProgram>, (StatusCode, String)> {
+    load_program(&state, &request.file_name, &request.content)
+        .map(Json)
+        .map_err(|error| {
+            let status = if error.starts_with("Не удалось") {
+                StatusCode::INTERNAL_SERVER_ERROR
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (status, error)
+        })
 }
 
 async fn jog(
@@ -126,7 +269,8 @@ async fn jog(
         Axis::Y => 'Y',
         Axis::Z => 'Z',
     };
-    let controller = controller
+    let controller = state
+        .controller
         .lock()
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
     controller.jog_axis_step(axis, request.direction, request.distance);
@@ -134,7 +278,7 @@ async fn jog(
 }
 
 pub async fn run() -> io::Result<()> {
-    let controller = Arc::new(Mutex::new(create_controller()?));
+    let controller = Arc::new(AppState::new()?);
     let listener = TcpListener::bind(DEFAULT_ADDRESS).await?;
     let address = listener.local_addr()?;
 
@@ -142,6 +286,7 @@ pub async fn run() -> io::Result<()> {
         ServeDir::new(WEB_ROOT).fallback(ServeFile::new(format!("{WEB_ROOT}/index.html")));
     let app = Router::new()
         .route("/api/status", get(get_status))
+        .route("/api/program", get(get_program).post(post_program))
         .route("/api/jog", post(jog))
         .fallback_service(static_files)
         .with_state(controller);
