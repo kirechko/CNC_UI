@@ -27,7 +27,7 @@ struct JogRequest {
 }
 
 #[derive(Serialize)]
-struct StatusResponse {
+pub(crate) struct StatusResponse {
     connected: bool,
     state: String,
     x: f64,
@@ -63,7 +63,7 @@ fn startup_error(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::Other, message.into())
 }
 
-fn create_controller() -> io::Result<CNCController> {
+pub(crate) fn create_controller() -> io::Result<CNCController> {
     let config_path = std::env::var_os("CNC_UI_CONFIG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("cnc-ui.yaml"));

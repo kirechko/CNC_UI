@@ -159,11 +159,18 @@
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#feedback");
 
+      async function requestStatus() {
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (invoke) return invoke("get_status");
+
+        const response = await fetch("/api/status", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }
+
       async function refreshStatus() {
         try {
-          const response = await fetch("/api/status", { cache: "no-store" });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const status = await response.json();
+          const status = await requestStatus();
 
           connection.textContent = status.connected ? "Подключено" : "Нет связи";
           connection.className = status.connected ? "connected" : "disconnected";
@@ -186,19 +193,26 @@
         feedback.className = "";
 
         try {
-          const response = await fetch("/api/jog", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              axis: button.dataset.axis,
-              direction: Number(button.dataset.direction),
-              distance: Number(document.querySelector("#distance").value),
-            }),
-          });
+          const request = {
+            axis: button.dataset.axis,
+            direction: Number(button.dataset.direction),
+            distance: Number(document.querySelector("#distance").value),
+          };
+          const invoke = window.__TAURI__?.core?.invoke;
 
-          if (!response.ok) {
-            const detail = await response.text();
-            throw new Error(detail || `HTTP ${response.status}`);
+          if (invoke) {
+            await invoke("jog", request);
+          } else {
+            const response = await fetch("/api/jog", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(request),
+            });
+
+            if (!response.ok) {
+              const detail = await response.text();
+              throw new Error(detail || `HTTP ${response.status}`);
+            }
           }
 
           feedback.textContent = `Команда ${button.dataset.axis} отправлена`;
