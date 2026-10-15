@@ -138,7 +138,7 @@ fn main() {
 
     let emulator_socket = std::env::var_os("CNC_EMULATOR_SOCKET")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| config.emulator.socket_path.clone());
+        .unwrap_or_else(|| config.emulator.socket_path.clone().into());
 
     let api: Arc<dyn cnc_api::LinuxCncApi> = match config.backend {
         config::Backend::Emulator => Arc::new(
