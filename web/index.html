@@ -554,6 +554,17 @@
         font-size: 10px;
       }
 
+      .viewer-job-buttons {
+        display: flex;
+        gap: 5px;
+      }
+
+      .viewer-job-buttons button {
+        min-height: 29px;
+        padding: 0 8px;
+        white-space: nowrap;
+      }
+
       .job-note {
         margin: 10px 0 0;
         color: var(--muted);
@@ -799,6 +810,11 @@
               <button class="toolbar-button" id="load-program" type="button">Загрузить G-code</button>
               <button class="toolbar-button" id="fit-program" type="button">Fit</button>
               <button class="toolbar-button active" id="projection-toggle" type="button" aria-pressed="true">3D</button>
+              <div class="job-buttons viewer-job-buttons">
+                <button id="job-run" type="button" disabled>▶ Запуск</button>
+                <button id="job-pause" type="button" disabled>Ⅱ Пауза</button>
+                <button id="job-abort" type="button" disabled>■ Стоп</button>
+              </div>
             </div>
           </div>
           <div class="viewer-stage">
@@ -827,11 +843,6 @@
             <span class="panel-caption" id="job-caption">Нет загруженной программы</span>
           </div>
           <div class="panel-body">
-            <div class="job-buttons">
-              <button id="job-run" type="button" disabled>▶ Запуск</button>
-              <button id="job-pause" type="button" disabled>Ⅱ Пауза</button>
-              <button id="job-abort" type="button" disabled>■ Стоп</button>
-            </div>
             <p class="job-note" id="job-note" role="status" aria-live="polite">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
           </div>
         </section>
