@@ -54,6 +54,7 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
     };
 
     z_col.append(&z_indicator("+Z"));
+    z_col.append(&z_step_button("100", 1));
     z_col.append(&z_step_button("10", 1));
     z_col.append(&z_step_button("1", 1));
     z_col.append(&z_step_button("0.1", 1));
@@ -78,6 +79,7 @@ pub(super) fn create_jog_panel(controller: Arc<Mutex<CNCController>>) -> GtkBox 
     z_col.append(&z_step_button("0.1", -1));
     z_col.append(&z_step_button("1", -1));
     z_col.append(&z_step_button("10", -1));
+    z_col.append(&z_step_button("100", -1));
     z_col.append(&z_indicator("-Z"));
 
     jog_container.append(&z_col);
