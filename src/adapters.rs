@@ -153,5 +153,4 @@ macro_rules! debug_adapter {
 }
 
 debug_adapter!(LinuxCncAdapter, "LinuxCncAdapter");
-debug_adapter!(GrblAdapter, "GrblAdapter");
 debug_adapter!(FluidNcAdapter, "FluidNcAdapter");
