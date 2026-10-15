@@ -1455,19 +1455,52 @@
 
       orientationCube.addEventListener("click", (event) => {
         const rect = orientationCube.getBoundingClientRect();
-        const x = (event.clientX - rect.left) * (orientationCube.width / rect.width);
-        const y = (event.clientY - rect.top) * (orientationCube.height / rect.height);
-        let nearest = null;
-        for (const axis of ["X", "Y", "Z"]) {
-          for (const sign of [-1, 1]) {
-            const end = rotatePoint(axis === "X" ? [sign, 0, 0] : axis === "Y" ? [0, sign, 0] : [0, 0, sign]);
-            const px = rect.width / 2 + end[0] * rect.width * 0.24;
-            const py = rect.height / 2 - end[1] * rect.height * 0.24;
-            const distance = Math.hypot(x - px, y - py);
-            if (!nearest || distance < nearest.distance) nearest = { axis, sign, distance };
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const size = Math.min(rect.width, rect.height) * 0.24;
+        const vertices = [
+          [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+          [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
+        ];
+        const projected = vertices.map((vertex) => {
+          const point = rotatePoint(vertex);
+          return [centerX + point[0] * size, centerY - point[1] * size, point[2]];
+        });
+        const faces = [
+          { vertices: [0, 1, 2, 3], axis: "Z", sign: -1 },
+          { vertices: [4, 5, 6, 7], axis: "Z", sign: 1 },
+          { vertices: [0, 1, 5, 4], axis: "Y", sign: -1 },
+          { vertices: [2, 3, 7, 6], axis: "Y", sign: 1 },
+          { vertices: [1, 2, 6, 5], axis: "X", sign: 1 },
+          { vertices: [0, 3, 7, 4], axis: "X", sign: -1 },
+        ].map((face) => ({
+          ...face,
+          depth: face.vertices.reduce((sum, index) => sum + projected[index][2], 0) / 4,
+        })).sort((a, b) => a.depth - b.depth);
+
+        const pointInFace = (points) => {
+          let inside = false;
+          for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+            const [xi, yi] = points[i];
+            const [xj, yj] = points[j];
+            const crossesRay = (yi > y) !== (yj > y);
+            if (crossesRay && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+              inside = !inside;
+            }
+          }
+          return inside;
+        };
+
+        // Draw order is back-to-front, so test faces front-to-back.
+        for (const face of faces.reverse()) {
+          const polygon = face.vertices.map((index) => projected[index]);
+          if (pointInFace(polygon)) {
+            setView(face.axis, face.sign);
+            return;
           }
         }
-        if (nearest && nearest.distance < 28) setView(nearest.axis, nearest.sign);
       });
 
       trajectoryCanvas.addEventListener("pointerdown", (event) => {
