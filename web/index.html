@@ -498,9 +498,9 @@
       .viewer-legend { display: flex; gap: 12px; }
       .legend-item { display: flex; align-items: center; gap: 5px; }
       .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
-      .legend-dot.x { background: #ef7777; }
-      .legend-dot.y { background: #68ce9e; }
-      .legend-dot.z { background: #57b5e2; }
+      .legend-dot.rapid { background: #99a8ae; }
+      .legend-dot.linear { background: #55bd91; }
+      .legend-dot.arc { background: linear-gradient(135deg, #f1aa58 0 50%, #9d8bef 50% 100%); }
 
       .job-buttons {
         display: grid;
@@ -769,9 +769,9 @@
           <div class="viewer-footer">
             <span id="program-name">NO PROGRAM · mm</span>
             <div class="viewer-legend" aria-label="Цвета траектории">
-              <span class="legend-item"><i class="legend-dot x"></i>Rapid</span>
-              <span class="legend-item"><i class="legend-dot y"></i>Linear</span>
-              <span class="legend-item"><i class="legend-dot z"></i>Arc</span>
+              <span class="legend-item"><i class="legend-dot rapid"></i>Rapid</span>
+              <span class="legend-item"><i class="legend-dot linear"></i>Linear</span>
+              <span class="legend-item"><i class="legend-dot arc"></i>Arc</span>
             </div>
           </div>
         </section>
@@ -1844,6 +1844,8 @@
         }
       });
       document.querySelector("#fit-program").addEventListener("click", () => {
+        camera.yaw = -0.72;
+        camera.pitch = 0.62;
         camera.zoom = 1;
         camera.panX = 0;
         camera.panY = 0;
