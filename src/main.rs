@@ -4,7 +4,8 @@ mod cnc_api;
 mod cnc_controller;
 mod gcode_viewer;
 mod jog_dial;
-mod linuxcnc_api;
+#[path = "linuxcnc_api.rs"]
+mod em_adapter;
 mod theme;
 mod ui; // <-- НОВЫЙ МОДУЛЬ
 

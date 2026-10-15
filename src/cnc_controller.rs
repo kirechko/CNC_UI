@@ -3,7 +3,7 @@ use crate::cnc_api::{
     Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi, MachineStatus,
     SpindleCommand, SpindleDirection as ApiSpindleDirection,
 };
-use crate::linuxcnc_api::LinuxCncApiClient;
+use crate::em_adapter::EmAdapter;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
@@ -88,7 +88,7 @@ impl CNCController {
         thread::Builder::new()
             .name("cnc-api-worker".into())
             .spawn(move || loop {
-                match LinuxCncApiClient::connect(&socket_path) {
+                match EmAdapter::connect(&socket_path) {
                     Ok(api) => match api.status() {
                         Ok(initial_status) => {
                             *worker_status.lock().unwrap() = from_api_status(initial_status);
@@ -318,7 +318,7 @@ fn set_ui_alert(shared_status: &Arc<Mutex<CNCStatus>>, code: &str, message: &str
 }
 
 fn api_worker(
-    api: LinuxCncApiClient,
+    api: EmAdapter,
     receiver: mpsc::Receiver<Command>,
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
