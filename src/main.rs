@@ -3,6 +3,7 @@
 mod cnc_api;
 mod cnc_controller;
 mod adapters;
+mod config;
 mod gcode_viewer;
 mod jog_dial;
 #[path = "linuxcnc_api.rs"]
@@ -124,31 +125,53 @@ fn main() {
         .application_id("com.kirechko.fluidnc-rust")
         .build();
 
-    let socket_path = std::env::var_os("CNC_EMULATOR_SOCKET")
+    let config_path = std::env::var_os("CNC_UI_CONFIG")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/linuxcnc-ui-emulator.sock"));
+        .unwrap_or_else(|| std::path::PathBuf::from("cnc-ui.yaml"));
+    let config = config::AppConfig::load(&config_path).unwrap_or_else(|error| {
+        eprintln!(
+            "Не удалось загрузить конфигурацию {}: {error}",
+            config_path.display()
+        );
+        std::process::exit(1);
+    });
 
-    let backend = std::env::var("CNC_BACKEND").unwrap_or_else(|_| "em".into());
-    let api: Arc<dyn cnc_api::LinuxCncApi> = match backend.as_str() {
-        "em" => Arc::new(
-            em_adapter::EmAdapter::connect(&socket_path).unwrap_or_else(|error| {
+    let emulator_socket = std::env::var_os("CNC_EMULATOR_SOCKET")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| config.emulator.socket_path.clone());
+
+    let api: Arc<dyn cnc_api::LinuxCncApi> = match config.backend {
+        config::Backend::Emulator => Arc::new(
+            em_adapter::EmAdapter::connect(&emulator_socket).unwrap_or_else(|error| {
                 eprintln!(
                     "Не удалось создать адаптер эмулятора {}: {}: {}",
-                    socket_path.display(),
+                    emulator_socket.display(),
                     error.code,
                     error.message
                 );
                 std::process::exit(1);
             }),
         ),
-        "linuxcnc" => Arc::new(adapters::LinuxCncAdapter::new()),
-        "grbl" => Arc::new(adapters::GrblAdapter::new()),
-        "fluidnc" => Arc::new(adapters::FluidNcAdapter::new()),
-        other => {
+        config::Backend::LinuxCnc => {
             eprintln!(
-                "Неизвестный CNC_BACKEND={other:?}; допустимые значения: em, linuxcnc, grbl, fluidnc"
+                "[config] LinuxCNC debug adapter; socket={}",
+                config.linuxcnc.socket_path
             );
-            std::process::exit(2);
+            Arc::new(adapters::LinuxCncAdapter::new())
+        }
+        config::Backend::Grbl => {
+            eprintln!(
+                "[config] GRBL debug adapter; serial_port={}, baud_rate={}",
+                config.grbl.serial_port, config.grbl.baud_rate
+            );
+            Arc::new(adapters::GrblAdapter::new())
+        }
+        config::Backend::FluidNc => {
+            eprintln!(
+                "[config] FluidNC debug adapter; base_url={}",
+                config.fluidnc.base_url
+            );
+            Arc::new(adapters::FluidNcAdapter::new())
         }
     };
 
