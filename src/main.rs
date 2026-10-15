@@ -11,6 +11,7 @@ mod jog_dial;
 mod em_adapter;
 mod theme;
 mod ui; // <-- НОВЫЙ МОДУЛЬ
+mod web_server;
 
 use cnc_controller::CNCController;
 use gtk4::prelude::*;
@@ -90,6 +91,19 @@ separator { background-color: #3c3c3c; min-height: 1px; }
 "#;
 
 fn main() {
+    if std::env::args().any(|arg| arg == "--web") {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to initialize web runtime");
+
+        if let Err(error) = runtime.block_on(web_server::run()) {
+            eprintln!("Web server failed: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
     gtk4::init().expect("Failed to initialize GTK");
     if let Some(settings) = gtk4::Settings::default() {
         settings.set_property("gtk-application-prefer-dark-theme", true);
