@@ -556,11 +556,11 @@ async fn jog(
     Json(request): Json<JogRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     if ![-1, 1].contains(&request.direction)
-        || ![0.1, 1.0, 10.0].contains(&request.distance)
+        || ![0.1, 1.0, 10.0, 100.0].contains(&request.distance)
     {
         return Err((
             StatusCode::BAD_REQUEST,
-            "direction must be -1 or 1; distance must be 0.1, 1, or 10 mm".into(),
+            "direction must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into(),
         ));
     }
 
