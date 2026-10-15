@@ -252,7 +252,7 @@ async fn post_program(
 }
 
 async fn jog(
-    State(controller): State<SharedController>,
+    State(state): State<SharedController>,
     Json(request): Json<JogRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     if ![-1, 1].contains(&request.direction)
