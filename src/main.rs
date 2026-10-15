@@ -2,6 +2,7 @@
 #[allow(dead_code)]
 mod cnc_api;
 mod cnc_controller;
+mod adapters;
 mod gcode_viewer;
 mod jog_dial;
 #[path = "linuxcnc_api.rs"]
@@ -127,15 +128,36 @@ fn main() {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from("/tmp/linuxcnc-ui-emulator.sock"));
 
-    let controller = Arc::new(Mutex::new(
-        CNCController::connect(&socket_path).unwrap_or_else(|error| {
+    let backend = std::env::var("CNC_BACKEND").unwrap_or_else(|_| "em".into());
+    let api: Arc<dyn cnc_api::LinuxCncApi> = match backend.as_str() {
+        "em" => Arc::new(
+            em_adapter::EmAdapter::connect(&socket_path).unwrap_or_else(|error| {
+                eprintln!(
+                    "Не удалось создать адаптер эмулятора {}: {}: {}",
+                    socket_path.display(),
+                    error.code,
+                    error.message
+                );
+                std::process::exit(1);
+            }),
+        ),
+        "linuxcnc" => Arc::new(adapters::LinuxCncAdapter::new()),
+        "grbl" => Arc::new(adapters::GrblAdapter::new()),
+        "fluidnc" => Arc::new(adapters::FluidNcAdapter::new()),
+        other => {
             eprintln!(
-                "Не удалось подключиться к эмулятору {}: {}: {}",
-                socket_path.display(),
-                error.code,
-                error.message
+                "Неизвестный CNC_BACKEND={other:?}; допустимые значения: em, linuxcnc, grbl, fluidnc"
             );
-            eprintln!("Сначала запустите отдельный процесс cnc-emulator.");
+            std::process::exit(2);
+        }
+    };
+
+    let controller = Arc::new(Mutex::new(
+        CNCController::connect_with_api(api).unwrap_or_else(|error| {
+            eprintln!(
+                "Не удалось запустить CNC controller: {}: {}",
+                error.code, error.message
+            );
             std::process::exit(1);
         }),
     ));

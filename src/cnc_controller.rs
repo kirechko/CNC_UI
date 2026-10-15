@@ -92,7 +92,12 @@ impl CNCController {
                     Ok(api) => match api.status() {
                         Ok(initial_status) => {
                             *worker_status.lock().unwrap() = from_api_status(initial_status);
-                            api_worker(api, receiver, emergency_receiver, worker_status.clone());
+                            api_worker(
+                                Arc::new(api),
+                                receiver,
+                                emergency_receiver,
+                                worker_status.clone(),
+                            );
                             return;
                         }
                         Err(error) => {
@@ -105,6 +110,38 @@ impl CNCController {
                         thread::sleep(Duration::from_secs(1));
                     }
                 }
+            })
+            .map_err(|error| crate::cnc_api::ControllerError::new("worker", error.to_string()))?;
+
+        Ok(Self {
+            status,
+            commands,
+            emergency_stop,
+            xy_jog_speed: Mutex::new(1000.0),
+            z_jog_speed: Mutex::new(300.0),
+            spindle_speed_setpoint: Mutex::new(0.0),
+        })
+    }
+
+    pub fn connect_with_api(api: Arc<dyn LinuxCncApi>) -> CncResult<Self> {
+        let status = Arc::new(Mutex::new(initial_disconnected_status()));
+        let worker_status = status.clone();
+        let (commands, receiver) = mpsc::channel();
+        let (emergency_stop, emergency_receiver) = mpsc::channel();
+
+        thread::Builder::new()
+            .name("cnc-api-worker".into())
+            .spawn(move || {
+                match api.status() {
+                    Ok(initial_status) => {
+                        *worker_status.lock().unwrap() = from_api_status(initial_status);
+                    }
+                    Err(error) => {
+                        set_ui_alert(&worker_status, &error.code, &error.message);
+                    }
+                }
+
+                api_worker(api, receiver, emergency_receiver, worker_status);
             })
             .map_err(|error| crate::cnc_api::ControllerError::new("worker", error.to_string()))?;
 
@@ -318,7 +355,7 @@ fn set_ui_alert(shared_status: &Arc<Mutex<CNCStatus>>, code: &str, message: &str
 }
 
 fn api_worker(
-    api: EmAdapter,
+    api: Arc<dyn LinuxCncApi>,
     receiver: mpsc::Receiver<Command>,
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
