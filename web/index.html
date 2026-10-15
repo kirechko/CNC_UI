@@ -3,12 +3,220 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CNC UI</title>
+    <title>CNC UI — Jog</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+        background: #181a1b;
+        color: #e8e8e8;
+      }
+
+      body {
+        margin: 0;
+        padding: 1.5rem;
+      }
+
+      main {
+        max-width: 520px;
+        margin: 0 auto;
+      }
+
+      section {
+        padding: 1rem;
+        margin: 1rem 0;
+        background: #242728;
+        border: 1px solid #383d3f;
+        border-radius: 10px;
+      }
+
+      h1, h2 {
+        margin-top: 0;
+      }
+
+      .warning {
+        color: #ffd166;
+        line-height: 1.45;
+      }
+
+      .status {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.55rem 1rem;
+      }
+
+      .coordinates {
+        font-family: ui-monospace, monospace;
+        font-size: 1.1rem;
+      }
+
+      .jog-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(64px, 1fr));
+        gap: 0.6rem;
+        max-width: 300px;
+        margin: 1rem auto;
+      }
+
+      button, select {
+        min-height: 48px;
+        border: 1px solid #4a5153;
+        border-radius: 7px;
+        background: #343a3c;
+        color: inherit;
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+        font-size: 1.2rem;
+      }
+
+      button:hover {
+        background: #41494b;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.6;
+      }
+
+      .axis-x { border-color: #c74c4c; }
+      .axis-y { border-color: #42966d; }
+      .axis-z { border-color: #287eaa; }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.7rem;
+      }
+
+      #feedback {
+        min-height: 1.4em;
+        color: #aab4b6;
+        text-align: center;
+      }
+
+      .connected { color: #69d29a; }
+      .disconnected, .error { color: #ff7777; }
+    </style>
   </head>
   <body>
     <main>
-      <h1>CNC UI — веб-режим</h1>
-      <p>HTTP-сервер запущен. Веб-интерфейс Leptos будет подключён на следующем этапе.</p>
+      <h1>CNC UI — Jog</h1>
+
+      <section>
+        <p class="warning">
+          Управление не защищено аутентификацией. Используйте только в доверенной
+          локальной сети. E-Stop должен выполняться аппаратной кнопкой станка.
+        </p>
+      </section>
+
+      <section>
+        <h2>Состояние</h2>
+        <div class="status">
+          <span>Соединение</span><strong id="connection">Загрузка…</strong>
+          <span>Состояние</span><strong id="state">—</strong>
+          <span>X рабочая</span><strong class="coordinates" id="x">0.000</strong>
+          <span>Y рабочая</span><strong class="coordinates" id="y">0.000</strong>
+          <span>Z рабочая</span><strong class="coordinates" id="z">0.000</strong>
+          <span>Сообщение</span><strong id="message">—</strong>
+        </div>
+      </section>
+
+      <section>
+        <h2>Пошаговое перемещение</h2>
+        <div class="controls">
+          <label for="distance">Шаг, мм</label>
+          <select id="distance">
+            <option value="0.1">0.1</option>
+            <option value="1" selected>1</option>
+            <option value="10">10</option>
+          </select>
+        </div>
+
+        <div class="jog-grid">
+          <span></span>
+          <button class="axis-y" data-axis="Y" data-direction="1" aria-label="Y плюс">Y+</button>
+          <span></span>
+          <button class="axis-x" data-axis="X" data-direction="-1" aria-label="X минус">X−</button>
+          <button class="axis-x" data-axis="X" data-direction="1" aria-label="X плюс">X+</button>
+          <button class="axis-y" data-axis="Y" data-direction="-1" aria-label="Y минус">Y−</button>
+          <span></span>
+          <button class="axis-z" data-axis="Z" data-direction="1" aria-label="Z плюс">Z+</button>
+          <span></span>
+          <span></span>
+          <button class="axis-z" data-axis="Z" data-direction="-1" aria-label="Z минус">Z−</button>
+          <span></span>
+        </div>
+        <p id="feedback" role="status"></p>
+      </section>
     </main>
+
+    <script>
+      const connection = document.querySelector("#connection");
+      const state = document.querySelector("#state");
+      const feedback = document.querySelector("#feedback");
+
+      async function refreshStatus() {
+        try {
+          const response = await fetch("/api/status", { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const status = await response.json();
+
+          connection.textContent = status.connected ? "Подключено" : "Нет связи";
+          connection.className = status.connected ? "connected" : "disconnected";
+          state.textContent = status.state;
+          for (const axis of ["x", "y", "z"]) {
+            document.querySelector(`#${axis}`).textContent = status[axis].toFixed(3);
+          }
+          document.querySelector("#message").textContent =
+            status.error || status.message || "—";
+        } catch (error) {
+          connection.textContent = "Ошибка связи";
+          connection.className = "disconnected";
+          document.querySelector("#message").textContent = error.message;
+        }
+      }
+
+      async function jog(button) {
+        button.disabled = true;
+        feedback.textContent = "";
+        feedback.className = "";
+
+        try {
+          const response = await fetch("/api/jog", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              axis: button.dataset.axis,
+              direction: Number(button.dataset.direction),
+              distance: Number(document.querySelector("#distance").value),
+            }),
+          });
+
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(detail || `HTTP ${response.status}`);
+          }
+
+          feedback.textContent = `Команда ${button.dataset.axis} отправлена`;
+          await refreshStatus();
+        } catch (error) {
+          feedback.textContent = `Ошибка: ${error.message}`;
+          feedback.className = "error";
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      document.querySelectorAll("[data-axis]").forEach((button) => {
+        button.addEventListener("click", () => jog(button));
+      });
+
+      refreshStatus();
+      window.setInterval(refreshStatus, 500);
+    </script>
   </body>
 </html>
