@@ -1,6 +1,7 @@
 use crate::cnc_api::Axis;
-use crate::cnc_controller::CNCController;
-use crate::web_server::{load_program, AppState, LoadedProgram, StatusResponse};
+use crate::web_server::{
+    load_program as load_program_into_state, AppState, LoadedProgram, StatusResponse,
+};
 use tauri::State;
 
 #[tauri::command]
@@ -27,12 +28,12 @@ fn load_program(
     file_name: String,
     content: String,
 ) -> Result<LoadedProgram, String> {
-    load_program(&state, &file_name, &content)
+    load_program_into_state(&state, &file_name, &content)
 }
 
 #[tauri::command]
 fn jog(
-    controller: State<'_, SharedController>,
+    state: State<'_, AppState>,
     axis: Axis,
     direction: i8,
     distance: f64,
@@ -47,7 +48,7 @@ fn jog(
         Axis::Z => 'Z',
     };
 
-    let controller = controller
+    let controller = state
         .controller
         .lock()
         .map_err(|_| "controller lock poisoned".to_string())?;
