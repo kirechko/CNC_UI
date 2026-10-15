@@ -14,9 +14,6 @@ mod ui; // <-- НОВЫЙ МОДУЛЬ
 mod web_server;
 mod tauri_app;
 
-use cnc_controller::CNCController;
-use gtk4::prelude::*;
-use std::sync::{Arc, Mutex};
 
 const DARK_THEME_CSS: &str = r#"
 window { 
