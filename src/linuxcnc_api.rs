@@ -29,19 +29,19 @@ struct RemoteError {
     message: String,
 }
 
-/// Клиент собственного LinuxCNC-подобного API поверх Unix-сокета.
-/// Протокол не является NML и рассчитан на этот UI и cnc-emulator.
 struct ApiConnection {
     reader: BufReader<UnixStream>,
 }
 
-pub struct LinuxCncApiClient {
+ /// Адаптер эмулятора: преобразует общий CNC API в запросы по Unix-сокету.
+/// Использует собственный JSON-протокол эмулятора, а не NML.
+pub struct EmAdapter {
     socket_path: PathBuf,
     timeout: Duration,
     connection: Mutex<Option<ApiConnection>>,
 }
 
-impl LinuxCncApiClient {
+impl EmAdapter {
     pub fn connect(path: impl AsRef<Path>) -> CncResult<Self> {
         let path = path.as_ref().to_path_buf();
         Ok(Self {
@@ -130,7 +130,7 @@ impl LinuxCncApiClient {
     }
 }
 
-impl LinuxCncApi for LinuxCncApiClient {
+impl LinuxCncApi for EmAdapter {
     fn status(&self) -> CncResult<MachineStatus> {
         let value = self.call("status", json!({}))?;
         serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
