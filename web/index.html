@@ -197,12 +197,12 @@
         gap: 7px;
       }
 
-      #position-grid.wpos-only,
+      .axis-row.wpos-only,
       #position-grid-header.wpos-only {
         grid-template-columns: 24px minmax(0, 1fr) 0 25px 25px;
       }
 
-      #position-grid.mpos-only,
+      .axis-row.mpos-only,
       #position-grid-header.mpos-only {
         grid-template-columns: 24px 0 minmax(0, 1fr) 25px 25px;
       }
@@ -1831,7 +1831,7 @@
 
       const wposToggle = document.querySelector("#wpos-toggle");
       const mposToggle = document.querySelector("#mpos-toggle");
-      const positionGrid = document.querySelector("#position-grid");
+      const positionRows = [...document.querySelectorAll(".axis-row")];
       const positionGridHeader = document.querySelector("#position-grid-header");
 
       function updatePositionDisplay() {
@@ -1841,9 +1841,11 @@
             ? "mpos-only"
             : "wpos-only";
 
-        positionGrid.classList.remove("both", "mpos-only", "wpos-only");
+        for (const row of positionRows) {
+          row.classList.remove("both", "mpos-only", "wpos-only");
+          row.classList.add(mode);
+        }
         positionGridHeader.classList.remove("both", "mpos-only", "wpos-only");
-        positionGrid.classList.add(mode);
         positionGridHeader.classList.add(mode);
         wposToggle.setAttribute("aria-pressed", String(positionDisplay.work));
         mposToggle.setAttribute("aria-pressed", String(positionDisplay.machine));
