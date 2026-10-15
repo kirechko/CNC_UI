@@ -85,7 +85,7 @@ struct ProgramRequest {
 }
 
 fn validate_program(name: &str, content: &str) -> Result<(), String> {
-    if name.is_empty() || name.len() > 255 || name.contains(['/', '\\\\']) {
+    if name.is_empty() || name.len() > 255 || name.contains(['/', '\\']) {
         return Err("Имя файла должно быть именем файла без пути и не длиннее 255 символов".into());
     }
     let extension = Path::new(name)
