@@ -869,9 +869,11 @@
         let programLine = 0;
 
         for (const originalLine of source.split(/\r?\n/)) {
-          const line = originalLine.replace(/\([^)]*\)/g, "").split(";")[0].trim();
-          if (!line) continue;
+          const rawLine = originalLine.split(";")[0].trim();
+          if (!rawLine) continue;
           programLine += 1;
+          const line = rawLine.replace(/\([^)]*\)/g, "").trim();
+          if (!line) continue;
           const words = [...line.matchAll(/([A-Za-z])\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/g)]
             .map((match) => [match[1].toUpperCase(), Number(match[2])]);
 
@@ -1273,6 +1275,42 @@
         context.fill();
       }
 
+      function getCurrentLineProgress() {
+        const line = currentProgramLine;
+        const segments = loadedProgram?.segments.filter((segment) => segment.programLine === line) || [];
+        if (!line || segments.length === 0) return null;
+
+        let cumulative = 0;
+        let closest = null;
+
+        for (const segment of segments) {
+          const delta = segment.to.map((value, axis) => value - segment.from[axis]);
+          const lengthSquared = delta.reduce((sum, value) => sum + value * value, 0);
+          const length = Math.sqrt(lengthSquared);
+          let t = 0;
+
+          if (lengthSquared > 1e-12) {
+            const relative = toolPosition.map((value, axis) => value - segment.from[axis]);
+            t = Math.max(0, Math.min(1,
+              relative.reduce((sum, value, axis) => sum + value * delta[axis], 0) / lengthSquared,
+            ));
+          }
+
+          const projected = segment.from.map((value, axis) => value + delta[axis] * t);
+          const distanceSquared = projected.reduce(
+            (sum, value, axis) => sum + (value - toolPosition[axis]) ** 2,
+            0,
+          );
+
+          if (!closest || distanceSquared < closest.distanceSquared) {
+            closest = { distanceSquared, distance: cumulative + length * t };
+          }
+          cumulative += length;
+        }
+
+        return closest ? { line, distance: closest.distance } : null;
+      }
+
       function drawToolpath() {
         const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
         const bounds = sceneBounds();
@@ -1294,18 +1332,52 @@
           "arc-cw": "#f1aa58",
           "arc-ccw": "#9d8bef",
         };
-        for (const segment of loadedProgram.segments) {
-          const from = project(segment.from);
-          const to = project(segment.to);
+        const activeProgress = getCurrentLineProgress();
+        let activeLineDistance = 0;
+
+        const drawSegmentPart = (segment, startRatio, endRatio, alpha) => {
+          if (endRatio - startRatio <= 1e-9) return;
+
+          const interpolate = (ratio) => segment.from.map(
+            (value, axis) => value + (segment.to[axis] - value) * ratio,
+          );
+          const from = project(interpolate(startRatio));
+          const to = project(interpolate(endRatio));
+
           trajectoryContext.beginPath();
           trajectoryContext.moveTo(from.x, from.y);
           trajectoryContext.lineTo(to.x, to.y);
           trajectoryContext.strokeStyle = colors[segment.type] || colors.linear;
-          trajectoryContext.globalAlpha =
-            segment.programLine <= currentProgramLine ? 0.22 : 1;
+          trajectoryContext.globalAlpha = alpha;
           trajectoryContext.lineWidth = segment.type === "rapid" ? 1 : 1.7;
           trajectoryContext.setLineDash(segment.type === "rapid" ? [4, 5] : []);
           trajectoryContext.stroke();
+        };
+
+        for (const segment of loadedProgram.segments) {
+          const delta = segment.to.map((value, axis) => value - segment.from[axis]);
+          const length = Math.sqrt(delta.reduce((sum, value) => sum + value * value, 0));
+
+          if (segment.programLine < currentProgramLine) {
+            drawSegmentPart(segment, 0, 1, 0.22);
+          } else if (
+            activeProgress &&
+            segment.programLine === activeProgress.line
+          ) {
+            const completedLength = Math.max(
+              0,
+              Math.min(length, activeProgress.distance - activeLineDistance),
+            );
+            const splitRatio = length > 1e-9 ? completedLength / length : 0;
+            drawSegmentPart(segment, 0, splitRatio, 0.22);
+            drawSegmentPart(segment, splitRatio, 1, 1);
+            activeLineDistance += length;
+          } else {
+            drawSegmentPart(segment, 0, 1, 1);
+            if (activeProgress && segment.programLine === activeProgress.line) {
+              activeLineDistance += length;
+            }
+          }
         }
         trajectoryContext.setLineDash([]);
         trajectoryContext.globalAlpha = 1;
