@@ -4,6 +4,7 @@ mod cnc_api;
 mod cnc_controller;
 mod adapters;
 mod config;
+mod grbl_adapter;
 mod gcode_viewer;
 mod jog_dial;
 #[path = "linuxcnc_api.rs"]
@@ -164,7 +165,19 @@ fn main() {
                 "[config] GRBL debug adapter; serial_port={}, baud_rate={}",
                 config.grbl.serial_port, config.grbl.baud_rate
             );
-            Arc::new(adapters::GrblAdapter::new())
+            Arc::new(
+                grbl_adapter::GrblAdapter::connect(
+                    &config.grbl.serial_port,
+                    config.grbl.baud_rate,
+                )
+                .unwrap_or_else(|error| {
+                    eprintln!(
+                        "Не удалось подключиться к GRBL на {}: {}: {}",
+                        config.grbl.serial_port, error.code, error.message
+                    );
+                    std::process::exit(1);
+                }),
+            )
         }
         config::Backend::FluidNc => {
             eprintln!(
