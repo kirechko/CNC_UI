@@ -7,157 +7,681 @@
     <style>
       :root {
         color-scheme: dark;
-        font-family: system-ui, sans-serif;
-        background: #181a1b;
-        color: #e8e8e8;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        background: #111416;
+        color: #e7ecee;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        --surface: #191e21;
+        --surface-raised: #202629;
+        --surface-hover: #293135;
+        --border: #30393d;
+        --muted: #879398;
+        --accent: #287eaa;
+        --accent-bright: #42a4d4;
+        --green: #64c99a;
+        --red: #eb7474;
       }
+
+      * { box-sizing: border-box; }
 
       body {
+        min-width: 320px;
+        min-height: 100vh;
         margin: 0;
-        padding: 1.5rem;
-      }
-
-      main {
-        max-width: 520px;
-        margin: 0 auto;
-      }
-
-      section {
-        padding: 1rem;
-        margin: 1rem 0;
-        background: #242728;
-        border: 1px solid #383d3f;
-        border-radius: 10px;
-      }
-
-      h1, h2 {
-        margin-top: 0;
-      }
-
-      .warning {
-        color: #ffd166;
-        line-height: 1.45;
-      }
-
-      .status {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 0.55rem 1rem;
-      }
-
-      .coordinates {
-        font-family: ui-monospace, monospace;
-        font-size: 1.1rem;
-      }
-
-      .jog-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(64px, 1fr));
-        gap: 0.6rem;
-        max-width: 300px;
-        margin: 1rem auto;
+        background:
+          radial-gradient(ellipse at 52% -20%, rgb(40 126 170 / 11%), transparent 50%),
+          #111416;
       }
 
       button, select {
-        min-height: 48px;
-        border: 1px solid #4a5153;
-        border-radius: 7px;
-        background: #343a3c;
         color: inherit;
         font: inherit;
       }
 
       button {
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface-raised);
         cursor: pointer;
-        font-size: 1.2rem;
+        transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
       }
 
-      button:hover {
-        background: #41494b;
+      button:hover:not(:disabled) {
+        border-color: #4a5c64;
+        background: var(--surface-hover);
+      }
+
+      button:focus-visible, select:focus-visible {
+        outline: 2px solid var(--accent-bright);
+        outline-offset: 2px;
       }
 
       button:disabled {
-        cursor: wait;
-        opacity: 0.6;
+        cursor: not-allowed;
+        opacity: 0.48;
       }
 
-      .axis-x { border-color: #c74c4c; }
-      .axis-y { border-color: #42966d; }
-      .axis-z { border-color: #287eaa; }
+      .app-header {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        display: flex;
+        min-height: 62px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 22px;
+        border-bottom: 1px solid var(--border);
+        background: rgb(19 23 25 / 94%);
+        backdrop-filter: blur(14px);
+      }
 
-      .controls {
+      .brand, .header-status, .machine-chip, .section-heading, .toolbar,
+      .axis-row, .jog-step-row, .panel-tabs, .spindle-reading {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 0.7rem;
       }
 
-      #feedback {
-        min-height: 1.4em;
-        color: #aab4b6;
+      .brand { gap: 11px; min-width: 0; }
+      .brand-mark {
+        display: grid;
+        width: 33px;
+        height: 33px;
+        place-items: center;
+        border: 1px solid #315d72;
+        border-radius: 9px;
+        background: #182b34;
+        color: var(--accent-bright);
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .brand-name { font-size: 14px; font-weight: 720; letter-spacing: 0.03em; }
+      .brand-subtitle { margin-top: 2px; color: var(--muted); font-size: 10px; }
+      .header-status { gap: 12px; }
+
+      .machine-chip {
+        gap: 8px;
+        padding: 7px 10px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: #171c1f;
+        color: #b8c2c5;
+        font-size: 11px;
+      }
+
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #657176;
+        box-shadow: 0 0 0 3px rgb(101 113 118 / 13%);
+      }
+
+      .status-dot.online {
+        background: var(--green);
+        box-shadow: 0 0 0 3px rgb(100 201 154 / 13%);
+      }
+
+      .status-dot.offline {
+        background: var(--red);
+        box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
+      }
+
+      .header-state {
+        min-width: 56px;
+        color: var(--muted);
+        font-size: 11px;
+        text-align: right;
+      }
+
+      .app-main {
+        display: grid;
+        width: min(1600px, 100%);
+        grid-template-columns: minmax(290px, 340px) minmax(360px, 1fr) minmax(230px, 275px);
+        align-items: start;
+        gap: 14px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+
+      .left-column, .center-column, .right-column {
+        display: grid;
+        min-width: 0;
+        gap: 14px;
+      }
+
+      .panel {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: linear-gradient(155deg, rgb(32 38 41 / 96%), rgb(24 29 32 / 98%));
+        box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+      }
+
+      .panel-heading {
+        display: flex;
+        min-height: 43px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .panel-title {
+        color: #b9c3c6;
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: 0.13em;
+      }
+
+      .panel-caption { color: var(--muted); font-size: 10px; }
+      .panel-body { padding: 14px; }
+
+      .coordinate-select, .step-select {
+        min-height: 31px;
+        padding: 0 27px 0 9px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #171c1f;
+        font-size: 11px;
+      }
+
+      .dro-header, .axis-row {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
+        align-items: center;
+        gap: 9px;
+      }
+
+      .dro-header {
+        margin: 1px 0 7px;
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 650;
+        letter-spacing: 0.09em;
+        text-align: right;
+      }
+
+      .dro-header span:first-child { text-align: left; }
+
+      .axis-row {
+        min-height: 48px;
+        border-top: 1px solid rgb(48 57 61 / 65%);
+      }
+
+      .axis-label {
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .axis-label.x { color: #ef7777; }
+      .axis-label.y { color: #68ce9e; }
+      .axis-label.z { color: #57b5e2; }
+
+      .axis-value {
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 15px;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        text-overflow: ellipsis;
+      }
+
+      .axis-value.machine { color: #a0aaae; font-size: 12px; }
+
+      .jog-step-row {
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .jog-step-row label, .jog-speed { color: var(--muted); font-size: 10px; }
+      .jog-grid {
+        display: grid;
+        width: min(100%, 270px);
+        grid-template-columns: repeat(3, minmax(52px, 1fr));
+        gap: 7px;
+        margin: 0 auto;
+      }
+
+      .jog-button {
+        min-height: 57px;
+        font-size: 14px;
+        font-weight: 720;
+        touch-action: manipulation;
+      }
+
+      .jog-button.xy { border-color: #385347; }
+      .jog-button.xy:hover:not(:disabled) { border-color: #58a77e; }
+      .jog-button.x { border-color: #604044; }
+      .jog-button.x:hover:not(:disabled) { border-color: #b8666b; }
+      .jog-button.z { border-color: #31556a; }
+      .jog-button.z:hover:not(:disabled) { border-color: #4d9bc2; }
+      .jog-button.center {
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 0.04em;
+      }
+
+      .jog-speed {
+        margin: 12px 0 0;
         text-align: center;
       }
 
-      .connected { color: #69d29a; }
-      .disconnected, .error { color: #ff7777; }
+      .secondary-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+
+      .secondary-controls button {
+        min-height: 36px;
+        color: #aeb9bc;
+        font-size: 10px;
+      }
+
+      .spindle-reading {
+        justify-content: space-between;
+        margin-bottom: 12px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .spindle-reading strong {
+        color: #d8e0e2;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+
+      .spindle-placeholder {
+        padding: 11px;
+        border: 1px dashed #3b464b;
+        border-radius: 6px;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.5;
+      }
+
+      .viewer-panel { min-height: 525px; }
+      .viewer-toolbar { display: flex; align-items: center; gap: 7px; }
+      .toolbar-button {
+        min-height: 29px;
+        padding: 0 9px;
+        color: #aeb9bc;
+        font-size: 10px;
+      }
+
+      .viewer-stage {
+        position: relative;
+        display: grid;
+        min-height: 456px;
+        overflow: hidden;
+        place-items: center;
+        background-color: #151a1d;
+        background-image:
+          linear-gradient(rgb(79 98 107 / 9%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(79 98 107 / 9%) 1px, transparent 1px),
+          linear-gradient(rgb(79 98 107 / 4%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(79 98 107 / 4%) 1px, transparent 1px);
+        background-position: center;
+        background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+      }
+
+      .viewer-stage::after {
+        position: absolute;
+        width: min(62%, 470px);
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgb(55 87 101 / 30%), transparent);
+        content: "";
+      }
+
+      .empty-viewer {
+        z-index: 1;
+        display: grid;
+        justify-items: center;
+        gap: 10px;
+        padding: 22px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .viewer-icon {
+        display: grid;
+        width: 54px;
+        height: 54px;
+        place-items: center;
+        border: 1px solid #34434a;
+        border-radius: 15px;
+        background: #1a2429;
+        color: #5d91a8;
+        font-size: 23px;
+      }
+
+      .empty-viewer strong { color: #bdc8cb; font-size: 12px; }
+      .empty-viewer span { max-width: 260px; font-size: 10px; line-height: 1.6; }
+
+      .viewer-footer {
+        display: flex;
+        min-height: 40px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 0 13px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .viewer-legend { display: flex; gap: 12px; }
+      .legend-item { display: flex; align-items: center; gap: 5px; }
+      .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+      .legend-dot.x { background: #ef7777; }
+      .legend-dot.y { background: #68ce9e; }
+      .legend-dot.z { background: #57b5e2; }
+
+      .job-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 7px;
+      }
+
+      .job-buttons button {
+        min-height: 39px;
+        color: #aeb9bc;
+        font-size: 10px;
+      }
+
+      .job-note {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 9px;
+        line-height: 1.5;
+      }
+
+      .panel-tabs {
+        gap: 4px;
+        padding: 7px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .tab-button {
+        min-height: 30px;
+        flex: 1;
+        border-color: transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .tab-button.active {
+        border-color: #344e5b;
+        background: #1a2b33;
+        color: #8fc8e2;
+      }
+
+      .sidebar-empty {
+        display: grid;
+        min-height: 168px;
+        align-content: center;
+        justify-items: center;
+        gap: 9px;
+        padding: 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .sidebar-empty strong { color: #c0c9cc; font-size: 11px; }
+      .sidebar-empty span { font-size: 10px; line-height: 1.55; }
+
+      .event-panel { min-height: 134px; }
+      .event-message {
+        min-height: 46px;
+        color: #a9b4b7;
+        font-size: 10px;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+      }
+
+      .safety-note {
+        padding: 10px 12px;
+        border: 1px solid #594b2d;
+        border-radius: 7px;
+        background: rgb(113 83 27 / 12%);
+        color: #dfc98e;
+        font-size: 9px;
+        line-height: 1.5;
+      }
+
+      .connected { color: var(--green); }
+      .disconnected, .error { color: var(--red); }
+
+      @media (max-width: 1100px) {
+        .app-main {
+          grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
+        }
+        .right-column { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+        .viewer-panel { min-height: 480px; }
+        .viewer-stage { min-height: 411px; }
+      }
+
+      @media (max-width: 700px) {
+        .app-header { min-height: 56px; padding: 0 12px; }
+        .brand-subtitle, .header-state { display: none; }
+        .machine-chip { padding: 7px 8px; }
+        .app-main {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 11px;
+          padding: 11px;
+        }
+        .left-column, .center-column, .right-column { gap: 11px; }
+        .right-column { grid-column: auto; grid-template-columns: 1fr; }
+        .viewer-panel { min-height: 360px; }
+        .viewer-stage { min-height: 290px; }
+        .jog-button { min-height: 60px; }
+      }
+
+      @media (max-width: 380px) {
+        .header-status { gap: 6px; }
+        .machine-chip { font-size: 10px; }
+        .app-main { padding: 8px; }
+        .panel-body { padding: 11px; }
+        .axis-value { font-size: 13px; }
+      }
     </style>
   </head>
   <body>
-    <main>
-      <h1>CNC UI — Jog</h1>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <div>
+          <div class="brand-name">CNC UI</div>
+          <div class="brand-subtitle">Machine control</div>
+        </div>
+      </div>
 
-      <section>
-        <p class="warning">
-          Управление не защищено аутентификацией. Используйте только в доверенной
-          локальной сети. E-Stop должен выполняться аппаратной кнопкой станка.
-        </p>
+      <div class="header-status">
+        <div class="machine-chip">
+          <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
+          <span id="connection">Подключение…</span>
+        </div>
+        <div class="header-state" id="state">—</div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <aside class="left-column" aria-label="Управление станком">
+        <section class="panel">
+          <div class="panel-heading">
+            <span class="panel-title">POSITION</span>
+            <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
+              <option>G54</option>
+            </select>
+          </div>
+          <div class="panel-body">
+            <div class="dro-header" aria-hidden="true">
+              <span></span><span>WORK</span><span>MACHINE</span>
+            </div>
+            <div class="axis-row">
+              <span class="axis-label x">X</span>
+              <strong class="axis-value" id="x">0.000</strong>
+              <span class="axis-value machine" id="machine-x">0.000</span>
+            </div>
+            <div class="axis-row">
+              <span class="axis-label y">Y</span>
+              <strong class="axis-value" id="y">0.000</strong>
+              <span class="axis-value machine" id="machine-y">0.000</span>
+            </div>
+            <div class="axis-row">
+              <span class="axis-label z">Z</span>
+              <strong class="axis-value" id="z">0.000</strong>
+              <span class="axis-value machine" id="machine-z">0.000</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <span class="panel-title">JOG</span>
+            <span class="panel-caption">Пошаговый режим</span>
+          </div>
+          <div class="panel-body">
+            <div class="jog-step-row">
+              <label for="distance">ШАГ ПЕРЕМЕЩЕНИЯ</label>
+              <select id="distance" class="step-select">
+                <option value="0.1">0.1 mm</option>
+                <option value="1" selected>1 mm</option>
+                <option value="10">10 mm</option>
+              </select>
+            </div>
+
+            <div class="jog-grid" aria-label="Пошаговое перемещение осей">
+              <span></span>
+              <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс">Y+</button>
+              <span></span>
+              <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус">X−</button>
+              <button class="jog-button center" disabled aria-label="Центр координат">XY</button>
+              <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс">X+</button>
+              <span></span>
+              <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус">Y−</button>
+              <span></span>
+              <span></span>
+              <button class="jog-button z" data-axis="Z" data-direction="1" aria-label="Переместить Z плюс">Z+</button>
+              <span></span>
+              <span></span>
+              <button class="jog-button z" data-axis="Z" data-direction="-1" aria-label="Переместить Z минус">Z−</button>
+              <span></span>
+            </div>
+
+            <p class="jog-speed">Подача Jog берётся из настроек выбранного адаптера.</p>
+            <div class="secondary-controls">
+              <button type="button" disabled title="Функция пока не подключена к API">Home axes</button>
+              <button type="button" disabled title="Функция пока не подключена к API">Zero axes</button>
+            </div>
+            <p id="feedback" class="panel-caption" role="status" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <span class="panel-title">SPINDLE</span>
+            <span class="panel-caption">Телеметрия пока недоступна</span>
+          </div>
+          <div class="panel-body">
+            <div class="spindle-reading"><span>ФАКТИЧЕСКИЕ ОБОРОТЫ</span><strong>— RPM</strong></div>
+            <div class="spindle-placeholder">
+              Отображение и управление шпинделем появятся после расширения общего API состояния.
+            </div>
+          </div>
+        </section>
+
+        <div class="safety-note">
+          Веб-управление не защищено аутентификацией. Используйте только в доверенной сети.
+          Для аварийной остановки используйте аппаратный E-Stop станка.
+        </div>
+      </aside>
+
+      <section class="center-column" aria-label="Просмотр программы и управление заданием">
+        <section class="panel viewer-panel">
+          <div class="panel-heading">
+            <span class="panel-title">G-CODE VIEWER</span>
+            <div class="viewer-toolbar">
+              <button class="toolbar-button" type="button" disabled>Fit</button>
+              <button class="toolbar-button" type="button" disabled>3D</button>
+            </div>
+          </div>
+          <div class="viewer-stage">
+            <div class="empty-viewer">
+              <div class="viewer-icon" aria-hidden="true">⌘</div>
+              <strong>Просмотр траектории</strong>
+              <span>Здесь будет отображаться траектория G-code. Загрузка программ и 3D-просмотр пока не подключены к веб-API.</span>
+            </div>
+          </div>
+          <div class="viewer-footer">
+            <span>WORKSPACE · mm</span>
+            <div class="viewer-legend" aria-label="Цвета осей">
+              <span class="legend-item"><i class="legend-dot x"></i>X</span>
+              <span class="legend-item"><i class="legend-dot y"></i>Y</span>
+              <span class="legend-item"><i class="legend-dot z"></i>Z</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <span class="panel-title">JOB CONTROL</span>
+            <span class="panel-caption">Нет загруженной программы</span>
+          </div>
+          <div class="panel-body">
+            <div class="job-buttons">
+              <button type="button" disabled>▶ Запуск</button>
+              <button type="button" disabled>Ⅱ Пауза</button>
+              <button type="button" disabled>■ Стоп</button>
+            </div>
+            <p class="job-note">Управление заданиями будет включено, когда загрузка и выполнение программ будут доступны через API.</p>
+          </div>
+        </section>
       </section>
 
-      <section>
-        <h2>Состояние</h2>
-        <div class="status">
-          <span>Соединение</span><strong id="connection">Загрузка…</strong>
-          <span>Состояние</span><strong id="state">—</strong>
-          <span>X рабочая</span><strong class="coordinates" id="x">0.000</strong>
-          <span>Y рабочая</span><strong class="coordinates" id="y">0.000</strong>
-          <span>Z рабочая</span><strong class="coordinates" id="z">0.000</strong>
-          <span>Сообщение</span><strong id="message">—</strong>
-        </div>
-      </section>
+      <aside class="right-column" aria-label="Файлы и сообщения">
+        <section class="panel">
+          <div class="panel-tabs" role="tablist" aria-label="Боковая панель">
+            <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content">FILES</button>
+            <button class="tab-button" id="macros-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-content">MACROS</button>
+          </div>
+          <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
+            <div class="sidebar-empty">
+              <strong id="sidebar-title">Файловый менеджер</strong>
+              <span id="sidebar-description">Просмотр и загрузка файлов пока не подключены. Сейчас доступно пошаговое управление осями.</span>
+            </div>
+          </div>
+        </section>
 
-      <section>
-        <h2>Пошаговое перемещение</h2>
-        <div class="controls">
-          <label for="distance">Шаг, мм</label>
-          <select id="distance">
-            <option value="0.1">0.1</option>
-            <option value="1" selected>1</option>
-            <option value="10">10</option>
-          </select>
-        </div>
-
-        <div class="jog-grid">
-          <span></span>
-          <button class="axis-y" data-axis="Y" data-direction="1" aria-label="Y плюс">Y+</button>
-          <span></span>
-          <button class="axis-x" data-axis="X" data-direction="-1" aria-label="X минус">X−</button>
-          <button class="axis-x" data-axis="X" data-direction="1" aria-label="X плюс">X+</button>
-          <button class="axis-y" data-axis="Y" data-direction="-1" aria-label="Y минус">Y−</button>
-          <span></span>
-          <button class="axis-z" data-axis="Z" data-direction="1" aria-label="Z плюс">Z+</button>
-          <span></span>
-          <span></span>
-          <button class="axis-z" data-axis="Z" data-direction="-1" aria-label="Z минус">Z−</button>
-          <span></span>
-        </div>
-        <p id="feedback" role="status"></p>
-      </section>
+        <section class="panel event-panel">
+          <div class="panel-heading">
+            <span class="panel-title">MACHINE MESSAGE</span>
+          </div>
+          <div class="panel-body">
+            <div class="event-message" id="message" aria-live="polite">Ожидание состояния контроллера…</div>
+          </div>
+        </section>
+      </aside>
     </main>
 
     <script>
       const connection = document.querySelector("#connection");
+      const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#feedback");
+      const jogButtons = [...document.querySelectorAll("[data-axis]")];
+      let machineConnected = false;
+      let statusRequestInFlight = false;
 
       async function requestStatus() {
         const invoke = window.__TAURI__?.core?.invoke;
@@ -168,29 +692,58 @@
         return response.json();
       }
 
+      function setJogEnabled(enabled) {
+        machineConnected = enabled;
+        jogButtons.forEach((button) => {
+          button.disabled = !enabled;
+        });
+      }
+
       async function refreshStatus() {
+        if (statusRequestInFlight) return;
+        statusRequestInFlight = true;
+
         try {
           const status = await requestStatus();
+          machineConnected = Boolean(status.connected);
+          connection.textContent = machineConnected ? "Подключено" : "Нет связи";
+          connectionDot.classList.toggle("online", machineConnected);
+          connectionDot.classList.toggle("offline", !machineConnected);
+          state.textContent = status.state || "—";
+          setJogEnabled(machineConnected);
 
-          connection.textContent = status.connected ? "Подключено" : "Нет связи";
-          connection.className = status.connected ? "connected" : "disconnected";
-          state.textContent = status.state;
           for (const axis of ["x", "y", "z"]) {
-            document.querySelector(`#${axis}`).textContent = status[axis].toFixed(3);
+            const workPosition = Number(status[axis]);
+            const machinePosition = Number(status[`machine_${axis}`]);
+            document.querySelector(`#${axis}`).textContent =
+              Number.isFinite(workPosition) ? workPosition.toFixed(3) : "—";
+            document.querySelector(`#machine-${axis}`).textContent =
+              Number.isFinite(machinePosition) ? machinePosition.toFixed(3) : "—";
           }
+
           document.querySelector("#message").textContent =
-            status.error || status.message || "—";
+            status.error || status.message || "Контроллер готов.";
         } catch (error) {
+          machineConnected = false;
           connection.textContent = "Ошибка связи";
-          connection.className = "disconnected";
+          connectionDot.classList.remove("online");
+          connectionDot.classList.add("offline");
+          state.textContent = "DISCONNECTED";
           document.querySelector("#message").textContent = error.message;
+          setJogEnabled(false);
+        } finally {
+          statusRequestInFlight = false;
         }
       }
 
       async function jog(button) {
-        button.disabled = true;
+        if (!machineConnected || button.disabled) return;
+
+        jogButtons.forEach((item) => {
+          item.disabled = true;
+        });
         feedback.textContent = "";
-        feedback.className = "";
+        feedback.className = "panel-caption";
 
         try {
           const request = {
@@ -215,20 +768,45 @@
             }
           }
 
-          feedback.textContent = `Команда ${button.dataset.axis} отправлена`;
+          feedback.textContent = `Команда ${request.axis} отправлена`;
           await refreshStatus();
         } catch (error) {
           feedback.textContent = `Ошибка: ${error.message}`;
           feedback.className = "error";
         } finally {
-          button.disabled = false;
+          jogButtons.forEach((item) => {
+            item.disabled = !machineConnected;
+          });
         }
       }
 
-      document.querySelectorAll("[data-axis]").forEach((button) => {
+      jogButtons.forEach((button) => {
         button.addEventListener("click", () => jog(button));
       });
 
+      const filesTab = document.querySelector("#files-tab");
+      const macrosTab = document.querySelector("#macros-tab");
+      const sidebarTitle = document.querySelector("#sidebar-title");
+      const sidebarDescription = document.querySelector("#sidebar-description");
+      const sidebarContent = document.querySelector("#sidebar-content");
+
+      function selectSidebarTab(tab) {
+        const showFiles = tab === "files";
+        filesTab.classList.toggle("active", showFiles);
+        macrosTab.classList.toggle("active", !showFiles);
+        filesTab.setAttribute("aria-selected", String(showFiles));
+        macrosTab.setAttribute("aria-selected", String(!showFiles));
+        sidebarContent.setAttribute("aria-labelledby", showFiles ? "files-tab" : "macros-tab");
+        sidebarTitle.textContent = showFiles ? "Файловый менеджер" : "Макросы";
+        sidebarDescription.textContent = showFiles
+          ? "Просмотр и загрузка файлов пока не подключены. Сейчас доступно пошаговое управление осями."
+          : "Запуск и настройка макросов пока не подключены к контроллеру.";
+      }
+
+      filesTab.addEventListener("click", () => selectSidebarTab("files"));
+      macrosTab.addEventListener("click", () => selectSidebarTab("macros"));
+
+      setJogEnabled(false);
       refreshStatus();
       window.setInterval(refreshStatus, 500);
     </script>
