@@ -68,6 +68,51 @@ fn abort_program(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn select_coordinate_system(state: State<'_, AppState>, system: String) -> Result<(), String> {
+    state.select_coordinate_system(&system)
+}
+
+#[tauri::command]
+fn zero_all(state: State<'_, AppState>, system: String) -> Result<(), String> {
+    state.zero_all(&system)
+}
+
+#[tauri::command]
+fn zero_axis(state: State<'_, AppState>, axis: Axis) -> Result<(), String> {
+    state.zero_axis(axis)
+}
+
+#[tauri::command]
+fn home_axis(state: State<'_, AppState>, axis: Axis) -> Result<(), String> {
+    state.home_axis(axis)
+}
+
+#[tauri::command]
+fn home_all(state: State<'_, AppState>) -> Result<(), String> {
+    state.home_all()
+}
+
+#[tauri::command]
+fn set_axis_work_value(
+    state: State<'_, AppState>,
+    axis: Axis,
+    system: String,
+    value: f64,
+) -> Result<(), String> {
+    state.set_axis_work_value(axis, &system, value)
+}
+
+#[tauri::command]
+fn go_to_axis_work_value(
+    state: State<'_, AppState>,
+    axis: Axis,
+    system: String,
+    value: f64,
+) -> Result<(), String> {
+    state.go_to_axis_work_value(axis, &system, value)
+}
+
+#[tauri::command]
 fn jog(
     state: State<'_, AppState>,
     axis: Axis,
@@ -103,7 +148,14 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             pause_program,
             resume_program,
             abort_program,
-            jog
+            jog,
+            select_coordinate_system,
+            zero_all,
+            zero_axis,
+            home_axis,
+            home_all,
+            set_axis_work_value,
+            go_to_axis_work_value
         ])
         .run(tauri::generate_context!())?;
 
