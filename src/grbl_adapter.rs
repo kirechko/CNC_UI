@@ -5,7 +5,7 @@ use crate::cnc_api::{
 };
 use serialport::SerialPort;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
