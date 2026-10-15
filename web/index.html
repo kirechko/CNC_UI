@@ -1425,15 +1425,28 @@
           orientationContext.lineWidth = 1;
           orientationContext.stroke();
 
-          const labelPoint = points.reduce(
-            (sum, point) => ({ x: sum.x + point.x / 4, y: sum.y + point.y / 4 }),
-            { x: 0, y: 0 },
+          const p0 = points[0];
+          const p1 = points[1];
+          const p3 = points[3];
+          const centerX = (p0.x + points[2].x) / 2;
+          const centerY = (p0.y + points[2].y) / 2;
+
+          orientationContext.save();
+          orientationContext.translate(centerX, centerY);
+          orientationContext.transform(
+            (p1.x - p0.x) / 2,
+            (p1.y - p0.y) / 2,
+            (p3.x - p0.x) / 2,
+            (p3.y - p0.y) / 2,
+            0,
+            0,
           );
           orientationContext.fillStyle = "#f0f4f5";
-          orientationContext.font = "bold 9px system-ui";
+          orientationContext.font = "bold 0.58px system-ui";
           orientationContext.textAlign = "center";
           orientationContext.textBaseline = "middle";
-          orientationContext.fillText(face.label, labelPoint.x, labelPoint.y);
+          orientationContext.fillText(face.label, 0, 0);
+          orientationContext.restore();
         }
       }
 
