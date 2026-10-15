@@ -668,15 +668,15 @@
         <section class="panel">
           <div class="panel-heading">
             <span class="panel-title">JOB CONTROL</span>
-            <span class="panel-caption">Нет загруженной программы</span>
+            <span class="panel-caption" id="job-caption">Нет загруженной программы</span>
           </div>
           <div class="panel-body">
             <div class="job-buttons">
-              <button type="button" disabled>▶ Запуск</button>
-              <button type="button" disabled>Ⅱ Пауза</button>
-              <button type="button" disabled>■ Стоп</button>
+              <button id="job-run" type="button" disabled>▶ Запуск</button>
+              <button id="job-pause" type="button" disabled>Ⅱ Пауза</button>
+              <button id="job-abort" type="button" disabled>■ Стоп</button>
             </div>
-            <p class="job-note">Управление заданиями будет включено, когда загрузка и выполнение программ будут доступны через API.</p>
+            <p class="job-note" id="job-note" role="status" aria-live="polite">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
           </div>
         </section>
       </section>
@@ -715,6 +715,7 @@
       let machineConnected = false;
       let statusRequestInFlight = false;
       let loadedProgram = null;
+      let machineState = "DISCONNECTED";
 
       const trajectoryCanvas = document.querySelector("#trajectory-canvas");
       const trajectoryContext = trajectoryCanvas.getContext("2d");
@@ -1342,6 +1343,83 @@
         }
       }
 
+      async function sendJobCommand(command) {
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (invoke) {
+          return invoke(command);
+        }
+
+        const response = await fetch(`/api/program/${command.replace("_program", "")}`, {
+          method: "POST",
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error((await response.text()) || `HTTP ${response.status}`);
+        }
+      }
+
+      const jobRunButton = document.querySelector("#job-run");
+      const jobPauseButton = document.querySelector("#job-pause");
+      const jobAbortButton = document.querySelector("#job-abort");
+      const jobCaption = document.querySelector("#job-caption");
+      const jobNote = document.querySelector("#job-note");
+
+      jobRunButton.addEventListener("click", async () => {
+        jobRunButton.disabled = true;
+        jobNote.textContent = "";
+        try {
+          await sendJobCommand(machineState === "PAUSED" ? "resume_program" : "start_program");
+          jobNote.textContent = machineState === "PAUSED"
+            ? "Отправлена команда продолжения программы."
+            : "Отправлена команда запуска программы.";
+          await refreshStatus();
+        } catch (error) {
+          jobNote.textContent = `Ошибка управления программой: ${error.message}`;
+        }
+      });
+
+      jobPauseButton.addEventListener("click", async () => {
+        jobPauseButton.disabled = true;
+        try {
+          await sendJobCommand("pause_program");
+          jobNote.textContent = "Отправлена команда паузы.";
+          await refreshStatus();
+        } catch (error) {
+          jobNote.textContent = `Ошибка паузы: ${error.message}`;
+        }
+      });
+
+      jobAbortButton.addEventListener("click", async () => {
+        jobAbortButton.disabled = true;
+        try {
+          await sendJobCommand("abort_program");
+          jobNote.textContent = "Отправлена команда остановки программы.";
+          await refreshStatus();
+        } catch (error) {
+          jobNote.textContent = `Ошибка остановки: ${error.message}`;
+        }
+      });
+
+      function updateJobControls(status) {
+        const hasProgram = Number(status.total_lines) > 0;
+        const running = status.state === "READING";
+        const paused = status.state === "PAUSED";
+        const canControl = Boolean(status.connected) && hasProgram;
+
+        jobRunButton.disabled = !canControl || (running && !paused);
+        jobRunButton.textContent = paused ? "▶ Продолжить" : "▶ Запуск";
+        jobPauseButton.disabled = !canControl || !running;
+        jobAbortButton.disabled = !canControl || (!running && !paused);
+
+        if (!hasProgram) {
+          jobCaption.textContent = "Нет загруженной программы";
+        } else if (running || paused) {
+          jobCaption.textContent = `${paused ? "Пауза" : "Выполняется"} · ${status.current_line}/${status.total_lines}`;
+        } else {
+          jobCaption.textContent = `Программа загружена · ${status.total_lines} строк`;
+        }
+      }
+
       document.querySelector("#load-program").addEventListener("click", () => fileInput.click());
       fileInput.addEventListener("change", async () => {
         const file = fileInput.files?.[0];
@@ -1395,11 +1473,13 @@
         try {
           const status = await requestStatus();
           machineConnected = Boolean(status.connected);
+          machineState = status.state || "DISCONNECTED";
           connection.textContent = machineConnected ? "Подключено" : "Нет связи";
           connectionDot.classList.toggle("online", machineConnected);
           connectionDot.classList.toggle("offline", !machineConnected);
           state.textContent = status.state || "—";
           setJogEnabled(machineConnected);
+          updateJobControls(status);
 
           for (const axis of ["x", "y", "z"]) {
             const workPosition = Number(status[axis]);
@@ -1422,8 +1502,10 @@
           connectionDot.classList.remove("online");
           connectionDot.classList.add("offline");
           state.textContent = "DISCONNECTED";
+          machineState = "DISCONNECTED";
           document.querySelector("#message").textContent = error.message;
           setJogEnabled(false);
+          updateJobControls({ connected: false, total_lines: 0, state: "DISCONNECTED" });
         } finally {
           statusRequestInFlight = false;
         }

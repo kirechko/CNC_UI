@@ -32,6 +32,42 @@ fn load_program(
 }
 
 #[tauri::command]
+fn start_program(state: State<'_, AppState>) -> Result<(), String> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.start_program().map_err(|error| format!("{}: {}", error.code, error.message))
+}
+
+#[tauri::command]
+fn pause_program(state: State<'_, AppState>) -> Result<(), String> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.program_pause().map_err(|error| format!("{}: {}", error.code, error.message))
+}
+
+#[tauri::command]
+fn resume_program(state: State<'_, AppState>) -> Result<(), String> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.program_resume().map_err(|error| format!("{}: {}", error.code, error.message))
+}
+
+#[tauri::command]
+fn abort_program(state: State<'_, AppState>) -> Result<(), String> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.program_abort().map_err(|error| format!("{}: {}", error.code, error.message))
+}
+
+#[tauri::command]
 fn jog(
     state: State<'_, AppState>,
     axis: Axis,
@@ -59,7 +95,16 @@ fn jog(
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     tauri::Builder::default()
         .manage(AppState::new()?)
-        .invoke_handler(tauri::generate_handler![get_status, get_program, load_program, jog])
+        .invoke_handler(tauri::generate_handler![
+            get_status,
+            get_program,
+            load_program,
+            start_program,
+            pause_program,
+            resume_program,
+            abort_program,
+            jog
+        ])
         .run(tauri::generate_context!())?;
 
     Ok(())
