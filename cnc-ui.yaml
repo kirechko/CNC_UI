@@ -1,0 +1,20 @@
+# Выберите один backend: emulator, linux_cnc, grbl или fluid_nc.
+# Пока LinuxCNC, GRBL и FluidNC адаптеры отладочные:
+# их параметры выводятся в лог, но подключения к оборудованию ещё нет.
+backend: emulator
+
+emulator:
+  socket_path: /tmp/linuxcnc-ui-emulator.sock
+
+# Пример настройки LinuxCNC (для будущей реализации адаптера).
+linuxcnc:
+  socket_path: /run/linuxcnc/linuxcnc.sock
+
+# Пример настройки GRBL по Serial/UART (для будущей реализации адаптера).
+grbl:
+  serial_port: /dev/serial/by-id/REPLACE_WITH_CONTROLLER_ID
+  baud_rate: 115200
+
+# Пример адреса FluidNC (для будущей реализации адаптера).
+fluidnc:
+  base_url: http://192.168.0.10
