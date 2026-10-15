@@ -152,6 +152,8 @@ pub(crate) struct StatusResponse {
     machine_x: f64,
     machine_y: f64,
     machine_z: f64,
+    current_line: u32,
+    total_lines: u32,
     message: Option<String>,
     error: Option<String>,
 }
@@ -167,6 +169,8 @@ impl From<CNCStatus> for StatusResponse {
             machine_x: status.machine_x,
             machine_y: status.machine_y,
             machine_z: status.machine_z,
+            current_line: status.current_line,
+            total_lines: status.total_lines,
             message: status.message,
             error: status
                 .ui_alert
@@ -251,6 +255,58 @@ async fn post_program(
         })
 }
 
+async fn start_program(
+    State(state): State<SharedController>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller
+        .start_program()
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+}
+
+async fn pause_program(
+    State(state): State<SharedController>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller
+        .program_pause()
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+}
+
+async fn resume_program(
+    State(state): State<SharedController>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller
+        .program_resume()
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+}
+
+async fn abort_program(
+    State(state): State<SharedController>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller
+        .program_abort()
+        .map(|_| StatusCode::ACCEPTED)
+        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+}
+
 async fn jog(
     State(state): State<SharedController>,
     Json(request): Json<JogRequest>,
@@ -287,6 +343,10 @@ pub async fn run() -> io::Result<()> {
     let app = Router::new()
         .route("/api/status", get(get_status))
         .route("/api/program", get(get_program).post(post_program))
+        .route("/api/program/run", post(start_program))
+        .route("/api/program/pause", post(pause_program))
+        .route("/api/program/resume", post(resume_program))
+        .route("/api/program/abort", post(abort_program))
         .route("/api/jog", post(jog))
         .fallback_service(static_files)
         .with_state(controller);
