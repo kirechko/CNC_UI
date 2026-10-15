@@ -192,9 +192,19 @@
 
       .dro-header, .axis-row {
         display: grid;
-        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 25px 25px;
+        grid-template-columns: 24px minmax(0, 1fr) 25px 25px;
         align-items: center;
-        gap: 9px;
+        gap: 7px;
+      }
+
+      .position-mode-toggle {
+        min-height: 31px;
+        padding: 0 8px;
+        border-color: #344e5b;
+        background: #1a2b33;
+        color: #a3d5e9;
+        font-size: 10px;
+        font-weight: 700;
       }
 
       .dro-header {
@@ -646,7 +656,9 @@
         <section class="panel">
           <div class="panel-heading">
             <span class="panel-title">POSITION</span>
-            <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
+            <div class="section-heading">
+              <button class="position-mode-toggle" id="position-mode-toggle" type="button" aria-pressed="false">WPOS</button>
+              <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
               <option value="g54">G54</option>
               <option value="g55">G55</option>
               <option value="g56">G56</option>
@@ -656,30 +668,28 @@
               <option value="g59_1">G59.1</option>
               <option value="g59_2">G59.2</option>
               <option value="g59_3">G59.3</option>
-            </select>
+              </select>
+            </div>
           </div>
           <div class="panel-body">
             <div class="dro-header" aria-hidden="true">
-              <span></span><span>WORK</span><span>MACHINE</span><span></span><span></span>
+              <span></span><span id="position-header">WPOS</span><span></span><span></span>
             </div>
             <div class="axis-row">
               <span class="axis-label x">X</span>
               <strong class="axis-value work" id="x" tabindex="0" role="button">0.000</strong>
-              <span class="axis-value machine" id="machine-x">0.000</span>
               <button class="position-action" type="button" data-home-axis="X" title="Home X">H</button>
               <button class="position-action" type="button" data-zero-axis="X" title="Установить ноль X">0</button>
             </div>
             <div class="axis-row">
               <span class="axis-label y">Y</span>
               <strong class="axis-value work" id="y" tabindex="0" role="button">0.000</strong>
-              <span class="axis-value machine" id="machine-y">0.000</span>
               <button class="position-action" type="button" data-home-axis="Y" title="Home Y">H</button>
               <button class="position-action" type="button" data-zero-axis="Y" title="Установить ноль Y">0</button>
             </div>
             <div class="axis-row">
               <span class="axis-label z">Z</span>
               <strong class="axis-value work" id="z" tabindex="0" role="button">0.000</strong>
-              <span class="axis-value machine" id="machine-z">0.000</span>
               <button class="position-action" type="button" data-home-axis="Z" title="Home Z">H</button>
               <button class="position-action" type="button" data-zero-axis="Z" title="Установить ноль Z">0</button>
             </div>
@@ -853,6 +863,8 @@
       const positionValue = document.querySelector("#position-value");
       const coordinateSystem = document.querySelector("#coordinate-system");
       let editingAxis = null;
+      let latestStatus = null;
+      let machinePositionMode = false;
       let machineConnected = false;
       let statusRequestInFlight = false;
       let loadedProgram = null;
@@ -1736,7 +1748,9 @@
         const option = coordinateSystem.options[coordinateSystem.selectedIndex];
         document.querySelector("#position-dialog-title").textContent =
           `Ось ${axis} · ${option.text}`;
-        positionValue.value = document.querySelector(`#${axis.toLowerCase()}`).textContent;
+        positionValue.value = latestStatus
+          ? Number(latestStatus[axis.toLowerCase()]).toFixed(3)
+          : document.querySelector(`#${axis.toLowerCase()}`).textContent;
         positionDialog.showModal();
         positionValue.focus();
         positionValue.select();
@@ -1790,6 +1804,26 @@
       document.querySelector("#position-set").addEventListener("click", () => executePositionAction("set"));
       document.querySelector("#position-go").addEventListener("click", () => executePositionAction("go"));
       positionValue.addEventListener("input", () => positionValue.setCustomValidity(""));
+
+      const positionModeToggle = document.querySelector("#position-mode-toggle");
+      positionModeToggle.addEventListener("click", () => {
+        machinePositionMode = !machinePositionMode;
+        positionModeToggle.textContent = machinePositionMode ? "MPOS" : "WPOS";
+        positionModeToggle.setAttribute("aria-pressed", String(machinePositionMode));
+        document.querySelector("#position-header").textContent =
+          machinePositionMode ? "MPOS" : "WPOS";
+        if (latestStatus) updatePositionReadouts(latestStatus);
+      });
+
+      function updatePositionReadouts(status) {
+        for (const axis of ["x", "y", "z"]) {
+          const value = Number(
+            machinePositionMode ? status[`machine_${axis}`] : status[axis],
+          );
+          document.querySelector(`#${axis}`).textContent =
+            Number.isFinite(value) ? value.toFixed(3) : "—";
+        }
+      }
 
       coordinateSystem.addEventListener("change", async () => {
         try {
@@ -2007,6 +2041,7 @@
 
         try {
           const status = await requestStatus();
+          latestStatus = status;
           machineConnected = Boolean(status.connected);
           machineState = status.state || "DISCONNECTED";
           currentProgramLine = Number(status.current_line) || 0;
@@ -2022,14 +2057,7 @@
           document.querySelector("#spindle-rpm").textContent =
             `${Number(status.spindle_rpm || 0).toFixed(0)} RPM`;
 
-          for (const axis of ["x", "y", "z"]) {
-            const workPosition = Number(status[axis]);
-            const machinePosition = Number(status[`machine_${axis}`]);
-            document.querySelector(`#${axis}`).textContent =
-              Number.isFinite(workPosition) ? workPosition.toFixed(3) : "—";
-            document.querySelector(`#machine-${axis}`).textContent =
-              Number.isFinite(machinePosition) ? machinePosition.toFixed(3) : "—";
-          }
+          updatePositionReadouts(status);
 
           document.querySelector("#message").textContent =
             status.error || status.message || "Контроллер готов.";
