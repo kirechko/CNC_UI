@@ -6,7 +6,7 @@ mod status_controls;
 use super::*;
 
 pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (GtkBox, GtkBox) {
-    let pos_box = GtkBox::new(Orientation::Vertical, 8);
+    let pos_box = GtkBox::new(Orientation::Vertical, 4);
     pos_box.add_css_class("position-panel");
     let header = GtkBox::new(Orientation::Horizontal, 10);
     header.set_margin_bottom(2);
@@ -22,9 +22,9 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     header.append(&badge);
     pos_box.append(&header);
 
-    let coordinate_row = GtkBox::new(Orientation::Horizontal, 8);
+    let coordinate_row = GtkBox::new(Orientation::Horizontal, 4);
     coordinate_row.add_css_class("position-coordinate-row");
-    let coordinate_label = Label::new(Some("WORK OFFSET"));
+    let coordinate_label = Label::new(Some("COORD"));
     coordinate_label.add_css_class("dim-label");
     coordinate_label.add_css_class("caption");
     let coordinate_combo = gtk4::ComboBoxText::new();
@@ -53,14 +53,27 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
 
     coordinate_combo.set_hexpand(true);
     coordinate_combo.set_halign(gtk4::Align::End);
+
+    let position_mode = Rc::new(std::cell::Cell::new(false));
+    let position_mode_toggle = gtk4::ToggleButton::with_label("WPOS");
+    position_mode_toggle.set_tooltip_text(Some("Переключить рабочие и машинные координаты"));
+    position_mode_toggle.set_size_request(54, 28);
+    let position_mode_for_toggle = position_mode.clone();
+    position_mode_toggle.connect_toggled(move |button| {
+        let machine_coordinates = button.is_active();
+        position_mode_for_toggle.set(machine_coordinates);
+        button.set_label(if machine_coordinates { "MPOS" } else { "WPOS" });
+    });
+
     coordinate_row.append(&coordinate_label);
     coordinate_row.append(&coordinate_combo);
+    coordinate_row.append(&position_mode_toggle);
     pos_box.append(&coordinate_row);
 
     let coord_grid = Grid::new();
     coord_grid.add_css_class("position-coordinate-grid");
-    coord_grid.set_row_spacing(7);
-    coord_grid.set_column_spacing(8);
+    coord_grid.set_row_spacing(3);
+    coord_grid.set_column_spacing(5);
     coord_grid.set_column_homogeneous(false);
 
     let position_values = vec![
@@ -68,22 +81,12 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         Label::new(Some("0.000")),
         Label::new(Some("0.000")),
     ];
-    let machine_values = vec![
-        Label::new(Some("0.000")),
-        Label::new(Some("0.000")),
-        Label::new(Some("0.000")),
-    ];
 
-    let work_header = Label::new(Some("WORK"));
-    work_header.add_css_class("caption");
-    work_header.add_css_class("dim-label");
-    work_header.set_halign(gtk4::Align::End);
-    let machine_header = Label::new(Some("MACHINE"));
-    machine_header.add_css_class("caption");
-    machine_header.add_css_class("dim-label");
-    machine_header.set_halign(gtk4::Align::End);
-    coord_grid.attach(&work_header, 1, 0, 1, 1);
-    coord_grid.attach(&machine_header, 2, 0, 1, 1);
+    let position_header = Label::new(Some("WPOS"));
+    position_header.add_css_class("caption");
+    position_header.add_css_class("dim-label");
+    position_header.set_halign(gtk4::Align::End);
+    coord_grid.attach(&position_header, 1, 0, 1, 1);
 
     for (i, (axis, color)) in [
         ("X", "#ff5252"),
@@ -106,11 +109,6 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         val.set_halign(gtk4::Align::End);
         val.set_hexpand(true);
 
-        let machine_val = machine_values[i].clone();
-        machine_val.add_css_class("monospace");
-        machine_val.add_css_class("dim-label");
-        machine_val.add_css_class("position-machine-value");
-        machine_val.set_halign(gtk4::Align::End);
 
         let axis = match *axis {
             "X" => crate::cnc_api::Axis::X,
@@ -120,7 +118,7 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         let home_button = Button::from_icon_name("go-home-symbolic");
         home_button.set_tooltip_text(Some(&format!("Homing оси {}", axis_label(axis))));
         home_button.set_has_frame(false);
-        home_button.set_size_request(30, 30);
+        home_button.set_size_request(24, 24);
         home_button.add_css_class("flat");
         home_button.add_css_class("position-action-button");
         let home_controller = controller.clone();
@@ -129,7 +127,7 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         let zero_button = Button::from_icon_name("crosshair-symbolic");
         zero_button.set_tooltip_text(Some(&format!("Установить ноль оси {}", axis_label(axis))));
         zero_button.set_has_frame(false);
-        zero_button.set_size_request(30, 30);
+        zero_button.set_size_request(24, 24);
         zero_button.add_css_class("flat");
         zero_button.add_css_class("position-action-button");
         let zero_controller = controller.clone();
@@ -137,9 +135,8 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
 
         coord_grid.attach(&lbl, 0, i as i32 + 1, 1, 1);
         coord_grid.attach(&val, 1, i as i32 + 1, 1, 1);
-        coord_grid.attach(&machine_val, 2, i as i32 + 1, 1, 1);
-        coord_grid.attach(&home_button, 3, i as i32 + 1, 1, 1);
-        coord_grid.attach(&zero_button, 4, i as i32 + 1, 1, 1);
+        coord_grid.attach(&home_button, 2, i as i32 + 1, 1, 1);
+        coord_grid.attach(&zero_button, 3, i as i32 + 1, 1, 1);
     }
 
     pos_box.append(&coord_grid);
@@ -147,7 +144,8 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     // Обновляем координаты из статуса эмулятора.
     let status_controller = controller.clone();
     let status_values = position_values.clone();
-    let status_machine_values = machine_values.clone();
+    let status_position_mode = position_mode.clone();
+    let status_position_header = position_header.clone();
     let status_coordinate_combo = coordinate_combo.clone();
     let status_badge = badge.clone();
     let spindle_status = Label::new(Some("Stopped · 0 RPM"));
@@ -187,7 +185,8 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         update_status_indicators(
             status_controller.clone(),
             status_values.clone(),
-            status_machine_values.clone(),
+            status_position_mode.clone(),
+            status_position_header.clone(),
             status_coordinate_combo.clone(),
             status_badge.clone(),
             spindle_status.clone(),
@@ -218,7 +217,8 @@ fn axis_label(axis: crate::cnc_api::Axis) -> &'static str {
 fn update_status_indicators(
     status_controller: Arc<Mutex<CNCController>>,
     status_values: Vec<Label>,
-    status_machine_values: Vec<Label>,
+    position_mode: Rc<std::cell::Cell<bool>>,
+    position_header: Label,
     status_coordinate_combo: gtk4::ComboBoxText,
     status_badge: Label,
     spindle_status: Label,
@@ -230,12 +230,17 @@ fn update_status_indicators(
 ) -> gtk4::glib::ControlFlow {
     let status = status_controller.lock().unwrap().get_status_snapshot();
 
-    status_values[0].set_text(&format!("{:.3}", status.x_position));
-    status_values[1].set_text(&format!("{:.3}", status.y_position));
-    status_values[2].set_text(&format!("{:.3}", status.z_position));
-    status_machine_values[0].set_text(&format!("{:.3}", status.machine_x));
-    status_machine_values[1].set_text(&format!("{:.3}", status.machine_y));
-    status_machine_values[2].set_text(&format!("{:.3}", status.machine_z));
+    let machine_coordinates = position_mode.get();
+    position_header.set_text(if machine_coordinates { "MPOS" } else { "WPOS" });
+
+    let coordinates = if machine_coordinates {
+        [status.machine_x, status.machine_y, status.machine_z]
+    } else {
+        [status.x_position, status.y_position, status.z_position]
+    };
+    for (label, value) in status_values.iter().zip(coordinates) {
+        label.set_text(&format!("{value:.3}"));
+    }
 
     let active_id = status.active_coordinate_system.label();
     if status_coordinate_combo.active_id().as_deref() != Some(active_id) {
@@ -247,9 +252,17 @@ fn update_status_indicators(
         SpindleDirection::CCW => "CCW",
         SpindleDirection::Off => "Stopped",
     };
+    let program_progress = if status.total_lines > 0 {
+        format!(" · L{}/{}", status.current_line, status.total_lines)
+    } else {
+        String::new()
+    };
     spindle_status.set_text(&format!(
-        "{} · {:.0} RPM",
-        spindle_text, status.spindle_actual_speed
+        "F{:.0} · {} {:.0} RPM{}",
+        status.feed_rate,
+        spindle_text,
+        status.spindle_actual_speed,
+        program_progress
     ));
 
     for (led, active) in [
