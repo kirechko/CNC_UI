@@ -857,6 +857,7 @@
       const fileInput = document.querySelector("#program-file");
       const camera = { yaw: -0.72, pitch: 0.62, zoom: 1, panX: 0, panY: 0, perspective: true };
       const toolPosition = [0, 0, 0];
+      let currentProgramLine = 0;
       let dragState = null;
 
       function parseToolpath(source) {
@@ -865,9 +866,12 @@
         let absolute = true;
         let units = 1;
         let motion = 0;
+        let programLine = 0;
 
         for (const originalLine of source.split(/\r?\n/)) {
-          const line = originalLine.replace(/\([^)]*\)/g, "").split(";")[0];
+          const line = originalLine.replace(/\([^)]*\)/g, "").split(";")[0].trim();
+          if (!line) continue;
+          programLine += 1;
           const words = [...line.matchAll(/([A-Za-z])\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/g)]
             .map((match) => [match[1].toUpperCase(), Number(match[2])]);
 
@@ -1053,17 +1057,19 @@
                   from: previous,
                   to: point,
                   type: nextMotion === 2 ? "arc-cw" : "arc-ccw",
+                  programLine,
                 });
                 previous = point;
               }
             } else {
-              segments.push({ from: position, to: target, type: "linear" });
+              segments.push({ from: position, to: target, type: "linear", programLine });
             }
           } else if (hasAxis) {
             segments.push({
               from: position,
               to: target,
               type: nextMotion === 0 ? "rapid" : "linear",
+              programLine,
             });
           }
 
@@ -1292,11 +1298,14 @@
           trajectoryContext.moveTo(from.x, from.y);
           trajectoryContext.lineTo(to.x, to.y);
           trajectoryContext.strokeStyle = colors[segment.type] || colors.linear;
+          trajectoryContext.globalAlpha =
+            segment.programLine <= currentProgramLine ? 0.22 : 1;
           trajectoryContext.lineWidth = segment.type === "rapid" ? 1 : 1.7;
           trajectoryContext.setLineDash(segment.type === "rapid" ? [4, 5] : []);
           trajectoryContext.stroke();
         }
         trajectoryContext.setLineDash([]);
+        trajectoryContext.globalAlpha = 1;
 
         drawAxes(trajectoryContext, project, bounds);
         drawTool(trajectoryContext, project);
@@ -1764,6 +1773,7 @@
           const status = await requestStatus();
           machineConnected = Boolean(status.connected);
           machineState = status.state || "DISCONNECTED";
+          currentProgramLine = Number(status.current_line) || 0;
           connection.textContent = machineConnected ? "Подключено" : "Нет связи";
           connectionDot.classList.toggle("online", machineConnected);
           connectionDot.classList.toggle("offline", !machineConnected);
@@ -1793,6 +1803,7 @@
           drawToolpath();
         } catch (error) {
           machineConnected = false;
+          currentProgramLine = 0;
           connection.textContent = "Ошибка связи";
           connectionDot.classList.remove("online");
           connectionDot.classList.add("offline");
