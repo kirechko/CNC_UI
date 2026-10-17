@@ -10,6 +10,8 @@ pub(super) fn execute_motion(
     x_word: Option<f64>,
     y_word: Option<f64>,
     z_word: Option<f64>,
+    a_word: Option<f64>,
+    b_word: Option<f64>,
     i_word: Option<f64>,
     j_word: Option<f64>,
 ) -> Result<(), WireError> {
@@ -18,11 +20,13 @@ pub(super) fn execute_motion(
         emulator.status.work_offset.x,
         emulator.status.work_offset.y,
         emulator.status.work_offset.z,
+        emulator.status.work_offset.a,
+        emulator.status.work_offset.b,
     ];
-    let words_axis = [x_word, y_word, z_word];
+    let words_axis = [x_word, y_word, z_word, a_word, b_word];
     let mut target = current;
 
-    for index in 0..3 {
+    for index in 0..5 {
         if let Some(value) = words_axis[index] {
             target[index] = if emulator.absolute_mode {
                 value + offset[index]

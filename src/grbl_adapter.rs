@@ -212,6 +212,8 @@ impl GrblAdapter {
             Axis::X => 'X',
             Axis::Y => 'Y',
             Axis::Z => 'Z',
+            Axis::A => 'A',
+            Axis::B => 'B',
         };
         format!("{letter}{value:.3}")
     }
@@ -303,11 +305,15 @@ impl GrblAdapter {
                 x: machine[0],
                 y: machine[1],
                 z: machine[2],
+                a: 0.0,
+                b: 0.0,
             },
             work_offset: Position {
                 x: offset[0],
                 y: offset[1],
                 z: offset[2],
+                a: 0.0,
+                b: 0.0,
             },
             active_coordinate_system: session.active_coordinate_system,
             coordinate_systems: Vec::new(),
@@ -325,7 +331,7 @@ impl GrblAdapter {
             current_line: session.current_line,
             total_lines: session.program.len() as u32,
             message: Some(format!("GRBL {state}; work position {:.3}, {:.3}, {:.3}", work[0], work[1], work[2])),
-            homed: [false; 3],
+            homed: [false; 5],
             homing,
         })
     }

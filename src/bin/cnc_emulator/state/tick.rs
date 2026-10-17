@@ -68,13 +68,14 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
             emulator.homing_queue.remove(0);
             let mut target = emulator.position_array();
             let index = super::axis_index(axis);
-            target[index] = emulator.config.axis(axis).min_mm;
+            let (minimum, _, velocity, _) = emulator.config.axis_limits(axis);
+            target[index] = minimum;
             emulator.homing_axis = Some(axis);
 
             match Motion::new(
                 emulator.position_array(),
                 target,
-                emulator.config.axis(axis).max_velocity_mm_min,
+                velocity,
                 true,
                 &emulator.config,
             ) {
@@ -103,13 +104,13 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     }
 
     if let Some((axis, direction, feed)) = emulator.continuous_jog {
-        let limits = emulator.config.axis(axis);
-        let max_v = (feed / 60.0).min(limits.max_velocity_mm_min / 60.0);
-        emulator.jog_velocity = (emulator.jog_velocity + limits.acceleration_mm_s2 * dt).min(max_v);
+        let (minimum, maximum, max_velocity, acceleration) = emulator.config.axis_limits(axis);
+        let max_v = (feed / 60.0).min(max_velocity / 60.0);
+        emulator.jog_velocity = (emulator.jog_velocity + acceleration * dt).min(max_v);
         let delta = f64::from(direction) * emulator.jog_velocity * dt;
         let mut position = emulator.position_array();
         let index = super::axis_index(axis);
-        position[index] = (position[index] + delta).clamp(limits.min_mm, limits.max_mm);
+        position[index] = (position[index] + delta).clamp(minimum, maximum);
         emulator.set_position(position);
     } else {
         emulator.jog_velocity = 0.0;

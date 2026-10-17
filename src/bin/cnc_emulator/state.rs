@@ -53,6 +53,8 @@ impl Emulator {
                     x: 0.0,
                     y: 0.0,
                     z: 0.0,
+                    a: 0.0,
+                    b: 0.0,
                 },
                 work_offset: offsets
                     .iter()
@@ -62,6 +64,8 @@ impl Emulator {
                         x: 0.0,
                         y: 0.0,
                         z: 0.0,
+                        a: 0.0,
+                        b: 0.0,
                     }),
                 active_coordinate_system: CoordinateSystem::G54,
                 coordinate_systems: offsets,
@@ -76,7 +80,7 @@ impl Emulator {
                 current_line: 0,
                 total_lines: 0,
                 message: Some("Virtual controller ready".into()),
-                homed: [false; 3],
+                homed: [false; 5],
                 homing: false,
                 max_spindle_rpm: config.spindle.max_rpm,
                 mist_coolant_on: false,
@@ -100,31 +104,36 @@ impl Emulator {
         }
     }
 
-    pub(super) fn position_array(&self) -> [f64; 3] {
+    pub(super) fn position_array(&self) -> [f64; 5] {
         [
             self.status.position.x,
             self.status.position.y,
             self.status.position.z,
+            self.status.position.a,
+            self.status.position.b,
         ]
     }
 
-    fn set_position(&mut self, p: [f64; 3]) {
+    fn set_position(&mut self, p: [f64; 5]) {
         self.status.position = Position {
             x: p[0],
             y: p[1],
             z: p[2],
+            a: p[3],
+            b: p[4],
         };
     }
 
-    pub(super) fn check_target(&self, target: [f64; 3]) -> Result<(), WireError> {
-        for (index, axis) in [Axis::X, Axis::Y, Axis::Z].into_iter().enumerate() {
-            let limits = self.config.axis(axis);
-            if target[index] < limits.min_mm - 1e-8 || target[index] > limits.max_mm + 1e-8 {
+    pub(super) fn check_target(&self, target: [f64; 5]) -> Result<(), WireError> {
+        for (index, axis) in self.config.configured_axes().into_iter().enumerate() {
+            let (minimum, maximum, _, _) = self.config.axis_limits(axis);
+            if target[index] < minimum - 1e-8 || target[index] > maximum + 1e-8 {
+                let units = if matches!(axis, Axis::A | Axis::B) { "°" } else { "mm" };
                 return Err(api_error(
                     "soft_limit",
                     format!(
-                        "{:?} target {:.3} outside [{:.3}, {:.3}] mm",
-                        axis, target[index], limits.min_mm, limits.max_mm
+                        "{axis:?} target {:.3} outside [{minimum:.3}, {maximum:.3}] {units}",
+                        target[index]
                     ),
                 ));
             }
@@ -161,10 +170,12 @@ impl Emulator {
     }
 }
 
-fn axis_index(axis: Axis) -> usize {
+pub(super) fn axis_index(axis: Axis) -> usize {
     match axis {
         Axis::X => 0,
         Axis::Y => 1,
         Axis::Z => 2,
+        Axis::A => 3,
+        Axis::B => 4,
     }
 }

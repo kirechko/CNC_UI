@@ -14,11 +14,15 @@ fn debug_status() -> MachineStatus {
             x: 0.0,
             y: 0.0,
             z: 0.0,
+            a: 0.0,
+            b: 0.0,
         },
         work_offset: Position {
             x: 0.0,
             y: 0.0,
             z: 0.0,
+            a: 0.0,
+            b: 0.0,
         },
         active_coordinate_system: CoordinateSystem::G54,
         coordinate_systems: Vec::new(),
@@ -36,7 +40,7 @@ fn debug_status() -> MachineStatus {
         current_line: 0,
         total_lines: 0,
         message: Some("Debug adapter: no backend logic".into()),
-        homed: [false; 3],
+        homed: [false; 5],
         homing: false,
     }
 }

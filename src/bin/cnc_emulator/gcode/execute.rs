@@ -14,6 +14,8 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
     let mut x_word = None;
     let mut y_word = None;
     let mut z_word = None;
+    let mut a_word = None;
+    let mut b_word = None;
     let mut i_word = None;
     let mut j_word = None;
     let mut l_word = None;
@@ -29,6 +31,8 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
             'X' => x_word = Some(value),
             'Y' => y_word = Some(value),
             'Z' => z_word = Some(value),
+            'A' => a_word = Some(value),
+            'B' => b_word = Some(value),
             'I' => i_word = Some(value),
             'J' => j_word = Some(value),
             'P' => p_word = Some(value),
@@ -63,7 +67,9 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
         .iter()
         .any(|(letter, value)| *letter == 'G' && (*value - 10.0).abs() < 1e-6)
     {
-        coordinates::handle_g10_l2(emulator, l_word, p_word, x_word, y_word, z_word)?;
+        coordinates::handle_g10_l2(
+            emulator, l_word, p_word, x_word, y_word, z_word, a_word, b_word,
+        )?;
         return Ok(());
     }
 
@@ -83,8 +89,15 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
     }
 
     if let Some(code) = motion_code {
-        motion::execute_motion(emulator, code, x_word, y_word, z_word, i_word, j_word)?;
-    } else if x_word.is_some() || y_word.is_some() || z_word.is_some() {
+        motion::execute_motion(
+            emulator, code, x_word, y_word, z_word, a_word, b_word, i_word, j_word,
+        )?;
+    } else if x_word.is_some()
+        || y_word.is_some()
+        || z_word.is_some()
+        || a_word.is_some()
+        || b_word.is_some()
+    {
         return Err(api_error(
             "unsupported_gcode",
             "axis words require an explicit supported motion G0/G1/G2/G3",

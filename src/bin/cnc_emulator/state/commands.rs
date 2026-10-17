@@ -129,7 +129,7 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
         if emulator.check_target(target).is_ok()
             && (target[2] - emulator.status.position.z).abs() > 1e-6
         {
-            let rapid_feed = emulator.config.axes.z.max_velocity_mm_min;
+            let rapid_feed = emulator.config.axis_limits(crate::cnc_api::Axis::Z).2;
             match Motion::new(
                 emulator.position_array(),
                 target,
@@ -231,7 +231,7 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     emulator.active_move_is_homing = false;
     emulator.status.homing = false;
     if emergency_stop {
-        emulator.status.homed = [false; 3];
+        emulator.status.homed = [false; 5];
     }
     emulator.status.message = Some(
         if emergency_stop {
@@ -319,7 +319,7 @@ pub(super) fn jog_increment(emulator: &mut Emulator, args: Value) -> Result<Valu
 
     let index = super::axis_index(request.axis);
     let feed = request.feed_rate.unwrap_or(emulator.status.feed_rate);
-    let max_feed = emulator.config.axis(request.axis).max_velocity_mm_min;
+    let max_feed = emulator.config.axis_limits(request.axis).2;
     if !feed.is_finite() || feed <= 0.0 {
         return Err(api_error("bad_feed", "feed rate must be positive"));
     }

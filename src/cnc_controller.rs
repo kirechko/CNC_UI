@@ -18,12 +18,18 @@ pub struct CNCStatus {
     pub x_position: f64,
     pub y_position: f64,
     pub z_position: f64,
+    pub a_position: f64,
+    pub b_position: f64,
     pub machine_x: f64,
     pub machine_y: f64,
     pub machine_z: f64,
+    pub machine_a: f64,
+    pub machine_b: f64,
     pub machine_origin_x: f64,
     pub machine_origin_y: f64,
     pub machine_origin_z: f64,
+    pub machine_origin_a: f64,
+    pub machine_origin_b: f64,
     pub active_coordinate_system: CoordinateSystem,
     pub coordinate_systems: Vec<CoordinateSystemOffset>,
     pub machine_configuration: Option<MachineConfiguration>,
@@ -308,6 +314,8 @@ impl CNCController {
             'X' => Axis::X,
             'Y' => Axis::Y,
             'Z' => Axis::Z,
+            'A' => Axis::A,
+            'B' => Axis::B,
             _ => {
                 eprintln!("[UI] Unsupported jog axis: {axis}");
                 return;
@@ -321,7 +329,9 @@ impl CNCController {
 
         let feed_rate = match axis {
             Axis::Z => *self.z_jog_speed.lock().unwrap(),
-            Axis::X | Axis::Y => *self.xy_jog_speed.lock().unwrap(),
+            Axis::X | Axis::Y | Axis::A | Axis::B => {
+                *self.xy_jog_speed.lock().unwrap()
+            }
         };
 
         self.enqueue(Command::JogIncrement(crate::cnc_api::JogRequest {
@@ -450,12 +460,18 @@ fn initial_disconnected_status() -> CNCStatus {
         x_position: 0.0,
         y_position: 0.0,
         z_position: 0.0,
+        a_position: 0.0,
+        b_position: 0.0,
         machine_x: 0.0,
         machine_y: 0.0,
         machine_z: 0.0,
+        machine_a: 0.0,
+        machine_b: 0.0,
         machine_origin_x: 0.0,
         machine_origin_y: 0.0,
         machine_origin_z: 0.0,
+        machine_origin_a: 0.0,
+        machine_origin_b: 0.0,
         active_coordinate_system: CoordinateSystem::G54,
         coordinate_systems: Vec::new(),
         machine_configuration: None,
@@ -497,12 +513,18 @@ fn from_api_status(status: MachineStatus) -> CNCStatus {
         x_position: status.position.x - status.work_offset.x,
         y_position: status.position.y - status.work_offset.y,
         z_position: status.position.z - status.work_offset.z,
+        a_position: status.position.a - status.work_offset.a,
+        b_position: status.position.b - status.work_offset.b,
         machine_x: status.position.x,
         machine_y: status.position.y,
         machine_z: status.position.z,
+        machine_a: status.position.a,
+        machine_b: status.position.b,
         machine_origin_x: -status.work_offset.x,
         machine_origin_y: -status.work_offset.y,
         machine_origin_z: -status.work_offset.z,
+        machine_origin_a: -status.work_offset.a,
+        machine_origin_b: -status.work_offset.b,
         active_coordinate_system: status.active_coordinate_system,
         coordinate_systems: status.coordinate_systems.clone(),
         machine_configuration: None,

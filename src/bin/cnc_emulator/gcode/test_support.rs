@@ -19,13 +19,14 @@ pub fn test_emulator() -> Emulator {
                 max_velocity_mm_min: 6000.0,
                 acceleration_mm_s2: 100.0,
             },
-            z: AxisLimits {
+            z: Some(AxisLimits {
                 min_mm: 0.0,
                 max_mm: 100.0,
                 max_velocity_mm_min: 3000.0,
                 acceleration_mm_s2: 50.0,
-            },
+            }),
             a: None,
+            b: None,
         },
         spindle: SpindleConfig {
             min_rpm: 500.0,
@@ -39,6 +40,8 @@ pub fn test_emulator() -> Emulator {
             x: 0.0,
             y: 0.0,
             z: 0.0,
+            a: 0.0,
+            b: 0.0,
         },
     }];
 

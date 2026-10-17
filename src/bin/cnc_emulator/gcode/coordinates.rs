@@ -77,6 +77,8 @@ pub(super) fn handle_g10_l2(
     x_word: Option<f64>,
     y_word: Option<f64>,
     z_word: Option<f64>,
+    a_word: Option<f64>,
+    b_word: Option<f64>,
 ) -> Result<(), WireError> {
     if l_word.map(|value| value as i32) != Some(2) {
         return Err(api_error("unsupported_gcode", "only G10 L2 is supported"));
@@ -106,6 +108,8 @@ pub(super) fn handle_g10_l2(
             x: 0.0,
             y: 0.0,
             z: 0.0,
+            a: 0.0,
+            b: 0.0,
         });
 
     if let Some(x) = x_word {
@@ -116,6 +120,12 @@ pub(super) fn handle_g10_l2(
     }
     if let Some(z) = z_word {
         offset.z = z;
+    }
+    if let Some(a) = a_word {
+        offset.a = a;
+    }
+    if let Some(b) = b_word {
+        offset.b = b;
     }
 
     if let Some(entry) = emulator
