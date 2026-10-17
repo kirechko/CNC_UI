@@ -5,8 +5,8 @@ use crate::protocol::{api_error, WireError};
 
 #[derive(Clone, Copy)]
 pub(super) struct Motion {
-    start: [f64; 3],
-    target: [f64; 3],
+    start: [f64; 5],
+    target: [f64; 5],
     distance: f64,
     max_velocity: f64, // mm/s along path
     acceleration: f64, // mm/s^2 along path
@@ -14,18 +14,14 @@ pub(super) struct Motion {
 
 impl Motion {
     pub(super) fn new(
-        start: [f64; 3],
-        target: [f64; 3],
+        start: [f64; 5],
+        target: [f64; 5],
         feed_mm_min: f64,
         rapid: bool,
         config: &EmulatorConfig,
     ) -> Result<Option<Self>, WireError> {
-        let delta = [
-            target[0] - start[0],
-            target[1] - start[1],
-            target[2] - start[2],
-        ];
-        let distance = (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]).sqrt();
+        let delta = std::array::from_fn::<_, 5, _>(|index| target[index] - start[index]);
+        let distance = delta.iter().map(|component| component * component).sum::<f64>().sqrt();
         if distance < 1e-9 {
             return Ok(None);
         }
@@ -37,12 +33,12 @@ impl Motion {
         };
         let mut acceleration = f64::INFINITY;
 
-        for (index, axis) in [Axis::X, Axis::Y, Axis::Z].into_iter().enumerate() {
+        for (index, axis) in config.configured_axes().into_iter().enumerate() {
             let component = (delta[index] / distance).abs();
             if component > 1e-9 {
-                let limits = config.axis(axis);
-                max_velocity = max_velocity.min(limits.max_velocity_mm_min / 60.0 / component);
-                acceleration = acceleration.min(limits.acceleration_mm_s2 / component);
+                let (_, _, velocity, axis_acceleration) = config.axis_limits(axis);
+                max_velocity = max_velocity.min(velocity / 60.0 / component);
+                acceleration = acceleration.min(axis_acceleration / component);
             }
         }
 
@@ -75,8 +71,8 @@ struct ArcMotion {
 }
 
 pub(super) struct ActiveMove {
-    start: [f64; 3],
-    target: [f64; 3],
+    start: [f64; 5],
+    target: [f64; 5],
     total_distance: f64,
     travelled: f64,
     velocity: f64,
@@ -100,8 +96,8 @@ impl ActiveMove {
     }
 
     pub(super) fn from_arc(
-        start: [f64; 3],
-        end: [f64; 3],
+        start: [f64; 5],
+        end: [f64; 5],
         center_x: f64,
         center_y: f64,
         radius: f64,
@@ -129,18 +125,14 @@ impl ActiveMove {
 
         for (component, axis) in ratios {
             if component > 1e-9 {
-                let limits = config.axis(axis);
-                max_velocity = max_velocity.min(limits.max_velocity_mm_min / 60.0 / component);
-                acceleration = acceleration.min(limits.acceleration_mm_s2 / component);
+                let (_, _, velocity, axis_acceleration) = config.axis_limits(axis);
+                max_velocity = max_velocity.min(velocity / 60.0 / component);
+                acceleration = acceleration.min(axis_acceleration / component);
             }
         }
 
         if !acceleration.is_finite() {
-            acceleration = config
-                .axes
-                .x
-                .acceleration_mm_s2
-                .min(config.axes.y.acceleration_mm_s2);
+            acceleration = config.axes.x.acceleration_mm_s2.min(config.axes.y.acceleration_mm_s2);
         }
 
         Ok(Self {
@@ -189,19 +181,18 @@ impl ActiveMove {
 
         if let Some(arc) = self.arc {
             let angle = arc.start_angle + arc.sweep * t;
-            let position = [
-                arc.center_x + arc.radius * angle.cos(),
-                arc.center_y + arc.radius * angle.sin(),
-                arc.start_z + (arc.end_z - arc.start_z) * t,
-            ];
+            let mut position = std::array::from_fn(|index| {
+                self.start[index] + (self.target[index] - self.start[index]) * t
+            });
+            position[0] = arc.center_x + arc.radius * angle.cos();
+            position[1] = arc.center_y + arc.radius * angle.sin();
+            position[2] = arc.start_z + (arc.end_z - arc.start_z) * t;
             (position, false)
         } else {
             (
-                [
-                    self.start[0] + (self.target[0] - self.start[0]) * t,
-                    self.start[1] + (self.target[1] - self.start[1]) * t,
-                    self.start[2] + (self.target[2] - self.start[2]) * t,
-                ],
+                std::array::from_fn(|index| {
+                    self.start[index] + (self.target[index] - self.start[index]) * t
+                }),
                 false,
             )
         }

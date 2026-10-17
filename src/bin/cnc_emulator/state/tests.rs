@@ -4,37 +4,37 @@ use super::super::protocol::Request;
 
 #[test]
 fn target_inside_limits_is_accepted() {
-    assert!(test_emulator().check_target([150.0, 200.0, 50.0]).is_ok());
+    assert!(test_emulator().check_target([150.0, 200.0, 50.0, 0.0, 0.0]).is_ok());
 }
 
 #[test]
 fn exact_axis_boundaries_are_accepted() {
     let emulator = test_emulator();
-    assert!(emulator.check_target([0.0, 0.0, 0.0]).is_ok());
-    assert!(emulator.check_target([300.0, 400.0, 100.0]).is_ok());
+    assert!(emulator.check_target([0.0, 0.0, 0.0, 0.0, 0.0]).is_ok());
+    assert!(emulator.check_target([300.0, 400.0, 100.0, 0.0, 0.0]).is_ok());
 }
 
 #[test]
 fn targets_below_axis_minima_are_rejected() {
     let emulator = test_emulator();
-    assert!(emulator.check_target([-0.001, 100.0, 50.0]).is_err());
-    assert!(emulator.check_target([100.0, -0.001, 50.0]).is_err());
-    assert!(emulator.check_target([100.0, 100.0, -0.001]).is_err());
+    assert!(emulator.check_target([-0.001, 100.0, 50.0, 0.0, 0.0]).is_err());
+    assert!(emulator.check_target([100.0, -0.001, 50.0, 0.0, 0.0]).is_err());
+    assert!(emulator.check_target([100.0, 100.0, -0.001, 0.0, 0.0]).is_err());
 }
 
 #[test]
 fn targets_above_axis_maxima_are_rejected() {
     let emulator = test_emulator();
-    assert!(emulator.check_target([300.001, 100.0, 50.0]).is_err());
-    assert!(emulator.check_target([100.0, 400.001, 50.0]).is_err());
-    assert!(emulator.check_target([100.0, 100.0, 100.001]).is_err());
+    assert!(emulator.check_target([300.001, 100.0, 50.0, 0.0, 0.0]).is_err());
+    assert!(emulator.check_target([100.0, 400.001, 50.0, 0.0, 0.0]).is_err());
+    assert!(emulator.check_target([100.0, 100.0, 100.001, 0.0, 0.0]).is_err());
 }
 
 #[test]
 fn small_floating_point_tolerance_is_allowed() {
     let emulator = test_emulator();
-    assert!(emulator.check_target([-5e-9, 100.0, 50.0]).is_ok());
-    assert!(emulator.check_target([300.0 + 5e-9, 100.0, 50.0]).is_ok());
+    assert!(emulator.check_target([-5e-9, 100.0, 50.0, 0.0, 0.0]).is_ok());
+    assert!(emulator.check_target([300.0 + 5e-9, 100.0, 50.0, 0.0, 0.0]).is_ok());
 }
 
 #[test]

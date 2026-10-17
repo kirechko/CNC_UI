@@ -948,7 +948,7 @@
     <dialog class="position-dialog" id="position-dialog">
       <form class="position-dialog-content" method="dialog">
         <h2 id="position-dialog-title">Позиция оси</h2>
-        <label for="position-value">Рабочая координата, mm</label>
+        <label for="position-value" id="position-value-label">Рабочая координата</label>
         <input id="position-value" type="number" step="any" inputmode="decimal" required>
         <div class="position-dialog-actions">
           <button type="button" id="position-cancel">Отмена</button>
@@ -1029,7 +1029,7 @@
 
           const target = [...position];
           let hasAxis = false;
-          for (const [index, letter] of ["X", "Y", "Z"].entries()) {
+          for (const [index, letter] of ["X", "Y", "Z", "A", "B"].entries()) {
             if (!values.has(letter)) continue;
             hasAxis = true;
             const value = values.get(letter) * units;
@@ -1855,8 +1855,11 @@
       function openPositionDialog(axis) {
         editingAxis = axis;
         const option = coordinateSystem.options[coordinateSystem.selectedIndex];
+        const angular = ["A", "B"].includes(axis);
         document.querySelector("#position-dialog-title").textContent =
           `Ось ${axis} · ${option.text}`;
+        document.querySelector("#position-value-label").textContent =
+          angular ? "Рабочая координата, °" : "Рабочая координата, mm";
         positionValue.value = latestStatus
           ? Number(latestStatus[axis.toLowerCase()]).toFixed(3)
           : document.querySelector(`#${axis.toLowerCase()}`).textContent;
@@ -1912,7 +1915,7 @@
         axisRowsContainer.replaceChildren();
         for (const axis of axes) {
           const lowerAxis = axis.toLowerCase();
-          const supported = ["X", "Y", "Z"].includes(axis);
+          const supported = ["X", "Y", "Z", "A", "B"].includes(axis);
           const row = document.createElement("div");
           row.className = "axis-row wpos-only";
           row.dataset.axis = axis;

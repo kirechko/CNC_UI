@@ -32,6 +32,8 @@ fn default_coordinate_offsets() -> Vec<CoordinateSystemOffset> {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
+                a: 0.0,
+                b: 0.0,
             },
         })
         .collect()
@@ -71,6 +73,8 @@ fn load_coordinate_offsets(path: &Path) -> Result<Vec<CoordinateSystemOffset>, S
                     x: 0.0,
                     y: 0.0,
                     z: 0.0,
+                    a: 0.0,
+                    b: 0.0,
                 },
             });
         }

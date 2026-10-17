@@ -16,6 +16,8 @@ impl Emulator {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
+                a: 0.0,
+                b: 0.0,
             });
 
         self.status.active_coordinate_system = system;
@@ -88,12 +90,16 @@ impl Emulator {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
+                a: 0.0,
+                b: 0.0,
             });
 
         match axis {
             Axis::X => offset.x = machine_position.x,
             Axis::Y => offset.y = machine_position.y,
             Axis::Z => offset.z = machine_position.z,
+            Axis::A => offset.a = machine_position.a,
+            Axis::B => offset.b = machine_position.b,
         }
 
         if let Some(entry) = self
@@ -118,6 +124,8 @@ impl Emulator {
                 Axis::X => "X",
                 Axis::Y => "Y",
                 Axis::Z => "Z",
+                Axis::A => "A",
+                Axis::B => "B",
             }
         ));
         Ok(())

@@ -80,6 +80,8 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         Label::new(Some("0.000")),
         Label::new(Some("0.000")),
         Label::new(Some("0.000")),
+        Label::new(Some("0.000")),
+        Label::new(Some("0.000")),
     ];
 
     let position_header = Label::new(Some("WPOS"));
@@ -92,6 +94,8 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         ("X", "#ff5252"),
         ("Y", "#69f0ae"),
         ("Z", crate::theme::ACCENT_BLUE),
+        ("A", "#c49be8"),
+        ("B", "#e8bd69"),
     ]
     .iter()
     .enumerate()
@@ -113,7 +117,9 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
         let axis = match *axis {
             "X" => crate::cnc_api::Axis::X,
             "Y" => crate::cnc_api::Axis::Y,
-            _ => crate::cnc_api::Axis::Z,
+            "Z" => crate::cnc_api::Axis::Z,
+            "A" => crate::cnc_api::Axis::A,
+            _ => crate::cnc_api::Axis::B,
         };
         let home_button = Button::from_icon_name("go-home-symbolic");
         home_button.set_tooltip_text(Some(&format!("Homing оси {}", axis_label(axis))));
@@ -211,6 +217,8 @@ fn axis_label(axis: crate::cnc_api::Axis) -> &'static str {
         crate::cnc_api::Axis::X => "X",
         crate::cnc_api::Axis::Y => "Y",
         crate::cnc_api::Axis::Z => "Z",
+        crate::cnc_api::Axis::A => "A",
+        crate::cnc_api::Axis::B => "B",
     }
 }
 
@@ -234,9 +242,21 @@ fn update_status_indicators(
     position_header.set_text(if machine_coordinates { "MPOS" } else { "WPOS" });
 
     let coordinates = if machine_coordinates {
-        [status.machine_x, status.machine_y, status.machine_z]
+        [
+            status.machine_x,
+            status.machine_y,
+            status.machine_z,
+            status.machine_a,
+            status.machine_b,
+        ]
     } else {
-        [status.x_position, status.y_position, status.z_position]
+        [
+            status.x_position,
+            status.y_position,
+            status.z_position,
+            status.a_position,
+            status.b_position,
+        ]
     };
     for (label, value) in status_values.iter().zip(coordinates) {
         label.set_text(&format!("{value:.3}"));

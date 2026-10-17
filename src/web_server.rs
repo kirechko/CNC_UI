@@ -72,6 +72,8 @@ fn axis_letter(axis: Axis) -> char {
         Axis::X => 'X',
         Axis::Y => 'Y',
         Axis::Z => 'Z',
+        Axis::A => 'A',
+        Axis::B => 'B',
     }
 }
 
@@ -130,7 +132,7 @@ impl AppState {
         value: f64,
     ) -> Result<(), String> {
         if !value.is_finite() || value.abs() > 100_000.0 {
-            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000 mm".into());
+            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000".into());
         }
 
         let system = parse_coordinate_system(key)?;
@@ -158,7 +160,7 @@ impl AppState {
         value: f64,
     ) -> Result<(), String> {
         if !value.is_finite() || value.abs() > 100_000.0 {
-            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000 mm".into());
+            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000".into());
         }
 
         let system = parse_coordinate_system(key)?;
@@ -387,9 +389,13 @@ pub(crate) struct StatusResponse {
     x: f64,
     y: f64,
     z: f64,
+    a: f64,
+    b: f64,
     machine_x: f64,
     machine_y: f64,
     machine_z: f64,
+    machine_a: f64,
+    machine_b: f64,
     coordinate_system: String,
     configuration: Option<MachineConfiguration>,
     feed_rate: f64,
@@ -408,9 +414,13 @@ impl From<CNCStatus> for StatusResponse {
             x: status.x_position,
             y: status.y_position,
             z: status.z_position,
+            a: status.a_position,
+            b: status.b_position,
             machine_x: status.machine_x,
             machine_y: status.machine_y,
             machine_z: status.machine_z,
+            machine_a: status.machine_a,
+            machine_b: status.machine_b,
             coordinate_system: status.active_coordinate_system.label().to_ascii_lowercase().replace('.', "_"),
             configuration: status.machine_configuration,
             feed_rate: status.feed_rate,
@@ -566,11 +576,7 @@ async fn jog(
         ));
     }
 
-    let axis = match request.axis {
-        Axis::X => 'X',
-        Axis::Y => 'Y',
-        Axis::Z => 'Z',
-    };
+    let axis = axis_letter(request.axis);
     let controller = state
         .controller
         .lock()

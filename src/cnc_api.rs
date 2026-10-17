@@ -7,6 +7,8 @@ pub enum Axis {
     X,
     Y,
     Z,
+    A,
+    B,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,6 +146,10 @@ pub struct Position {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+    #[serde(default)]
+    pub a: f64,
+    #[serde(default)]
+    pub b: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -176,7 +182,7 @@ pub struct MachineStatus {
     pub current_line: u32,
     pub total_lines: u32,
     pub message: Option<String>,
-    pub homed: [bool; 3],
+    pub homed: [bool; 5],
     pub homing: bool,
 }
 

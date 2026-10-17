@@ -127,6 +127,8 @@ fn jog(
         Axis::X => 'X',
         Axis::Y => 'Y',
         Axis::Z => 'Z',
+        Axis::A => 'A',
+        Axis::B => 'B',
     };
 
     let controller = state
