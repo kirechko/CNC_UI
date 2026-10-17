@@ -387,11 +387,7 @@ pub(super) fn home(emulator: &mut Emulator, args: Value) -> Result<Value, WireEr
 
     emulator.homing_queue = match requested {
         Some(axis) => vec![axis],
-        None => vec![
-            crate::cnc_api::Axis::X,
-            crate::cnc_api::Axis::Y,
-            crate::cnc_api::Axis::Z,
-        ],
+        None => emulator.config.configured_axes(),
     };
     for axis in &emulator.homing_queue {
         emulator.status.homed[super::axis_index(*axis)] = false;
