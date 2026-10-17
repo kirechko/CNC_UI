@@ -1159,7 +1159,7 @@
 
           const target = [...position];
           let hasAxis = false;
-          for (const [index, letter] of ["X", "Y", "Z"].entries()) {
+          for (const [index, letter] of ["X", "Y", "Z", "A", "B"].entries()) {
             if (!values.has(letter)) continue;
             hasAxis = true;
             const value = values.get(letter) * units;
