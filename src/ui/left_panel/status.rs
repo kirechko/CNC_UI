@@ -318,7 +318,15 @@ fn update_status_indicators(
             "IDLE" => "IDLE",
             other => other,
         };
-        status_badge.set_text(&format!("● {}", display_state));
+        let color = match display_state {
+            "IDLE" => "#64c99a",
+            "HOMING" | "RUNNING" => "#42a4d4",
+            "PAUSED" => "#e8bd69",
+            _ => "#b8c2c5",
+        };
+        status_badge.set_markup(&format!(
+            "<span foreground='{color}'>● {display_state}</span>"
+        ));
         status_badge.remove_css_class("alarm-badge");
     }
 

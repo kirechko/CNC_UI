@@ -143,6 +143,34 @@
         content: "";
       }
 
+      .header-state.state-idle { color: var(--green); }
+      .header-state.state-idle::before {
+        background: var(--green);
+        box-shadow: 0 0 0 3px rgb(100 201 154 / 13%);
+      }
+
+      .header-state.state-homing,
+      .header-state.state-running { color: var(--accent-bright); }
+      .header-state.state-homing::before,
+      .header-state.state-running::before {
+        background: var(--accent-bright);
+        box-shadow: 0 0 0 3px rgb(66 164 212 / 13%);
+      }
+
+      .header-state.state-alarm,
+      .header-state.state-disconnected { color: var(--red); }
+      .header-state.state-alarm::before,
+      .header-state.state-disconnected::before {
+        background: var(--red);
+        box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
+      }
+
+      .header-state.state-paused { color: #e8bd69; }
+      .header-state.state-paused::before {
+        background: #e8bd69;
+        box-shadow: 0 0 0 3px rgb(232 189 105 / 13%);
+      }
+
       .app-main {
         display: grid;
         width: min(1600px, 100%);
@@ -2121,6 +2149,24 @@
           connectionDot.classList.toggle("online", machineConnected);
           connectionDot.classList.toggle("offline", !machineConnected);
           state.textContent = status.state || "—";
+          const stateClass = ({
+            IDLE: "state-idle",
+            HOMING: "state-homing",
+            READING: "state-running",
+            RUNNING: "state-running",
+            PAUSED: "state-paused",
+            ALARM: "state-alarm",
+            DISCONNECTED: "state-disconnected",
+          })[machineState] || "";
+          state.classList.remove(
+            "state-idle",
+            "state-homing",
+            "state-running",
+            "state-paused",
+            "state-alarm",
+            "state-disconnected",
+          );
+          if (stateClass) state.classList.add(stateClass);
           setJogEnabled(machineConnected);
           updateJobControls(status);
           updatePositionDisplay();
