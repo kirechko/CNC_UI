@@ -17,11 +17,11 @@ axes:
     max_velocity_mm_min: 5000.0
     acceleration_mm_s2: 500.0
   # Пример описания угловой оси A; эмулятор пока не исполняет движения по A.
-  # a:
-  #   min_degrees: -180.0
-  #   max_degrees: 180.0
-  #   max_velocity_degrees_min: 3600.0
-  #   acceleration_degrees_s2: 600.0
+  a:
+    min_degrees: -180.0
+    max_degrees: 180.0
+    max_velocity_degrees_min: 3600.0
+    acceleration_degrees_s2: 600.0
 
 # Spindle simulation settings.
 # RPM acceleration/deceleration rate.
