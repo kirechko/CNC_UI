@@ -130,11 +130,16 @@
         box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
       }
 
-      .header-state {
-        min-width: 56px;
-        color: var(--muted);
-        font-size: 11px;
-        text-align: right;
+      .header-state { min-width: 56px; }
+
+      .header-state::before {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: #657176;
+        box-shadow: 0 0 0 3px rgb(101 113 118 / 13%);
+        content: "";
       }
 
       .app-main {
@@ -678,7 +683,7 @@
           <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
           <span id="connection">Подключение…</span>
         </div>
-        <div class="header-state" id="state">—</div>
+        <div class="machine-chip header-state" id="state">—</div>
       </div>
     </header>
 
