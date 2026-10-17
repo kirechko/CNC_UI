@@ -1464,7 +1464,7 @@
           return {
             points: [lower[index], lower[next], upper[next], upper[index]],
             depth: (lower[index].depth + lower[next].depth + upper[next].depth + upper[index].depth) / 4,
-            color: ["#648da0", "#527d91", "#739caf", "#527d91", "#648da0", "#7899a7"][index],
+            color: ["#c2c7ca", "#aeb4b8", "#d0d4d7", "#aeb4b8", "#c2c7ca", "#969da2"][index],
           };
         }).sort((a, b) => a.depth - b.depth);
 
@@ -1489,7 +1489,7 @@
           toolContext.lineTo(lower[index].x, lower[index].y);
           toolContext.lineTo(lower[next].x, lower[next].y);
           toolContext.closePath();
-          toolContext.fillStyle = index % 2 === 0 ? "#d7ae70" : "#bd8f59";
+          toolContext.fillStyle = index % 2 === 0 ? "#b9bec2" : "#92999e";
           toolContext.fill();
           toolContext.strokeStyle = "rgba(240, 213, 167, .62)";
           toolContext.lineWidth = 0.7;
@@ -1503,7 +1503,7 @@
           else toolContext.lineTo(point.x, point.y);
         });
         toolContext.closePath();
-        toolContext.fillStyle = "#91b4c1";
+        toolContext.fillStyle = "#d5d9dc";
         toolContext.fill();
         toolContext.strokeStyle = "rgba(230, 241, 244, .8)";
         toolContext.lineWidth = 1;
