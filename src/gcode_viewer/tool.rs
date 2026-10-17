@@ -43,6 +43,10 @@ pub(super) fn draw_hex_pencil<F>(
             + camera.orientation.fwd[2] * p[2]
     };
 
+    // На остановке корпус темнее; при вращении появляется движущийся блик.
+    // Яркость переключается только по факту вращения, не зависит от RPM.
+    let brightness: f64 = if tool.rpm > 0.01 { 1.0 } else { 0.35 };
+
     for i in 0..SIDES {
         let j = (i + 1) % SIDES;
 
@@ -63,9 +67,6 @@ pub(super) fn draw_hex_pencil<F>(
             _ => (0.42, 0.44, 0.46),
         };
 
-        // На остановке корпус темнее; при вращении появляется движущийся блик.
-        // Яркость переключается только по факту вращения, не зависит от RPM.
-        let brightness: f64 = if tool.rpm > 0.01 { 1.0 } else { 0.35 };
         let body_color = (
             (base_color.0 * brightness).min(1.0),
             (base_color.1 * brightness).min(1.0),
