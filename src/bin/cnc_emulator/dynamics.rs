@@ -155,7 +155,7 @@ impl ActiveMove {
         })
     }
 
-    pub(super) fn tick(&mut self, dt: f64) -> ([f64; 3], bool) {
+    pub(super) fn tick(&mut self, dt: f64) -> ([f64; 5], bool) {
         let remaining = (self.total_distance - self.travelled).max(0.0);
         if remaining <= 1e-8 {
             return (self.target, true);

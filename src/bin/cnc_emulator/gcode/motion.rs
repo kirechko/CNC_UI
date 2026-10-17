@@ -91,6 +91,8 @@ pub(super) fn execute_motion(
                 center_x + radius_start * angle.cos(),
                 center_y + radius_start * angle.sin(),
                 current[2] + (target[2] - current[2]) * t,
+                current[3] + (target[3] - current[3]) * t,
+                current[4] + (target[4] - current[4]) * t,
             ])?;
         }
 
@@ -121,11 +123,10 @@ pub(super) fn execute_motion(
         let feed = if rapid {
             emulator
                 .config
-                .axes
-                .x
-                .max_velocity_mm_min
-                .min(emulator.config.axes.y.max_velocity_mm_min)
-                .min(emulator.config.axes.z.max_velocity_mm_min)
+                .configured_axes()
+                .into_iter()
+                .map(|axis| emulator.config.axis_limits(axis).2)
+                .fold(f64::INFINITY, f64::min)
         } else {
             emulator.status.feed_rate
         };

@@ -125,7 +125,8 @@ impl Emulator {
     }
 
     pub(super) fn check_target(&self, target: [f64; 5]) -> Result<(), WireError> {
-        for (index, axis) in self.config.configured_axes().into_iter().enumerate() {
+        for axis in self.config.configured_axes() {
+            let index = axis_index(axis);
             let (minimum, maximum, _, _) = self.config.axis_limits(axis);
             if target[index] < minimum - 1e-8 || target[index] > maximum + 1e-8 {
                 let units = if matches!(axis, Axis::A | Axis::B) { "°" } else { "mm" };
@@ -143,7 +144,7 @@ impl Emulator {
 
     pub(super) fn queue_move(
         &mut self,
-        target: [f64; 3],
+        target: [f64; 5],
         feed: f64,
         rapid: bool,
     ) -> Result<(), WireError> {
