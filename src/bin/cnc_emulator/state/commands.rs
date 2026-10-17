@@ -361,7 +361,7 @@ pub(super) fn jog_continuous(emulator: &mut Emulator, args: Value) -> Result<Val
     } else if ![-1, 1].contains(&direction) || !feed.is_finite() || feed <= 0.0 {
         return Err(api_error("bad_jog", "invalid continuous jog parameters"));
     } else {
-        let feed = feed.min(emulator.config.axis(axis).max_velocity_mm_min);
+        let feed = feed.min(emulator.config.axis_limits(axis).2);
         emulator.continuous_jog = Some((axis, direction, feed));
         emulator.status.feed_rate = feed;
     }
