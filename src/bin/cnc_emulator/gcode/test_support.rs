@@ -25,6 +25,7 @@ pub fn test_emulator() -> Emulator {
                 max_velocity_mm_min: 3000.0,
                 acceleration_mm_s2: 50.0,
             },
+            a: None,
         },
         spindle: SpindleConfig {
             min_rpm: 500.0,
