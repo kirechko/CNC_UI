@@ -1315,9 +1315,8 @@
         const focalLength = Math.max(width, height) * 2.5;
 
         return (point) => {
-          const machineRotatedPoint = applyRotaryAxes(point);
           const rotatedPoint = rotatePoint(
-            machineRotatedPoint.map((value, axis) => value - bounds.center[axis]),
+            point.map((value, axis) => value - bounds.center[axis]),
           );
           const depthScale = camera.perspective
             ? focalLength / Math.max(focalLength + rotatedPoint[2], focalLength * 0.35)
@@ -1328,6 +1327,10 @@
             depth: rotatedPoint[2],
           };
         };
+      }
+
+      function makeTrajectoryProjector(project) {
+        return (point) => project(applyRotaryAxes(point));
       }
 
       function drawGrid(context, width, height, project, bounds) {
@@ -1577,6 +1580,7 @@
         const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
         const bounds = sceneBounds();
         const project = makeProjector(width, height, bounds);
+        const projectTrajectory = makeTrajectoryProjector(project);
         trajectoryContext.clearRect(0, 0, width, height);
 
         if (!loadedProgram || loadedProgram.segments.length === 0) {
@@ -1604,8 +1608,8 @@
           const interpolate = (ratio) => segment.from.map(
             (value, axis) => value + (segment.to[axis] - value) * ratio,
           );
-          const from = project(interpolate(startRatio));
-          const to = project(interpolate(endRatio));
+          const from = projectTrajectory(interpolate(startRatio));
+          const to = projectTrajectory(interpolate(endRatio));
 
           trajectoryContext.beginPath();
           trajectoryContext.moveTo(from.x, from.y);
