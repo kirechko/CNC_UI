@@ -305,6 +305,8 @@
       .axis-label.x { color: #ef7777; }
       .axis-label.y { color: #68ce9e; }
       .axis-label.z { color: #57b5e2; }
+      .axis-label.a { color: #c49be8; }
+      .axis-label.b { color: #e8bd69; }
 
       .axis-value {
         overflow: hidden;
@@ -780,59 +782,11 @@
             </div>
           </div>
           <div class="panel-body">
-            <div class="dro-header wpos-only" id="position-grid-header" aria-hidden="true">
-              <span></span><span class="position-column work">WPOS</span><span class="position-column machine">MPOS</span><span></span><span></span>
-            </div>
-            <div class="axis-row">
-              <span class="axis-label x">X</span>
-              <strong class="axis-value work position-column" id="x" tabindex="0" role="button">0.000</strong>
-              <span class="axis-value machine position-column" id="machine-x">0.000</span>
-              <button class="position-action axis-x" type="button" data-zero-axis="X" title="Установить ноль X" aria-label="Установить ноль X">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">
-                  <circle cx="10" cy="10" r="7"></circle>
-                  <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
-                </svg>
-              </button>
-              <button class="position-action axis-x" type="button" data-home-axis="X" title="Home X" aria-label="Home X">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M2.5 9.2 10 3l7.5 6.2"></path>
-                  <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
-                </svg>
-              </button>
-            </div>
-            <div class="axis-row">
-              <span class="axis-label y">Y</span>
-              <strong class="axis-value work position-column" id="y" tabindex="0" role="button">0.000</strong>
-              <span class="axis-value machine position-column" id="machine-y">0.000</span>
-              <button class="position-action axis-y" type="button" data-zero-axis="Y" title="Установить ноль Y" aria-label="Установить ноль Y">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">
-                  <circle cx="10" cy="10" r="7"></circle>
-                  <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
-                </svg>
-              </button>
-              <button class="position-action axis-y" type="button" data-home-axis="Y" title="Home Y" aria-label="Home Y">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M2.5 9.2 10 3l7.5 6.2"></path>
-                  <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
-                </svg>
-              </button>
-            </div>
-            <div class="axis-row">
-              <span class="axis-label z">Z</span>
-              <strong class="axis-value work position-column" id="z" tabindex="0" role="button">0.000</strong>
-              <span class="axis-value machine position-column" id="machine-z">0.000</span>
-              <button class="position-action axis-z" type="button" data-zero-axis="Z" title="Установить ноль Z" aria-label="Установить ноль Z">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">
-                  <circle cx="10" cy="10" r="7"></circle>
-                  <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
-                </svg>
-              </button>
-              <button class="position-action axis-z" type="button" data-home-axis="Z" title="Home Z" aria-label="Home Z">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M2.5 9.2 10 3l7.5 6.2"></path>
-                  <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
-                </svg>
-              </button>
+            <div id="position-axes">
+              <div class="dro-header wpos-only" id="position-grid-header" aria-hidden="true">
+                <span></span><span class="position-column work">WPOS</span><span class="position-column machine">MPOS</span><span></span><span></span>
+              </div>
+              <div id="axis-rows"></div>
             </div>
             <div class="position-actions">
               <button id="zero-all" type="button">
@@ -1011,8 +965,8 @@
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#feedback");
       const jogButtons = [...document.querySelectorAll("[data-axis]")];
-      const zeroAxisButtons = [...document.querySelectorAll("[data-zero-axis]")];
-      const homeAxisButtons = [...document.querySelectorAll("[data-home-axis]")];
+      const axisRowsContainer = document.querySelector("#axis-rows");
+      const positionGridHeader = document.querySelector("#position-grid-header");
       const positionDialog = document.querySelector("#position-dialog");
       const positionValue = document.querySelector("#position-value");
       const coordinateSystem = document.querySelector("#coordinate-system");
@@ -1023,6 +977,7 @@
       let statusRequestInFlight = false;
       let loadedProgram = null;
       let machineState = "DISCONNECTED";
+      let renderedAxisSignature = null;
 
       const trajectoryCanvas = document.querySelector("#trajectory-canvas");
       const trajectoryContext = trajectoryCanvas.getContext("2d");
@@ -1943,15 +1898,88 @@
         }
       }
 
-      for (const axis of ["X", "Y", "Z"]) {
-        const value = document.querySelector(`#${axis.toLowerCase()}`);
-        value.addEventListener("click", () => openPositionDialog(axis));
-        value.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            openPositionDialog(axis);
+      function renderConfiguredAxes(configuration) {
+        const configuredAxes = Array.isArray(configuration?.axes)
+          ? configuration.axes.map((item) => item.axis)
+          : ["X", "Y", "Z"];
+        const axes = [...new Set(configuredAxes)]
+          .filter((axis) => ["X", "Y", "Z", "A", "B"].includes(axis))
+          .slice(0, 5);
+        const signature = axes.join(",");
+        if (signature === renderedAxisSignature) return;
+        renderedAxisSignature = signature;
+
+        axisRowsContainer.replaceChildren();
+        for (const axis of axes) {
+          const lowerAxis = axis.toLowerCase();
+          const supported = ["X", "Y", "Z"].includes(axis);
+          const row = document.createElement("div");
+          row.className = "axis-row wpos-only";
+          row.dataset.axis = axis;
+
+          const controls = supported
+            ? `<button class="position-action axis-${lowerAxis}" type="button" data-zero-axis="${axis}" title="Установить ноль ${axis}" aria-label="Установить ноль ${axis}">
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">
+                  <circle cx="10" cy="10" r="7"></circle>
+                  <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
+                </svg>
+              </button>
+              <button class="position-action axis-${lowerAxis}" type="button" data-home-axis="${axis}" title="Home ${axis}" aria-label="Home ${axis}">
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2.5 9.2 10 3l7.5 6.2"></path>
+                  <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
+                </svg>
+              </button>`
+            : `<span></span><span></span>`;
+
+          row.innerHTML = `
+            <span class="axis-label ${lowerAxis}">${axis}</span>
+            <strong class="axis-value work position-column" ${supported ? `id="${lowerAxis}" tabindex="0" role="button"` : ""}>—</strong>
+            <span class="axis-value machine position-column" id="machine-${lowerAxis}">—</span>
+            ${controls}
+          `;
+          axisRowsContainer.append(row);
+
+          if (supported) {
+            const value = row.querySelector(".axis-value.work");
+            value.addEventListener("click", () => openPositionDialog(axis));
+            value.addEventListener("keydown", (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openPositionDialog(axis);
+              }
+            });
+
+            row.querySelector("[data-zero-axis]").addEventListener("click", async (event) => {
+              try {
+                await sendPositionAction(
+                  "zero_axis",
+                  "/api/position/zero-axis",
+                  { axis: event.currentTarget.dataset.zeroAxis },
+                );
+                await refreshStatus();
+              } catch (error) {
+                document.querySelector("#message").textContent = `Ошибка установки нуля: ${error.message}`;
+              }
+            });
+
+            row.querySelector("[data-home-axis]").addEventListener("click", async (event) => {
+              try {
+                await sendPositionAction(
+                  "home_axis",
+                  "/api/position/home",
+                  { axis: event.currentTarget.dataset.homeAxis },
+                );
+                document.querySelector("#message").textContent =
+                  `Запущено homing оси ${event.currentTarget.dataset.homeAxis}.`;
+              } catch (error) {
+                document.querySelector("#message").textContent = `Ошибка homing: ${error.message}`;
+              }
+            });
           }
-        });
+        }
+
+        updatePositionDisplay();
       }
 
       document.querySelector("#position-cancel").addEventListener("click", () => positionDialog.close());
@@ -1961,9 +1989,6 @@
 
       const wposToggle = document.querySelector("#wpos-toggle");
       const mposToggle = document.querySelector("#mpos-toggle");
-      const positionRows = [...document.querySelectorAll(".axis-row")];
-      const positionGridHeader = document.querySelector("#position-grid-header");
-
       function updatePositionDisplay() {
         const mode = positionDisplay.work && positionDisplay.machine
           ? "both"
@@ -1971,7 +1996,7 @@
             ? "mpos-only"
             : "wpos-only";
 
-        for (const row of positionRows) {
+        for (const row of axisRowsContainer.querySelectorAll(".axis-row")) {
           row.classList.remove("both", "mpos-only", "wpos-only");
           row.classList.add(mode);
         }
@@ -1998,15 +2023,14 @@
       });
 
       function updatePositionReadouts(status) {
-        for (const axis of ["x", "y", "z"]) {
-          for (const [key, field] of [
-            [axis, axis],
-            [`machine_${axis}`, `machine-${axis}`],
-          ]) {
-            const value = Number(status[key]);
-            document.querySelector(`#${field}`).textContent =
-              Number.isFinite(value) ? value.toFixed(3) : "—";
-          }
+        for (const row of axisRowsContainer.querySelectorAll(".axis-row")) {
+          const axis = row.dataset.axis.toLowerCase();
+          const workValue = Number(status[axis]);
+          const machineValue = Number(status[`machine_${axis}`]);
+          row.querySelector(".axis-value.work").textContent =
+            Number.isFinite(workValue) ? workValue.toFixed(3) : "—";
+          row.querySelector(".axis-value.machine").textContent =
+            Number.isFinite(machineValue) ? machineValue.toFixed(3) : "—";
         }
       }
 
@@ -2037,20 +2061,6 @@
         }
       });
 
-      zeroAxisButtons.forEach((button) => {
-        button.addEventListener("click", async () => {
-          try {
-            await sendPositionAction(
-              "zero_axis",
-              "/api/position/zero-axis",
-              { axis: button.dataset.zeroAxis },
-            );
-            await refreshStatus();
-          } catch (error) {
-            document.querySelector("#message").textContent = `Ошибка установки нуля: ${error.message}`;
-          }
-        });
-      });
 
       document.querySelector("#home-all").addEventListener("click", async () => {
         try {
@@ -2061,21 +2071,6 @@
         }
       });
 
-      homeAxisButtons.forEach((button) => {
-        button.addEventListener("click", async () => {
-          try {
-            await sendPositionAction(
-              "home_axis",
-              "/api/position/home",
-              { axis: button.dataset.homeAxis },
-            );
-            document.querySelector("#message").textContent =
-              `Запущено homing оси ${button.dataset.homeAxis}.`;
-          } catch (error) {
-            document.querySelector("#message").textContent = `Ошибка homing: ${error.message}`;
-          }
-        });
-      });
 
       async function sendJobCommand(command) {
         const invoke = window.__TAURI__?.core?.invoke;
@@ -2209,10 +2204,7 @@
         jogButtons.forEach((button) => {
           button.disabled = !enabled;
         });
-        zeroAxisButtons.forEach((button) => {
-          button.disabled = !enabled;
-        });
-        homeAxisButtons.forEach((button) => {
+        axisRowsContainer.querySelectorAll("[data-zero-axis], [data-home-axis]").forEach((button) => {
           button.disabled = !enabled;
         });
         document.querySelector("#zero-all").disabled = !enabled;
@@ -2256,6 +2248,7 @@
           if (stateClass) state.classList.add(stateClass);
           setJogEnabled(machineConnected);
           updateJobControls(status);
+          renderConfiguredAxes(status.configuration);
           updatePositionDisplay();
           coordinateSystem.value = status.coordinate_system || "g54";
           document.querySelector("#feed-rate").textContent =
