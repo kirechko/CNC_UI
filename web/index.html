@@ -131,6 +131,18 @@
         box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
       }
 
+      .connection-chip.connection-online {
+        border-color: rgb(100 201 154 / 35%);
+        background: rgb(100 201 154 / 8%);
+        color: var(--green);
+      }
+
+      .connection-chip.connection-offline {
+        border-color: rgb(235 116 116 / 35%);
+        background: rgb(235 116 116 / 8%);
+        color: var(--red);
+      }
+
       .header-state { min-width: 56px; }
 
       .header-state::before {
@@ -708,7 +720,7 @@
       </div>
 
       <div class="header-status">
-        <div class="machine-chip">
+        <div class="machine-chip connection-chip">
           <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
           <span id="connection">Подключение…</span>
         </div>
@@ -922,6 +934,7 @@
 
     <script>
       const connection = document.querySelector("#connection");
+      const connectionChip = document.querySelector(".connection-chip");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#feedback");
@@ -2148,6 +2161,8 @@
           connection.textContent = machineConnected ? "Подключено" : "Нет связи";
           connectionDot.classList.toggle("online", machineConnected);
           connectionDot.classList.toggle("offline", !machineConnected);
+          connectionChip.classList.toggle("connection-online", machineConnected);
+          connectionChip.classList.toggle("connection-offline", !machineConnected);
           state.textContent = status.state || "—";
           const stateClass = ({
             IDLE: "state-idle",
@@ -2194,6 +2209,8 @@
           connection.textContent = "Ошибка связи";
           connectionDot.classList.remove("online");
           connectionDot.classList.add("offline");
+          connectionChip.classList.remove("connection-online");
+          connectionChip.classList.add("connection-offline");
           state.textContent = "DISCONNECTED";
           machineState = "DISCONNECTED";
           document.querySelector("#message").textContent = error.message;
