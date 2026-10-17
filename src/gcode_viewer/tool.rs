@@ -53,14 +53,14 @@ pub(super) fn draw_hex_pencil<F>(
             .iter()
             .map(|p| project(p[0], p[1], p[2]))
             .collect();
-        // Одна золотистая грань служит меткой вращения; красного цвета нет.
+        // Нейтральные серебристые оттенки стали подчёркивают грани корпуса.
         let base_color = match i {
-            0 => (0.92, 0.66, 0.25),
-            1 => (0.78, 0.56, 0.24),
-            2 => (0.58, 0.38, 0.16),
-            3 => (0.86, 0.62, 0.25),
-            4 => (0.68, 0.44, 0.18),
-            _ => (0.48, 0.31, 0.13),
+            0 => (0.78, 0.80, 0.82),
+            1 => (0.66, 0.68, 0.70),
+            2 => (0.48, 0.50, 0.52),
+            3 => (0.74, 0.76, 0.78),
+            4 => (0.58, 0.60, 0.62),
+            _ => (0.42, 0.44, 0.46),
         };
 
         // На остановке корпус темнее; при вращении появляется движущийся блик.
@@ -82,21 +82,19 @@ pub(super) fn draw_hex_pencil<F>(
             .collect();
         let tip_shade: f64 = if i % 2 == 0 { 0.78 } else { 0.55 };
         let tip_brightness = brightness;
+        let steel_shade = 0.72 * tip_shade * tip_brightness;
         faces.push((
             tip_depth,
             tip_poly,
-            (
-                (0.78 * tip_shade * tip_brightness).min(1.0),
-                (0.56 * tip_shade * tip_brightness).min(1.0),
-                (0.24 * tip_shade * tip_brightness).min(1.0),
-            ),
+            (steel_shade, steel_shade, steel_shade),
         ));
     }
 
     // Закрываем верх корпуса шестигранной крышкой.
     let top_depth = top_ring.iter().map(|p| camera_depth(*p)).sum::<f64>() / SIDES as f64;
     let top_poly = top_ring.iter().map(|p| project(p[0], p[1], p[2])).collect();
-    faces.push((top_depth, top_poly, (0.86, 0.62, 0.25)));
+    let top_shade = 0.76 * brightness;
+    faces.push((top_depth, top_poly, (top_shade, top_shade, top_shade)));
 
     faces.sort_by(|a, b| a.0.total_cmp(&b.0));
 
