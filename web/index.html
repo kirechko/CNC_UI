@@ -993,6 +993,7 @@
       const fileInput = document.querySelector("#program-file");
       const camera = { yaw: -0.72, pitch: 0.62, zoom: 1, panX: 0, panY: 0, perspective: true };
       const toolPosition = [0, 0, 0];
+      const rotaryPosition = { a: 0, b: 0 };
       let toolSpindleRpm = 0;
       let toolRotationPhase = 0;
       let lastToolFrameTime = null;
@@ -1251,9 +1252,32 @@
         ];
       }
 
+      function applyRotaryAxes(point) {
+        const angleA = rotaryPosition.a * Math.PI / 180;
+        const angleB = rotaryPosition.b * Math.PI / 180;
+        const cosA = Math.cos(angleA);
+        const sinA = Math.sin(angleA);
+        const cosB = Math.cos(angleB);
+        const sinB = Math.sin(angleB);
+
+        // A вращает деталь вокруг X, затем B — вокруг Y.
+        const rotatedA = [
+          point[0],
+          point[1] * cosA - point[2] * sinA,
+          point[1] * sinA + point[2] * cosA,
+        ];
+        return [
+          rotatedA[0] * cosB + rotatedA[2] * sinB,
+          rotatedA[1],
+          -rotatedA[0] * sinB + rotatedA[2] * cosB,
+        ];
+      }
+
       function sceneBounds() {
-        const points = loadedProgram?.segments.flatMap(({ from, to }) => [from, to]) || [];
-        points.push([0, 0, 0]);
+        const points = loadedProgram?.segments
+          .flatMap(({ from, to }) => [from, to])
+          .map(applyRotaryAxes) || [];
+        points.push(applyRotaryAxes([0, 0, 0]));
         const min = [Infinity, Infinity, Infinity];
         const max = [-Infinity, -Infinity, -Infinity];
 
@@ -1291,7 +1315,10 @@
         const focalLength = Math.max(width, height) * 2.5;
 
         return (point) => {
-          const rotatedPoint = rotatePoint(point.map((value, axis) => value - bounds.center[axis]));
+          const machineRotatedPoint = applyRotaryAxes(point);
+          const rotatedPoint = rotatePoint(
+            machineRotatedPoint.map((value, axis) => value - bounds.center[axis]),
+          );
           const depthScale = camera.perspective
             ? focalLength / Math.max(focalLength + rotatedPoint[2], focalLength * 0.35)
             : 1;
@@ -2268,6 +2295,8 @@
           toolPosition[0] = Number(status.x) || 0;
           toolPosition[1] = Number(status.y) || 0;
           toolPosition[2] = Number(status.z) || 0;
+          rotaryPosition.a = Number(status.machine_a ?? status.a) || 0;
+          rotaryPosition.b = Number(status.machine_b ?? status.b) || 0;
           toolSpindleRpm = Math.max(0, Number(status.spindle_rpm) || 0);
           syncToolAnimation();
           drawToolpath();
