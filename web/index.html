@@ -266,11 +266,14 @@
       .position-mode-toggle {
         min-height: 31px;
         padding: 0 8px;
-        border-color: #344e5b;
-        background: #1a2b33;
-        color: #a3d5e9;
         font-size: 10px;
         font-weight: 700;
+      }
+
+      .position-mode-toggle.active {
+        border-color: #4385a1;
+        background: #1a2b33;
+        color: #a3d5e9;
       }
 
       .dro-header {
@@ -734,7 +737,7 @@
           <div class="panel-heading">
             <span class="panel-title">POSITION</span>
             <div class="section-heading">
-              <button class="position-mode-toggle" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button>
+              <button class="position-mode-toggle active" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button>
               <button class="position-mode-toggle" id="mpos-toggle" type="button" aria-pressed="false">MPOS</button>
               <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
               <option value="g54">G54</option>
