@@ -1,5 +1,8 @@
  //! Loads and validates axis and spindle limits from the emulator configuration.
-use crate::cnc_api::Axis;
+use crate::cnc_api::{
+    Axis, AxisConfiguration, AxisUnits, MachineAxis, MachineConfiguration,
+    SpindleConfiguration,
+};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
@@ -21,6 +24,7 @@ pub(super) struct AxesConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct SpindleConfig {
+    pub(super) min_rpm: f64,
     pub(super) max_rpm: f64,
     pub(super) acceleration_rpm_per_sec: f64,
 }
@@ -32,6 +36,26 @@ pub(super) struct EmulatorConfig {
 }
 
 impl EmulatorConfig {
+    pub(super) fn machine_configuration(&self) -> MachineConfiguration {
+        let axis_configuration = |axis, limits: &AxisLimits| AxisConfiguration {
+            axis,
+            units: AxisUnits::Linear,
+            max_travel: Some(limits.max_mm - limits.min_mm),
+        };
+
+        MachineConfiguration {
+            axes: vec![
+                axis_configuration(MachineAxis::X, &self.axes.x),
+                axis_configuration(MachineAxis::Y, &self.axes.y),
+                axis_configuration(MachineAxis::Z, &self.axes.z),
+            ],
+            spindle: SpindleConfiguration {
+                min_rpm: Some(self.spindle.min_rpm),
+                max_rpm: Some(self.spindle.max_rpm),
+            },
+        }
+    }
+
     pub(super) fn axis(&self, axis: Axis) -> &AxisLimits {
         match axis {
             Axis::X => &self.axes.x,
@@ -57,8 +81,11 @@ impl EmulatorConfig {
                 return Err(format!("invalid configuration for axis {name}"));
             }
         }
-        if !self.spindle.max_rpm.is_finite()
+        if !self.spindle.min_rpm.is_finite()
+            || self.spindle.min_rpm < 0.0
+            || !self.spindle.max_rpm.is_finite()
             || self.spindle.max_rpm <= 0.0
+            || self.spindle.min_rpm > self.spindle.max_rpm
             || !self.spindle.acceleration_rpm_per_sec.is_finite()
             || self.spindle.acceleration_rpm_per_sec <= 0.0
         {

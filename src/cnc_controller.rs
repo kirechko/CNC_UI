@@ -1,7 +1,8 @@
  //! Queues UI commands on a worker thread and maintains a cached controller status.
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi, MachineStatus,
-    SpindleCommand, SpindleDirection as ApiSpindleDirection,
+    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi,
+    MachineConfiguration, MachineStatus, SpindleCommand,
+    SpindleDirection as ApiSpindleDirection,
 };
 use crate::em_adapter::EmAdapter;
 use std::path::{Path, PathBuf};
@@ -25,6 +26,7 @@ pub struct CNCStatus {
     pub machine_origin_z: f64,
     pub active_coordinate_system: CoordinateSystem,
     pub coordinate_systems: Vec<CoordinateSystemOffset>,
+    pub machine_configuration: Option<MachineConfiguration>,
     pub feed_rate: f64,
     pub spindle_speed: f64,
     pub spindle_actual_speed: f64,
@@ -360,6 +362,9 @@ fn api_worker(
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
 ) {
+    let configuration = api.machine_configuration().ok();
+    shared_status.lock().unwrap().machine_configuration = configuration;
+
     loop {
         // E-Stop проверяется раньше обычной очереди.
         match emergency_receiver.try_recv() {
@@ -422,6 +427,7 @@ fn api_worker(
             Ok(status) => {
                 let mut fresh = from_api_status(status);
                 let mut current = shared_status.lock().unwrap();
+                fresh.machine_configuration = current.machine_configuration.clone();
                 if let Some((kind, _)) = current.ui_alert.as_ref() {
                     if kind != "connection" {
                         fresh.ui_alert = current.ui_alert.clone();
@@ -452,6 +458,7 @@ fn initial_disconnected_status() -> CNCStatus {
         machine_origin_z: 0.0,
         active_coordinate_system: CoordinateSystem::G54,
         coordinate_systems: Vec::new(),
+        machine_configuration: None,
         feed_rate: 0.0,
         spindle_speed: 0.0,
         spindle_actual_speed: 0.0,
@@ -498,6 +505,7 @@ fn from_api_status(status: MachineStatus) -> CNCStatus {
         machine_origin_z: -status.work_offset.z,
         active_coordinate_system: status.active_coordinate_system,
         coordinate_systems: status.coordinate_systems.clone(),
+        machine_configuration: None,
         feed_rate: status.feed_rate,
         spindle_speed: status.spindle.commanded_rpm,
         spindle_actual_speed: status.spindle.actual_rpm,
