@@ -136,6 +136,11 @@ impl LinuxCncApi for EmAdapter {
         serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
     }
 
+    fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
+        let value = self.call("machine_configuration", json!({}))?;
+        serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
+    }
+
     fn power_on(&self) -> CncResult<()> {
         self.unit("power_on", json!({}))
     }

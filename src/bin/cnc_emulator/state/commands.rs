@@ -31,6 +31,10 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
     match request.method.as_str() {
         "status" => Ok(serde_json::to_value(&emulator.status)
             .map_err(|error| api_error("serialization", error.to_string()))?),
+        "machine_configuration" => Ok(serde_json::to_value(
+            emulator.config.machine_configuration(),
+        )
+        .map_err(|error| api_error("serialization", error.to_string()))?),
         "power_on" => power_on(emulator),
         "power_off" => power_off(emulator, false),
         "estop" => power_off(emulator, true),

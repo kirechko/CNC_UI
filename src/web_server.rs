@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::cnc_api::{Axis, LinuxCncApi};
+use crate::cnc_api::{Axis, LinuxCncApi, MachineConfiguration};
 use crate::cnc_controller::{CNCController, CNCStatus};
 
 const DEFAULT_ADDRESS: &str = "0.0.0.0:8080";
@@ -391,6 +391,7 @@ pub(crate) struct StatusResponse {
     machine_y: f64,
     machine_z: f64,
     coordinate_system: String,
+    configuration: Option<MachineConfiguration>,
     feed_rate: f64,
     spindle_rpm: f64,
     current_line: u32,
@@ -411,6 +412,7 @@ impl From<CNCStatus> for StatusResponse {
             machine_y: status.machine_y,
             machine_z: status.machine_z,
             coordinate_system: status.active_coordinate_system.label().to_ascii_lowercase().replace('.', "_"),
+            configuration: status.machine_configuration,
             feed_rate: status.feed_rate,
             spindle_rpm: status.spindle_actual_speed,
             current_line: status.current_line,
