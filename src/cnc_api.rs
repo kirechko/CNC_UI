@@ -96,6 +96,49 @@ pub struct CoordinateSystemOffset {
     pub offset: Position,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MachineAxis {
+    X,
+    Y,
+    Z,
+    A,
+    B,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AxisUnits {
+    Linear,
+    Angular,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct AxisConfiguration {
+    pub axis: MachineAxis,
+    pub units: AxisUnits,
+    /// Максимальный ход оси; `None`, если адаптер не смог прочитать значение.
+    pub max_travel: Option<f64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SpindleConfiguration {
+    /// Минимальная частота вращения, RPM.
+    pub min_rpm: Option<f64>,
+    /// Максимальная частота вращения, RPM.
+    pub max_rpm: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MachineConfiguration {
+    pub axes: Vec<AxisConfiguration>,
+    pub spindle: SpindleConfiguration,
+}
+
+impl MachineConfiguration {
+    pub fn axis_count(&self) -> usize {
+        self.axes.len()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Position {
     pub x: f64,
@@ -178,6 +221,14 @@ pub type CncResult<T> = Result<T, ControllerError>;
 pub trait LinuxCncApi: Send + Sync {
     /// Последний снимок состояния. Клиент обновляет его в фоне или по запросу.
     fn status(&self) -> CncResult<MachineStatus>;
+
+    /// Конфигурация станка, если адаптер может получить её из контроллера.
+    fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
+        Err(ControllerError::new(
+            "unsupported",
+            "machine configuration is not available for this adapter",
+        ))
+    }
 
     /// Сброс аварийного останова и включение станка.
     fn power_on(&self) -> CncResult<()>;

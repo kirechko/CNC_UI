@@ -1,9 +1,11 @@
 use crate::cnc_api::{
-    Axis, CncResult, ControllerError, CoordinateSystem, InterpreterState, JogRequest,
-    LinuxCncApi, MachineStatus, Position, SpindleCommand, SpindleDirection, SpindleStatus,
-    TaskMode, TaskState,
+    Axis, AxisConfiguration, AxisUnits, CncResult, ControllerError, CoordinateSystem,
+    InterpreterState, JogRequest, LinuxCncApi, MachineAxis, MachineConfiguration, MachineStatus,
+    Position, SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode,
+    TaskState,
 };
 use serialport::SerialPort;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -154,6 +156,43 @@ impl GrblAdapter {
         }
     }
 
+    fn query_settings(session: &mut Session) -> CncResult<HashMap<u16, f64>> {
+        session
+            .port
+            .write_all(b"$$\n")
+            .and_then(|_| session.port.flush())
+            .map_err(|error| ControllerError::new("io", error.to_string()))?;
+
+        let deadline = Instant::now() + RESPONSE_TIMEOUT;
+        let mut settings = HashMap::new();
+
+        loop {
+            let line = Self::read_line(&mut *session.port, deadline)?;
+            if line == "ok" {
+                return Ok(settings);
+            }
+            if let Some(error) = line.strip_prefix("error:") {
+                return Err(ControllerError::new("settings", error));
+            }
+            if line.starts_with("ALARM:") {
+                return Err(ControllerError::new("alarm", line));
+            }
+
+            let Some(setting) = line.strip_prefix('$') else {
+                continue;
+            };
+            let Some((number, value)) = setting.split_once('=') else {
+                continue;
+            };
+            let (Ok(number), Ok(value)) = (number.parse::<u16>(), value.parse::<f64>()) else {
+                continue;
+            };
+            if value.is_finite() {
+                settings.insert(number, value);
+            }
+        }
+    }
+
     fn coordinate_number(system: CoordinateSystem) -> u8 {
         match system {
             CoordinateSystem::G54 => 1,
@@ -297,6 +336,52 @@ impl LinuxCncApi for GrblAdapter {
         let mut session = self.lock_session()?;
         let response = Self::query_status(&mut session)?;
         Self::parse_status(&response, &session)
+    }
+
+    fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
+        let mut session = self.lock_session()?;
+        let settings = Self::query_settings(&mut session)?;
+
+        let travel = |setting: u16| {
+            settings
+                .get(&setting)
+                .copied()
+                .filter(|value| *value > 0.0)
+        };
+        let rpm = |setting: u16| {
+            settings
+                .get(&setting)
+                .copied()
+                .filter(|value| *value >= 0.0)
+        };
+
+        Ok(MachineConfiguration {
+            axes: vec![
+                AxisConfiguration {
+                    axis: MachineAxis::X,
+                    units: AxisUnits::Linear,
+                    max_travel: travel(130),
+                },
+                AxisConfiguration {
+                    axis: MachineAxis::Y,
+                    units: AxisUnits::Linear,
+                    max_travel: travel(131),
+                },
+                AxisConfiguration {
+                    axis: MachineAxis::Z,
+                    units: AxisUnits::Linear,
+                    max_travel: travel(132),
+                },
+            ],
+            spindle: SpindleConfiguration {
+                min_rpm: rpm(31),
+                max_rpm: rpm(30).filter(|maximum| {
+                    settings
+                        .get(&31)
+                        .is_none_or(|minimum| minimum <= maximum)
+                }),
+            },
+        })
     }
 
     fn power_on(&self) -> CncResult<()> {
