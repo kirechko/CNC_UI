@@ -186,6 +186,42 @@ impl AppState {
         controller.send_command(&command);
         Ok(())
     }
+
+    pub(crate) fn start_loaded_program(&self) -> Result<(), String> {
+        let program = self
+            .program
+            .lock()
+            .map_err(|_| "program lock poisoned".to_string())?
+            .clone()
+            .ok_or_else(|| "Программа не загружена".to_string())?;
+
+        if !program
+            .content
+            .lines()
+            .any(|line| !line.split(';').next().unwrap_or("").trim().is_empty())
+        {
+            return Err("Загруженная программа не содержит команд".into());
+        }
+
+        let directory = std::env::temp_dir().join("cnc-ui-programs");
+        fs::create_dir_all(&directory)
+            .map_err(|error| format!("Не удалось создать каталог программы: {error}"))?;
+        let id = UPLOADED_PROGRAM_ID.fetch_add(1, Ordering::Relaxed);
+        let path = directory.join(format!("program-{}-{id}.ngc", std::process::id()));
+        fs::write(&path, &program.content)
+            .map_err(|error| format!("Не удалось восстановить G-code: {error}"))?;
+
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller
+            .load_program(&path)
+            .map_err(|error| format!("{}: {}", error.code, error.message))?;
+        controller
+            .start_program()
+            .map_err(|error| format!("{}: {}", error.code, error.message))
+    }
 }
 
 impl AppState {
@@ -514,14 +550,10 @@ async fn post_program(
 async fn start_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
-    controller
-        .start_program()
+    state
+        .start_loaded_program()
         .map(|_| StatusCode::ACCEPTED)
-        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
 }
 
 async fn pause_program(

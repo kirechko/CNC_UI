@@ -33,11 +33,7 @@ fn load_program(
 
 #[tauri::command]
 fn start_program(state: State<'_, AppState>) -> Result<(), String> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| "controller lock poisoned".to_string())?;
-    controller.start_program().map_err(|error| format!("{}: {}", error.code, error.message))
+    state.start_loaded_program()
 }
 
 #[tauri::command]
