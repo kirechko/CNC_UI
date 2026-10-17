@@ -16,10 +16,19 @@ pub(super) struct AxisLimits {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub(super) struct AngularAxisLimits {
+    pub(super) min_degrees: f64,
+    pub(super) max_degrees: f64,
+    pub(super) max_velocity_degrees_min: f64,
+    pub(super) acceleration_degrees_s2: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub(super) struct AxesConfig {
     pub(super) x: AxisLimits,
     pub(super) y: AxisLimits,
     pub(super) z: AxisLimits,
+    pub(super) a: Option<AngularAxisLimits>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -43,12 +52,21 @@ impl EmulatorConfig {
             max_travel: Some(limits.max_mm - limits.min_mm),
         };
 
+        let mut axes = vec![
+            axis_configuration(MachineAxis::X, &self.axes.x),
+            axis_configuration(MachineAxis::Y, &self.axes.y),
+            axis_configuration(MachineAxis::Z, &self.axes.z),
+        ];
+        if let Some(limits) = &self.axes.a {
+            axes.push(AxisConfiguration {
+                axis: MachineAxis::A,
+                units: AxisUnits::Angular,
+                max_travel: Some(limits.max_degrees - limits.min_degrees),
+            });
+        }
+
         MachineConfiguration {
-            axes: vec![
-                axis_configuration(MachineAxis::X, &self.axes.x),
-                axis_configuration(MachineAxis::Y, &self.axes.y),
-                axis_configuration(MachineAxis::Z, &self.axes.z),
-            ],
+            axes,
             spindle: SpindleConfiguration {
                 min_rpm: Some(self.spindle.min_rpm),
                 max_rpm: Some(self.spindle.max_rpm),
@@ -81,6 +99,19 @@ impl EmulatorConfig {
                 return Err(format!("invalid configuration for axis {name}"));
             }
         }
+        if let Some(axis) = &self.axes.a {
+            if !axis.min_degrees.is_finite()
+                || !axis.max_degrees.is_finite()
+                || axis.min_degrees >= axis.max_degrees
+                || !axis.max_velocity_degrees_min.is_finite()
+                || axis.max_velocity_degrees_min <= 0.0
+                || !axis.acceleration_degrees_s2.is_finite()
+                || axis.acceleration_degrees_s2 <= 0.0
+            {
+                return Err("invalid configuration for axis A".into());
+            }
+        }
+
         if !self.spindle.min_rpm.is_finite()
             || self.spindle.min_rpm < 0.0
             || !self.spindle.max_rpm.is_finite()
