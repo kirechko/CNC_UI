@@ -447,7 +447,10 @@ fn api_worker(
             }
             Err(error) => {
                 eprintln!("[LinuxCncApi] status {}: {}", error.code, error.message);
-                set_ui_alert(&shared_status, "connection", &error.message);
+                let mut current = shared_status.lock().unwrap();
+                current.state = "DISCONNECTED".into();
+                current.message = Some(error.message.clone());
+                current.ui_alert = Some(error_alert("connection", &error.message));
             }
         }
     }
