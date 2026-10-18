@@ -45,7 +45,7 @@ pub struct GrblAdapter {
 }
 
 impl GrblAdapter {
-    pub async fn connect(port_name: &str, baud_rate: u32) -> CncResult<Self> {
+    pub fn connect(port_name: &str, baud_rate: u32) -> CncResult<Self> {
         let port = tokio_serial::new(port_name, baud_rate)
             .open_native_async()
             .map_err(|error| ControllerError::new("connect", error.to_string()))?;
