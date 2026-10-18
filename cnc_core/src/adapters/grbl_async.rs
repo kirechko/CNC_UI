@@ -193,11 +193,11 @@ impl GrblAdapter {
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
-        session
-            .port
-            .write_all(&[byte])
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))
+        if let Err(error) = session.port.write_all(&[byte]).await {
+            session.protocol_poisoned = true;
+            return Err(ControllerError::new("io", error.to_string()));
+        }
+        Ok(())
     }
 
     async fn send_jog_chunk(session: &mut Session, jog: ContinuousJog) -> CncResult<()> {
@@ -650,6 +650,7 @@ impl LinuxCncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         Self::send_command(&mut session, system.label()).await?;
         session.active_coordinate_system = system;
+        session.last_work_offset = None;
         Ok(())
     }
 
@@ -659,6 +660,7 @@ impl LinuxCncApi for GrblAdapter {
         let command = format!("G10 L20 P{} X0 Y0 Z0", Self::coordinate_number(system));
         Self::send_command(&mut session, &command).await?;
         session.active_coordinate_system = system;
+        session.last_work_offset = None;
         Ok(())
     }
 
@@ -671,7 +673,9 @@ impl LinuxCncApi for GrblAdapter {
             Self::coordinate_number(session.active_coordinate_system),
             Self::axis_letter(axis)
         );
-        Self::send_command(&mut session, &command).await
+        Self::send_command(&mut session, &command).await?;
+        session.last_work_offset = None;
+        Ok(())
     }
 
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
@@ -843,10 +847,14 @@ impl LinuxCncApi for GrblAdapter {
         }
 
         let mut session = self.session.lock().await;
-        let gcode = match command.direction {
-            SpindleDirection::Stopped => "M5".to_owned(),
-            SpindleDirection::Clockwise => format!("M3 S{:.0}", command.rpm),
-            SpindleDirection::CounterClockwise => format!("M4 S{:.0}", command.rpm),
+        let gcode = if command.rpm == 0.0 || command.direction == SpindleDirection::Stopped {
+            "M5".to_owned()
+        } else {
+            match command.direction {
+                SpindleDirection::Stopped => unreachable!("handled above"),
+                SpindleDirection::Clockwise => format!("M3 S{:.0}", command.rpm),
+                SpindleDirection::CounterClockwise => format!("M4 S{:.0}", command.rpm),
+            }
         };
         Self::send_command(&mut session, &gcode).await?;
         session.spindle_command = command;
