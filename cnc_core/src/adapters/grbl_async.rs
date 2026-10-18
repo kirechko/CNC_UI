@@ -17,6 +17,7 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_RESPONSE_LINE: usize = 4096;
 const MAX_COMMAND_LENGTH: usize = 80;
+const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
 const JOG_CHUNK_MM: f64 = 10.0;
 
 #[derive(Clone, Copy)]
@@ -800,6 +801,13 @@ impl GrblAdapter {
     }
 
     fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
+        if content.len() > MAX_PROGRAM_BYTES {
+            return Err(ControllerError::new(
+                "bad_program",
+                format!("GRBL program exceeds the {MAX_PROGRAM_BYTES}-byte size limit"),
+            ));
+        }
+
         let mut lines = Vec::new();
 
         for (line_index, line) in content.lines().enumerate() {
@@ -1334,6 +1342,15 @@ mod tests {
                 GrblAdapter::ensure_program_idle(program_streaming, jog_active).unwrap_err();
             assert_eq!(error.code, "motion_busy");
         }
+    }
+
+    #[test]
+    fn rejects_programs_over_the_size_limit() {
+        let content = " ".repeat(MAX_PROGRAM_BYTES + 1);
+        let error = GrblAdapter::parse_program_lines(&content).unwrap_err();
+
+        assert_eq!(error.code, "bad_program");
+        assert!(error.message.contains("size limit"));
     }
 
     #[test]
