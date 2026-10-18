@@ -436,19 +436,21 @@ impl GrblAdapter {
 
     fn is_known_machine_state(state: &str) -> bool {
         let (name, detail) = match state.split_once(':') {
-            Some((name, detail)) => (name, Some(detail)),
-            None => (state, None),
+            Some((name, detail)) => (name.to_ascii_lowercase(), Some(detail)),
+            None => (state.to_ascii_lowercase(), None),
         };
 
-        let known_name = matches!(
-            name.to_ascii_lowercase().as_str(),
-            "idle" | "run" | "jog" | "hold" | "alarm" | "door" | "check" | "home" | "sleep"
-        );
-        let valid_detail = detail.map_or(true, |detail| {
-            !detail.is_empty() && detail.bytes().all(|byte| byte.is_ascii_digit())
-        });
-
-        known_name && valid_detail
+        match name.as_str() {
+            "idle" | "run" | "jog" | "check" | "home" | "sleep" => detail.is_none(),
+            "hold" => matches!(detail, Some("0" | "1")),
+            "door" => detail
+                .and_then(|value| value.parse::<u8>().ok())
+                .is_some_and(|state| state <= 3),
+            "alarm" => detail
+                .and_then(|value| value.parse::<u16>().ok())
+                .is_none_or(|code| code > 0),
+            _ => false,
+        }
     }
 
     fn parse_status(
@@ -1513,6 +1515,17 @@ mod tests {
             .unwrap_err();
 
             assert_eq!(error.code, "protocol");
+        }
+    }
+
+    #[test]
+    fn validates_grbl_state_subcodes() {
+        for state in ["Idle", "Run", "Jog", "Check", "Home", "Sleep", "Hold:0", "Hold:1", "Door:0", "Door:3", "Alarm", "Alarm:1"] {
+            assert!(GrblAdapter::is_known_machine_state(state), "state: {state}");
+        }
+
+        for state in ["Idle:1", "Run:0", "Hold:2", "Door:4", "Door:invalid", "Alarm:0", "Alarm:invalid"] {
+            assert!(!GrblAdapter::is_known_machine_state(state), "state: {state}");
         }
     }
 
