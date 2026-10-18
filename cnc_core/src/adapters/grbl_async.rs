@@ -400,6 +400,13 @@ impl GrblAdapter {
             }
         }
 
+        if machine_position.is_none() && work_position.is_none() {
+            return Err(ControllerError::new(
+                "protocol",
+                "GRBL status response contains no machine or work position",
+            ));
+        }
+
         let offset = work_offset
             .or_else(|| match (machine_position, work_position) {
                 (Some(machine), Some(work)) => Some([
@@ -1057,6 +1064,22 @@ mod tests {
                 "expected malformed status field to be rejected: {response}"
             );
         }
+    }
+
+    #[test]
+    fn rejects_status_without_position_fields() {
+        let error = GrblAdapter::parse_status(
+            "<Idle|FS:0,0>",
+            None,
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, "protocol");
     }
 
     #[test]
