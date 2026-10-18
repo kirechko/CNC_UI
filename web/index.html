@@ -916,6 +916,9 @@
               <button class="toolbar-button" id="load-program" type="button">Загрузить G-code</button>
               <button class="toolbar-button" id="fit-program" type="button">Fit</button>
               <button class="toolbar-button active" id="projection-toggle" type="button" aria-pressed="true">3D</button>
+              <button class="toolbar-button active" id="stock-toggle" type="button" aria-pressed="true">Заготовка: вкл</button>
+              <input id="stock-file" type="file" accept=".stl,model/stl" hidden>
+              <button class="toolbar-button" id="load-stock" type="button">Загрузить STL</button>
               <div class="job-buttons viewer-job-buttons">
                 <button id="job-run" type="button" disabled>▶ Запуск</button>
                 <button id="job-pause" type="button" disabled>Ⅱ Пауза</button>
@@ -1009,6 +1012,8 @@
       let machineConnected = false;
       let statusRequestInFlight = false;
       let loadedProgram = null;
+      let loadedStockMesh = null;
+      let stockVisible = true;
       let machineState = "DISCONNECTED";
       let renderedAxisSignature = null;
 
@@ -1285,6 +1290,9 @@
 
       function sceneBounds() {
         const points = loadedProgram?.segments.flatMap(({ from, to }) => [from, to]) || [];
+        if (loadedStockMesh) {
+          for (const triangle of loadedStockMesh.triangles) points.push(...triangle);
+        }
         points.push([0, 0, 0]);
         const min = [Infinity, Infinity, Infinity];
         const max = [-Infinity, -Infinity, -Infinity];
@@ -1321,6 +1329,88 @@
         }
 
         return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
+      }
+
+      function parseStl(buffer) {
+        if (buffer.byteLength > 50 * 1024 * 1024) {
+          throw new Error("Размер STL превышает лимит 50 MiB.");
+        }
+
+        const view = new DataView(buffer);
+        const triangleCount = buffer.byteLength >= 84 ? view.getUint32(80, true) : 0;
+        const binaryLength = 84 + triangleCount * 50;
+        let triangles = [];
+
+        if (
+          triangleCount > 0 &&
+          triangleCount <= 1_000_000 &&
+          binaryLength === buffer.byteLength
+        ) {
+          for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++) {
+            const offset = 84 + triangleIndex * 50 + 12;
+            const triangle = [];
+
+            for (let vertexIndex = 0; vertexIndex < 3; vertexIndex++) {
+              const vertexOffset = offset + vertexIndex * 12;
+              const point = [
+                view.getFloat32(vertexOffset, true),
+                view.getFloat32(vertexOffset + 4, true),
+                view.getFloat32(vertexOffset + 8, true),
+              ];
+              if (point.some((value) => !Number.isFinite(value))) {
+                throw new Error("STL содержит некорректные координаты.");
+              }
+              triangle.push(point);
+            }
+            triangles.push(triangle);
+          }
+        } else {
+          let text;
+          try {
+            text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+          } catch {
+            throw new Error("Не удалось распознать STL как ASCII или binary.");
+          }
+
+          const vertexPattern =
+            /vertex\s+([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s+([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s+([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/gi;
+          const vertices = [];
+          for (const match of text.matchAll(vertexPattern)) {
+            const point = [Number(match[1]), Number(match[2]), Number(match[3])];
+            if (point.some((value) => !Number.isFinite(value))) {
+              throw new Error("STL содержит некорректные координаты.");
+            }
+            vertices.push(point);
+          }
+
+          if (vertices.length === 0 || vertices.length % 3 !== 0) {
+            throw new Error("STL не содержит корректную треугольную сетку.");
+          }
+          if (vertices.length / 3 > 1_000_000) {
+            throw new Error("STL содержит слишком много треугольников.");
+          }
+
+          for (let index = 0; index < vertices.length; index += 3) {
+            triangles.push(vertices.slice(index, index + 3));
+          }
+        }
+
+        if (triangles.length === 0) {
+          throw new Error("STL не содержит треугольников.");
+        }
+
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const triangle of triangles) {
+          for (const point of triangle) {
+            for (let axis = 0; axis < 3; axis++) {
+              min[axis] = Math.min(min[axis], point[axis]);
+              max[axis] = Math.max(max[axis], point[axis]);
+            }
+          }
+        }
+
+        return { triangles, min, max };
       }
 
       function makeProjector(width, height, bounds) {
@@ -1440,7 +1530,37 @@
         ];
       }
 
+      function drawStockMesh(context, project, mesh, angleA, angleB) {
+        const faces = mesh.triangles.map((triangle) => {
+          const points = triangle.map((point) =>
+            project(rotateStockPoint(point, angleA, angleB)),
+          );
+          return {
+            points,
+            depth: points.reduce((sum, point) => sum + point.depth, 0) / points.length,
+          };
+        }).sort((a, b) => a.depth - b.depth);
+
+        for (const face of faces) {
+          context.beginPath();
+          context.moveTo(face.points[0].x, face.points[0].y);
+          context.lineTo(face.points[1].x, face.points[1].y);
+          context.lineTo(face.points[2].x, face.points[2].y);
+          context.closePath();
+          context.fillStyle = "rgba(66, 164, 212, .18)";
+          context.fill();
+          context.strokeStyle = "rgba(150, 216, 242, .34)";
+          context.lineWidth = 0.7;
+          context.stroke();
+        }
+      }
+
       function drawStock(context, project, bounds, angleA, angleB) {
+        if (loadedStockMesh) {
+          drawStockMesh(context, project, loadedStockMesh, angleA, angleB);
+          return;
+        }
+
         const vertices = [
           [bounds.min[0], bounds.min[1], bounds.min[2]],
           [bounds.max[0], bounds.min[1], bounds.min[2]],
@@ -1672,7 +1792,7 @@
         const projectTrajectory = makeTrajectoryProjector(project);
         trajectoryContext.clearRect(0, 0, width, height);
 
-        if (!loadedProgram || loadedProgram.segments.length === 0) {
+        if ((!loadedProgram || loadedProgram.segments.length === 0) && !loadedStockMesh) {
           viewerEmpty.hidden = false;
           drawOrientationCube();
           drawHexPencil();
@@ -1684,7 +1804,7 @@
         drawGrid(trajectoryContext, width, height, project, stock);
         const angleA = (Number(latestStatus?.machine_a) || 0) * Math.PI / 180;
         const angleB = (Number(latestStatus?.machine_b) || 0) * Math.PI / 180;
-        drawStock(trajectoryContext, project, stock, angleA, angleB);
+        if (stockVisible) drawStock(trajectoryContext, project, stock, angleA, angleB);
 
         const colors = {
           rapid: "rgba(153, 168, 174, .58)",
@@ -1714,7 +1834,7 @@
           trajectoryContext.stroke();
         };
 
-        for (const segment of loadedProgram.segments) {
+        for (const segment of loadedProgram?.segments || []) {
           const delta = segment.to.map((value, axis) => value - segment.from[axis]);
           const length = Math.sqrt(delta.reduce((sum, value) => sum + value * value, 0));
 
@@ -2296,6 +2416,39 @@
           jobCaption.textContent = `Программа загружена · ${status.total_lines} строк`;
         }
       }
+
+      const stockFileInput = document.querySelector("#stock-file");
+      const stockToggle = document.querySelector("#stock-toggle");
+
+      stockToggle.addEventListener("click", () => {
+        stockVisible = !stockVisible;
+        stockToggle.textContent = `Заготовка: ${stockVisible ? "вкл" : "выкл"}`;
+        stockToggle.classList.toggle("active", stockVisible);
+        stockToggle.setAttribute("aria-pressed", String(stockVisible));
+        drawToolpath();
+      });
+
+      document.querySelector("#load-stock").addEventListener("click", () => stockFileInput.click());
+      stockFileInput.addEventListener("change", async () => {
+        const file = stockFileInput.files?.[0];
+        if (!file) return;
+
+        try {
+          loadedStockMesh = parseStl(await file.arrayBuffer());
+          stockVisible = true;
+          stockToggle.textContent = "Заготовка: вкл";
+          stockToggle.classList.add("active");
+          stockToggle.setAttribute("aria-pressed", "true");
+          document.querySelector("#program-name").textContent =
+            `${loadedProgram?.name || "NO PROGRAM"} · STL: ${file.name}`;
+          drawToolpath();
+          document.querySelector("#message").textContent = `Заготовка STL загружена: ${file.name}`;
+        } catch (error) {
+          document.querySelector("#message").textContent = `Ошибка загрузки STL: ${error.message}`;
+        } finally {
+          stockFileInput.value = "";
+        }
+      });
 
       document.querySelector("#load-program").addEventListener("click", () => fileInput.click());
       fileInput.addEventListener("change", async () => {
