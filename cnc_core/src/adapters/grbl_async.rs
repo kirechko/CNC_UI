@@ -244,7 +244,30 @@ impl GrblAdapter {
             ));
         }
 
-        let command = format!("$J=G91 {}{distance} F{feed_rate}", Self::axis_letter(axis));
+        let command = format!("$J=G21 G91 {}{distance} F{feed_rate}", Self::axis_letter(axis));
+        Self::validate_command(&command)?;
+        Ok(command)
+    }
+
+    fn format_xy_jog_command(
+        x_direction: i8,
+        y_direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<String> {
+        if ![-1, 0, 1].contains(&x_direction)
+            || ![-1, 0, 1].contains(&y_direction)
+            || (x_direction == 0 && y_direction == 0)
+            || !feed_rate.is_finite()
+            || feed_rate <= 0.0
+        {
+            return Err(ControllerError::new("bad_jog", "invalid continuous XY jog"));
+        }
+
+        let norm =
+            f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
+        let x = JOG_CHUNK_MM * f64::from(x_direction) / norm;
+        let y = JOG_CHUNK_MM * f64::from(y_direction) / norm;
+        let command = format!("$J=G21 G91 X{x:.4} Y{y:.4} F{feed_rate}");
         Self::validate_command(&command)?;
         Ok(command)
     }
@@ -257,12 +280,7 @@ impl GrblAdapter {
                 jog.feed_rate,
             )?
         } else {
-            let norm =
-                f64::from(jog.x_direction * jog.x_direction + jog.y_direction * jog.y_direction)
-                    .sqrt();
-            let x = JOG_CHUNK_MM * f64::from(jog.x_direction) / norm;
-            let y = JOG_CHUNK_MM * f64::from(jog.y_direction) / norm;
-            format!("$J=G91 X{x:.4} Y{y:.4} F{}", jog.feed_rate)
+            Self::format_xy_jog_command(jog.x_direction, jog.y_direction, jog.feed_rate)?
         };
 
         Self::send_command(session, &command).await
@@ -1118,10 +1136,18 @@ mod tests {
     }
 
     #[test]
-    fn axis_jog_command_preserves_small_distances_and_fractional_feed_rates() {
+    fn axis_jog_command_preserves_metric_units_and_numeric_precision() {
         let command = GrblAdapter::format_axis_jog_command(Axis::X, 0.00001, 0.25).unwrap();
 
-        assert_eq!(command, "$J=G91 X0.00001 F0.25");
+        assert_eq!(command, "$J=G21 G91 X0.00001 F0.25");
+    }
+
+    #[test]
+    fn xy_jog_command_explicitly_uses_metric_units() {
+        let command = GrblAdapter::format_xy_jog_command(1, -1, 1200.0).unwrap();
+
+        assert_eq!(command, "$J=G21 G91 X7.0711 Y-7.0711 F1200");
+        assert!(GrblAdapter::format_xy_jog_command(0, 0, 1200.0).is_err());
     }
 
     #[test]
