@@ -529,7 +529,7 @@ fn api_worker(
             Ok(status) => {
                 let reconnected = shared_status.lock().unwrap().state == "DISCONNECTED";
                 if reconnected {
-                    if let Ok(configuration) = api.machine_configuration() {
+                    if let Ok(configuration) = runtime.block_on(api.machine_configuration()) {
                         shared_status.lock().unwrap().machine_configuration = Some(configuration);
                     }
                 }
