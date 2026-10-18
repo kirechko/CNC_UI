@@ -1352,7 +1352,9 @@
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#feedback");
-      const jogButtons = [...document.querySelectorAll("[data-axis]")];
+      const jogButtons = [
+        ...document.querySelectorAll("[data-axis], [data-x-direction][data-y-direction]"),
+      ];
       const axisRowsContainer = document.querySelector("#axis-rows");
       const positionDialog = document.querySelector("#position-dialog");
       const positionValue = document.querySelector("#position-value");
