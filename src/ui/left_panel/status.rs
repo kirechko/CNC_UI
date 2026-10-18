@@ -8,8 +8,8 @@ use super::*;
 pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (GtkBox, GtkBox) {
     let pos_box = GtkBox::new(Orientation::Vertical, 4);
     pos_box.add_css_class("position-panel");
-    let header = GtkBox::new(Orientation::Horizontal, 10);
-    header.set_margin_bottom(2);
+    let header = GtkBox::new(Orientation::Horizontal, 5);
+    header.set_margin_bottom(1);
 
     let title = Label::new(Some("POSITION"));
     title.add_css_class("heading");
@@ -22,7 +22,7 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     header.append(&badge);
     pos_box.append(&header);
 
-    let coordinate_row = GtkBox::new(Orientation::Horizontal, 4);
+    let coordinate_row = GtkBox::new(Orientation::Horizontal, 2);
     coordinate_row.add_css_class("position-coordinate-row");
     let coordinate_label = Label::new(Some("COORD"));
     coordinate_label.add_css_class("dim-label");
@@ -57,7 +57,7 @@ pub(super) fn create_status_panel(controller: Arc<Mutex<CNCController>>) -> (Gtk
     let position_mode = Rc::new(std::cell::Cell::new(false));
     let position_mode_toggle = gtk4::ToggleButton::with_label("WPOS");
     position_mode_toggle.set_tooltip_text(Some("Переключить рабочие и машинные координаты"));
-    position_mode_toggle.set_size_request(54, 28);
+    position_mode_toggle.set_size_request(54, 24);
     let position_mode_for_toggle = position_mode.clone();
     position_mode_toggle.connect_toggled(move |button| {
         let machine_coordinates = button.is_active();
