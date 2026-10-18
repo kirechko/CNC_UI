@@ -782,7 +782,7 @@ impl GrblAdapter {
             .strip_prefix('<')
             .and_then(|response| response.strip_suffix('>'))
             .and_then(|response| response.split('|').next())
-            == Some("Idle")
+            .is_some_and(|state| state.eq_ignore_ascii_case("Idle"))
     }
 
     fn ensure_controller_idle(status_response: &str) -> CncResult<()> {
@@ -800,7 +800,7 @@ impl GrblAdapter {
                 format!("unknown GRBL machine state: {state}"),
             ));
         }
-        if state != "Idle" {
+        if !state.eq_ignore_ascii_case("Idle") {
             return Err(ControllerError::new(
                 "motion_busy",
                 format!("cannot start a program while GRBL state is {state}"),
@@ -1330,6 +1330,7 @@ mod tests {
     #[test]
     fn idle_detection_requires_an_exact_valid_state_name() {
         assert!(GrblAdapter::is_idle_status("<Idle|MPos:0,0,0>"));
+        assert!(GrblAdapter::is_idle_status("<idle|MPos:0,0,0>"));
         assert!(!GrblAdapter::is_idle_status("<Idleish|MPos:0,0,0>"));
         assert!(!GrblAdapter::is_idle_status("<Run|MPos:0,0,0>"));
         assert!(!GrblAdapter::is_idle_status("Idle|MPos:0,0,0"));
