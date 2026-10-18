@@ -100,9 +100,15 @@ impl CNCController {
 
         thread::Builder::new()
             .name("cnc-api-worker".into())
-            .spawn(move || loop {
-                match EmAdapter::connect(&socket_path) {
-                    Ok(api) => match api.status() {
+            .spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to create CNC API worker runtime");
+
+                loop {
+                    match EmAdapter::connect(&socket_path) {
+                        Ok(api) => match runtime.block_on(api.status()) {
                         Ok(initial_status) => {
                             *worker_status.lock().unwrap() = from_api_status(initial_status);
                             api_worker(
@@ -110,6 +116,7 @@ impl CNCController {
                                 receiver,
                                 emergency_receiver,
                                 worker_status.clone(),
+                                &runtime,
                             );
                             return;
                         }
@@ -117,10 +124,11 @@ impl CNCController {
                             set_ui_alert(&worker_status, &error.code, &error.message);
                             thread::sleep(Duration::from_secs(1));
                         }
-                    },
-                    Err(error) => {
-                        set_ui_alert(&worker_status, &error.code, &error.message);
-                        thread::sleep(Duration::from_secs(1));
+                        },
+                        Err(error) => {
+                            set_ui_alert(&worker_status, &error.code, &error.message);
+                            thread::sleep(Duration::from_secs(1));
+                        }
                     }
                 }
             })
@@ -145,7 +153,12 @@ impl CNCController {
         thread::Builder::new()
             .name("cnc-api-worker".into())
             .spawn(move || {
-                match api.status() {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to create CNC API worker runtime");
+
+                match runtime.block_on(api.status()) {
                     Ok(initial_status) => {
                         *worker_status.lock().unwrap() = from_api_status(initial_status);
                     }
@@ -154,7 +167,7 @@ impl CNCController {
                     }
                 }
 
-                api_worker(api, receiver, emergency_receiver, worker_status);
+                api_worker(api, receiver, emergency_receiver, worker_status, &runtime);
             })
             .map_err(|error| crate::cnc_api::ControllerError::new("worker", error.to_string()))?;
 
@@ -423,8 +436,9 @@ fn api_worker(
     receiver: mpsc::Receiver<Command>,
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
+    runtime: &tokio::runtime::Runtime,
 ) {
-    let configuration = api.machine_configuration().ok();
+    let configuration = runtime.block_on(api.machine_configuration()).ok();
     shared_status.lock().unwrap().machine_configuration = configuration;
 
     loop {
@@ -433,7 +447,7 @@ fn api_worker(
             Ok(()) => {
                 // Отбросить команды, накопившиеся до аварийной остановки.
                 while receiver.try_recv().is_ok() {}
-                if let Err(error) = api.estop() {
+                if let Err(error) = runtime.block_on(api.estop()) {
                     eprintln!("[LinuxCncApi] E-Stop failed: {error:?}");
                     set_ui_alert(&shared_status, &error.code, &error.message);
                 }
@@ -448,31 +462,35 @@ fn api_worker(
                 // E-Stop мог прийти, пока worker ожидал обычную команду.
                 if emergency_receiver.try_recv().is_ok() {
                     while receiver.try_recv().is_ok() {}
-                    if let Err(error) = api.estop() {
+                    if let Err(error) = runtime.block_on(api.estop()) {
                         eprintln!("[LinuxCncApi] E-Stop failed: {error:?}");
                         set_ui_alert(&shared_status, &error.code, &error.message);
                     }
                     continue;
                 }
-                let result = match command {
-                    Command::LoadProgram(path) => api.load_program(&path),
-                    Command::ProgramRun => api.program_run(0),
-                    Command::ProgramPause => api.program_pause(),
-                    Command::ProgramResume => api.program_resume(),
-                    Command::ProgramAbort => api.program_abort(),
-                    Command::ResetAlarm => api.clear_error().and_then(|_| api.power_on()),
-                    Command::SelectCoordinateSystem(system) => api.select_coordinate_system(system),
-                    Command::SetWorkZero(system) => api.set_work_zero(system),
-                    Command::SetAxisWorkZero(axis) => api.set_axis_work_zero(axis),
-                    Command::HomeAll => api.home(None),
-                    Command::Home(axis) => api.home(Some(axis)),
-                    Command::Mdi(command) => api.mdi(&command),
+                let result = runtime.block_on(async {
+                    match command {
+                    Command::LoadProgram(path) => api.load_program(&path).await,
+                    Command::ProgramRun => api.program_run(0).await,
+                    Command::ProgramPause => api.program_pause().await,
+                    Command::ProgramResume => api.program_resume().await,
+                    Command::ProgramAbort => api.program_abort().await,
+                    Command::ResetAlarm => match api.clear_error().await {
+                        Ok(()) => api.power_on().await,
+                        Err(error) => Err(error),
+                    },
+                    Command::SelectCoordinateSystem(system) => api.select_coordinate_system(system).await,
+                    Command::SetWorkZero(system) => api.set_work_zero(system).await,
+                    Command::SetAxisWorkZero(axis) => api.set_axis_work_zero(axis).await,
+                    Command::HomeAll => api.home(None).await,
+                    Command::Home(axis) => api.home(Some(axis)).await,
+                    Command::Mdi(command) => api.mdi(&command).await,
                     Command::Spindle(command) => {
                         eprintln!(
                             "[Backend/Worker] sending spindle command to API: direction={:?}, rpm={:.0}",
                             command.direction, command.rpm
                         );
-                        let result = api.set_spindle(command);
+                        let result = api.set_spindle(command).await;
                         match &result {
                             Ok(()) => eprintln!("[Backend/Worker] spindle command accepted by API"),
                             Err(error) => eprintln!(
@@ -482,15 +500,16 @@ fn api_worker(
                         }
                         result
                     }
-                    Command::JogIncrement(request) => api.jog_increment(request),
+                    Command::JogIncrement(request) => api.jog_increment(request).await,
                     Command::JogContinuous(axis, direction, feed_rate) => {
-                        api.jog_continuous(axis, direction, feed_rate)
+                        api.jog_continuous(axis, direction, feed_rate).await
                     }
                     Command::JogContinuousXY(x_direction, y_direction, feed_rate) => {
-                        api.jog_continuous_xy(x_direction, y_direction, feed_rate)
+                        api.jog_continuous_xy(x_direction, y_direction, feed_rate).await
                     }
-                    Command::JogCancel => api.cancel_jog(),
-                };
+                    Command::JogCancel => api.cancel_jog().await,
+                    }
+                });
 
                 match result {
                     Ok(()) => {
@@ -506,7 +525,7 @@ fn api_worker(
             Err(mpsc::RecvTimeoutError::Disconnected) => return,
         }
 
-        match api.status() {
+        match runtime.block_on(api.status()) {
             Ok(status) => {
                 let reconnected = shared_status.lock().unwrap().state == "DISCONNECTED";
                 if reconnected {
