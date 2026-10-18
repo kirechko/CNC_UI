@@ -30,6 +30,7 @@ struct Session {
     port: SerialStream,
     rx_buffer: Vec<u8>,
     last_work_offset: Option<[f64; 3]>,
+    protocol_poisoned: bool,
     program: Vec<String>,
     program_name: Option<String>,
     current_line: u32,
@@ -66,6 +67,7 @@ impl GrblAdapter {
                 continuous_jog: None,
                 rx_buffer: Vec::new(),
                 last_work_offset: None,
+                protocol_poisoned: false,
             }),
         })
     }
@@ -118,7 +120,19 @@ impl GrblAdapter {
         }
     }
 
+    fn ensure_protocol_usable(protocol_poisoned: bool) -> CncResult<()> {
+        if protocol_poisoned {
+            return Err(ControllerError::new(
+                "protocol_desynchronized",
+                "GRBL response timed out; reconnect before sending more commands",
+            ));
+        }
+        Ok(())
+    }
+
     async fn send_command(session: &mut Session, command: &str) -> CncResult<()> {
+        Self::ensure_protocol_usable(session.protocol_poisoned)?;
+
         if command.contains(['\n', '\r']) {
             return Err(ControllerError::new(
                 "bad_command",
@@ -140,7 +154,7 @@ impl GrblAdapter {
             .await
             .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
-        timeout(RESPONSE_TIMEOUT, async {
+        match timeout(RESPONSE_TIMEOUT, async {
             loop {
                 let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
                 if line == "ok" {
@@ -159,12 +173,20 @@ impl GrblAdapter {
             }
         })
         .await
-        .map_err(|_| {
-            ControllerError::new("timeout", "timed out waiting for GRBL acknowledgement")
-        })?
+        {
+            Ok(result) => result,
+            Err(_) => {
+                session.protocol_poisoned = true;
+                Err(ControllerError::new(
+                    "timeout",
+                    "timed out waiting for GRBL acknowledgement; reconnect required",
+                ))
+            }
+        }
     }
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
+        Self::ensure_protocol_usable(session.protocol_poisoned)?;
         session
             .port
             .write_all(&[byte])
@@ -193,13 +215,14 @@ impl GrblAdapter {
     }
 
     async fn query_status(session: &mut Session) -> CncResult<String> {
+        Self::ensure_protocol_usable(session.protocol_poisoned)?;
         session
             .port
             .write_all(b"?")
             .await
             .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
-        timeout(STATUS_TIMEOUT, async {
+        match timeout(STATUS_TIMEOUT, async {
             loop {
                 let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
                 if line.starts_with('<') && line.ends_with('>') {
@@ -208,17 +231,27 @@ impl GrblAdapter {
             }
         })
         .await
-        .map_err(|_| ControllerError::new("timeout", "timed out waiting for GRBL status"))?
+        {
+            Ok(result) => result,
+            Err(_) => {
+                session.protocol_poisoned = true;
+                Err(ControllerError::new(
+                    "timeout",
+                    "timed out waiting for GRBL status; reconnect required",
+                ))
+            }
+        }
     }
 
     async fn query_settings(session: &mut Session) -> CncResult<HashMap<u16, f64>> {
+        Self::ensure_protocol_usable(session.protocol_poisoned)?;
         session
             .port
             .write_all(b"$$\n")
             .await
             .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
-        timeout(RESPONSE_TIMEOUT, async {
+        match timeout(RESPONSE_TIMEOUT, async {
             let mut settings = HashMap::new();
 
             loop {
@@ -248,7 +281,16 @@ impl GrblAdapter {
             }
         })
         .await
-        .map_err(|_| ControllerError::new("timeout", "timed out waiting for GRBL settings"))?
+        {
+            Ok(result) => result,
+            Err(_) => {
+                session.protocol_poisoned = true;
+                Err(ControllerError::new(
+                    "timeout",
+                    "timed out waiting for GRBL settings; reconnect required",
+                ))
+            }
+        }
     }
 
     fn parse_triplet(value: &str) -> Option<[f64; 3]> {
@@ -763,6 +805,13 @@ mod tests {
             direction: SpindleDirection::Clockwise,
             rpm: 1200.0,
         }
+    }
+
+    #[test]
+    fn rejects_operations_after_protocol_timeout() {
+        let error = GrblAdapter::ensure_protocol_usable(true).unwrap_err();
+        assert_eq!(error.code, "protocol_desynchronized");
+        assert!(GrblAdapter::ensure_protocol_usable(false).is_ok());
     }
 
     #[test]
