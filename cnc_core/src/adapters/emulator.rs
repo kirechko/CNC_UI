@@ -3,10 +3,9 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
@@ -82,7 +81,12 @@ impl EmAdapter {
                 .get_mut()
                 .write_all(&request)
                 .await
-                .and_then(|_| async { connection.reader.get_mut().write_all(b"\n").await }.await)
+                .map_err(|error| ControllerError::new("io", error.to_string()))?;
+            connection
+                .reader
+                .get_mut()
+                .write_all(b"\n")
+                .await
                 .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
             let mut line = String::new();
