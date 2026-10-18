@@ -3352,6 +3352,26 @@
         drawJogDial();
       });
 
+      async function sendDialXyJog(xDirection, yDirection, distance) {
+        if (!machineConnected) return;
+        const request = { xDirection, yDirection, distance };
+        const invoke = window.__TAURI__?.core?.invoke;
+
+        if (invoke) {
+          await invoke("jog_xy", request);
+          return;
+        }
+
+        const response = await fetch("/api/jog/xy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        });
+        if (!response.ok) {
+          throw new Error((await response.text()) || `HTTP ${response.status}`);
+        }
+      }
+
       async function sendDialJog(axis, direction, distance) {
         if (!machineConnected) return;
         const request = { axis, direction, distance };
@@ -3387,8 +3407,10 @@
         ][selection.sector];
 
         try {
-          for (const [axis, direction] of moves) {
-            await sendDialJog(axis, direction, selection.step);
+          if (moves.length === 2) {
+            await sendDialXyJog(moves[0][1], moves[1][1], selection.step);
+          } else {
+            await sendDialJog(moves[0][0], moves[0][1], selection.step);
           }
           feedback.textContent = `Jog ${moves.map(([axis, direction]) => `${axis}${direction > 0 ? "+" : "−"}`).join(" / ")} · ${selection.step} mm`;
           feedback.className = "panel-caption";

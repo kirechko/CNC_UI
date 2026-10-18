@@ -153,6 +153,28 @@ fn go_to_axis_work_value(
 }
 
 #[tauri::command]
+fn jog_xy(
+    state: State<'_, AppState>,
+    x_direction: i8,
+    y_direction: i8,
+    distance: f64,
+) -> Result<(), String> {
+    if ![-1, 1].contains(&x_direction)
+        || ![-1, 1].contains(&y_direction)
+        || ![0.1, 1.0, 10.0, 100.0].contains(&distance)
+    {
+        return Err("XY directions must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into());
+    }
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.jog_xy_step(x_direction, y_direction, distance);
+    Ok(())
+}
+
+#[tauri::command]
 fn jog(
     state: State<'_, AppState>,
     axis: Axis,
@@ -199,7 +221,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             home_axis,
             home_all,
             set_axis_work_value,
-            go_to_axis_work_value
+            go_to_axis_work_value,
+            jog_xy
         ])
         .run(tauri::generate_context!())?;
 
