@@ -2313,10 +2313,10 @@
           camera.yaw = -0.72;
           camera.pitch = sign > 0 ? Math.PI / 2 - 0.001 : -Math.PI / 2 + 0.001;
         } else if (axis === "X") {
-          camera.yaw = sign > 0 ? 0 : Math.PI;
+          camera.yaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
           camera.pitch = 0.001;
         } else {
-          camera.yaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+          camera.yaw = sign > 0 ? 0 : Math.PI;
           camera.pitch = 0.001;
         }
         camera.panX = 0;
