@@ -241,7 +241,14 @@ impl GrblAdapter {
         Some(result)
     }
 
-    fn parse_status(response: &str, session: &Session) -> CncResult<MachineStatus> {
+    fn parse_status(
+        response: &str,
+        active_coordinate_system: CoordinateSystem,
+        spindle_command: SpindleCommand,
+        program_name: Option<&str>,
+        current_line: u32,
+        total_lines: u32,
+    ) -> CncResult<MachineStatus> {
         let body = response
             .strip_prefix('<')
             .and_then(|value| value.strip_suffix('>'))
@@ -277,7 +284,16 @@ impl GrblAdapter {
             }
         }
 
-        let offset = work_offset.unwrap_or([0.0; 3]);
+        let offset = work_offset
+            .or_else(|| match (machine_position, work_position) {
+                (Some(machine), Some(work)) => Some([
+                    machine[0] - work[0],
+                    machine[1] - work[1],
+                    machine[2] - work[2],
+                ]),
+                _ => None,
+            })
+            .unwrap_or([0.0; 3]);
         let machine = machine_position
             .or_else(|| {
                 work_position.map(|work| {
@@ -329,7 +345,7 @@ impl GrblAdapter {
                 a: 0.0,
                 b: 0.0,
             },
-            active_coordinate_system: session.active_coordinate_system,
+            active_coordinate_system,
             coordinate_systems: Vec::new(),
             feed_rate: if jogging { 0.0 } else { feed_rate },
             jog_rate: if jogging { feed_rate } else { 0.0 },
@@ -341,17 +357,17 @@ impl GrblAdapter {
                 None
             },
             spindle: SpindleStatus {
-                commanded_rpm: session.spindle_command.rpm,
+                commanded_rpm: spindle_command.rpm,
                 actual_rpm,
-                direction: session.spindle_command.direction,
-                enabled: actual_rpm > 0.0 || session.spindle_command.rpm > 0.0,
+                direction: spindle_command.direction,
+                enabled: actual_rpm > 0.0 || spindle_command.rpm > 0.0,
             },
             mist_coolant_on: false,
             flood_coolant_on: false,
             max_spindle_rpm: 12_000.0,
-            loaded_program: session.program_name.clone(),
-            current_line: session.current_line,
-            total_lines: session.program.len() as u32,
+            loaded_program: program_name.map(str::to_owned),
+            current_line,
+            total_lines,
             message: Some(format!("GRBL {state}")),
             homed: [false; 5],
             homing,
@@ -398,7 +414,14 @@ impl LinuxCncApi for GrblAdapter {
             }
         }
 
-        Self::parse_status(&response, &session)
+        Self::parse_status(
+            &response,
+            session.active_coordinate_system,
+            session.spindle_command,
+            session.program_name.as_deref(),
+            session.current_line,
+            session.program.len() as u32,
+        )
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
@@ -668,5 +691,73 @@ impl LinuxCncApi for GrblAdapter {
     async fn clear_error(&self) -> CncResult<()> {
         let mut session = self.session.lock().await;
         Self::send_command(&mut session, "$X").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spindle_command() -> SpindleCommand {
+        SpindleCommand {
+            direction: SpindleDirection::Clockwise,
+            rpm: 1200.0,
+        }
+    }
+
+    #[test]
+    fn parses_machine_position_and_derives_work_offset() {
+        let status = GrblAdapter::parse_status(
+            "<Idle|MPos:10.000,20.000,30.000|WPos:1.000,2.000,3.000|FS:100.0,0.0>",
+            CoordinateSystem::G55,
+            spindle_command(),
+            Some("part.ngc"),
+            2,
+            5,
+        )
+        .unwrap();
+
+        assert_eq!(status.position.x, 10.0);
+        assert_eq!(status.position.y, 20.0);
+        assert_eq!(status.position.z, 30.0);
+        assert_eq!(status.work_offset.x, 9.0);
+        assert_eq!(status.work_offset.y, 18.0);
+        assert_eq!(status.work_offset.z, 27.0);
+        assert_eq!(status.active_coordinate_system, CoordinateSystem::G55);
+        assert_eq!(status.loaded_program.as_deref(), Some("part.ngc"));
+        assert_eq!((status.current_line, status.total_lines), (2, 5));
+    }
+
+    #[test]
+    fn reported_work_coordinate_offset_takes_precedence() {
+        let status = GrblAdapter::parse_status(
+            "<Idle|MPos:10,20,30|WPos:1,2,3|WCO:8,17,26|FS:0,0>",
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(status.work_offset.x, 8.0);
+        assert_eq!(status.work_offset.y, 17.0);
+        assert_eq!(status.work_offset.z, 26.0);
+    }
+
+    #[test]
+    fn rejects_malformed_status_and_non_finite_coordinates() {
+        assert!(GrblAdapter::parse_status(
+            "Idle|MPos:1,2,3",
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .is_err());
+
+        assert!(GrblAdapter::parse_triplet("1,NaN,3").is_none());
+        assert!(GrblAdapter::parse_triplet("1,2").is_none());
     }
 }
