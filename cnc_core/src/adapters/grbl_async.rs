@@ -720,6 +720,16 @@ impl GrblAdapter {
         }
     }
 
+    fn ensure_program_idle(program_streaming: bool, jog_active: bool) -> CncResult<()> {
+        if program_streaming || jog_active {
+            return Err(ControllerError::new(
+                "motion_busy",
+                "cannot load or start a program while another program or Jog is active",
+            ));
+        }
+        Ok(())
+    }
+
     fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
         let mut lines = Vec::new();
 
@@ -1028,6 +1038,10 @@ impl LinuxCncApi for GrblAdapter {
             .to_owned();
 
         let mut session = self.session.lock().await;
+        Self::ensure_program_idle(
+            session.program_streaming,
+            session.continuous_jog.is_some() || session.jog_chunk_active,
+        )?;
         session.program = lines;
         session.program_name = Some(name);
         session.current_line = 0;
@@ -1037,6 +1051,10 @@ impl LinuxCncApi for GrblAdapter {
 
     async fn program_run(&self, start_line: u32) -> CncResult<()> {
         let mut session = self.session.lock().await;
+        Self::ensure_program_idle(
+            session.program_streaming,
+            session.continuous_jog.is_some() || session.jog_chunk_active,
+        )?;
         let start = start_line as usize;
         if session.program.is_empty() || start >= session.program.len() {
             return Err(ControllerError::new(
@@ -1184,6 +1202,19 @@ mod tests {
         for command in ["G1 X1\tY2", "G1 X1\0", "G1 X1 °"] {
             let error = GrblAdapter::validate_command(command).unwrap_err();
             assert_eq!(error.code, "bad_command", "command: {command:?}");
+        }
+    }
+
+    #[test]
+    fn prevents_program_load_or_start_during_program_or_jog_motion() {
+        assert!(GrblAdapter::ensure_program_idle(false, false).is_ok());
+
+        for (program_streaming, jog_active) in
+            [(true, false), (false, true), (true, true)]
+        {
+            let error =
+                GrblAdapter::ensure_program_idle(program_streaming, jog_active).unwrap_err();
+            assert_eq!(error.code, "motion_busy");
         }
     }
 
