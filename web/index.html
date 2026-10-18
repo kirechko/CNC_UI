@@ -1185,14 +1185,14 @@
           <div class="panel-heading">
             <span class="panel-title">JOG</span>
             <div class="jog-mode-switch" role="group" aria-label="Вид управления">
-              <button class="jog-mode-button" id="jog-dial-mode" type="button" title="Управление диском" aria-label="Управление диском" aria-pressed="false">
+              <button class="jog-mode-button active" id="jog-dial-mode" type="button" title="Управление диском" aria-label="Управление диском" aria-pressed="true">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="9"></circle>
                   <circle cx="12" cy="12" r="2"></circle>
                   <path d="M12 3v4M21 12h-4M12 21v-4M3 12h4"></path>
                 </svg>
               </button>
-              <button class="jog-mode-button active" id="jog-keys-mode" type="button" title="Управление кнопками" aria-label="Управление кнопками" aria-pressed="true">
+              <button class="jog-mode-button" id="jog-keys-mode" type="button" title="Управление кнопками" aria-label="Управление кнопками" aria-pressed="false">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="5" width="18" height="14" rx="2"></rect>
                   <path d="M6 9h1m3 0h1m3 0h1m3 0h1M7 12h1m3 0h1m3 0h1m-9 3h10"></path>
@@ -1215,7 +1215,7 @@
             </div>
           </div>
           <div class="panel-body">
-            <div id="jog-keys-panel">
+            <div id="jog-keys-panel" hidden>
             <div class="jog-step-row">
               <label for="distance">ШАГ ПЕРЕМЕЩЕНИЯ</label>
               <select id="distance" class="step-select">
@@ -1251,7 +1251,7 @@
             </div>
 
             </div>
-            <div id="jog-dial-panel" hidden>
+            <div id="jog-dial-panel">
               <div class="jog-dial-layout">
                 <div class="jog-dial-control">
                   <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: выберите сектор для направления движения; в пошаговом режиме кольца задают шаг, в непрерывном удерживайте кнопку и перемещайте указатель" title="XY Jog: кольцо задаёт шаг; нажмите сектор для перемещения"></canvas>
@@ -1287,7 +1287,7 @@
             <div class="spindle-speed-control">
               <label for="spindle-speed">RPM</label>
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
-              <button class="spindle-step-button" id="spindle-step" type="button" title="Шаг изменения скорости шпинделя" aria-label="Выбрать шаг изменения скорости шпинделя">100</button>
+              <button class="spindle-step-button" id="spindle-step" type="button" title="Заданная скорость шпинделя, RPM" aria-label="Заданная скорость шпинделя">0</button>
             </div>
             <div class="spindle-actions">
               <button class="spindle-toggle" id="spindle-toggle" type="button" aria-label="Запустить шпиндель" title="Запустить шпиндель на заданной скорости" disabled>
@@ -2818,6 +2818,7 @@
       const spindleToggle = document.querySelector("#spindle-toggle");
       const spindleToggleIcon = document.querySelector("#spindle-toggle-icon");
       const spindleToggleValue = document.querySelector("#spindle-toggle-value");
+      const spindleStepButton = document.querySelector("#spindle-step");
       let spindleIsRunning = false;
       let spindleMinimumRpm = 0;
       let spindleMaximumRpm = 0;
@@ -2865,6 +2866,7 @@
         );
         spindleSpeedSlider.value = String(rpm);
         spindleToggleValue.textContent = rpm.toFixed(0);
+        spindleStepButton.textContent = rpm.toFixed(0);
       }
 
       spindleSpeedSlider.addEventListener("input", () => syncSpindleSpeed(spindleSpeedSlider.value));
@@ -2907,6 +2909,7 @@
             : spindleMinimumRpm;
         spindleSpeedSlider.value = String(nextSetpoint);
         spindleToggleValue.textContent = nextSetpoint.toFixed(0);
+        spindleStepButton.textContent = nextSetpoint.toFixed(0);
 
         spindleToggle.classList.toggle("running", spindleIsRunning);
         spindleToggle.setAttribute("aria-label", spindleIsRunning ? "Остановить шпиндель" : "Запустить шпиндель");
@@ -3446,6 +3449,7 @@
 
       jogKeysMode.addEventListener("click", () => selectJogMode("keys"));
       jogDialMode.addEventListener("click", () => selectJogMode("dial"));
+      selectJogMode("dial");
 
       function dialSelectionAt(x, y, width, height) {
         const radius = Math.min(width, height) * 0.46;
