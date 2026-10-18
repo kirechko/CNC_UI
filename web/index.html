@@ -2900,6 +2900,7 @@
       const spindleCcwButton = document.querySelector("#spindle-ccw");
       let spindleUiDirection = "stopped";
       let pendingSpindleDirection = null;
+      let spindleCommandError = null;
       const spindleStepButton = document.querySelector("#spindle-step");
       const spindleSpeedOptions = document.querySelector("#spindle-speed-options");
       let spindleIsRunning = false;
@@ -3039,10 +3040,11 @@
             "/api/spindle",
             "POST",
           );
+          spindleCommandError = null;
           await refreshStatus();
         } catch (error) {
           pendingSpindleDirection = null;
-          document.querySelector("#message").textContent = `Ошибка шпинделя: ${error.message}`;
+          spindleCommandError = `Ошибка шпинделя: ${error.message}`;
           await refreshStatus();
         }
       }
@@ -3287,7 +3289,7 @@
           updatePositionReadouts(status);
 
           document.querySelector("#message").textContent =
-            status.error || status.message || "Контроллер готов.";
+            status.error || spindleCommandError || status.message || "Контроллер готов.";
           toolPosition[0] = Number(status.x) || 0;
           toolPosition[1] = Number(status.y) || 0;
           toolPosition[2] = Number(status.z) || 0;
