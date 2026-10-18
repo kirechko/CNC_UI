@@ -581,8 +581,8 @@ pub(crate) struct StatusResponse {
     machine_b: f64,
     coordinate_system: String,
     configuration: Option<MachineConfiguration>,
-    feed_rate: f64,
-    jog_rate: f64,
+    movement_speed: f64,
+    movement_mode: Option<String>,
     spindle_rpm: f64,
     spindle_commanded_rpm: f64,
     spindle_enabled: bool,
@@ -623,8 +623,12 @@ impl From<CNCStatus> for StatusResponse {
             machine_b: status.machine_b,
             coordinate_system: status.active_coordinate_system.label().to_ascii_lowercase().replace('.', "_"),
             configuration: status.machine_configuration,
-            feed_rate: status.feed_rate,
-            jog_rate: status.jog_rate,
+            movement_speed: if status.jog_rate > 0.0 {
+                status.jog_rate
+            } else {
+                status.feed_rate
+            },
+            movement_mode: status.motion_mode,
             spindle_rpm: status.spindle_actual_speed,
             spindle_commanded_rpm: status.spindle_speed,
             spindle_enabled: status.spindle_on,

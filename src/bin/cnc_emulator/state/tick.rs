@@ -62,6 +62,9 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
                     emulator.stop_retract_active = false;
                     emulator.status.message = Some("Stop retract complete".into());
                 }
+                if done {
+                    emulator.status.motion_mode = None;
+                }
                 if emulator.active_move_is_homing {
                     if let Some(axis) = emulator.homing_axis.take() {
                         emulator.status.homed[super::axis_index(axis)] = true;
@@ -77,6 +80,7 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     if emulator.active_move.is_none() && emulator.status.homing {
         if let Some(axis) = emulator.homing_queue.first().copied() {
             emulator.homing_queue.remove(0);
+            emulator.status.motion_mode = Some("Homing".into());
             let mut target = emulator.position_array();
             let index = super::axis_index(axis);
             let (minimum, _, velocity, _) = emulator.config.axis_limits(axis);
@@ -110,6 +114,7 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
             }
         } else {
             emulator.status.homing = false;
+            emulator.status.motion_mode = None;
             emulator.status.message = Some("Homing complete".into());
         }
     }
@@ -182,6 +187,7 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         if emulator.jog_velocity <= 0.0 {
             emulator.jog_stop = None;
             emulator.status.jog_rate = 0.0;
+            emulator.status.motion_mode = None;
         }
     } else {
         emulator.jog_velocity = 0.0;

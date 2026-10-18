@@ -36,6 +36,7 @@ fn debug_status() -> MachineStatus {
         mist_coolant_on: false,
         flood_coolant_on: false,
         jog_rate: 0.0,
+        motion_mode: None,
         max_spindle_rpm: 0.0,
         loaded_program: None,
         current_line: 0,

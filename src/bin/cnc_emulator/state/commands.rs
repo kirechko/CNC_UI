@@ -361,6 +361,9 @@ pub(super) fn jog_increment(emulator: &mut Emulator, args: Value) -> Result<Valu
     emulator.active_move = motion.map(ActiveMove::from_motion);
     emulator.jog_move_active = emulator.active_move.is_some();
     emulator.active_move_is_rapid = false;
+    if emulator.jog_move_active {
+        emulator.status.motion_mode = Some("Jog".into());
+    }
     Ok(Value::Null)
 }
 
@@ -412,6 +415,7 @@ pub(super) fn jog_cancel(emulator: &mut Emulator) -> Result<Value, WireError> {
     }
     emulator.jog_velocity = 0.0;
     emulator.status.jog_rate = 0.0;
+    emulator.status.motion_mode = None;
     emulator.status.message = Some("Jog stopped".into());
     Ok(Value::Null)
 }
@@ -433,6 +437,7 @@ pub(super) fn jog_continuous(emulator: &mut Emulator, args: Value) -> Result<Val
         emulator.continuous_jog_xy = None;
         emulator.continuous_jog = Some((axis, direction, feed));
         emulator.status.feed_rate = 0.0;
+        emulator.status.motion_mode = Some("Jog".into());
     }
     Ok(Value::Null)
 }
@@ -488,6 +493,7 @@ pub(super) fn jog_continuous_xy(
         emulator.continuous_jog = None;
         emulator.continuous_jog_xy = Some((x_direction, y_direction, max_feed));
         emulator.status.feed_rate = 0.0;
+        emulator.status.motion_mode = Some("Jog".into());
     }
     Ok(Value::Null)
 }
@@ -518,6 +524,7 @@ pub(super) fn home(emulator: &mut Emulator, args: Value) -> Result<Value, WireEr
     }
 
     emulator.status.homing = true;
+    emulator.status.motion_mode = Some("Homing".into());
     emulator.status.task_mode = crate::cnc_api::TaskMode::Manual;
     emulator.status.message = Some("Homing started".into());
     Ok(Value::Null)

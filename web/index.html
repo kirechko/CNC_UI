@@ -1365,9 +1365,8 @@
               </button>
             </div>
             <div class="position-meta">
-              <span>FEED <strong id="feed-rate">0 mm/min</strong></span>
-              <span>JOG <strong id="jog-rate">0 mm/min</strong></span>
-              <span>SPINDLE <strong id="spindle-actual-rpm">0 RPM</strong></span>
+              <span>ДВИЖЕНИЕ <strong id="movement-status">—</strong></span>
+              <span>SPINDLE <strong id="spindle-actual-rpm">0 RPM · OFF</strong></span>
             </div>
           </div>
         </section>
@@ -3159,7 +3158,7 @@
       function syncSpindleSpeed(value) {
         const rpm = Math.max(
           spindleMinimumRpm,
-          Math.min(spindleMaximumRpm, Number(value) || spindleMinimumRpm),
+          Math.min(spindleMaximumRpm, Math.round(Number(value) || spindleMinimumRpm)),
         );
         spindleSpeedSlider.value = String(rpm);
         spindleStepButton.textContent = String(rpm);
@@ -3542,12 +3541,17 @@
           renderConfiguredAxes(status.configuration);
           updatePositionDisplay();
           coordinateSystem.value = status.coordinate_system || "g54";
-          document.querySelector("#feed-rate").textContent =
-            `${Number(status.feed_rate || 0).toFixed(0)} mm/min`;
-          document.querySelector("#jog-rate").textContent =
-            `${Number(status.jog_rate || 0).toFixed(0)} mm/min`;
+          const movementSpeed = Number(status.movement_speed) || 0;
+          const movementMode = status.movement_mode || "—";
+          document.querySelector("#movement-status").textContent =
+            `${movementMode} · ${movementSpeed.toFixed(0)} mm/min`;
+          const spindleDirection = ({
+            cw: "CW",
+            ccw: "CCW",
+            stopped: "OFF",
+          })[status.spindle_direction] || "—";
           document.querySelector("#spindle-actual-rpm").textContent =
-            `${Number(status.spindle_rpm || 0).toFixed(0)} RPM`;
+            `${Number(status.spindle_rpm || 0).toFixed(0)} RPM · ${spindleDirection}`;
 
           updatePositionReadouts(status);
 

@@ -349,6 +349,13 @@ impl GrblAdapter {
             coordinate_systems: Vec::new(),
             feed_rate: if is_jogging { 0.0 } else { feed_rate },
             jog_rate: if is_jogging { feed_rate } else { 0.0 },
+            motion_mode: if is_jogging {
+                Some("Jog".into())
+            } else if is_running {
+                Some("G-code".into())
+            } else {
+                None
+            },
             spindle: SpindleStatus {
                 commanded_rpm: session.spindle_command.rpm,
                 actual_rpm,

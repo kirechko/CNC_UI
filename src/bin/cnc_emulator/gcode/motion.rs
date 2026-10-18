@@ -112,6 +112,7 @@ pub(super) fn execute_motion(
             &emulator.config,
         )?);
         emulator.active_move_is_rapid = false;
+        emulator.status.motion_mode = Some(format!("G{code}"));
     } else if target != current {
         if code == 0 && z_word.is_some() {
             emulator.last_rapid_z = Some(target[2]);
@@ -132,6 +133,9 @@ pub(super) fn execute_motion(
             emulator.status.feed_rate
         };
         emulator.queue_move(target, feed, rapid)?;
+        if emulator.active_move.is_some() {
+            emulator.status.motion_mode = Some(format!("G{code}"));
+        }
     }
 
     Ok(())
