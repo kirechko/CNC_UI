@@ -333,6 +333,12 @@ struct JogRequest {
 }
 
 #[derive(Deserialize)]
+struct ContinuousJogRequest {
+    axis: Axis,
+    direction: i8,
+}
+
+#[derive(Deserialize)]
 struct CoordinateRequest {
     system: String,
 }
@@ -347,6 +353,26 @@ struct AxisPositionRequest {
     axis: Axis,
     system: String,
     value: f64,
+}
+
+async fn jog_continuous(
+    State(state): State<SharedController>,
+    Json(request): Json<ContinuousJogRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    if ![-1, 0, 1].contains(&request.direction) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "direction must be -1, 0, or 1".into(),
+        ));
+    }
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let axis = axis_letter(request.axis);
+    controller.jog_axis_continuous(axis, request.direction);
+    Ok(StatusCode::ACCEPTED)
 }
 
 async fn select_coordinate_system(
@@ -632,6 +658,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/program/resume", post(resume_program))
         .route("/api/program/abort", post(abort_program))
         .route("/api/jog", post(jog))
+        .route("/api/jog/continuous", post(jog_continuous))
         .route("/api/position/select", post(select_coordinate_system))
         .route("/api/position/zero", post(zero_all))
         .route("/api/position/zero-axis", post(zero_axis))

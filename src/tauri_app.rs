@@ -64,6 +64,32 @@ fn abort_program(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn jog_continuous(
+    state: State<'_, AppState>,
+    axis: Axis,
+    direction: i8,
+) -> Result<(), String> {
+    if ![-1, 0, 1].contains(&direction) {
+        return Err("direction must be -1, 0, or 1".into());
+    }
+
+    let axis = match axis {
+        Axis::X => 'X',
+        Axis::Y => 'Y',
+        Axis::Z => 'Z',
+        Axis::A => 'A',
+        Axis::B => 'B',
+    };
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.jog_axis_continuous(axis, direction);
+    Ok(())
+}
+
+#[tauri::command]
 fn select_coordinate_system(state: State<'_, AppState>, system: String) -> Result<(), String> {
     state.select_coordinate_system(&system)
 }
@@ -147,6 +173,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             resume_program,
             abort_program,
             jog,
+            jog_continuous,
             select_coordinate_system,
             zero_all,
             zero_axis,

@@ -489,19 +489,32 @@
       }
 
       .jog-mode-button {
+        display: grid;
+        width: 29px;
+        min-width: 29px;
         min-height: 25px;
-        padding: 0 8px;
+        padding: 0;
+        place-items: center;
         border-color: transparent;
         background: transparent;
         color: var(--muted);
-        font-size: 10px;
-        font-weight: 700;
+      }
+
+      .jog-mode-button svg {
+        width: 15px;
+        height: 15px;
       }
 
       .jog-mode-button.active {
         border-color: #344e5b;
         background: #1a2b33;
         color: #a3d5e9;
+      }
+
+      .jog-dial-z-label {
+        color: #f1f3f3;
+        font: 700 12px system-ui, sans-serif;
+        text-align: center;
       }
 
       .jog-step-row {
@@ -981,9 +994,34 @@
         <section class="panel">
           <div class="panel-heading">
             <span class="panel-title">JOG</span>
-            <div class="jog-mode-switch" role="group" aria-label="Режим управления осями">
-              <button class="jog-mode-button" id="jog-dial-mode" type="button" aria-pressed="false">Диск</button>
-              <button class="jog-mode-button active" id="jog-keys-mode" type="button" aria-pressed="true">Клавиши</button>
+            <div class="jog-mode-switch" role="group" aria-label="Вид управления">
+              <button class="jog-mode-button" id="jog-dial-mode" type="button" title="Управление диском" aria-label="Управление диском" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <path d="M12 3v4M21 12h-4M12 21v-4M3 12h4"></path>
+                </svg>
+              </button>
+              <button class="jog-mode-button active" id="jog-keys-mode" type="button" title="Управление кнопками" aria-label="Управление кнопками" aria-pressed="true">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                  <path d="M6 9h1m3 0h1m3 0h1m3 0h1M7 12h1m3 0h1m3 0h1m-9 3h10"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="jog-mode-switch" role="group" aria-label="Режим перемещения">
+              <button class="jog-mode-button active" id="jog-incremental-mode" type="button" title="Пошаговое перемещение" aria-label="Пошаговое перемещение" aria-pressed="true">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 12h12m-4-4 4 4-4 4"></path>
+                  <circle cx="19" cy="12" r="2"></circle>
+                </svg>
+              </button>
+              <button class="jog-mode-button" id="jog-continuous-mode" type="button" title="Непрерывное перемещение, пока кнопка удерживается" aria-label="Непрерывное перемещение" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 7v5h-5M4 17v-5h5"></path>
+                  <path d="M5.6 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.4-3"></path>
+                </svg>
+              </button>
             </div>
           </div>
           <div class="panel-body">
@@ -1220,6 +1258,8 @@
       let positionDisplay = { work: true, machine: true };
       let machineConnected = false;
       let statusRequestInFlight = false;
+      let jogMotionMode = "incremental";
+      const activeContinuousAxes = new Set();
       let loadedProgram = null;
       let loadedStockMesh = null;
       let stockVisible = true;
@@ -2809,7 +2849,7 @@
       }
 
       async function jog(button) {
-        if (!machineConnected || button.disabled) return;
+        if (!machineConnected || button.disabled || jogMotionMode === "continuous") return;
 
         jogButtons.forEach((item) => {
           item.disabled = true;
@@ -2852,9 +2892,87 @@
         }
       }
 
+      async function sendContinuousJog(axis, direction) {
+        const request = { axis, direction };
+        const invoke = window.__TAURI__?.core?.invoke;
+
+        if (invoke) {
+          await invoke("jog_continuous", request);
+          return;
+        }
+
+        const response = await fetch("/api/jog/continuous", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        });
+        if (!response.ok) {
+          throw new Error((await response.text()) || `HTTP ${response.status}`);
+        }
+      }
+
+      async function startContinuousJog(axis, direction) {
+        if (!machineConnected || activeContinuousAxes.has(axis)) return;
+        activeContinuousAxes.add(axis);
+        try {
+          await sendContinuousJog(axis, direction);
+        } catch (error) {
+          activeContinuousAxes.delete(axis);
+          feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
+          feedback.className = "error";
+        }
+      }
+
+      async function stopContinuousJog() {
+        const axes = [...activeContinuousAxes];
+        activeContinuousAxes.clear();
+        for (const axis of axes) {
+          try {
+            await sendContinuousJog(axis, 0);
+          } catch (error) {
+            feedback.textContent = `Ошибка остановки Jog: ${error.message}`;
+            feedback.className = "error";
+          }
+        }
+      }
+
+      function bindContinuousButton(button, axis, direction) {
+        button.addEventListener("pointerdown", (event) => {
+          if (jogMotionMode !== "continuous" || button.disabled) return;
+          event.preventDefault();
+          button.setPointerCapture(event.pointerId);
+          startContinuousJog(axis, direction);
+        });
+        const stop = () => {
+          if (jogMotionMode === "continuous") stopContinuousJog();
+        };
+        button.addEventListener("pointerup", stop);
+        button.addEventListener("pointercancel", stop);
+        button.addEventListener("lostpointercapture", stop);
+      }
+
       jogButtons.forEach((button) => {
         button.addEventListener("click", () => jog(button));
+        bindContinuousButton(
+          button,
+          button.dataset.axis,
+          Number(button.dataset.direction),
+        );
       });
+
+      const jogIncrementalMode = document.querySelector("#jog-incremental-mode");
+      const jogContinuousMode = document.querySelector("#jog-continuous-mode");
+      function selectJogMotionMode(mode) {
+        jogMotionMode = mode;
+        const incremental = mode === "incremental";
+        jogIncrementalMode.classList.toggle("active", incremental);
+        jogContinuousMode.classList.toggle("active", !incremental);
+        jogIncrementalMode.setAttribute("aria-pressed", String(incremental));
+        jogContinuousMode.setAttribute("aria-pressed", String(!incremental));
+        if (incremental) stopContinuousJog();
+      }
+      jogIncrementalMode.addEventListener("click", () => selectJogMotionMode("incremental"));
+      jogContinuousMode.addEventListener("click", () => selectJogMotionMode("continuous"));
 
       const jogKeysMode = document.querySelector("#jog-keys-mode");
       const jogDialMode = document.querySelector("#jog-dial-mode");
@@ -3070,7 +3188,51 @@
         }
       }
 
+      function dialMoves(selection) {
+        return [
+          [["X", 1]],
+          [["X", 1], ["Y", -1]],
+          [["Y", -1]],
+          [["X", -1], ["Y", -1]],
+          [["X", -1]],
+          [["X", -1], ["Y", 1]],
+          [["Y", 1]],
+          [["X", 1], ["Y", 1]],
+        ][selection.sector];
+      }
+
+      jogDialCanvas.addEventListener("pointerdown", (event) => {
+        if (jogMotionMode !== "continuous" || !machineConnected) return;
+        const rect = jogDialCanvas.getBoundingClientRect();
+        const selection = dialSelectionAt(
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+          rect.width,
+          rect.height,
+        );
+        const moves = selection && dialMoves(selection);
+        if (!moves) return;
+
+        if (moves.length !== 1) {
+          feedback.textContent = "Непрерывный Jog по диагонали пока не поддерживается.";
+          feedback.className = "panel-caption";
+          return;
+        }
+
+        event.preventDefault();
+        jogDialCanvas.setPointerCapture(event.pointerId);
+        startContinuousJog(moves[0][0], moves[0][1]);
+      });
+      jogDialCanvas.addEventListener("pointerup", () => {
+        if (jogMotionMode === "continuous") stopContinuousJog();
+      });
+      jogDialCanvas.addEventListener("pointercancel", stopContinuousJog);
+      jogDialCanvas.addEventListener("lostpointercapture", () => {
+        if (jogMotionMode === "continuous") stopContinuousJog();
+      });
+
       jogDialCanvas.addEventListener("click", (event) => {
+        if (jogMotionMode === "continuous") return;
         const rect = jogDialCanvas.getBoundingClientRect();
         const selection = dialSelectionAt(
           event.clientX - rect.left,
@@ -3089,6 +3251,7 @@
 
       document.querySelectorAll("[data-dial-axis]").forEach((button) => {
         button.addEventListener("click", async () => {
+          if (jogMotionMode === "continuous") return;
           try {
             await sendDialJog(
               button.dataset.dialAxis,
@@ -3103,6 +3266,12 @@
             feedback.className = "error";
           }
         });
+
+        bindContinuousButton(
+          button,
+          button.dataset.dialAxis,
+          Number(button.dataset.direction),
+        );
       });
 
       const filesTab = document.querySelector("#files-tab");
