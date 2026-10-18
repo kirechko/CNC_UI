@@ -17,42 +17,6 @@ pub(super) fn attach_controls(
         draw_orientation_cube(cr, width as f64, height as f64, &cube_camera.borrow());
     });
 
-    let drag = GestureDrag::new();
-    drag.set_button(gtk4::gdk::BUTTON_PRIMARY);
-
-    let drag_camera = camera.clone();
-    let scene_area = area.clone();
-    let cube_area = orientation_widget.clone();
-    let previous = Rc::new(RefCell::new((0.0, 0.0)));
-
-    let previous_begin = previous.clone();
-    drag.connect_drag_begin(move |_, _, _| {
-        *previous_begin.borrow_mut() = (0.0, 0.0);
-    });
-
-    drag.connect_drag_update(move |gesture, _, _| {
-        let current = gesture.offset().unwrap_or((0.0, 0.0));
-        let mut previous = previous.borrow_mut();
-        let dx = current.0 - previous.0;
-        let dy = current.1 - previous.1;
-        *previous = current;
-        drop(previous);
-
-        let mut cam = drag_camera.borrow_mut();
-        const ROT_SENS: f64 = 0.005;
-        let axis = [
-            cam.orientation.right[0] * -dy - cam.orientation.up[0] * dx,
-            cam.orientation.right[1] * -dy - cam.orientation.up[1] * dx,
-            cam.orientation.right[2] * -dy - cam.orientation.up[2] * dx,
-        ];
-        let angle = (dx * dx + dy * dy).sqrt() * ROT_SENS;
-        cam.orientation.rotate(axis, angle);
-        drop(cam);
-
-        scene_area.queue_draw();
-        cube_area.queue_draw();
-    });
-    area.add_controller(drag);
 
     let pan = GestureDrag::new();
     pan.set_button(gtk4::gdk::BUTTON_SECONDARY);
@@ -116,20 +80,4 @@ pub(super) fn attach_controls(
     });
     area.add_controller(scroll);
 
-    let click = GestureClick::new();
-    let click_camera = camera.clone();
-    let click_scene = area.clone();
-    let click_cube = orientation_widget.clone();
-    click.connect_released(move |gesture, _, x, y| {
-        let width = gesture.widget().width() as f64;
-        let height = gesture.widget().height() as f64;
-        let cam = click_camera.borrow();
-        if let Some(normal) = cube_face_at(x, y, width, height, &cam) {
-            drop(cam);
-            click_camera.borrow_mut().orientation = orientation_for_face(normal);
-            click_scene.queue_draw();
-            click_cube.queue_draw();
-        }
-    });
-    orientation_widget.add_controller(click);
 }
