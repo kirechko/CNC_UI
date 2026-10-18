@@ -1176,7 +1176,6 @@
             <div class="position-meta">
               <span>FEED <strong id="feed-rate">0 mm/min</strong></span>
               <span>JOG <strong id="jog-rate">0 mm/min</strong></span>
-              <span>SPINDLE <strong id="spindle-rpm">0 RPM</strong></span>
             </div>
           </div>
         </section>
@@ -1283,11 +1282,7 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-heading">
-            <span class="panel-title">SPINDLE</span>
-          </div>
-          <div class="panel-body spindle-control">
+        <section class="spindle-control">
             <div class="spindle-speed-control">
               <label for="spindle-speed">СКОРОСТЬ, RPM</label>
               <input id="spindle-speed" type="number" min="0" max="24000" step="100" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
@@ -1302,7 +1297,6 @@
                 </svg>
               </button>
             </div>
-          </div>
         </section>
       </aside>
 
@@ -3102,8 +3096,6 @@
             `${Number(status.feed_rate || 0).toFixed(0)} mm/min`;
           document.querySelector("#jog-rate").textContent =
             `${Number(status.jog_rate || 0).toFixed(0)} mm/min`;
-          document.querySelector("#spindle-rpm").textContent =
-            `${Number(status.spindle_rpm || 0).toFixed(0)} RPM`;
 
           updatePositionReadouts(status);
 
