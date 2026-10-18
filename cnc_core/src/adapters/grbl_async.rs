@@ -110,7 +110,11 @@ impl GrblAdapter {
             .port
             .write_all(command.trim().as_bytes())
             .await
-            .and_then(|_| async { session.port.write_all(b"\n").await }.await)
+            .map_err(|error| ControllerError::new("io", error.to_string()))?;
+        session
+            .port
+            .write_all(b"\n")
+            .await
             .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
         timeout(RESPONSE_TIMEOUT, async {
@@ -424,7 +428,8 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn power_on(&self) -> CncResult<()> {
-        Self::send_command(&mut self.session.lock().await, "$X").await
+        let mut session = self.session.lock().await;
+        Self::send_command(&mut session, "$X").await
     }
 
     async fn power_off(&self) -> CncResult<()> {
@@ -448,7 +453,8 @@ impl LinuxCncApi for GrblAdapter {
                 "GRBL $H homes all configured axes; individual-axis homing is unsupported",
             ));
         }
-        Self::send_command(&mut self.session.lock().await, "$H").await
+        let mut session = self.session.lock().await;
+        Self::send_command(&mut session, "$H").await
     }
 
     async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
@@ -493,7 +499,8 @@ impl LinuxCncApi for GrblAdapter {
             "$J=G91 {}{value:.4} F{feed_rate:.0}",
             Self::axis_letter(request.axis)
         );
-        Self::send_command(&mut self.session.lock().await, &command).await
+        let mut session = self.session.lock().await;
+        Self::send_command(&mut session, &command).await
     }
 
     async fn jog_continuous(
@@ -566,7 +573,8 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn mdi(&self, command: &str) -> CncResult<()> {
-        Self::send_command(&mut self.session.lock().await, command).await
+        let mut session = self.session.lock().await;
+        Self::send_command(&mut session, command).await
     }
 
     async fn load_program(&self, path: &Path) -> CncResult<()> {
@@ -611,11 +619,13 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn program_pause(&self) -> CncResult<()> {
-        Self::send_realtime(&mut self.session.lock().await, b'!').await
+        let mut session = self.session.lock().await;
+        Self::send_realtime(&mut session, b'!').await
     }
 
     async fn program_resume(&self) -> CncResult<()> {
-        Self::send_realtime(&mut self.session.lock().await, b'~').await
+        let mut session = self.session.lock().await;
+        Self::send_realtime(&mut session, b'~').await
     }
 
     async fn program_abort(&self) -> CncResult<()> {
@@ -645,6 +655,7 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn clear_error(&self) -> CncResult<()> {
-        Self::send_command(&mut self.session.lock().await, "$X").await
+        let mut session = self.session.lock().await;
+        Self::send_command(&mut session, "$X").await
     }
 }
