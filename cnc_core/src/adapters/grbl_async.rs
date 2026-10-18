@@ -1052,6 +1052,7 @@ impl LinuxCncApi for GrblAdapter {
         let command = Self::format_axis_jog_command(request.axis, value, feed_rate)?;
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, &command).await
     }
 
