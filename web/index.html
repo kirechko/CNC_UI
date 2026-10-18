@@ -3265,9 +3265,11 @@
         document.querySelector("#jog-dial-z-steps").hidden = !incremental;
         document.querySelector("#jog-dial-z-continuous").hidden = incremental;
         hoveredDialSelection = null;
-        jogDialHint.textContent = incremental
-          ? "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm"
-          : "Удерживайте кнопку и перемещайте указатель по диску";
+        if (jogDialHint) {
+          jogDialHint.textContent = incremental
+            ? "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm"
+            : "Удерживайте кнопку и перемещайте указатель по диску";
+        }
         if (!jogDialPanel.hidden) drawJogDial();
       }
       jogIncrementalMode.addEventListener("click", () => selectJogMotionMode("incremental"));
