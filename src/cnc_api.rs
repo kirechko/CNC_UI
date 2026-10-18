@@ -177,6 +177,9 @@ pub struct MachineStatus {
     pub spindle: SpindleStatus,
     pub mist_coolant_on: bool,
     pub flood_coolant_on: bool,
+    /// Текущая скорость Jog или быстрого перемещения G0, в единицах/мин.
+    #[serde(default)]
+    pub jog_rate: f64,
     pub max_spindle_rpm: f64,
     pub loaded_program: Option<String>,
     pub current_line: u32,

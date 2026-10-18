@@ -29,6 +29,7 @@ pub(super) struct Emulator {
     pub(super) continuous_jog: Option<(Axis, i8, f64)>,
     pub(super) continuous_jog_xy: Option<(i8, i8, f64)>,
     pub(super) jog_move_active: bool,
+    pub(super) active_move_is_rapid: bool,
     pub(super) homing_queue: Vec<Axis>,
     pub(super) homing_axis: Option<Axis>,
     pub(super) active_move_is_homing: bool,
@@ -87,6 +88,7 @@ impl Emulator {
                 max_spindle_rpm: config.spindle.max_rpm,
                 mist_coolant_on: false,
                 flood_coolant_on: false,
+                jog_rate: 0.0,
             },
             config,
             coordinate_offsets_path,
@@ -97,6 +99,7 @@ impl Emulator {
             continuous_jog: None,
             continuous_jog_xy: None,
             jog_move_active: false,
+            active_move_is_rapid: false,
             homing_queue: Vec::new(),
             homing_axis: None,
             active_move_is_homing: false,
@@ -155,6 +158,7 @@ impl Emulator {
         self.check_target(target)?;
         let motion = Motion::new(self.position_array(), target, feed, rapid, &self.config)?;
         self.active_move = motion.map(ActiveMove::from_motion);
+        self.active_move_is_rapid = rapid && self.active_move.is_some();
         Ok(())
     }
 

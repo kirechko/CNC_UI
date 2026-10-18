@@ -111,6 +111,7 @@ pub(super) fn execute_motion(
             emulator.status.feed_rate,
             &emulator.config,
         )?);
+        emulator.active_move_is_rapid = false;
     } else if target != current {
         if code == 0 && z_word.is_some() {
             emulator.last_rapid_z = Some(target[2]);

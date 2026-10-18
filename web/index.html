@@ -1090,6 +1090,7 @@
             </div>
             <div class="position-meta">
               <span>FEED <strong id="feed-rate">0 mm/min</strong></span>
+              <span>JOG <strong id="jog-rate">0 mm/min</strong></span>
               <span>SPINDLE <strong id="spindle-rpm">0 RPM</strong></span>
             </div>
           </div>
@@ -2942,6 +2943,8 @@
           coordinateSystem.value = status.coordinate_system || "g54";
           document.querySelector("#feed-rate").textContent =
             `${Number(status.feed_rate || 0).toFixed(0)} mm/min`;
+          document.querySelector("#jog-rate").textContent =
+            `${Number(status.jog_rate || 0).toFixed(0)} mm/min`;
           document.querySelector("#spindle-rpm").textContent =
             `${Number(status.spindle_rpm || 0).toFixed(0)} RPM`;
 
