@@ -615,6 +615,11 @@
         border-color: #31556a;
         color: #8bc9e7;
         font-size: 10px;
+        transform: scale(.9);
+      }
+
+      #jog-dial-panel:not([hidden]) {
+        margin-top: -7px;
       }
 
       .jog-dial-z button[data-direction="-1"] {
@@ -1155,15 +1160,15 @@
                 </div>
                 <div class="jog-dial-z jog-dial-z-steps" id="jog-dial-z-steps" aria-label="Пошаговое перемещение оси Z">
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" aria-label="Переместить Z плюс на 100 миллиметров">100</button>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" aria-label="Переместить Z плюс на 10 миллиметров">10</button>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="1" aria-label="Переместить Z плюс на 1 миллиметр">1</button>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="0.1" aria-label="Переместить Z плюс на 0.1 миллиметра">0.1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" aria-label="Переместить Z плюс на 100 миллиметров" title="Переместить Z вверх на 100 мм">100</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" aria-label="Переместить Z плюс на 10 миллиметров" title="Переместить Z вверх на 10 мм">10</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="1" aria-label="Переместить Z плюс на 1 миллиметр" title="Переместить Z вверх на 1 мм">1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="0.1" aria-label="Переместить Z плюс на 0.1 миллиметра" title="Переместить Z вверх на 0,1 мм">0.1</button>
                   <span class="jog-dial-gap" aria-hidden="true"></span>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="0.1" aria-label="Переместить Z минус на 0.1 миллиметра">−0.1</button>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="1" aria-label="Переместить Z минус на 1 миллиметр">−1</button>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="10" aria-label="Переместить Z минус на 10 миллиметров">−10</button>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="100" aria-label="Переместить Z минус на 100 миллиметров">−100</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="0.1" aria-label="Переместить Z минус на 0.1 миллиметра" title="Переместить Z вниз на 0,1 мм">−0.1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="1" aria-label="Переместить Z минус на 1 миллиметр" title="Переместить Z вниз на 1 мм">−1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="10" aria-label="Переместить Z минус на 10 миллиметров" title="Переместить Z вниз на 10 мм">−10</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="100" aria-label="Переместить Z минус на 100 миллиметров" title="Переместить Z вниз на 100 мм">−100</button>
                 </div>
                 <div class="jog-dial-z jog-dial-z-continuous" id="jog-dial-z-continuous" aria-label="Непрерывное перемещение оси Z" hidden>
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
