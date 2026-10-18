@@ -667,7 +667,7 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| config.emulator.socket_path.clone().into());
             Arc::new(
-                crate::em_adapter::EmAdapter::connect(&socket_path)
+                cnc_core::adapters::emulator::EmAdapter::connect(&socket_path)
                     .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
             )
         }
@@ -675,7 +675,7 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
             Arc::new(crate::adapters::LinuxCncAdapter::new())
         }
         crate::config::Backend::Grbl => Arc::new(
-            crate::grbl_adapter::GrblAdapter::connect(
+            cnc_core::adapters::grbl::GrblAdapter::connect(
                 &config.grbl.serial_port,
                 config.grbl.baud_rate,
             )

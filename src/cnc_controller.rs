@@ -4,7 +4,7 @@ use crate::cnc_api::{
     MachineConfiguration, MachineStatus, SpindleCommand,
     SpindleDirection as ApiSpindleDirection,
 };
-use crate::em_adapter::EmAdapter;
+use cnc_core::adapters::emulator::EmAdapter;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
