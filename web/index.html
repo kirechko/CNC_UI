@@ -3067,8 +3067,10 @@
         spindleCcwButton.setAttribute("aria-label", ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки");
         spindleCwButton.title = cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке";
         spindleCcwButton.title = ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки";
-        spindleCwButton.disabled = !machineConnected || spindleMaximumRpm <= 0;
-        spindleCcwButton.disabled = spindleCwButton.disabled;
+        // Не блокируем кнопки из-за отсутствующего лимита RPM в статусе:
+        // команда дойдёт до backend, который вернёт конкретную ошибку конфигурации.
+        spindleCwButton.disabled = !machineConnected;
+        spindleCcwButton.disabled = !machineConnected;
       }
 
       function updateSpindleControls(status) {
