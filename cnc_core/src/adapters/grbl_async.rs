@@ -432,6 +432,19 @@ impl GrblAdapter {
 
         let mut fields = body.split('|');
         let state = fields.next().unwrap_or("Unknown");
+        let state_lower = state.to_ascii_lowercase();
+        let known_state = [
+            "idle", "run", "jog", "hold", "alarm", "door", "check", "home", "sleep",
+        ]
+        .iter()
+        .any(|known| state_lower.starts_with(known));
+        if !known_state {
+            return Err(ControllerError::new(
+                "protocol",
+                format!("unknown GRBL machine state: {state}"),
+            ));
+        }
+
         let mut machine_position = None;
         let mut work_position = None;
         let mut work_offset = None;
@@ -502,7 +515,6 @@ impl GrblAdapter {
             ));
         }
 
-        let state_lower = state.to_ascii_lowercase();
         let alarm = state_lower.starts_with("alarm");
         let running = state_lower.starts_with("run");
         let jogging = state_lower.starts_with("jog");
@@ -1363,6 +1375,27 @@ mod tests {
             .unwrap_err();
 
             assert_eq!(error.code, "protocol");
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_or_empty_grbl_machine_states() {
+        for response in [
+            "<|MPos:0,0,0|FS:0,0>",
+            "<Unknown|MPos:0,0,0|FS:0,0>",
+        ] {
+            let error = GrblAdapter::parse_status(
+                response,
+                None,
+                CoordinateSystem::G54,
+                spindle_command(),
+                None,
+                0,
+                0,
+            )
+            .unwrap_err();
+
+            assert_eq!(error.code, "protocol", "response: {response}");
         }
     }
 
