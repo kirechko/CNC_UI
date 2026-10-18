@@ -280,9 +280,8 @@ impl GrblAdapter {
         }
 
         session.current_line = (index + 1) as u32;
-        if session.current_line as usize >= session.program.len() {
-            session.program_streaming = false;
-        }
+        // Оставляем streaming активным до следующего Idle-ответа:
+        // подтверждение GRBL означает приём строки, а не завершение движения.
         Ok(())
     }
 
@@ -708,6 +707,11 @@ impl LinuxCncApi for GrblAdapter {
             session.program.len() as u32,
         )?;
         status.max_spindle_rpm = session.max_spindle_rpm.unwrap_or(0.0);
+        if session.program_streaming && status.interpreter_state == InterpreterState::Idle {
+            status.task_mode = TaskMode::Auto;
+            status.interpreter_state = InterpreterState::Reading;
+            status.motion_mode = Some("G-code".into());
+        }
 
         if response.contains("|WCO:")
             || (response.contains("|MPos:") && response.contains("|WPos:"))
