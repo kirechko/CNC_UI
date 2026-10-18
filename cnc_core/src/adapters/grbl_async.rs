@@ -107,16 +107,20 @@ impl GrblAdapter {
         Ok(None)
     }
 
-    async fn read_line(port: &mut SerialStream, rx_buffer: &mut Vec<u8>) -> CncResult<String> {
+    async fn read_line(
+        port: &mut SerialStream,
+        rx_buffer: &mut Vec<u8>,
+        read_timeout: Duration,
+    ) -> CncResult<String> {
         loop {
             if let Some(line) = Self::extract_line(rx_buffer)? {
                 return Ok(line);
             }
 
             let mut chunk = [0_u8; 256];
-            let bytes_read = port
-                .read(&mut chunk)
+            let bytes_read = timeout(read_timeout, port.read(&mut chunk))
                 .await
+                .map_err(|_| ControllerError::new("timeout", "timed out waiting for GRBL response"))?
                 .map_err(|error| ControllerError::new("io", error.to_string()))?;
             if bytes_read == 0 {
                 return Err(ControllerError::new(
@@ -182,7 +186,13 @@ impl GrblAdapter {
 
         match timeout(RESPONSE_TIMEOUT, async {
             loop {
-                let line = match Self::read_line(&mut session.port, &mut session.rx_buffer).await {
+                let line = match Self::read_line(
+                    &mut session.port,
+                    &mut session.rx_buffer,
+                    RESPONSE_TIMEOUT,
+                )
+                .await
+                {
                     Ok(line) => line,
                     Err(error) => {
                         session.protocol_poisoned = true;
@@ -320,7 +330,13 @@ impl GrblAdapter {
 
         match timeout(STATUS_TIMEOUT, async {
             loop {
-                let line = match Self::read_line(&mut session.port, &mut session.rx_buffer).await {
+                let line = match Self::read_line(
+                    &mut session.port,
+                    &mut session.rx_buffer,
+                    STATUS_TIMEOUT,
+                )
+                .await
+                {
                     Ok(line) => line,
                     Err(error) => {
                         session.protocol_poisoned = true;
@@ -355,7 +371,13 @@ impl GrblAdapter {
             let mut settings = HashMap::new();
 
             loop {
-                let line = match Self::read_line(&mut session.port, &mut session.rx_buffer).await {
+                let line = match Self::read_line(
+                    &mut session.port,
+                    &mut session.rx_buffer,
+                    RESPONSE_TIMEOUT,
+                )
+                .await
+                {
                     Ok(line) => line,
                     Err(error) => {
                         session.protocol_poisoned = true;
