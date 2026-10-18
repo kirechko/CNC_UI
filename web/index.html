@@ -2877,6 +2877,43 @@
         }
       });
 
+      function syncSpindleSpeed(value) {
+        const rpm = Math.max(
+          spindleMinimumRpm,
+          Math.min(spindleMaximumRpm, Number(value) || spindleMinimumRpm),
+        );
+        spindleSpeed.value = String(rpm);
+        spindleSpeedSlider.value = String(rpm);
+        spindleCommandedState.textContent = `${rpm.toFixed(0)} RPM`;
+      }
+
+      spindleSpeed.addEventListener("input", () => syncSpindleSpeed(spindleSpeed.value));
+      spindleSpeedSlider.addEventListener("input", () => syncSpindleSpeed(spindleSpeedSlider.value));
+
+      spindleToggle.addEventListener("click", async () => {
+        const enabled = !spindleIsRunning;
+        const rpm = Number(spindleSpeed.value);
+        spindleToggle.disabled = true;
+
+        try {
+          await invokeOrFetch(
+            "set_spindle",
+            { rpm, enabled },
+            "/api/spindle",
+            "POST",
+          );
+          spindleCommandedState.textContent = enabled
+            ? `Запуск шпинделя: ${rpm.toFixed(0)} RPM`
+            : "Команда остановки отправлена.";
+          await refreshStatus();
+        } catch (error) {
+          spindleCommandedState.textContent = `Ошибка: ${error.message}`;
+          document.querySelector("#message").textContent = `Ошибка шпинделя: ${error.message}`;
+        } finally {
+          spindleToggle.disabled = !machineConnected || spindleMaximumRpm <= 0;
+        }
+      });
+
       function updateSpindleControls(status) {
         spindleIsRunning = Boolean(status.spindle_enabled);
         spindleMinimumRpm = Math.max(0, Number(status.spindle_min_rpm) || 0);
