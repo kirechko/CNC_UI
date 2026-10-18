@@ -57,52 +57,53 @@ macro_rules! debug_adapter {
             }
         }
 
+        #[async_trait::async_trait]
         impl LinuxCncApi for $adapter {
-            fn status(&self) -> CncResult<MachineStatus> {
+            async fn status(&self) -> CncResult<MachineStatus> {
                 Ok(debug_status())
             }
 
-            fn power_on(&self) -> CncResult<()> {
+            async fn power_on(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] power_on"));
                 Ok(())
             }
 
-            fn power_off(&self) -> CncResult<()> {
+            async fn power_off(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] power_off"));
                 Ok(())
             }
 
-            fn estop(&self) -> CncResult<()> {
+            async fn estop(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] estop"));
                 Ok(())
             }
 
-            fn home(&self, axis: Option<Axis>) -> CncResult<()> {
+            async fn home(&self, axis: Option<Axis>) -> CncResult<()> {
                 eprintln!("[{}] home axis={axis:?}", $label);
                 Ok(())
             }
 
-            fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
+            async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
                 eprintln!("[{}] select_coordinate_system system={system:?}", $label);
                 Ok(())
             }
 
-            fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()> {
+            async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()> {
                 eprintln!("[{}] set_work_zero system={system:?}", $label);
                 Ok(())
             }
 
-            fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
+            async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
                 eprintln!("[{}] set_axis_work_zero axis={axis:?}", $label);
                 Ok(())
             }
 
-            fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
+            async fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
                 eprintln!("[{}] jog_increment request={request:?}", $label);
                 Ok(())
             }
 
-            fn jog_continuous(
+            async fn jog_continuous(
                 &self,
                 axis: Axis,
                 direction: i8,
@@ -115,7 +116,7 @@ macro_rules! debug_adapter {
                 Ok(())
             }
 
-            fn jog_continuous_xy(
+            async fn jog_continuous_xy(
                 &self,
                 x_direction: i8,
                 y_direction: i8,
@@ -128,47 +129,47 @@ macro_rules! debug_adapter {
                 Ok(())
             }
 
-            fn cancel_jog(&self) -> CncResult<()> {
+            async fn cancel_jog(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] cancel_jog"));
                 Ok(())
             }
 
-            fn mdi(&self, command: &str) -> CncResult<()> {
+            async fn mdi(&self, command: &str) -> CncResult<()> {
                 eprintln!("[{}] mdi command={command:?}", $label);
                 Ok(())
             }
 
-            fn load_program(&self, path: &Path) -> CncResult<()> {
+            async fn load_program(&self, path: &Path) -> CncResult<()> {
                 eprintln!("[{}] load_program path={}", $label, path.display());
                 Ok(())
             }
 
-            fn program_run(&self, start_line: u32) -> CncResult<()> {
+            async fn program_run(&self, start_line: u32) -> CncResult<()> {
                 eprintln!("[{}] program_run start_line={start_line}", $label);
                 Ok(())
             }
 
-            fn program_pause(&self) -> CncResult<()> {
+            async fn program_pause(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] program_pause"));
                 Ok(())
             }
 
-            fn program_resume(&self) -> CncResult<()> {
+            async fn program_resume(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] program_resume"));
                 Ok(())
             }
 
-            fn program_abort(&self) -> CncResult<()> {
+            async fn program_abort(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] program_abort"));
                 Ok(())
             }
 
-            fn set_spindle(&self, command: SpindleCommand) -> CncResult<()> {
+            async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()> {
                 eprintln!("[{}] set_spindle command={command:?}", $label);
                 Ok(())
             }
 
-            fn clear_error(&self) -> CncResult<()> {
+            async fn clear_error(&self) -> CncResult<()> {
                 eprintln!(concat!("[", $label, "] clear_error"));
                 Ok(())
             }
