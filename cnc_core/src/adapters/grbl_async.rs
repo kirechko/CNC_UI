@@ -28,6 +28,7 @@ struct ContinuousJog {
 
 struct Session {
     port: SerialStream,
+    rx_buffer: Vec<u8>,
     program: Vec<String>,
     program_name: Option<String>,
     current_line: u32,
@@ -62,37 +63,40 @@ impl GrblAdapter {
                     rpm: 0.0,
                 },
                 continuous_jog: None,
+                rx_buffer: Vec::new(),
             }),
         })
     }
 
-    async fn read_line(port: &mut SerialStream, duration: Duration) -> CncResult<String> {
-        timeout(duration, async {
-            let mut bytes = Vec::new();
-
-            loop {
-                let mut byte = [0_u8; 1];
-                port.read_exact(&mut byte)
-                    .await
-                    .map_err(|error| ControllerError::new("io", error.to_string()))?;
-
-                match byte[0] {
-                    b'\n' => return Ok(String::from_utf8_lossy(&bytes).trim().to_string()),
-                    b'\r' => {}
-                    value => {
-                        bytes.push(value);
-                        if bytes.len() > MAX_RESPONSE_LINE {
-                            return Err(ControllerError::new(
-                                "protocol",
-                                "GRBL response line exceeds size limit",
-                            ));
-                        }
-                    }
-                }
+    async fn read_line(port: &mut SerialStream, rx_buffer: &mut Vec<u8>) -> CncResult<String> {
+        loop {
+            if let Some(line_end) = rx_buffer.iter().position(|byte| *byte == b'\n') {
+                let line: Vec<u8> = rx_buffer.drain(..=line_end).collect();
+                return Ok(String::from_utf8_lossy(&line[..line.len() - 1])
+                    .trim()
+                    .to_string());
             }
-        })
-        .await
-        .map_err(|_| ControllerError::new("timeout", "timed out waiting for GRBL response"))?
+
+            if rx_buffer.len() > MAX_RESPONSE_LINE {
+                return Err(ControllerError::new(
+                    "protocol",
+                    "GRBL response line exceeds size limit",
+                ));
+            }
+
+            let mut chunk = [0_u8; 256];
+            let bytes_read = port
+                .read(&mut chunk)
+                .await
+                .map_err(|error| ControllerError::new("io", error.to_string()))?;
+            if bytes_read == 0 {
+                return Err(ControllerError::new(
+                    "disconnected",
+                    "GRBL serial port closed",
+                ));
+            }
+            rx_buffer.extend_from_slice(&chunk[..bytes_read]);
+        }
     }
 
     async fn send_command(session: &mut Session, command: &str) -> CncResult<()> {
@@ -119,7 +123,7 @@ impl GrblAdapter {
 
         timeout(RESPONSE_TIMEOUT, async {
             loop {
-                let line = Self::read_line(&mut session.port, RESPONSE_TIMEOUT).await?;
+                let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
                 if line == "ok" {
                     return Ok(());
                 }
@@ -178,7 +182,7 @@ impl GrblAdapter {
 
         timeout(STATUS_TIMEOUT, async {
             loop {
-                let line = Self::read_line(&mut session.port, STATUS_TIMEOUT).await?;
+                let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
                 if line.starts_with('<') && line.ends_with('>') {
                     return Ok(line);
                 }
@@ -199,7 +203,7 @@ impl GrblAdapter {
             let mut settings = HashMap::new();
 
             loop {
-                let line = Self::read_line(&mut session.port, RESPONSE_TIMEOUT).await?;
+                let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
                 if line == "ok" {
                     return Ok(settings);
                 }
