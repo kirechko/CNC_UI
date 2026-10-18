@@ -242,6 +242,17 @@
         font-size: 11px;
       }
 
+      .position-panel-heading .section-heading {
+        min-width: 0;
+        flex: 1;
+        justify-content: flex-end;
+      }
+
+      .coordinate-select {
+        width: 50%;
+        min-width: 0;
+      }
+
       .dro-header, .axis-row {
         display: grid;
         grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 25px 25px;
@@ -284,6 +295,24 @@
       .position-mode-toggle.active {
         border-color: #4385a1;
         background: #1a2b33;
+        color: #a3d5e9;
+      }
+
+      .dro-header .position-mode-toggle {
+        min-width: 0;
+        min-height: 20px;
+        padding: 0;
+        border-color: transparent;
+        background: transparent;
+        font-size: 9px;
+        font-weight: 650;
+        letter-spacing: 0.09em;
+        text-align: right;
+      }
+
+      .dro-header .position-mode-toggle.active {
+        border-color: transparent;
+        background: transparent;
         color: #a3d5e9;
       }
 
@@ -775,8 +804,6 @@
           <div class="panel-heading position-panel-heading">
             <span class="panel-title">POSITION</span>
             <div class="section-heading">
-              <button class="position-mode-toggle active" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button>
-              <button class="position-mode-toggle" id="mpos-toggle" type="button" aria-pressed="false">MPOS</button>
               <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
               <option value="g54">G54</option>
               <option value="g55">G55</option>
@@ -793,7 +820,7 @@
           <div class="panel-body">
             <div id="position-axes">
               <div class="dro-header wpos-only" id="position-grid-header" aria-hidden="true">
-                <span></span><span class="position-column work">WPOS</span><span class="position-column machine">MPOS</span><span></span><span></span>
+                <span></span><button class="position-mode-toggle active position-column work" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button><button class="position-mode-toggle position-column machine" id="mpos-toggle" type="button" aria-pressed="false">MPOS</button><span></span><span></span>
               </div>
               <div id="axis-rows"></div>
             </div>
