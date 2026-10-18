@@ -2617,8 +2617,17 @@
             body: JSON.stringify(args),
           } : {}),
         });
-        if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
-        return response.status === 204 ? null : response.json();
+        const responseText = await response.text();
+        if (!response.ok) {
+          throw new Error(responseText || `HTTP ${response.status}`);
+        }
+        if (!responseText.trim()) return null;
+
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          throw new Error("Backend вернул некорректный JSON");
+        }
       }
 
       async function loadProgram(file) {
