@@ -670,8 +670,8 @@ impl LinuxCncApi for GrblAdapter {
         let spindle_rpm =
             |number: u16| settings.get(&number).copied().filter(|value| *value >= 0.0);
         let min_rpm = spindle_rpm(31);
-        let max_rpm = spindle_rpm(30)
-            .filter(|maximum| min_rpm.is_none_or(|minimum| minimum <= *maximum));
+        let max_rpm =
+            spindle_rpm(30).filter(|maximum| min_rpm.is_none_or(|minimum| minimum <= *maximum));
         session.max_spindle_rpm = max_rpm.unwrap_or(0.0);
 
         Ok(MachineConfiguration {
@@ -1174,10 +1174,7 @@ mod tests {
     #[test]
     fn rejects_overflow_when_deriving_offsets_or_machine_positions() {
         for (response, cached_offset) in [
-            (
-                "<Idle|MPos:1e308,0,0|WPos:-1e308,0,0|FS:0,0>",
-                None,
-            ),
+            ("<Idle|MPos:1e308,0,0|WPos:-1e308,0,0|FS:0,0>", None),
             ("<Idle|WPos:1e308,0,0|FS:0,0>", Some([1e308, 0.0, 0.0])),
         ] {
             let error = GrblAdapter::parse_status(
