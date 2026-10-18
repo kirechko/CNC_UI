@@ -222,21 +222,42 @@ impl GrblAdapter {
         Ok(())
     }
 
+    fn format_axis_jog_command(axis: Axis, distance: f64, feed_rate: f64) -> CncResult<String> {
+        if !distance.is_finite() || distance == 0.0 {
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog distance must be finite and non-zero",
+            ));
+        }
+        if !feed_rate.is_finite() || feed_rate <= 0.0 {
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog feed rate must be finite and positive",
+            ));
+        }
+
+        let command = format!(
+            "$J=G91 {}{distance} F{feed_rate}",
+            Self::axis_letter(axis)
+        );
+        Self::validate_command(&command)?;
+        Ok(command)
+    }
+
     async fn send_jog_chunk(session: &mut Session, jog: ContinuousJog) -> CncResult<()> {
         let command = if let Some(axis) = jog.axis {
-            let letter = Self::axis_letter(axis);
-            format!(
-                "$J=G91 {letter}{:.4} F{:.0}",
+            Self::format_axis_jog_command(
+                axis,
                 JOG_CHUNK_MM * f64::from(jog.x_direction),
-                jog.feed_rate
-            )
+                jog.feed_rate,
+            )?
         } else {
             let norm =
                 f64::from(jog.x_direction * jog.x_direction + jog.y_direction * jog.y_direction)
                     .sqrt();
             let x = JOG_CHUNK_MM * f64::from(jog.x_direction) / norm;
             let y = JOG_CHUNK_MM * f64::from(jog.y_direction) / norm;
-            format!("$J=G91 X{x:.4} Y{y:.4} F{:.0}", jog.feed_rate)
+            format!("$J=G91 X{x:.4} Y{y:.4} F{}", jog.feed_rate)
         };
 
         Self::send_command(session, &command).await
@@ -777,10 +798,7 @@ impl LinuxCncApi for GrblAdapter {
         }
 
         let value = request.distance * f64::from(request.direction);
-        let command = format!(
-            "$J=G91 {}{value:.4} F{feed_rate:.0}",
-            Self::axis_letter(request.axis)
-        );
+        let command = Self::format_axis_jog_command(request.axis, value, feed_rate)?;
         let mut session = self.session.lock().await;
         Self::send_command(&mut session, &command).await
     }
@@ -989,6 +1007,21 @@ mod tests {
 
         let running = spindle_command();
         assert_eq!(GrblAdapter::normalize_spindle_command(running), running);
+    }
+
+    #[test]
+    fn axis_jog_command_preserves_small_distances_and_fractional_feed_rates() {
+        let command = GrblAdapter::format_axis_jog_command(Axis::X, 0.00001, 0.25).unwrap();
+
+        assert_eq!(command, "$J=G91 X0.00001 F0.25");
+    }
+
+    #[test]
+    fn axis_jog_command_rejects_zero_or_non_finite_values() {
+        assert!(GrblAdapter::format_axis_jog_command(Axis::X, 0.0, 100.0).is_err());
+        assert!(GrblAdapter::format_axis_jog_command(Axis::X, f64::NAN, 100.0).is_err());
+        assert!(GrblAdapter::format_axis_jog_command(Axis::X, 1.0, 0.0).is_err());
+        assert!(GrblAdapter::format_axis_jog_command(Axis::X, 1.0, f64::INFINITY).is_err());
     }
 
     #[test]
