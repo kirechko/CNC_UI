@@ -1959,8 +1959,8 @@
 
       function renderConfiguredAxes(configuration) {
         const configuredAxes = Array.isArray(configuration?.axes)
-          ? configuration.axes.map((item) => item.axis)
-          : ["X", "Y", "Z"];
+          ? configuration.axes.map((item) => String(item.axis).toUpperCase())
+          : ["X", "Y", "Z", "A", "B"];
         const axes = [...new Set(configuredAxes)]
           .filter((axis) => ["X", "Y", "Z", "A", "B"].includes(axis))
           .slice(0, 5);
