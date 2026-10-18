@@ -64,6 +64,37 @@ fn incremental_jog_motion_ramps_up_under_configured_acceleration() {
 }
 
 #[test]
+fn spindle_ramps_to_commanded_speed_and_reports_telemetry() {
+    let mut emulator = test_emulator();
+    let request = Request {
+        method: "set_spindle".into(),
+        args: serde_json::json!({
+            "command": {
+                "direction": "Clockwise",
+                "rpm": 1200.0
+            }
+        }),
+    };
+
+    emulator.handle(request).unwrap();
+    assert_eq!(emulator.status.spindle.commanded_rpm, 1200.0);
+
+    emulator.tick(0.1);
+    assert_eq!(emulator.status.spindle.actual_rpm, 100.0);
+    assert!(emulator.status.spindle.enabled);
+
+    for _ in 0..11 {
+        emulator.tick(0.1);
+    }
+
+    assert_eq!(emulator.status.spindle.actual_rpm, 1200.0);
+    let telemetry = serde_json::to_value(&emulator.status).unwrap();
+    assert_eq!(telemetry["spindle"]["commanded_rpm"], 1200.0);
+    assert_eq!(telemetry["spindle"]["actual_rpm"], 1200.0);
+    assert_eq!(telemetry["spindle"]["enabled"], true);
+}
+
+#[test]
 fn load_program_strips_semicolon_comments_but_keeps_parenthesis_comments() {
     let mut emulator = test_emulator();
 
