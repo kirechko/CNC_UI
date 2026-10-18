@@ -145,20 +145,24 @@ impl GrblAdapter {
             return Ok(());
         }
 
-        session
-            .port
-            .write_all(command.trim().as_bytes())
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))?;
-        session
-            .port
-            .write_all(b"\n")
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))?;
+        if let Err(error) = session.port.write_all(command.trim().as_bytes()).await {
+            session.protocol_poisoned = true;
+            return Err(ControllerError::new("io", error.to_string()));
+        }
+        if let Err(error) = session.port.write_all(b"\n").await {
+            session.protocol_poisoned = true;
+            return Err(ControllerError::new("io", error.to_string()));
+        }
 
         match timeout(RESPONSE_TIMEOUT, async {
             loop {
-                let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
+                let line = match Self::read_line(&mut session.port, &mut session.rx_buffer).await {
+                    Ok(line) => line,
+                    Err(error) => {
+                        session.protocol_poisoned = true;
+                        return Err(error);
+                    }
+                };
                 if line == "ok" {
                     return Ok(());
                 }
@@ -242,15 +246,20 @@ impl GrblAdapter {
 
     async fn query_status(session: &mut Session) -> CncResult<String> {
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
-        session
-            .port
-            .write_all(b"?")
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))?;
+        if let Err(error) = session.port.write_all(b"?").await {
+            session.protocol_poisoned = true;
+            return Err(ControllerError::new("io", error.to_string()));
+        }
 
         match timeout(STATUS_TIMEOUT, async {
             loop {
-                let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
+                let line = match Self::read_line(&mut session.port, &mut session.rx_buffer).await {
+                    Ok(line) => line,
+                    Err(error) => {
+                        session.protocol_poisoned = true;
+                        return Err(error);
+                    }
+                };
                 if line.starts_with('<') && line.ends_with('>') {
                     return Ok(line);
                 }
@@ -271,17 +280,22 @@ impl GrblAdapter {
 
     async fn query_settings(session: &mut Session) -> CncResult<HashMap<u16, f64>> {
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
-        session
-            .port
-            .write_all(b"$$\n")
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))?;
+        if let Err(error) = session.port.write_all(b"$$\n").await {
+            session.protocol_poisoned = true;
+            return Err(ControllerError::new("io", error.to_string()));
+        }
 
         match timeout(RESPONSE_TIMEOUT, async {
             let mut settings = HashMap::new();
 
             loop {
-                let line = Self::read_line(&mut session.port, &mut session.rx_buffer).await?;
+                let line = match Self::read_line(&mut session.port, &mut session.rx_buffer).await {
+                    Ok(line) => line,
+                    Err(error) => {
+                        session.protocol_poisoned = true;
+                        return Err(error);
+                    }
+                };
                 if line == "ok" {
                     return Ok(settings);
                 }
