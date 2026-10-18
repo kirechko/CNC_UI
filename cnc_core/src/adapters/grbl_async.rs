@@ -322,8 +322,11 @@ impl GrblAdapter {
         }
 
         let line = session.program[index].clone();
-        // Отправляем только одну строку за раз и ждём её `ok`: размер строки
-        // ограничен 80 байтами, поэтому RX-буфер GRBL не может переполниться.
+        // Строгий stop-and-wait flow control: в Serial отправляется только одна
+        // строка, а следующий вызов send_command возможен лишь после получения
+        // ACK `ok` или ошибки от GRBL. Поэтому число неподтверждённых строк
+        // равно единице и RX-буфер не переполняется даже при 115200+ baud;
+        // фиксированная задержка не нужна и не заменяет подтверждение контроллера.
         if let Err(error) = Self::send_command(session, &line).await {
             session.program_streaming = false;
             return Err(error);
