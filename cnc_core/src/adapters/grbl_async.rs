@@ -194,6 +194,9 @@ impl GrblAdapter {
                     }
                 };
                 if line == "ok" {
+                    if let Some(system) = Self::coordinate_system_select(command) {
+                        session.active_coordinate_system = system;
+                    }
                     return Ok(());
                 }
                 if let Some(error) = line.strip_prefix("error:") {
@@ -862,6 +865,58 @@ impl GrblAdapter {
         Ok(lines)
     }
 
+    fn coordinate_system_select(command: &str) -> Option<CoordinateSystem> {
+        let mut selected = None;
+        let mut in_parenthesis_comment = false;
+
+        for line in command.lines() {
+            for (index, byte) in line.bytes().enumerate() {
+                match byte {
+                    b'(' => {
+                        in_parenthesis_comment = true;
+                        continue;
+                    }
+                    b')' => {
+                        in_parenthesis_comment = false;
+                        continue;
+                    }
+                    b';' if !in_parenthesis_comment => break,
+                    b'G' | b'g' if !in_parenthesis_comment => {
+                        let bytes = line.as_bytes();
+                        let mut end = index + 1;
+                        while end < bytes.len()
+                            && (bytes[end].is_ascii_digit() || bytes[end] == b'.')
+                        {
+                            end += 1;
+                        }
+
+                        if end == index + 1 {
+                            continue;
+                        }
+
+                        let code = line[index + 1..end].parse::<f64>().ok()?;
+                        let system = match code {
+                            54.0 => CoordinateSystem::G54,
+                            55.0 => CoordinateSystem::G55,
+                            56.0 => CoordinateSystem::G56,
+                            57.0 => CoordinateSystem::G57,
+                            58.0 => CoordinateSystem::G58,
+                            59.0 => CoordinateSystem::G59,
+                            59.1 => CoordinateSystem::G59_1,
+                            59.2 => CoordinateSystem::G59_2,
+                            59.3 => CoordinateSystem::G59_3,
+                            _ => continue,
+                        };
+                        selected = Some(system);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        selected
+    }
+
     fn coordinate_number(system: CoordinateSystem) -> u8 {
         match system {
             CoordinateSystem::G54 => 1,
@@ -1258,6 +1313,26 @@ mod tests {
             direction: SpindleDirection::Clockwise,
             rpm: 1200.0,
         }
+    }
+
+    #[test]
+    fn detects_coordinate_system_changes_in_gcode_without_comment_matches() {
+        assert_eq!(
+            GrblAdapter::coordinate_system_select("G55 G0 X1"),
+            Some(CoordinateSystem::G55)
+        );
+        assert_eq!(
+            GrblAdapter::coordinate_system_select("G54 G1X1 G59.3"),
+            Some(CoordinateSystem::G59_3)
+        );
+        assert_eq!(
+            GrblAdapter::coordinate_system_select("G1 X1 (G55) ; G56"),
+            None
+        );
+        assert_eq!(
+            GrblAdapter::coordinate_system_select("G54.1 P1"),
+            None
+        );
     }
 
     #[test]
