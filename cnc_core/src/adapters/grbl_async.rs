@@ -29,6 +29,7 @@ struct ContinuousJog {
 struct Session {
     port: SerialStream,
     rx_buffer: Vec<u8>,
+    last_work_offset: Option<[f64; 3]>,
     program: Vec<String>,
     program_name: Option<String>,
     current_line: u32,
@@ -64,6 +65,7 @@ impl GrblAdapter {
                 },
                 continuous_jog: None,
                 rx_buffer: Vec::new(),
+                last_work_offset: None,
             }),
         })
     }
@@ -247,6 +249,7 @@ impl GrblAdapter {
 
     fn parse_status(
         response: &str,
+        cached_work_offset: Option<[f64; 3]>,
         active_coordinate_system: CoordinateSystem,
         spindle_command: SpindleCommand,
         program_name: Option<&str>,
@@ -297,6 +300,7 @@ impl GrblAdapter {
                 ]),
                 _ => None,
             })
+            .or(cached_work_offset)
             .unwrap_or([0.0; 3]);
         let machine = machine_position
             .or_else(|| {
@@ -418,14 +422,27 @@ impl LinuxCncApi for GrblAdapter {
             }
         }
 
-        Self::parse_status(
+        let status = Self::parse_status(
             &response,
+            session.last_work_offset,
             session.active_coordinate_system,
             session.spindle_command,
             session.program_name.as_deref(),
             session.current_line,
             session.program.len() as u32,
-        )
+        )?;
+
+        if response.contains("|WCO:")
+            || (response.contains("|MPos:") && response.contains("|WPos:"))
+        {
+            session.last_work_offset = Some([
+                status.work_offset.x,
+                status.work_offset.y,
+                status.work_offset.z,
+            ]);
+        }
+
+        Ok(status)
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
@@ -713,6 +730,7 @@ mod tests {
     fn parses_machine_position_and_derives_work_offset() {
         let status = GrblAdapter::parse_status(
             "<Idle|MPos:10.000,20.000,30.000|WPos:1.000,2.000,3.000|FS:100.0,0.0>",
+            None,
             CoordinateSystem::G55,
             spindle_command(),
             Some("part.ngc"),
@@ -733,9 +751,31 @@ mod tests {
     }
 
     #[test]
+    fn reuses_cached_work_offset_when_grbl_omits_wco() {
+        let status = GrblAdapter::parse_status(
+            "<Idle|WPos:1.000,2.000,3.000|FS:0,0>",
+            Some([9.0, 18.0, 27.0]),
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(status.position.x, 10.0);
+        assert_eq!(status.position.y, 20.0);
+        assert_eq!(status.position.z, 30.0);
+        assert_eq!(status.work_offset.x, 9.0);
+        assert_eq!(status.work_offset.y, 18.0);
+        assert_eq!(status.work_offset.z, 27.0);
+    }
+
+    #[test]
     fn reported_work_coordinate_offset_takes_precedence() {
         let status = GrblAdapter::parse_status(
             "<Idle|MPos:10,20,30|WPos:1,2,3|WCO:8,17,26|FS:0,0>",
+            None,
             CoordinateSystem::G54,
             spindle_command(),
             None,
@@ -753,6 +793,7 @@ mod tests {
     fn rejects_malformed_status_and_non_finite_coordinates() {
         assert!(GrblAdapter::parse_status(
             "Idle|MPos:1,2,3",
+            None,
             CoordinateSystem::G54,
             spindle_command(),
             None,
