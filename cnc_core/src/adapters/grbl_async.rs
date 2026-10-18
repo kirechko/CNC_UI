@@ -271,11 +271,17 @@ impl GrblAdapter {
 
         for field in fields {
             if let Some(value) = field.strip_prefix("MPos:") {
-                machine_position = Self::parse_triplet(value);
+                machine_position = Some(Self::parse_triplet(value).ok_or_else(|| {
+                    ControllerError::new("protocol", "invalid GRBL MPos field")
+                })?);
             } else if let Some(value) = field.strip_prefix("WPos:") {
-                work_position = Self::parse_triplet(value);
+                work_position = Some(Self::parse_triplet(value).ok_or_else(|| {
+                    ControllerError::new("protocol", "invalid GRBL WPos field")
+                })?);
             } else if let Some(value) = field.strip_prefix("WCO:") {
-                work_offset = Self::parse_triplet(value);
+                work_offset = Some(Self::parse_triplet(value).ok_or_else(|| {
+                    ControllerError::new("protocol", "invalid GRBL WCO field")
+                })?);
             } else if let Some(value) = field.strip_prefix("FS:") {
                 let mut values = value.split(',');
                 feed_rate = values
@@ -811,6 +817,29 @@ mod tests {
 
         for axis in [Axis::X, Axis::Y, Axis::Z] {
             assert!(GrblAdapter::ensure_supported_axis(axis).is_ok());
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_reported_coordinate_fields() {
+        for response in [
+            "<Idle|MPos:1,NaN,3|FS:0,0>",
+            "<Idle|WPos:1,2|FS:0,0>",
+            "<Idle|WCO:1,2,Infinity|FS:0,0>",
+        ] {
+            assert!(
+                GrblAdapter::parse_status(
+                    response,
+                    None,
+                    CoordinateSystem::G54,
+                    spindle_command(),
+                    None,
+                    0,
+                    0,
+                )
+                .is_err(),
+                "expected malformed status field to be rejected: {response}"
+            );
         }
     }
 
