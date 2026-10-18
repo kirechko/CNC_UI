@@ -754,14 +754,6 @@
         gap: 8px;
       }
 
-      .spindle-debug {
-        flex: 0 0 100%;
-        min-height: 14px;
-        color: var(--muted);
-        font-size: 10px;
-        line-height: 1.4;
-        overflow-wrap: anywhere;
-      }
 
       .spindle-speed-control {
         display: grid;
@@ -815,6 +807,42 @@
 
       .spindle-speed-options[hidden] {
         display: none;
+      }
+
+      .spindle-speed-presets {
+        display: grid;
+        gap: 3px;
+      }
+
+      .spindle-manual-speed-label {
+        display: block;
+        margin: 7px 2px 4px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .spindle-manual-speed-control {
+        display: flex;
+        gap: 4px;
+      }
+
+      .spindle-manual-speed-control input {
+        width: 68px;
+        min-width: 0;
+        min-height: 28px;
+        padding: 0 5px;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .spindle-manual-speed-control button {
+        min-height: 28px;
+        padding: 0 7px;
+        color: #a3d5e9;
+        font-size: 10px;
       }
 
       .spindle-speed-option {
@@ -1372,7 +1400,14 @@
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
               <div class="spindle-speed-picker">
                 <button class="spindle-step-button" id="spindle-step" type="button" title="Выбрать предустановленную скорость шпинделя" aria-label="Заданная скорость шпинделя; открыть список предустановок" aria-haspopup="listbox" aria-expanded="false">0</button>
-                <div class="spindle-speed-options" id="spindle-speed-options" role="listbox" aria-label="Предустановленные скорости шпинделя" hidden></div>
+                <div class="spindle-speed-options" id="spindle-speed-options" role="group" aria-label="Скорость шпинделя" hidden>
+                  <div class="spindle-speed-presets" id="spindle-speed-presets" role="listbox" aria-label="Предустановленные скорости шпинделя"></div>
+                  <label class="spindle-manual-speed-label" for="spindle-manual-speed">Своя скорость, RPM</label>
+                  <div class="spindle-manual-speed-control">
+                    <input id="spindle-manual-speed" type="number" min="0" step="any" inputmode="decimal" aria-label="Ввести скорость шпинделя вручную">
+                    <button id="spindle-manual-speed-apply" type="button">Применить</button>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="spindle-actions">
@@ -1389,7 +1424,6 @@
                 </svg>
               </button>
             </div>
-            <output class="spindle-debug" id="spindle-debug" aria-live="polite">Отладка шпинделя отображается здесь — под кнопками RPM, не в консоли браузера.</output>
         </section>
       </aside>
 
@@ -2919,12 +2953,14 @@
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
       const spindleCwButton = document.querySelector("#spindle-cw");
       const spindleCcwButton = document.querySelector("#spindle-ccw");
-      const spindleDebug = document.querySelector("#spindle-debug");
       let spindleUiDirection = "stopped";
       let pendingSpindleDirection = null;
       let spindleCommandError = null;
       const spindleStepButton = document.querySelector("#spindle-step");
       const spindleSpeedOptions = document.querySelector("#spindle-speed-options");
+      const spindleSpeedPresetsContainer = document.querySelector("#spindle-speed-presets");
+      const spindleManualSpeedInput = document.querySelector("#spindle-manual-speed");
+      const spindleManualSpeedApply = document.querySelector("#spindle-manual-speed-apply");
       let spindleIsRunning = false;
       let spindleMinimumRpm = 0;
       let spindleMaximumRpm = 0;
@@ -2999,7 +3035,11 @@
       }
 
       function openSpindleSpeedOptions() {
-        spindleSpeedOptions.replaceChildren();
+        spindleSpeedPresetsContainer.replaceChildren();
+        spindleManualSpeedInput.min = String(spindleMinimumRpm);
+        spindleManualSpeedInput.max = String(spindleMaximumRpm);
+        spindleManualSpeedInput.value = spindleSpeedSlider.value;
+        spindleManualSpeedInput.setCustomValidity("");
 
         for (const rpm of spindleSpeedPresets()) {
           const option = document.createElement("button");
@@ -3015,7 +3055,7 @@
             syncSpindleSpeed(rpm);
             closeSpindleSpeedOptions();
           });
-          spindleSpeedOptions.append(option);
+          spindleSpeedPresetsContainer.append(option);
         }
 
         spindleSpeedOptions.hidden = false;
@@ -3028,6 +3068,39 @@
         } else {
           closeSpindleSpeedOptions();
         }
+      });
+
+      function applyManualSpindleSpeed() {
+        const rawValue = spindleManualSpeedInput.value.trim();
+        const rpm = Number(rawValue);
+
+        if (
+          !rawValue ||
+          !Number.isFinite(rpm) ||
+          rpm < spindleMinimumRpm ||
+          rpm > spindleMaximumRpm
+        ) {
+          spindleManualSpeedInput.setCustomValidity(
+            `Введите скорость от ${spindleMinimumRpm.toFixed(0)} до ${spindleMaximumRpm.toFixed(0)} RPM.`,
+          );
+          spindleManualSpeedInput.reportValidity();
+          return;
+        }
+
+        spindleManualSpeedInput.setCustomValidity("");
+        syncSpindleSpeed(rpm);
+        closeSpindleSpeedOptions();
+      }
+
+      spindleManualSpeedApply.addEventListener("click", applyManualSpindleSpeed);
+      spindleManualSpeedInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          applyManualSpindleSpeed();
+        }
+      });
+      spindleManualSpeedInput.addEventListener("input", () => {
+        spindleManualSpeedInput.setCustomValidity("");
       });
 
       document.addEventListener("pointerdown", (event) => {
@@ -3044,9 +3117,6 @@
       });
 
       async function commandSpindle(direction) {
-        spindleDebug.textContent =
-          `Получено нажатие ${direction}; текущее направление: ${spindleUiDirection}.`;
-
         const requestedDirection = direction.toLowerCase();
         const nextDirection = spindleUiDirection === requestedDirection
           ? "stopped"
@@ -3066,13 +3136,10 @@
             "POST",
           );
           spindleCommandError = null;
-          spindleDebug.textContent =
-            `Команда ${enabled ? direction : "СТОП"} отправлена в backend (${rpm.toFixed(0)} RPM).`;
           await refreshStatus();
         } catch (error) {
           pendingSpindleDirection = null;
           spindleCommandError = `Ошибка шпинделя: ${error.message}`;
-          spindleDebug.textContent = `Ошибка отправки команды ${direction}: ${error.message}`;
           await refreshStatus();
         }
       }
