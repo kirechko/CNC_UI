@@ -1286,23 +1286,14 @@
         <section class="panel">
           <div class="panel-heading">
             <span class="panel-title">SPINDLE</span>
-            <span class="panel-caption" id="spindle-state">Остановлен</span>
           </div>
           <div class="panel-body spindle-control">
-            <div class="spindle-reading">
-              <span>ФАКТИЧЕСКИЕ ОБОРОТЫ</span>
-              <strong id="spindle-actual-rpm">0 RPM</strong>
-            </div>
             <div class="spindle-speed-control">
               <label for="spindle-speed">СКОРОСТЬ, RPM</label>
               <input id="spindle-speed" type="number" min="0" max="24000" step="100" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
             </div>
             <div class="spindle-slider">
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
-              <div class="spindle-limits">
-                <span id="spindle-min">0 RPM</span>
-                <span id="spindle-max">24000 RPM</span>
-              </div>
             </div>
             <div class="spindle-actions">
               <button class="spindle-toggle" id="spindle-toggle" type="button" aria-label="Запустить шпиндель" title="Запустить шпиндель на заданной скорости" disabled>
@@ -1310,7 +1301,6 @@
                   <path d="M8 5v14l11-7L8 5Z"></path>
                 </svg>
               </button>
-              <span class="spindle-state" id="spindle-commanded-state">Задайте скорость и нажмите «Старт».</span>
             </div>
           </div>
         </section>
@@ -2834,9 +2824,6 @@
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
       const spindleToggle = document.querySelector("#spindle-toggle");
       const spindleToggleIcon = document.querySelector("#spindle-toggle-icon");
-      const spindleState = document.querySelector("#spindle-state");
-      const spindleActualRpm = document.querySelector("#spindle-actual-rpm");
-      const spindleCommandedState = document.querySelector("#spindle-commanded-state");
       let spindleIsRunning = false;
       let spindleMinimumRpm = 0;
       let spindleMaximumRpm = 0;
@@ -2884,7 +2871,6 @@
         );
         spindleSpeed.value = String(rpm);
         spindleSpeedSlider.value = String(rpm);
-        spindleCommandedState.textContent = `${rpm.toFixed(0)} RPM`;
       }
 
       spindleSpeed.addEventListener("input", () => syncSpindleSpeed(spindleSpeed.value));
@@ -2902,12 +2888,8 @@
             "/api/spindle",
             "POST",
           );
-          spindleCommandedState.textContent = enabled
-            ? `Запуск шпинделя: ${rpm.toFixed(0)} RPM`
-            : "Команда остановки отправлена.";
           await refreshStatus();
         } catch (error) {
-          spindleCommandedState.textContent = `Ошибка: ${error.message}`;
           document.querySelector("#message").textContent = `Ошибка шпинделя: ${error.message}`;
         } finally {
           spindleToggle.disabled = !machineConnected || spindleMaximumRpm <= 0;
@@ -2926,9 +2908,6 @@
         spindleSpeedSlider.min = String(spindleMinimumRpm);
         spindleSpeedSlider.max = String(spindleMaximumRpm);
         spindleSpeedSlider.step = String(step);
-        document.querySelector("#spindle-min").textContent = `${spindleMinimumRpm.toFixed(0)} RPM`;
-        document.querySelector("#spindle-max").textContent = `${spindleMaximumRpm.toFixed(0)} RPM`;
-
         const reportedSetpoint = Number(status.spindle_commanded_rpm);
         const currentSetpoint = Number(spindleSpeed.value);
         const nextSetpoint = spindleIsRunning && Number.isFinite(reportedSetpoint) && reportedSetpoint > 0
@@ -2939,11 +2918,6 @@
         spindleSpeed.value = String(nextSetpoint);
         spindleSpeedSlider.value = String(nextSetpoint);
 
-        spindleActualRpm.textContent = `${(Number(status.spindle_rpm) || 0).toFixed(0)} RPM`;
-        spindleState.textContent = spindleIsRunning ? "Работает" : "Остановлен";
-        spindleCommandedState.textContent = spindleIsRunning
-          ? `Задано ${reportedSetpoint.toFixed(0)} RPM`
-          : "Задайте скорость и нажмите «Старт».";
         spindleToggle.classList.toggle("running", spindleIsRunning);
         spindleToggle.setAttribute("aria-label", spindleIsRunning ? "Остановить шпиндель" : "Запустить шпиндель");
         spindleToggle.title = spindleIsRunning
