@@ -1082,9 +1082,8 @@ impl LinuxCncApi for GrblAdapter {
             Self::axis_letter(axis)
         );
         Self::send_command(&mut session, &command).await?;
-        session
-            .work_offsets
-            .remove(&session.active_coordinate_system);
+        let active_coordinate_system = session.active_coordinate_system;
+        session.work_offsets.remove(&active_coordinate_system);
         Ok(())
     }
 
