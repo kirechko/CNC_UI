@@ -1169,7 +1169,7 @@
             <div id="jog-dial-panel" hidden>
               <div class="jog-dial-layout">
                 <div class="jog-dial-control">
-                  <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: направления и шаг перемещения выбираются кольцом"></canvas>
+                  <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: выберите сектор для направления движения; в пошаговом режиме кольца задают шаг, в непрерывном удерживайте кнопку и перемещайте указатель" title="XY Jog: кольцо задаёт шаг; нажмите сектор для перемещения"></canvas>
                   <button class="jog-stop-button jog-dial-stop" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
                     <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                       <rect x="5" y="5" width="14" height="14" rx="2"></rect>
@@ -3264,6 +3264,9 @@
 
         document.querySelector("#jog-dial-z-steps").hidden = !incremental;
         document.querySelector("#jog-dial-z-continuous").hidden = incremental;
+        jogDialCanvas.title = incremental
+          ? "Пошаговый XY Jog: выберите направление на диске, кольцо задаёт расстояние перемещения"
+          : "Непрерывный XY Jog: удерживайте кнопку мыши на секторе; перемещайте указатель по диску для изменения направления";
         hoveredDialSelection = null;
         if (jogDialHint) {
           jogDialHint.textContent = incremental
@@ -3544,13 +3547,24 @@
           selection?.step !== hoveredDialSelection?.step
         ) {
           hoveredDialSelection = selection;
-          jogDialHint.textContent = selection
+          const direction = ["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection?.sector];
+          jogDialCanvas.title = selection
             ? jogMotionMode === "continuous"
-              ? `${["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection.sector]} · удерживайте для перемещения`
-              : `${["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection.sector]} · ${selection.step} mm`
+              ? `${direction}: удерживайте кнопку мыши для непрерывного перемещения; перемещайте указатель для смены направления`
+              : `${direction}: нажмите для перемещения на ${selection.step} mm`
             : jogMotionMode === "continuous"
-              ? "Удерживайте кнопку и перемещайте указатель по диску"
-              : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+              ? "Непрерывный XY Jog: удерживайте кнопку на секторе; центр диска — без движения"
+              : "Пошаговый XY Jog: нажмите сектор; кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+
+          if (jogDialHint) {
+            jogDialHint.textContent = selection
+              ? jogMotionMode === "continuous"
+                ? `${direction} · удерживайте для перемещения`
+                : `${direction} · ${selection.step} mm`
+              : jogMotionMode === "continuous"
+                ? "Удерживайте кнопку и перемещайте указатель по диску"
+                : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+          }
           drawJogDial();
         }
       }
@@ -3558,7 +3572,14 @@
       jogDialCanvas.addEventListener("pointermove", updateJogDialHover);
       jogDialCanvas.addEventListener("pointerleave", () => {
         hoveredDialSelection = null;
-        jogDialHint.textContent = "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+        jogDialCanvas.title = jogMotionMode === "continuous"
+          ? "Непрерывный XY Jog: удерживайте кнопку мыши на секторе; перемещайте указатель по диску для изменения направления"
+          : "Пошаговый XY Jog: выберите направление на диске, кольцо задаёт расстояние перемещения";
+        if (jogDialHint) {
+          jogDialHint.textContent = jogMotionMode === "continuous"
+            ? "Удерживайте кнопку и перемещайте указатель по диску"
+            : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+        }
         drawJogDial();
       });
 
