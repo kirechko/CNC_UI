@@ -45,7 +45,6 @@ struct Session {
     continuous_jog: Option<ContinuousJog>,
 }
 
-—==
 pub struct GrblAdapter {
     session: Mutex<Session>,
 }
