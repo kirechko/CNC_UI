@@ -496,6 +496,12 @@ impl GrblAdapter {
                 "GRBL status response contains no machine or work position",
             ));
         }
+        if machine_position.is_none() && work_offset.is_none() && cached_work_offset.is_none() {
+            return Err(ControllerError::new(
+                "protocol",
+                "cannot determine machine position from WPos without a work coordinate offset",
+            ));
+        }
 
         let offset = work_offset
             .or_else(|| match (machine_position, work_position) {
@@ -1424,6 +1430,23 @@ mod tests {
 
             assert_eq!(error.code, "protocol", "response: {response}");
         }
+    }
+
+    #[test]
+    fn rejects_work_position_when_no_offset_is_available() {
+        let error = GrblAdapter::parse_status(
+            "<Idle|WPos:1,2,3|FS:0,0>",
+            None,
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, "protocol");
+        assert!(error.message.contains("work coordinate offset"));
     }
 
     #[test]
