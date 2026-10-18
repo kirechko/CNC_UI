@@ -17,6 +17,50 @@ pub(super) fn attach_controls(
         draw_orientation_cube(cr, width as f64, height as f64, &cube_camera.borrow());
     });
 
+    let rotate = GestureDrag::new();
+    rotate.set_button(gtk4::gdk::BUTTON_PRIMARY);
+    let rotate_camera = camera.clone();
+    let rotate_area = area.clone();
+    let rotate_previous = Rc::new(RefCell::new((0.0, 0.0)));
+
+    let previous = rotate_previous.clone();
+    rotate.connect_drag_begin(move |_, _, _| *previous.borrow_mut() = (0.0, 0.0));
+
+    rotate.connect_drag_update(move |gesture, _, _| {
+        let current = gesture.offset().unwrap_or((0.0, 0.0));
+        let mut previous = rotate_previous.borrow_mut();
+        let dx = current.0 - previous.0;
+        let dy = current.1 - previous.1;
+        *previous = current;
+        drop(previous);
+
+        let mut cam = rotate_camera.borrow_mut();
+        cam.orientation.rotate([0.0, 0.0, 1.0], dx * 0.01);
+        let right = cam.orientation.right;
+        cam.orientation.rotate(right, dy * 0.01);
+        drop(cam);
+
+        rotate_area.queue_draw();
+        orientation_widget.queue_draw();
+    });
+    area.add_controller(rotate);
+
+    let cube_click = GestureClick::new();
+    let click_camera = camera.clone();
+    let click_area = area.clone();
+    let click_cube = orientation_widget.clone();
+    cube_click.connect_released(move |gesture, _, x, y| {
+        let widget = gesture.widget();
+        let width = widget.width() as f64;
+        let height = widget.height() as f64;
+
+        if let Some(normal) = cube_face_at(x, y, width, height, &click_camera.borrow()) {
+            click_camera.borrow_mut().orientation = orientation_for_face(normal);
+            click_area.queue_draw();
+            click_cube.queue_draw();
+        }
+    });
+    orientation_widget.add_controller(cube_click);
 
     let pan = GestureDrag::new();
     pan.set_button(gtk4::gdk::BUTTON_SECONDARY);
