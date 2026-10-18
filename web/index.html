@@ -246,11 +246,22 @@
         min-width: 0;
         flex: 1;
         justify-content: flex-end;
+        gap: 4px;
+      }
+
+      .position-panel-heading .position-mode-toggle {
+        width: 54px;
+        min-width: 54px;
+        flex: 0 0 54px;
+        min-height: 26px;
+        padding: 0 3px;
+        font-size: 9px;
       }
 
       .coordinate-select {
-        width: 50%;
-        min-width: 0;
+        width: 57px;
+        min-width: 57px;
+        padding: 0 14px 0 5px;
       }
 
       .dro-header, .axis-row {
@@ -297,24 +308,6 @@
         color: #a3d5e9;
       }
 
-      .dro-header .position-mode-toggle {
-        min-width: 0;
-        min-height: 26px;
-        padding: 0 5px;
-        border-color: #3b484d;
-        background: #171c1f;
-        color: #aeb9bc;
-        font-size: 9px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-align: right;
-      }
-
-      .dro-header .position-mode-toggle.active {
-        border-color: #4385a1;
-        background: #1a2b33;
-        color: #a3d5e9;
-      }
 
       .dro-header {
         margin: 1px 0 7px;
@@ -804,6 +797,8 @@
           <div class="panel-heading position-panel-heading">
             <span class="panel-title">POSITION</span>
             <div class="section-heading">
+              <button class="position-mode-toggle active" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button>
+              <button class="position-mode-toggle" id="mpos-toggle" type="button" aria-pressed="false">MPOS</button>
               <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
               <option value="g54">G54</option>
               <option value="g55">G55</option>
@@ -819,9 +814,6 @@
           </div>
           <div class="panel-body">
             <div id="position-axes">
-              <div class="dro-header wpos-only" id="position-grid-header" aria-hidden="true">
-                <span></span><button class="position-mode-toggle active position-column work" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button><button class="position-mode-toggle position-column machine" id="mpos-toggle" type="button" aria-pressed="false">MPOS</button><span></span><span></span>
-              </div>
               <div id="axis-rows"></div>
             </div>
             <div class="position-actions">
@@ -1002,7 +994,6 @@
       const feedback = document.querySelector("#feedback");
       const jogButtons = [...document.querySelectorAll("[data-axis]")];
       const axisRowsContainer = document.querySelector("#axis-rows");
-      const positionGridHeader = document.querySelector("#position-grid-header");
       const positionDialog = document.querySelector("#position-dialog");
       const positionValue = document.querySelector("#position-value");
       const coordinateSystem = document.querySelector("#coordinate-system");
@@ -2062,8 +2053,6 @@
           row.classList.remove("both", "mpos-only", "wpos-only");
           row.classList.add(mode);
         }
-        positionGridHeader.classList.remove("both", "mpos-only", "wpos-only");
-        positionGridHeader.classList.add(mode);
         wposToggle.setAttribute("aria-pressed", String(positionDisplay.work));
         mposToggle.setAttribute("aria-pressed", String(positionDisplay.machine));
         wposToggle.classList.toggle("active", positionDisplay.work);
