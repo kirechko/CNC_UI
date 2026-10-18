@@ -180,6 +180,22 @@ impl LinuxCncApi for EmAdapter {
         )
     }
 
+    fn jog_continuous_xy(
+        &self,
+        x_direction: i8,
+        y_direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<()> {
+        self.unit(
+            "jog_continuous_xy",
+            json!({
+                "x_direction": x_direction,
+                "y_direction": y_direction,
+                "feed_rate": feed_rate
+            }),
+        )
+    }
+
     fn mdi(&self, command: &str) -> CncResult<()> {
         self.unit("mdi", json!({ "command": command }))
     }
