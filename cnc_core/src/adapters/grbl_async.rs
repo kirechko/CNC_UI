@@ -45,10 +45,7 @@ struct Session {
     continuous_jog: Option<ContinuousJog>,
 }
 
-/// Асинхронный GRBL 1.1 Serial-адаптер.
-///
-/// E-Stop не эмулируется программной командой: аварийный останов должен
-/// выполняться аппаратной цепью станка.
+—==
 pub struct GrblAdapter {
     session: Mutex<Session>,
 }
