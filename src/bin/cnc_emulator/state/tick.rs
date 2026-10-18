@@ -44,9 +44,20 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     if movement_may_advance {
         if let Some(mut movement) = emulator.active_move.take() {
             let (position, done) = movement.tick(dt);
+            let speed = if done { 0.0 } else { movement.velocity_mm_min() };
             emulator.set_position(position);
 
+            if emulator.jog_move_active || emulator.active_move_is_rapid {
+                emulator.status.jog_rate = speed;
+                emulator.status.feed_rate = 0.0;
+            } else {
+                emulator.status.feed_rate = speed;
+                emulator.status.jog_rate = 0.0;
+            }
+
             if done {
+                emulator.jog_move_active = false;
+                emulator.active_move_is_rapid = false;
                 if emulator.stop_retract_active {
                     emulator.stop_retract_active = false;
                     emulator.status.message = Some("Stop retract complete".into());
@@ -144,6 +155,8 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         let (minimum, maximum, max_velocity, acceleration) = emulator.config.axis_limits(axis);
         let max_v = (feed / 60.0).min(max_velocity / 60.0);
         emulator.jog_velocity = (emulator.jog_velocity + acceleration * dt).min(max_v);
+        emulator.status.jog_rate = emulator.jog_velocity * 60.0;
+        emulator.status.feed_rate = 0.0;
         let delta = f64::from(direction) * emulator.jog_velocity * dt;
         let mut position = emulator.position_array();
         let index = super::axis_index(axis);
@@ -151,6 +164,9 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         emulator.set_position(position);
     } else {
         emulator.jog_velocity = 0.0;
+        if !emulator.jog_move_active && !emulator.active_move_is_rapid {
+            emulator.status.jog_rate = 0.0;
+        }
     }
 
     if emulator.status.interpreter_state != InterpreterState::Reading

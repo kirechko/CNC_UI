@@ -312,6 +312,7 @@ impl GrblAdapter {
         let state_lower = state.to_ascii_lowercase();
         let is_alarm = state_lower.starts_with("alarm");
         let is_running = state_lower.starts_with("run");
+        let is_jogging = state_lower.starts_with("jog");
         let is_paused = state_lower.starts_with("hold");
         let homing = state_lower.starts_with("home");
 
@@ -346,7 +347,8 @@ impl GrblAdapter {
             },
             active_coordinate_system: session.active_coordinate_system,
             coordinate_systems: Vec::new(),
-            feed_rate,
+            feed_rate: if is_jogging { 0.0 } else { feed_rate },
+            jog_rate: if is_jogging { feed_rate } else { 0.0 },
             spindle: SpindleStatus {
                 commanded_rpm: session.spindle_command.rpm,
                 actual_rpm,

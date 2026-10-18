@@ -155,6 +155,10 @@ impl ActiveMove {
         })
     }
 
+    pub(super) fn velocity_mm_min(&self) -> f64 {
+        self.velocity * 60.0
+    }
+
     pub(super) fn tick(&mut self, dt: f64) -> ([f64; 5], bool) {
         let remaining = (self.total_distance - self.travelled).max(0.0);
         if remaining <= 1e-8 {

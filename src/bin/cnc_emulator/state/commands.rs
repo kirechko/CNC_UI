@@ -115,7 +115,10 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
     emulator.continuous_jog = None;
     emulator.continuous_jog_xy = None;
     emulator.jog_move_active = false;
+    emulator.active_move_is_rapid = false;
     emulator.jog_velocity = 0.0;
+    emulator.status.jog_rate = 0.0;
+    emulator.status.feed_rate = 0.0;
 
     // STOP принудительно гасит шпиндель, не выполняя ramp-down.
     emulator.pending_spindle = None;
@@ -231,7 +234,10 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     emulator.continuous_jog = None;
     emulator.continuous_jog_xy = None;
     emulator.jog_move_active = false;
+    emulator.active_move_is_rapid = false;
     emulator.jog_velocity = 0.0;
+    emulator.status.jog_rate = 0.0;
+    emulator.status.feed_rate = 0.0;
     emulator.homing_queue.clear();
     emulator.homing_axis = None;
     emulator.active_move_is_homing = false;
@@ -352,6 +358,7 @@ pub(super) fn jog_increment(emulator: &mut Emulator, args: Value) -> Result<Valu
     )?;
     emulator.active_move = motion.map(ActiveMove::from_motion);
     emulator.jog_move_active = emulator.active_move.is_some();
+    emulator.active_move_is_rapid = false;
     Ok(Value::Null)
 }
 
@@ -363,6 +370,7 @@ pub(super) fn jog_cancel(emulator: &mut Emulator) -> Result<Value, WireError> {
         emulator.jog_move_active = false;
     }
     emulator.jog_velocity = 0.0;
+    emulator.status.jog_rate = 0.0;
     emulator.status.message = Some("Jog stopped".into());
     Ok(Value::Null)
 }
