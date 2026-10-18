@@ -765,7 +765,7 @@
         font-weight: 650;
       }
 
-      .spindle-speed-control input[type="number"] {
+      .spindle-speed-control input[type="text"] {
         width: 78px;
         min-height: 32px;
         padding: 0 7px;
@@ -1290,7 +1290,7 @@
             <div class="spindle-speed-control">
               <label for="spindle-speed">RPM</label>
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
-              <input id="spindle-speed" type="number" min="0" max="24000" step="100" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
+              <input id="spindle-speed" type="text" inputmode="numeric" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
               <button class="spindle-step-button" id="spindle-step" type="button" title="Шаг изменения скорости шпинделя" aria-label="Выбрать шаг изменения скорости шпинделя">100</button>
             </div>
             <div class="spindle-actions">
