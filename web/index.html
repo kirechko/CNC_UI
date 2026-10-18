@@ -3107,6 +3107,19 @@
         return { sector, step };
       }
 
+      function dialDirectionAt(x, y, width, height) {
+        const radius = Math.min(width, height) * 0.46;
+        const dx = x - width / 2;
+        const dy = y - height / 2;
+        const distance = Math.hypot(dx, dy) / radius;
+
+        if (distance < 0.15 || distance > 1) return null;
+
+        let angle = Math.atan2(dy, dx);
+        if (angle < 0) angle += Math.PI * 2;
+        return { sector: Math.floor(angle / (Math.PI / 4) + 0.5) % 8 };
+      }
+
       function drawJogDial() {
         const rect = jogDialCanvas.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
@@ -3132,6 +3145,76 @@
         const labels = ["+X", "", "−Y", "", "−X", "", "+Y", ""];
 
         jogDialContext.clearRect(0, 0, w, h);
+
+        if (jogMotionMode === "continuous") {
+          const directionColors = [
+            "#8d3837", "#5a85b6", "#3d766c", "#5a85b6",
+            "#8d3837", "#5a85b6", "#3d766c", "#5a85b6",
+          ];
+
+          for (let sector = 0; sector < 8; sector++) {
+            const center = sector * Math.PI / 4;
+            const start = center - Math.PI / 8 + 0.012;
+            const end = center + Math.PI / 8 - 0.012;
+
+            jogDialContext.beginPath();
+            jogDialContext.moveTo(cx, cy);
+            jogDialContext.arc(cx, cy, radius, start, end);
+            jogDialContext.closePath();
+            jogDialContext.fillStyle = directionColors[sector];
+            jogDialContext.fill();
+            jogDialContext.strokeStyle = "#111719";
+            jogDialContext.lineWidth = 1.5;
+            jogDialContext.stroke();
+
+            if (hoveredDialSelection?.sector === sector) {
+              jogDialContext.beginPath();
+              jogDialContext.moveTo(cx, cy);
+              jogDialContext.arc(cx, cy, radius, start, end);
+              jogDialContext.closePath();
+              jogDialContext.fillStyle = "rgba(255, 255, 255, .24)";
+              jogDialContext.fill();
+              jogDialContext.strokeStyle = "rgba(255, 255, 255, .9)";
+              jogDialContext.lineWidth = 2;
+              jogDialContext.stroke();
+            }
+          }
+
+          const continuousLabels = ["+X", "", "−Y", "", "−X", "", "+Y", ""];
+          for (let sector = 0; sector < continuousLabels.length; sector++) {
+            const label = continuousLabels[sector];
+            if (!label) continue;
+
+            const angle = sector * Math.PI / 4;
+            const labelRadius = radius * 0.76;
+            jogDialContext.fillStyle = "#f1f3f3";
+            jogDialContext.font = `bold ${Math.max(9, radius * 0.105)}px system-ui`;
+            jogDialContext.textAlign = "center";
+            jogDialContext.textBaseline = "middle";
+            jogDialContext.fillText(
+              label,
+              cx + Math.cos(angle) * labelRadius,
+              cy + Math.sin(angle) * labelRadius,
+            );
+          }
+
+          jogDialContext.beginPath();
+          jogDialContext.arc(cx, cy, radius * 0.15, 0, Math.PI * 2);
+          jogDialContext.fillStyle = "#202629";
+          jogDialContext.fill();
+          jogDialContext.strokeStyle = "#101416";
+          jogDialContext.lineWidth = 2;
+          jogDialContext.stroke();
+          jogDialContext.beginPath();
+          jogDialContext.moveTo(cx - 5, cy);
+          jogDialContext.lineTo(cx + 5, cy);
+          jogDialContext.moveTo(cx, cy - 5);
+          jogDialContext.lineTo(cx, cy + 5);
+          jogDialContext.strokeStyle = "#879398";
+          jogDialContext.lineWidth = 1.5;
+          jogDialContext.stroke();
+          return;
+        }
 
         for (let ring = 0; ring < 4; ring++) {
           for (let sector = 0; sector < 8; sector++) {
@@ -3205,22 +3288,59 @@
         jogDialContext.stroke();
       }
 
+      let continuousDialPointerId = null;
+
+      function setContinuousDialDirection(selection) {
+        const moves = selection && dialMoves(selection);
+        const xDirection = moves?.find(([axis]) => axis === "X")?.[1] || 0;
+        const yDirection = moves?.find(([axis]) => axis === "Y")?.[1] || 0;
+
+        if (
+          xDirection === continuousXyDirections.X &&
+          yDirection === continuousXyDirections.Y
+        ) return;
+
+        continuousXyDirections.X = xDirection;
+        continuousXyDirections.Y = yDirection;
+        if (xDirection) activeContinuousAxes.add("X");
+        else activeContinuousAxes.delete("X");
+        if (yDirection) activeContinuousAxes.add("Y");
+        else activeContinuousAxes.delete("Y");
+
+        sendContinuousXY(xDirection, yDirection).catch((error) => {
+          continuousXyDirections.X = 0;
+          continuousXyDirections.Y = 0;
+          activeContinuousAxes.delete("X");
+          activeContinuousAxes.delete("Y");
+          feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
+          feedback.className = "error";
+        });
+      }
+
       function updateJogDialHover(event) {
         const rect = jogDialCanvas.getBoundingClientRect();
-        const selection = dialSelectionAt(
-          event.clientX - rect.left,
-          event.clientY - rect.top,
-          rect.width,
-          rect.height,
-        );
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const selection = jogMotionMode === "continuous"
+          ? dialDirectionAt(x, y, rect.width, rect.height)
+          : dialSelectionAt(x, y, rect.width, rect.height);
+
+        if (jogMotionMode === "continuous" && continuousDialPointerId === event.pointerId) {
+          setContinuousDialDirection(selection);
+        }
+
         if (
           selection?.sector !== hoveredDialSelection?.sector ||
           selection?.step !== hoveredDialSelection?.step
         ) {
           hoveredDialSelection = selection;
           jogDialHint.textContent = selection
-            ? `${["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection.sector]} · ${selection.step} mm`
-            : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+            ? jogMotionMode === "continuous"
+              ? `${["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection.sector]} · удерживайте для перемещения`
+              : `${["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection.sector]} · ${selection.step} mm`
+            : jogMotionMode === "continuous"
+              ? "Удерживайте кнопку и перемещайте указатель по диску"
+              : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
           drawJogDial();
         }
       }
@@ -3295,44 +3415,27 @@
       jogDialCanvas.addEventListener("pointerdown", (event) => {
         if (jogMotionMode !== "continuous" || !machineConnected) return;
         const rect = jogDialCanvas.getBoundingClientRect();
-        const selection = dialSelectionAt(
+        const selection = dialDirectionAt(
           event.clientX - rect.left,
           event.clientY - rect.top,
           rect.width,
           rect.height,
         );
-        const moves = selection && dialMoves(selection);
-        if (!moves) return;
+        if (!selection) return;
 
         event.preventDefault();
+        continuousDialPointerId = event.pointerId;
         jogDialCanvas.setPointerCapture(event.pointerId);
-        if (moves.length === 1) {
-          startContinuousJog(moves[0][0], moves[0][1]);
-        } else {
-          continuousXyDirections.X = moves[0][1];
-          continuousXyDirections.Y = moves[1][1];
-          activeContinuousAxes.add("X");
-          activeContinuousAxes.add("Y");
-          sendContinuousXY(
-            continuousXyDirections.X,
-            continuousXyDirections.Y,
-          ).catch((error) => {
-            continuousXyDirections.X = 0;
-            continuousXyDirections.Y = 0;
-            activeContinuousAxes.delete("X");
-            activeContinuousAxes.delete("Y");
-            feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
-            feedback.className = "error";
-          });
-        }
+        setContinuousDialDirection(selection);
       });
-      jogDialCanvas.addEventListener("pointerup", () => {
+      function endContinuousDialJog() {
+        continuousDialPointerId = null;
         if (jogMotionMode === "continuous") stopContinuousJog();
-      });
-      jogDialCanvas.addEventListener("pointercancel", stopContinuousJog);
-      jogDialCanvas.addEventListener("lostpointercapture", () => {
-        if (jogMotionMode === "continuous") stopContinuousJog();
-      });
+      }
+
+      jogDialCanvas.addEventListener("pointerup", endContinuousDialJog);
+      jogDialCanvas.addEventListener("pointercancel", endContinuousDialJog);
+      jogDialCanvas.addEventListener("lostpointercapture", endContinuousDialJog);
 
       jogDialCanvas.addEventListener("click", (event) => {
         if (jogMotionMode === "continuous") return;
