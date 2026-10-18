@@ -434,6 +434,23 @@ impl GrblAdapter {
         Ok((feed_rate, spindle_rpm))
     }
 
+    fn is_known_machine_state(state: &str) -> bool {
+        let (name, detail) = match state.split_once(':') {
+            Some((name, detail)) => (name, Some(detail)),
+            None => (state, None),
+        };
+
+        let known_name = matches!(
+            name.to_ascii_lowercase().as_str(),
+            "idle" | "run" | "jog" | "hold" | "alarm" | "door" | "check" | "home" | "sleep"
+        );
+        let valid_detail = detail.map_or(true, |detail| {
+            !detail.is_empty() && detail.bytes().all(|byte| byte.is_ascii_digit())
+        });
+
+        known_name && valid_detail
+    }
+
     fn parse_status(
         response: &str,
         cached_work_offset: Option<[f64; 3]>,
@@ -451,12 +468,7 @@ impl GrblAdapter {
         let mut fields = body.split('|');
         let state = fields.next().unwrap_or("Unknown");
         let state_lower = state.to_ascii_lowercase();
-        let known_state = [
-            "idle", "run", "jog", "hold", "alarm", "door", "check", "home", "sleep",
-        ]
-        .iter()
-        .any(|known| state_lower.starts_with(known));
-        if !known_state {
+        if !Self::is_known_machine_state(state) {
             return Err(ControllerError::new(
                 "protocol",
                 format!("unknown GRBL machine state: {state}"),
@@ -1417,6 +1429,9 @@ mod tests {
         for response in [
             "<|MPos:0,0,0|FS:0,0>",
             "<Unknown|MPos:0,0,0|FS:0,0>",
+            "<Idleish|MPos:0,0,0|FS:0,0>",
+            "<Runaway|MPos:0,0,0|FS:0,0>",
+            "<Hold:invalid|MPos:0,0,0|FS:0,0>",
         ] {
             let error = GrblAdapter::parse_status(
                 response,
