@@ -468,12 +468,12 @@ impl GrblAdapter {
             | CoordinateSystem::G57
             | CoordinateSystem::G58
             | CoordinateSystem::G59 => Ok(()),
-            CoordinateSystem::G59_1
-            | CoordinateSystem::G59_2
-            | CoordinateSystem::G59_3 => Err(ControllerError::new(
-                "unsupported_coordinate_system",
-                format!("GRBL 1.1 does not support {}", system.label()),
-            )),
+            CoordinateSystem::G59_1 | CoordinateSystem::G59_2 | CoordinateSystem::G59_3 => {
+                Err(ControllerError::new(
+                    "unsupported_coordinate_system",
+                    format!("GRBL 1.1 does not support {}", system.label()),
+                ))
+            }
         }
     }
 
