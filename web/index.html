@@ -834,6 +834,34 @@
         gap: 10px;
       }
 
+      .spindle-direction-button {
+        display: grid;
+        width: 28px;
+        min-width: 28px;
+        height: 28px;
+        min-height: 28px;
+        padding: 0;
+        place-items: center;
+        color: #aeb9bc;
+      }
+
+      .spindle-direction-button svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .spindle-direction-button.active-cw {
+        border-color: #39704f;
+        background: #19291f;
+        color: #76d49c;
+      }
+
+      .spindle-direction-button.active-ccw {
+        border-color: #7c3033;
+        background: #351719;
+        color: #f08b8b;
+      }
+
       .spindle-toggle {
         display: flex;
         width: auto;
@@ -1333,11 +1361,17 @@
               </div>
             </div>
             <div class="spindle-actions">
-              <button class="spindle-toggle" id="spindle-toggle" type="button" aria-label="Запустить шпиндель" title="Запустить шпиндель на заданной скорости" disabled>
-                <svg id="spindle-toggle-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7L8 5Z"></path>
+              <button class="spindle-direction-button" id="spindle-cw" type="button" aria-label="Запустить шпиндель по часовой стрелке" title="Запустить шпиндель по часовой стрелке" disabled>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path>
+                  <path d="M4 4v5h5"></path>
                 </svg>
-                <span class="spindle-toggle-value" id="spindle-toggle-value">0</span>
+              </button>
+              <button class="spindle-direction-button" id="spindle-ccw" type="button" aria-label="Запустить шпиндель против часовой стрелки" title="Запустить шпиндель против часовой стрелки" disabled>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path>
+                  <path d="M20 4v5h-5"></path>
+                </svg>
               </button>
             </div>
         </section>
@@ -2858,9 +2892,10 @@
       const jobCaption = document.querySelector("#job-caption");
       const jobNote = document.querySelector("#job-note");
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
-      const spindleToggle = document.querySelector("#spindle-toggle");
-      const spindleToggleIcon = document.querySelector("#spindle-toggle-icon");
-      const spindleToggleValue = document.querySelector("#spindle-toggle-value");
+      const spindleCwButton = document.querySelector("#spindle-cw");
+      const spindleCcwButton = document.querySelector("#spindle-ccw");
+      let spindleUiDirection = "stopped";
+      let pendingSpindleDirection = null;
       const spindleStepButton = document.querySelector("#spindle-step");
       const spindleSpeedOptions = document.querySelector("#spindle-speed-options");
       let spindleIsRunning = false;
@@ -2909,7 +2944,6 @@
           Math.min(spindleMaximumRpm, Number(value) || spindleMinimumRpm),
         );
         spindleSpeedSlider.value = String(rpm);
-        spindleToggleValue.textContent = rpm.toFixed(0);
         spindleStepButton.textContent = rpm.toFixed(0);
       }
 
@@ -2982,25 +3016,51 @@
         }
       });
 
-      spindleToggle.addEventListener("click", async () => {
-        const enabled = !spindleIsRunning;
+      async function commandSpindle(direction) {
+        const nextDirection = spindleUiDirection === direction ? "stopped" : direction;
+        const enabled = nextDirection !== "stopped";
         const rpm = Number(spindleSpeedSlider.value);
-        spindleToggle.disabled = true;
+
+        pendingSpindleDirection = nextDirection;
+        spindleUiDirection = nextDirection;
+        updateSpindleButtons();
 
         try {
           await invokeOrFetch(
             "set_spindle",
-            { rpm, enabled },
+            { rpm, enabled, direction },
             "/api/spindle",
             "POST",
           );
           await refreshStatus();
         } catch (error) {
+          pendingSpindleDirection = null;
           document.querySelector("#message").textContent = `Ошибка шпинделя: ${error.message}`;
-        } finally {
-          spindleToggle.disabled = !machineConnected || spindleMaximumRpm <= 0;
+          await refreshStatus();
         }
-      });
+      }
+
+      spindleCwButton.addEventListener("click", () => commandSpindle("CW"));
+      spindleCcwButton.addEventListener("click", () => commandSpindle("CCW"));
+
+      function updateSpindleButtons() {
+        const cwActive = spindleUiDirection === "cw";
+        const ccwActive = spindleUiDirection === "ccw";
+        const stopIcon = '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"></rect>';
+        const cwIcon = '<path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path><path d="M4 4v5h5"></path>';
+        const ccwIcon = '<path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path><path d="M20 4v5h-5"></path>';
+
+        spindleCwButton.classList.toggle("active-cw", cwActive);
+        spindleCcwButton.classList.toggle("active-ccw", ccwActive);
+        spindleCwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${cwActive ? stopIcon : cwIcon}</svg>`;
+        spindleCcwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ccwActive ? stopIcon : ccwIcon}</svg>`;
+        spindleCwButton.setAttribute("aria-label", cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке");
+        spindleCcwButton.setAttribute("aria-label", ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки");
+        spindleCwButton.title = cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке";
+        spindleCcwButton.title = ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки";
+        spindleCwButton.disabled = !machineConnected || spindleMaximumRpm <= 0;
+        spindleCcwButton.disabled = spindleCwButton.disabled;
+      }
 
       function updateSpindleControls(status) {
         spindleIsRunning = Boolean(status.spindle_enabled);
@@ -3022,16 +3082,28 @@
         spindleToggleValue.textContent = nextSetpoint.toFixed(0);
         spindleStepButton.textContent = nextSetpoint.toFixed(0);
 
-        spindleToggle.classList.toggle("running", spindleIsRunning);
-        spindleToggle.setAttribute("aria-label", spindleIsRunning ? "Остановить шпиндель" : "Запустить шпиндель");
-        spindleToggle.title = spindleIsRunning
-          ? "Остановить шпиндель"
-          : "Запустить шпиндель на заданной скорости";
-        spindleToggleIcon.innerHTML = spindleIsRunning
-          ? '<rect x="5" y="5" width="14" height="14" rx="2"></rect>'
-          : '<path d="M8 5v14l11-7L8 5Z"></path>';
-        spindleToggle.disabled = !status.connected || spindleMaximumRpm <= 0;
-        spindleSpeedSlider.disabled = !status.connected || spindleMaximumRpm <= 0 || spindleIsRunning;
+        const reportedDirection = status.spindle_direction || "stopped";
+        const actualRpm = Number(status.spindle_rpm) || 0;
+
+        if (pendingSpindleDirection === "stopped" && (!spindleIsRunning || actualRpm <= 0.01)) {
+          pendingSpindleDirection = null;
+        } else if (
+          pendingSpindleDirection &&
+          pendingSpindleDirection !== "stopped" &&
+          reportedDirection === pendingSpindleDirection.toLowerCase() &&
+          spindleIsRunning
+        ) {
+          pendingSpindleDirection = null;
+        }
+
+        spindleUiDirection = pendingSpindleDirection ||
+          (spindleIsRunning ? reportedDirection : "stopped");
+        updateSpindleButtons();
+        spindleSpeedSlider.disabled =
+          !status.connected ||
+          spindleMaximumRpm <= 0 ||
+          spindleIsRunning ||
+          spindleUiDirection !== "stopped";
       }
 
       function updateJobControls(status) {

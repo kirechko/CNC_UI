@@ -65,7 +65,12 @@ fn abort_program(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn set_spindle(state: State<'_, AppState>, rpm: f64, enabled: bool) -> Result<(), String> {
+fn set_spindle(
+    state: State<'_, AppState>,
+    rpm: f64,
+    enabled: bool,
+    direction: String,
+) -> Result<(), String> {
     let controller = state
         .controller
         .lock()
@@ -101,8 +106,14 @@ fn set_spindle(state: State<'_, AppState>, rpm: f64, enabled: bool) -> Result<()
         ));
     }
 
+    let direction = match direction.as_str() {
+        "CW" => UiSpindleDirection::CW,
+        "CCW" => UiSpindleDirection::CCW,
+        _ => return Err("Направление шпинделя должно быть CW или CCW".into()),
+    };
+
     controller.set_spindle_speed(rpm);
-    controller.set_spindle_direction(UiSpindleDirection::CW);
+    controller.set_spindle_direction(direction);
     Ok(())
 }
 
