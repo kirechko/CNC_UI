@@ -70,20 +70,37 @@ impl GrblAdapter {
         })
     }
 
-    async fn read_line(port: &mut SerialStream, rx_buffer: &mut Vec<u8>) -> CncResult<String> {
-        loop {
-            if let Some(line_end) = rx_buffer.iter().position(|byte| *byte == b'\n') {
-                let line: Vec<u8> = rx_buffer.drain(..=line_end).collect();
-                return Ok(String::from_utf8_lossy(&line[..line.len() - 1])
-                    .trim()
-                    .to_string());
-            }
-
-            if rx_buffer.len() > MAX_RESPONSE_LINE {
+    fn extract_line(rx_buffer: &mut Vec<u8>) -> CncResult<Option<String>> {
+        if let Some(line_end) = rx_buffer.iter().position(|byte| *byte == b'\n') {
+            if line_end > MAX_RESPONSE_LINE {
                 return Err(ControllerError::new(
                     "protocol",
                     "GRBL response line exceeds size limit",
                 ));
+            }
+
+            let line: Vec<u8> = rx_buffer.drain(..=line_end).collect();
+            return Ok(Some(
+                String::from_utf8_lossy(&line[..line.len() - 1])
+                    .trim()
+                    .to_string(),
+            ));
+        }
+
+        if rx_buffer.len() > MAX_RESPONSE_LINE {
+            return Err(ControllerError::new(
+                "protocol",
+                "GRBL response line exceeds size limit",
+            ));
+        }
+
+        Ok(None)
+    }
+
+    async fn read_line(port: &mut SerialStream, rx_buffer: &mut Vec<u8>) -> CncResult<String> {
+        loop {
+            if let Some(line) = Self::extract_line(rx_buffer)? {
+                return Ok(line);
             }
 
             let mut chunk = [0_u8; 256];
@@ -746,6 +763,30 @@ mod tests {
             direction: SpindleDirection::Clockwise,
             rpm: 1200.0,
         }
+    }
+
+    #[test]
+    fn extracts_complete_line_and_preserves_following_buffered_lines() {
+        let mut buffer = b"ok\n<Idle|MPos:1,2,3|FS:0,0>\n".to_vec();
+
+        assert_eq!(
+            GrblAdapter::extract_line(&mut buffer).unwrap().as_deref(),
+            Some("ok")
+        );
+        assert_eq!(
+            GrblAdapter::extract_line(&mut buffer).unwrap().as_deref(),
+            Some("<Idle|MPos:1,2,3|FS:0,0>")
+        );
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn rejects_oversized_line_even_when_terminator_is_already_buffered() {
+        let mut buffer = vec![b'x'; MAX_RESPONSE_LINE + 1];
+        buffer.push(b'\n');
+
+        let error = GrblAdapter::extract_line(&mut buffer).unwrap_err();
+        assert_eq!(error.code, "protocol");
     }
 
     #[test]
