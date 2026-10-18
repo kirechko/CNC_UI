@@ -266,13 +266,12 @@
       }
 
       .axis-row.wpos-only,
-      #position-grid-header.wpos-only {
+      .axis-row.mpos-only {
         grid-template-columns: 24px minmax(0, 1fr) 25px 25px;
       }
 
-      .axis-row.mpos-only,
-      #position-grid-header.mpos-only {
-        grid-template-columns: 24px minmax(0, 1fr) 25px 25px;
+      #position-grid-header {
+        grid-template-columns: 24px minmax(0, 1.5fr) minmax(0, 0.5fr) 25px 25px;
       }
 
       .position-column {
@@ -280,8 +279,8 @@
         white-space: nowrap;
       }
 
-      .wpos-only .position-column.machine,
-      .mpos-only .position-column.work {
+      .axis-row.wpos-only .position-column.machine,
+      .axis-row.mpos-only .position-column.work {
         display: none;
       }
 
@@ -300,19 +299,20 @@
 
       .dro-header .position-mode-toggle {
         min-width: 0;
-        min-height: 20px;
-        padding: 0;
-        border-color: transparent;
-        background: transparent;
+        min-height: 26px;
+        padding: 0 5px;
+        border-color: #3b484d;
+        background: #171c1f;
+        color: #aeb9bc;
         font-size: 9px;
-        font-weight: 650;
-        letter-spacing: 0.09em;
+        font-weight: 700;
+        letter-spacing: 0.08em;
         text-align: right;
       }
 
       .dro-header .position-mode-toggle.active {
-        border-color: transparent;
-        background: transparent;
+        border-color: #4385a1;
+        background: #1a2b33;
         color: #a3d5e9;
       }
 
@@ -1008,7 +1008,7 @@
       const coordinateSystem = document.querySelector("#coordinate-system");
       let editingAxis = null;
       let latestStatus = null;
-      let positionDisplay = { work: true, machine: false };
+      let positionDisplay = { work: true, machine: true };
       let machineConnected = false;
       let statusRequestInFlight = false;
       let loadedProgram = null;
