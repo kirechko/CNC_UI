@@ -486,6 +486,7 @@ impl GrblAdapter {
         let mut feed_rate = 0.0;
         let mut actual_rpm = 0.0;
         let mut feed_spindle_seen = false;
+        let mut feed_seen = false;
 
         for field in fields {
             if let Some(value) = field.strip_prefix("MPos:") {
@@ -519,11 +520,30 @@ impl GrblAdapter {
                         ControllerError::new("protocol", "invalid GRBL WCO field")
                     })?);
             } else if let Some(value) = field.strip_prefix("FS:") {
-                if feed_spindle_seen {
-                    return Err(ControllerError::new("protocol", "duplicate GRBL FS field"));
+                if feed_seen {
+                    return Err(ControllerError::new(
+                        "protocol",
+                        "duplicate GRBL feed-rate field",
+                    ));
                 }
                 (feed_rate, actual_rpm) = Self::parse_feed_spindle(value)?;
                 feed_spindle_seen = true;
+                feed_seen = true;
+            } else if let Some(value) = field.strip_prefix("F:") {
+                if feed_seen || feed_spindle_seen {
+                    return Err(ControllerError::new(
+                        "protocol",
+                        "duplicate GRBL feed-rate field",
+                    ));
+                }
+                feed_rate = value
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|value| value.is_finite() && *value >= 0.0)
+                    .ok_or_else(|| {
+                        ControllerError::new("protocol", "invalid GRBL feed-rate field")
+                    })?;
+                feed_seen = true;
             }
         }
 
@@ -1522,6 +1542,45 @@ mod tests {
 
         for axis in [Axis::X, Axis::Y, Axis::Z] {
             assert!(GrblAdapter::ensure_supported_axis(axis).is_ok());
+        }
+    }
+
+    #[test]
+    fn parses_feed_only_status_reports() {
+        let status = GrblAdapter::parse_status(
+            "<Idle|MPos:1,2,3|F:120.5>",
+            None,
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(status.feed_rate, 120.5);
+        assert_eq!(status.spindle.actual_rpm, 0.0);
+    }
+
+    #[test]
+    fn rejects_duplicate_feed_telemetry_fields() {
+        for response in [
+            "<Idle|MPos:0,0,0|F:100|F:200>",
+            "<Idle|MPos:0,0,0|F:100|FS:200,300>",
+            "<Idle|MPos:0,0,0|FS:100,300|F:200>",
+        ] {
+            let error = GrblAdapter::parse_status(
+                response,
+                None,
+                CoordinateSystem::G54,
+                spindle_command(),
+                None,
+                0,
+                0,
+            )
+            .unwrap_err();
+
+            assert_eq!(error.code, "protocol", "response: {response}");
         }
     }
 
