@@ -120,6 +120,7 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
     emulator.jog_velocity = 0.0;
     emulator.status.jog_rate = 0.0;
     emulator.status.feed_rate = 0.0;
+    emulator.status.motion_mode = None;
 
     // STOP принудительно гасит шпиндель, не выполняя ramp-down.
     emulator.pending_spindle = None;
@@ -240,6 +241,7 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     emulator.jog_velocity = 0.0;
     emulator.status.jog_rate = 0.0;
     emulator.status.feed_rate = 0.0;
+    emulator.status.motion_mode = None;
     emulator.homing_queue.clear();
     emulator.homing_axis = None;
     emulator.active_move_is_homing = false;
