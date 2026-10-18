@@ -335,13 +335,12 @@ impl GrblAdapter {
         .await
         {
             Ok(result) => result,
-            Err(_) => {
-                session.protocol_poisoned = true;
-                Err(ControllerError::new(
-                    "timeout",
-                    "timed out waiting for GRBL status; reconnect required",
-                ))
-            }
+            // Потеря ответа на realtime-запрос `?` не рассинхронизирует очередь ACK
+            // команд. Не блокируем дальнейшие запросы и команды из-за единичного тайм-аута.
+            Err(_) => Err(ControllerError::new(
+                "timeout",
+                "timed out waiting for GRBL status",
+            )),
         }
     }
 
