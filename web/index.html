@@ -1298,6 +1298,31 @@
         return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
       }
 
+      function trajectoryBounds() {
+        const points = loadedProgram?.segments.flatMap(({ from, to }) => [from, to]) || [];
+        if (points.length === 0) return sceneBounds();
+
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const point of points) {
+          for (let axis = 0; axis < 3; axis++) {
+            min[axis] = Math.min(min[axis], point[axis]);
+            max[axis] = Math.max(max[axis], point[axis]);
+          }
+        }
+
+        // Give flat paths a visible stock thickness while preserving their center.
+        for (let axis = 0; axis < 3; axis++) {
+          if (max[axis] - min[axis] < 1) {
+            const center = (min[axis] + max[axis]) / 2;
+            min[axis] = center - 0.5;
+            max[axis] = center + 0.5;
+          }
+        }
+
+        return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
+      }
+
       function makeProjector(width, height, bounds) {
         const rotated = [
           ...bounds.min.map((_, index) => {
@@ -1342,11 +1367,16 @@
       }
 
       function drawGrid(context, width, height, project, bounds) {
+        // Станочная плоскость XY центрирована на машинном нуле и вдвое шире заготовки.
+        const planeMinX = -(bounds.max[0] - bounds.min[0]);
+        const planeMaxX = bounds.max[0] - bounds.min[0];
+        const planeMinY = -(bounds.max[1] - bounds.min[1]);
+        const planeMaxY = bounds.max[1] - bounds.min[1];
         const corners = [
-          [bounds.min[0], bounds.min[1], 0],
-          [bounds.max[0], bounds.min[1], 0],
-          [bounds.max[0], bounds.max[1], 0],
-          [bounds.min[0], bounds.max[1], 0],
+          [planeMinX, planeMinY, 0],
+          [planeMaxX, planeMinY, 0],
+          [planeMaxX, planeMaxY, 0],
+          [planeMinX, planeMaxY, 0],
         ].map(project);
         context.beginPath();
         corners.forEach((point, index) => {
@@ -1360,15 +1390,15 @@
         context.lineWidth = 1;
         context.stroke();
 
-        const rangeX = Math.max(bounds.max[0] - bounds.min[0], 1);
-        const rangeY = Math.max(bounds.max[1] - bounds.min[1], 1);
+        const rangeX = planeMaxX - planeMinX;
+        const rangeY = planeMaxY - planeMinY;
         const step = Math.pow(10, Math.floor(Math.log10(Math.max(rangeX, rangeY) / 8)));
         const minorStep = step / 5;
         context.lineWidth = 1;
 
-        for (let x = Math.ceil(bounds.min[0] / minorStep) * minorStep; x <= bounds.max[0]; x += minorStep) {
-          const a = project([x, bounds.min[1], 0]);
-          const b = project([x, bounds.max[1], 0]);
+        for (let x = Math.ceil(planeMinX / minorStep) * minorStep; x <= planeMaxX; x += minorStep) {
+          const a = project([x, planeMinY, 0]);
+          const b = project([x, planeMaxY, 0]);
           context.beginPath();
           context.moveTo(a.x, a.y);
           context.lineTo(b.x, b.y);
@@ -1377,9 +1407,9 @@
           context.stroke();
         }
 
-        for (let y = Math.ceil(bounds.min[1] / minorStep) * minorStep; y <= bounds.max[1]; y += minorStep) {
-          const a = project([bounds.min[0], y, 0]);
-          const b = project([bounds.max[0], y, 0]);
+        for (let y = Math.ceil(planeMinY / minorStep) * minorStep; y <= planeMaxY; y += minorStep) {
+          const a = project([planeMinX, y, 0]);
+          const b = project([planeMaxX, y, 0]);
           context.beginPath();
           context.moveTo(a.x, a.y);
           context.lineTo(b.x, b.y);
@@ -1395,6 +1425,42 @@
         context.fill();
       }
 
+      function drawStock(context, project, bounds) {
+        const vertices = [
+          [bounds.min[0], bounds.min[1], bounds.min[2]],
+          [bounds.max[0], bounds.min[1], bounds.min[2]],
+          [bounds.max[0], bounds.max[1], bounds.min[2]],
+          [bounds.min[0], bounds.max[1], bounds.min[2]],
+          [bounds.min[0], bounds.min[1], bounds.max[2]],
+          [bounds.max[0], bounds.min[1], bounds.max[2]],
+          [bounds.max[0], bounds.max[1], bounds.max[2]],
+          [bounds.min[0], bounds.max[1], bounds.max[2]],
+        ].map(project);
+        const faces = [
+          [0, 1, 2, 3],
+          [4, 5, 6, 7],
+          [0, 1, 5, 4],
+          [1, 2, 6, 5],
+          [2, 3, 7, 6],
+          [3, 0, 4, 7],
+        ].map((indices) => ({
+          points: indices.map((index) => vertices[index]),
+          depth: indices.reduce((sum, index) => sum + vertices[index].depth, 0) / 4,
+        })).sort((a, b) => a.depth - b.depth);
+
+        for (const face of faces) {
+          context.beginPath();
+          context.moveTo(face.points[0].x, face.points[0].y);
+          face.points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+          context.closePath();
+          context.fillStyle = "rgba(66, 164, 212, .12)";
+          context.fill();
+          context.strokeStyle = "rgba(117, 194, 226, .55)";
+          context.lineWidth = 1;
+          context.stroke();
+        }
+      }
+
       function drawAxes(context, project, bounds) {
         const length = Math.max(
           bounds.max[0] - bounds.min[0],
@@ -1402,12 +1468,12 @@
           bounds.max[2] - bounds.min[2],
           10,
         ) * 0.14;
-        const origin = project([bounds.min[0], bounds.min[1], 0]);
+        const origin = project([0, 0, 0]);
 
         for (const [axis, end, color] of [
-          ["X", [bounds.min[0] + length, bounds.min[1], 0], "#ef7777"],
-          ["Y", [bounds.min[0], bounds.min[1] + length, 0], "#68ce9e"],
-          ["Z", [bounds.min[0], bounds.min[1], length], "#57b5e2"],
+          ["X", [length, 0, 0], "#ef7777"],
+          ["Y", [0, length, 0], "#68ce9e"],
+          ["Z", [0, 0, length], "#57b5e2"],
         ]) {
           const point = project(end);
           context.beginPath();
@@ -1599,7 +1665,9 @@
         }
 
         viewerEmpty.hidden = true;
-        drawGrid(trajectoryContext, width, height, project, bounds);
+        const stock = trajectoryBounds();
+        drawGrid(trajectoryContext, width, height, project, stock);
+        drawStock(trajectoryContext, project, stock);
 
         const colors = {
           rapid: "rgba(153, 168, 174, .58)",
