@@ -904,10 +904,7 @@ mod tests {
         assert_eq!(zero_direction.rpm, 0.0);
 
         let running = spindle_command();
-        assert_eq!(
-            GrblAdapter::normalize_spindle_command(running),
-            running
-        );
+        assert_eq!(GrblAdapter::normalize_spindle_command(running), running);
     }
 
     #[test]
