@@ -381,6 +381,11 @@ async fn set_spindle(
     State(state): State<SharedController>,
     Json(request): Json<SpindleRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    eprintln!(
+        "[Backend/HTTP] set_spindle received: enabled={}, direction={}, rpm={}",
+        request.enabled, request.direction, request.rpm
+    );
+
     let controller = state
         .controller
         .lock()
