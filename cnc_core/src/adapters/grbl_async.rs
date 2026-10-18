@@ -389,6 +389,29 @@ impl GrblAdapter {
         Some(result)
     }
 
+    fn parse_feed_spindle(value: &str) -> CncResult<(f64, f64)> {
+        let mut values = value.split(',');
+        let feed_rate = values
+            .next()
+            .and_then(|value| value.parse::<f64>().ok())
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .ok_or_else(|| ControllerError::new("protocol", "invalid GRBL feed-rate field"))?;
+        let spindle_rpm = values
+            .next()
+            .and_then(|value| value.parse::<f64>().ok())
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .ok_or_else(|| ControllerError::new("protocol", "invalid GRBL spindle-speed field"))?;
+
+        if values.next().is_some() {
+            return Err(ControllerError::new(
+                "protocol",
+                "GRBL FS field must contain exactly two values",
+            ));
+        }
+
+        Ok((feed_rate, spindle_rpm))
+    }
+
     fn parse_status(
         response: &str,
         cached_work_offset: Option<[f64; 3]>,
@@ -428,17 +451,7 @@ impl GrblAdapter {
                         ControllerError::new("protocol", "invalid GRBL WCO field")
                     })?);
             } else if let Some(value) = field.strip_prefix("FS:") {
-                let mut values = value.split(',');
-                feed_rate = values
-                    .next()
-                    .and_then(|value| value.parse::<f64>().ok())
-                    .filter(|value| value.is_finite())
-                    .unwrap_or(0.0);
-                actual_rpm = values
-                    .next()
-                    .and_then(|value| value.parse::<f64>().ok())
-                    .filter(|value| value.is_finite())
-                    .unwrap_or(0.0);
+                (feed_rate, actual_rpm) = Self::parse_feed_spindle(value)?;
             }
         }
 
@@ -1178,6 +1191,29 @@ mod tests {
 
         for axis in [Axis::X, Axis::Y, Axis::Z] {
             assert!(GrblAdapter::ensure_supported_axis(axis).is_ok());
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_feed_and_spindle_telemetry() {
+        for response in [
+            "<Idle|MPos:0,0,0|FS:bad,0>",
+            "<Idle|MPos:0,0,0|FS:100,NaN>",
+            "<Idle|MPos:0,0,0|FS:-1,0>",
+            "<Idle|MPos:0,0,0|FS:100,0,extra>",
+        ] {
+            let error = GrblAdapter::parse_status(
+                response,
+                None,
+                CoordinateSystem::G54,
+                spindle_command(),
+                None,
+                0,
+                0,
+            )
+            .unwrap_err();
+
+            assert_eq!(error.code, "protocol", "response: {response}");
         }
     }
 
