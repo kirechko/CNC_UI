@@ -810,6 +810,16 @@ impl GrblAdapter {
         Ok(())
     }
 
+    fn ensure_jog_idle(jog_active: bool) -> CncResult<()> {
+        if jog_active {
+            return Err(ControllerError::new(
+                "motion_busy",
+                "cannot issue this command while a continuous Jog is active",
+            ));
+        }
+        Ok(())
+    }
+
     fn ensure_program_idle(program_streaming: bool, jog_active: bool) -> CncResult<()> {
         if program_streaming || jog_active {
             return Err(ControllerError::new(
@@ -985,6 +995,7 @@ impl LinuxCncApi for GrblAdapter {
         Self::ensure_supported_coordinate_system(system)?;
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, system.label()).await?;
         session.active_coordinate_system = system;
         session.last_work_offset = None;
@@ -995,6 +1006,7 @@ impl LinuxCncApi for GrblAdapter {
         Self::ensure_supported_coordinate_system(system)?;
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         let command = format!("G10 L20 P{} X0 Y0 Z0", Self::coordinate_number(system));
         Self::send_command(&mut session, &command).await?;
         // G10 L20 Pn обновляет смещение указанной системы, но не выбирает её.
@@ -1007,6 +1019,7 @@ impl LinuxCncApi for GrblAdapter {
         Self::ensure_supported_axis(axis)?;
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::ensure_supported_coordinate_system(session.active_coordinate_system)?;
         let command = format!(
             "G10 L20 P{} {}0",
@@ -1132,6 +1145,7 @@ impl LinuxCncApi for GrblAdapter {
     async fn mdi(&self, command: &str) -> CncResult<()> {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, command).await
     }
 
@@ -1352,6 +1366,14 @@ mod tests {
                 .code,
             "protocol"
         );
+    }
+
+    #[test]
+    fn prevents_conflicting_commands_during_continuous_jog() {
+        assert!(GrblAdapter::ensure_jog_idle(false).is_ok());
+
+        let error = GrblAdapter::ensure_jog_idle(true).unwrap_err();
+        assert_eq!(error.code, "motion_busy");
     }
 
     #[test]
