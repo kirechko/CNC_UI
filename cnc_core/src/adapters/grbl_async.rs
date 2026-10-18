@@ -31,6 +31,7 @@ struct Session {
     rx_buffer: Vec<u8>,
     last_work_offset: Option<[f64; 3]>,
     protocol_poisoned: bool,
+    program_streaming: bool,
     program: Vec<String>,
     program_name: Option<String>,
     current_line: u32,
@@ -68,6 +69,7 @@ impl GrblAdapter {
                 rx_buffer: Vec::new(),
                 last_work_offset: None,
                 protocol_poisoned: false,
+                program_streaming: false,
             }),
         })
     }
@@ -212,6 +214,30 @@ impl GrblAdapter {
         };
 
         Self::send_command(session, &command).await
+    }
+
+    async fn stream_next_program_line(session: &mut Session) -> CncResult<()> {
+        if !session.program_streaming {
+            return Ok(());
+        }
+
+        let index = session.current_line as usize;
+        if index >= session.program.len() {
+            session.program_streaming = false;
+            return Ok(());
+        }
+
+        let line = session.program[index].clone();
+        if let Err(error) = Self::send_command(session, &line).await {
+            session.program_streaming = false;
+            return Err(error);
+        }
+
+        session.current_line = (index + 1) as u32;
+        if session.current_line as usize >= session.program.len() {
+            session.program_streaming = false;
+        }
+        Ok(())
     }
 
     async fn query_status(session: &mut Session) -> CncResult<String> {
@@ -509,7 +535,9 @@ impl LinuxCncApi for GrblAdapter {
         let response = Self::query_status(&mut session).await?;
 
         if response.starts_with("<Idle") {
-            if let Some(jog) = session.continuous_jog {
+            if session.program_streaming {
+                Self::stream_next_program_line(&mut session).await?;
+            } else if let Some(jog) = session.continuous_jog {
                 if let Err(error) = Self::send_jog_chunk(&mut session, jog).await {
                     session.continuous_jog = None;
                     return Err(error);
@@ -754,25 +782,23 @@ impl LinuxCncApi for GrblAdapter {
         session.program = lines;
         session.program_name = Some(name);
         session.current_line = 0;
+        session.program_streaming = false;
         Ok(())
     }
 
     async fn program_run(&self, start_line: u32) -> CncResult<()> {
         let mut session = self.session.lock().await;
         let start = start_line as usize;
-        if start > session.program.len() {
+        if session.program.is_empty() || start >= session.program.len() {
             return Err(ControllerError::new(
                 "bad_program",
-                "start line is outside the loaded GRBL program",
+                "no program loaded or start line is outside the loaded GRBL program",
             ));
         }
 
-        for index in start..session.program.len() {
-            let line = session.program[index].clone();
-            Self::send_command(&mut session, &line).await?;
-            session.current_line = (index + 1) as u32;
-        }
-        Ok(())
+        session.current_line = start_line;
+        session.program_streaming = true;
+        Self::stream_next_program_line(&mut session).await
     }
 
     async fn program_pause(&self) -> CncResult<()> {
@@ -787,6 +813,8 @@ impl LinuxCncApi for GrblAdapter {
 
     async fn program_abort(&self) -> CncResult<()> {
         let mut session = self.session.lock().await;
+        session.program_streaming = false;
+        session.continuous_jog = None;
         Self::send_realtime(&mut session, 0x18).await?;
         session.current_line = 0;
         Ok(())
