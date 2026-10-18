@@ -539,6 +539,32 @@
         place-items: center;
       }
 
+      .jog-step-custom-button {
+        display: grid;
+        width: 28px;
+        min-width: 28px;
+        height: 28px;
+        min-height: 28px;
+        padding: 0;
+        place-items: center;
+        border-color: #40545d;
+        background: #1b2529;
+        color: #a3d5e9;
+      }
+
+      .jog-step-custom-button svg {
+        width: 15px;
+        height: 15px;
+      }
+
+      .jog-step-custom-xy {
+        position: absolute;
+        z-index: 2;
+        top: 14px;
+        left: -9px;
+        transform: translate(-50%, -50%);
+      }
+
       .jog-dial-canvas {
         width: min(240px, calc(100vw - 100px));
         height: min(240px, calc(100vw - 100px));
@@ -589,6 +615,7 @@
       }
 
       .jog-dial-z-steps {
+        position: relative;
         height: 92%;
         align-self: flex-end;
         margin-bottom: 4%;
@@ -599,6 +626,41 @@
       .jog-dial-z-steps button {
         min-height: 0;
         transform: none;
+      }
+
+      .jog-step-custom-z {
+        position: absolute;
+        z-index: 2;
+        top: 14px;
+        left: -31px;
+      }
+
+      .jog-steps-dialog {
+        width: min(340px, calc(100vw - 32px));
+      }
+
+      .jog-steps-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 9px;
+      }
+
+      .jog-steps-fields label {
+        display: grid;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .jog-steps-fields input {
+        width: 100%;
+        min-height: 36px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
       .jog-dial-z-steps .jog-dial-z-label {
@@ -1365,6 +1427,14 @@
             <div id="jog-dial-panel">
               <div class="jog-dial-layout">
                 <div class="jog-dial-control">
+                  <button class="jog-step-custom-button jog-step-custom-xy" type="button" data-open-jog-steps title="Настроить шаги XY и Z" aria-label="Настроить пользовательские шаги XY и Z">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 7h16M4 12h16M4 17h16"></path>
+                      <circle cx="9" cy="7" r="2" fill="#1b2529"></circle>
+                      <circle cx="15" cy="12" r="2" fill="#1b2529"></circle>
+                      <circle cx="11" cy="17" r="2" fill="#1b2529"></circle>
+                    </svg>
+                  </button>
                   <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: выберите сектор для направления движения; в пошаговом режиме кольца задают шаг, в непрерывном удерживайте кнопку и перемещайте указатель" title="XY Jog: кольцо задаёт шаг; нажмите сектор для перемещения"></canvas>
                   <button class="jog-stop-button jog-dial-stop" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
                     <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
@@ -1373,6 +1443,14 @@
                   </button>
                 </div>
                 <div class="jog-dial-z jog-dial-z-steps" id="jog-dial-z-steps" aria-label="Пошаговое перемещение оси Z">
+                  <button class="jog-step-custom-button jog-step-custom-z" type="button" data-open-jog-steps title="Настроить шаги XY и Z" aria-label="Настроить пользовательские шаги XY и Z">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 7h16M4 12h16M4 17h16"></path>
+                      <circle cx="9" cy="7" r="2" fill="#1b2529"></circle>
+                      <circle cx="15" cy="12" r="2" fill="#1b2529"></circle>
+                      <circle cx="11" cy="17" r="2" fill="#1b2529"></circle>
+                    </svg>
+                  </button>
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
                   <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" aria-label="Переместить Z плюс на 100 миллиметров" title="Переместить Z вверх на 100 мм">100</button>
                   <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" aria-label="Переместить Z плюс на 10 миллиметров" title="Переместить Z вверх на 10 мм">10</button>
@@ -1555,6 +1633,23 @@
       </aside>
     </main>
 
+    <dialog class="position-dialog jog-steps-dialog" id="jog-steps-dialog">
+      <form class="position-dialog-content" id="jog-steps-form">
+        <h2>Пользовательские шаги Jog</h2>
+        <span class="panel-caption">Укажите четыре возрастающих шага в миллиметрах для перемещений XY и Z.</span>
+        <div class="jog-steps-fields">
+          <label>Шаг 1, mm<input type="number" min="0" step="any" required></label>
+          <label>Шаг 2, mm<input type="number" min="0" step="any" required></label>
+          <label>Шаг 3, mm<input type="number" min="0" step="any" required></label>
+          <label>Шаг 4, mm<input type="number" min="0" step="any" required></label>
+        </div>
+        <div class="position-dialog-actions">
+          <button type="button" id="jog-steps-cancel">Отмена</button>
+          <button type="button" id="jog-steps-apply" class="primary">Применить</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="position-dialog" id="position-dialog">
       <form class="position-dialog-content" method="dialog">
         <h2 id="position-dialog-title">Позиция оси</h2>
@@ -1587,6 +1682,24 @@
       let machineConnected = false;
       let statusRequestInFlight = false;
       let jogMotionMode = "incremental";
+      let jogStepValues = [0.1, 1, 10, 100];
+      try {
+        const savedJogSteps = JSON.parse(localStorage.getItem("cnc-ui-jog-steps"));
+        if (
+          Array.isArray(savedJogSteps) &&
+          savedJogSteps.length === 4 &&
+          savedJogSteps.every((value, index) =>
+            Number.isFinite(value) &&
+            value > 0 &&
+            value <= 100000 &&
+            (index === 0 || value > savedJogSteps[index - 1]),
+          )
+        ) {
+          jogStepValues = savedJogSteps;
+        }
+      } catch {
+        // Используем стандартные шаги, если настройки браузера повреждены.
+      }
       const activeContinuousAxes = new Set();
       let loadedProgram = null;
       let loadedStockMesh = null;
@@ -3733,7 +3846,117 @@
       const jogDialCanvas = document.querySelector("#jog-dial");
       const jogDialContext = jogDialCanvas.getContext("2d");
       const jogDialHint = document.querySelector("#jog-dial-hint");
+      const jogStepsDialog = document.querySelector("#jog-steps-dialog");
+      const jogStepsInputs = [...jogStepsDialog.querySelectorAll(".jog-steps-fields input")];
       let hoveredDialSelection = null;
+
+      function formatJogStep(value) {
+        return String(value);
+      }
+
+      function updateJogStepControls() {
+        const distanceSelect = document.querySelector("#distance");
+        const previousSelection = Number(distanceSelect.value);
+        distanceSelect.replaceChildren();
+
+        for (const step of jogStepValues) {
+          const option = document.createElement("option");
+          option.value = formatJogStep(step);
+          option.textContent = `${formatJogStep(step)} mm`;
+          distanceSelect.append(option);
+        }
+
+        distanceSelect.value = jogStepValues.includes(previousSelection)
+          ? formatJogStep(previousSelection)
+          : formatJogStep(jogStepValues[Math.min(1, jogStepValues.length - 1)]);
+
+        const zButtons = [...document.querySelectorAll('[data-dial-axis="Z"]')];
+        for (const direction of [1, -1]) {
+          const directionalButtons = zButtons.filter(
+            (button) => Number(button.dataset.direction) === direction,
+          );
+          const steps = direction === 1 ? [...jogStepValues].reverse() : jogStepValues;
+
+          directionalButtons.forEach((button, index) => {
+            const step = steps[index];
+            const label = direction < 0 ? `−${formatJogStep(step)}` : formatJogStep(step);
+            button.dataset.distance = formatJogStep(step);
+            button.textContent = label;
+            button.setAttribute(
+              "aria-label",
+              `Переместить Z ${direction > 0 ? "плюс" : "минус"} на ${formatJogStep(step)} миллиметров`,
+            );
+            button.title = `Переместить Z ${direction > 0 ? "вверх" : "вниз"} на ${formatJogStep(step)} мм`;
+          });
+        }
+
+        const stepLabels = jogStepsDialog.querySelectorAll(".jog-steps-fields label");
+        stepLabels.forEach((label, index) => {
+          label.firstChild.textContent = `Шаг ${index + 1}, mm`;
+        });
+
+        if (jogDialHint) {
+          jogDialHint.textContent =
+            `Наведите на сектор: кольца задают шаг ${jogStepValues.map(formatJogStep).join(" / ")} mm`;
+        }
+        drawJogDial();
+      }
+
+      function openJogStepsDialog() {
+        jogStepsInputs.forEach((input, index) => {
+          input.value = formatJogStep(jogStepValues[index]);
+          input.setCustomValidity("");
+        });
+        jogStepsDialog.showModal();
+        jogStepsInputs[0].focus();
+        jogStepsInputs[0].select();
+      }
+
+      document.querySelectorAll("[data-open-jog-steps]").forEach((button) => {
+        button.addEventListener("click", openJogStepsDialog);
+      });
+
+      document.querySelector("#jog-steps-cancel").addEventListener("click", () => {
+        jogStepsDialog.close();
+      });
+
+      document.querySelector("#jog-steps-apply").addEventListener("click", () => {
+        const values = jogStepsInputs.map((input) => Number(input.value));
+        let invalidIndex = -1;
+
+        for (let index = 0; index < values.length; index++) {
+          if (
+            !jogStepsInputs[index].value.trim() ||
+            !Number.isFinite(values[index]) ||
+            values[index] <= 0 ||
+            values[index] > 100000 ||
+            (index > 0 && values[index] <= values[index - 1])
+          ) {
+            invalidIndex = index;
+            break;
+          }
+        }
+
+        jogStepsInputs.forEach((input) => input.setCustomValidity(""));
+        if (invalidIndex !== -1) {
+          jogStepsInputs[invalidIndex].setCustomValidity(
+            "Введите положительные шаги по возрастанию, не больше 100000 mm.",
+          );
+          jogStepsInputs[invalidIndex].reportValidity();
+          return;
+        }
+
+        jogStepValues = values;
+        try {
+          localStorage.setItem("cnc-ui-jog-steps", JSON.stringify(jogStepValues));
+        } catch {
+          // Настройки остаются активными до закрытия страницы.
+        }
+        updateJogStepControls();
+        jogStepsDialog.close();
+      });
+
+      updateJogStepControls();
 
       function selectJogMode(mode) {
         const dial = mode === "dial";
@@ -3758,10 +3981,10 @@
         let step;
 
         if (distance < 0.15 || distance > 1) return null;
-        if (distance < 0.3625) step = 0.1;
-        else if (distance < 0.575) step = 1;
-        else if (distance < 0.7875) step = 10;
-        else step = 100;
+        if (distance < 0.3625) step = jogStepValues[0];
+        else if (distance < 0.575) step = jogStepValues[1];
+        else if (distance < 0.7875) step = jogStepValues[2];
+        else step = jogStepValues[3];
 
         let angle = Math.atan2(dy, dx);
         if (angle < 0) angle += Math.PI * 2;
@@ -3917,7 +4140,7 @@
         }
 
         // Подписываем размер шага в каждом кольце в секторе +X/+Y.
-        const stepLabels = ["0.1", "1", "10", "100"];
+        const stepLabels = jogStepValues.map(formatJogStep);
         const labelAngle = 7 * Math.PI / 4;
         jogDialContext.fillStyle = "#f1f3f3";
         jogDialContext.font = `bold ${Math.max(8, radius * 0.09)}px system-ui`;
@@ -4016,10 +4239,10 @@
           jogDialCanvas.title = selection
             ? jogMotionMode === "continuous"
               ? `${direction}: удерживайте кнопку мыши для непрерывного перемещения; перемещайте указатель для смены направления`
-              : `${direction}: нажмите для перемещения на ${selection.step} mm`
+              : `${direction}: нажмите для перемещения на ${formatJogStep(selection.step)} mm`
             : jogMotionMode === "continuous"
               ? "Непрерывный XY Jog: удерживайте кнопку на секторе; центр диска — без движения"
-              : "Пошаговый XY Jog: нажмите сектор; кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+              : `Пошаговый XY Jog: нажмите сектор; кольца задают шаг ${jogStepValues.map(formatJogStep).join(" / ")} mm`;
 
           if (jogDialHint) {
             jogDialHint.textContent = selection

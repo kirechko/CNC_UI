@@ -776,11 +776,13 @@ async fn jog_xy(
 ) -> Result<StatusCode, (StatusCode, String)> {
     if ![-1, 1].contains(&request.x_direction)
         || ![-1, 1].contains(&request.y_direction)
-        || ![0.1, 1.0, 10.0, 100.0].contains(&request.distance)
+        || !request.distance.is_finite()
+        || request.distance <= 0.0
+        || request.distance > 100_000.0
     {
         return Err((
             StatusCode::BAD_REQUEST,
-            "XY directions must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into(),
+            "XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into(),
         ));
     }
 
@@ -797,11 +799,13 @@ async fn jog(
     Json(request): Json<JogRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     if ![-1, 1].contains(&request.direction)
-        || ![0.1, 1.0, 10.0, 100.0].contains(&request.distance)
+        || !request.distance.is_finite()
+        || request.distance <= 0.0
+        || request.distance > 100_000.0
     {
         return Err((
             StatusCode::BAD_REQUEST,
-            "direction must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into(),
+            "direction must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into(),
         ));
     }
 

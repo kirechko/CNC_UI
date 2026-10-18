@@ -229,9 +229,11 @@ fn jog_xy(
 ) -> Result<(), String> {
     if ![-1, 1].contains(&x_direction)
         || ![-1, 1].contains(&y_direction)
-        || ![0.1, 1.0, 10.0, 100.0].contains(&distance)
+        || !distance.is_finite()
+        || distance <= 0.0
+        || distance > 100_000.0
     {
-        return Err("XY directions must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into());
+        return Err("XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into());
     }
 
     let controller = state
@@ -249,8 +251,12 @@ fn jog(
     direction: i8,
     distance: f64,
 ) -> Result<(), String> {
-    if ![-1, 1].contains(&direction) || ![0.1, 1.0, 10.0, 100.0].contains(&distance) {
-        return Err("direction must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into());
+    if ![-1, 1].contains(&direction)
+        || !distance.is_finite()
+        || distance <= 0.0
+        || distance > 100_000.0
+    {
+        return Err("direction must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into());
     }
 
     let axis = match axis {
