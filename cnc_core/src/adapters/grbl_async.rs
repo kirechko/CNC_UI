@@ -774,7 +774,8 @@ impl LinuxCncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         let command = format!("G10 L20 P{} X0 Y0 Z0", Self::coordinate_number(system));
         Self::send_command(&mut session, &command).await?;
-        session.active_coordinate_system = system;
+        // G10 L20 Pn обновляет смещение указанной системы, но не выбирает её.
+        // Активную систему отражает только select_coordinate_system().
         session.last_work_offset = None;
         Ok(())
     }
