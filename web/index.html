@@ -575,7 +575,6 @@
         height: 16px;
       }
 
-      .projection-toggle .ortho-icon,
       .projection-toggle[data-perspective="true"] .ortho-icon {
         display: none;
       }
@@ -997,12 +996,12 @@
               <div class="toolbar-group" role="group" aria-label="Сцена">
                 <button class="toolbar-button toolbar-icon-button active projection-toggle" id="projection-toggle" type="button" data-perspective="true" title="Переключить на ортографическую проекцию" aria-label="Перспективная проекция; переключить на ортографическую" aria-pressed="true">
                   <svg class="perspective-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                    <path d="M4 8 9 4h6l5 4v13H4V8Z"></path>
+                    <path d="M4 8h16M9 4v4m6-4v4M9 8v13m6-13v13"></path>
+                  </svg>
+                  <svg class="ortho-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
                     <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
                     <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
-                  </svg>
-                  <svg class="ortho-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 7h10v10H4zM8 4h12v12"></path>
-                    <path d="M7 10h4M7 13h4M16 7v5m3-5v5"></path>
                   </svg>
                 </button>
                 <button class="toolbar-button toolbar-icon-button" id="fit-program" type="button" aria-label="Вписать сцену в окно" title="Вписать сцену в окно">
