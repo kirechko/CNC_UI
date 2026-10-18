@@ -115,6 +115,7 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
     emulator.continuous_jog = None;
     emulator.continuous_jog_xy = None;
     emulator.jog_move_active = false;
+    emulator.jog_stop = None;
     emulator.active_move_is_rapid = false;
     emulator.jog_velocity = 0.0;
     emulator.status.jog_rate = 0.0;
@@ -234,6 +235,7 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     emulator.continuous_jog = None;
     emulator.continuous_jog_xy = None;
     emulator.jog_move_active = false;
+    emulator.jog_stop = None;
     emulator.active_move_is_rapid = false;
     emulator.jog_velocity = 0.0;
     emulator.status.jog_rate = 0.0;
@@ -362,9 +364,48 @@ pub(super) fn jog_increment(emulator: &mut Emulator, args: Value) -> Result<Valu
     Ok(Value::Null)
 }
 
+fn begin_jog_deceleration(emulator: &mut Emulator) {
+    let motion = if let Some((axis, direction, _)) = emulator.continuous_jog.take() {
+        let mut vector = [0.0; 5];
+        vector[super::axis_index(axis)] = f64::from(direction);
+        Some((vector, emulator.config.axis_limits(axis).3))
+    } else if let Some((x_direction, y_direction, _)) = emulator.continuous_jog_xy.take() {
+        let norm =
+            f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
+        let x_component = f64::from(x_direction) / norm;
+        let y_component = f64::from(y_direction) / norm;
+        let x_acceleration = emulator.config.axis_limits(Axis::X).3;
+        let y_acceleration = emulator.config.axis_limits(Axis::Y).3;
+        let acceleration = (if x_component.abs() > 1e-9 {
+            x_acceleration / x_component.abs()
+        } else {
+            f64::INFINITY
+        })
+        .min(if y_component.abs() > 1e-9 {
+            y_acceleration / y_component.abs()
+        } else {
+            f64::INFINITY
+        });
+        Some(([x_component, y_component, 0.0, 0.0, 0.0], acceleration))
+    } else {
+        None
+    };
+
+    if let Some((direction, acceleration)) = motion {
+        if emulator.jog_velocity > 0.0 && acceleration.is_finite() {
+            emulator.jog_stop = Some((direction, acceleration));
+        } else {
+            emulator.jog_velocity = 0.0;
+            emulator.status.jog_rate = 0.0;
+            emulator.jog_stop = None;
+        }
+    }
+}
+
 pub(super) fn jog_cancel(emulator: &mut Emulator) -> Result<Value, WireError> {
     emulator.continuous_jog = None;
     emulator.continuous_jog_xy = None;
+    emulator.jog_stop = None;
     if emulator.jog_move_active {
         emulator.active_move = None;
         emulator.jog_move_active = false;
@@ -383,15 +424,15 @@ pub(super) fn jog_continuous(emulator: &mut Emulator, args: Value) -> Result<Val
     let feed = args.get("feed_rate").and_then(Value::as_f64).unwrap_or(0.0);
 
     if direction == 0 {
-        emulator.continuous_jog = None;
-        emulator.jog_velocity = 0.0;
+        begin_jog_deceleration(emulator);
     } else if ![-1, 1].contains(&direction) || !feed.is_finite() || feed <= 0.0 {
         return Err(api_error("bad_jog", "invalid continuous jog parameters"));
     } else {
         let feed = feed.min(emulator.config.axis_limits(axis).2);
+        emulator.jog_stop = None;
         emulator.continuous_jog_xy = None;
         emulator.continuous_jog = Some((axis, direction, feed));
-        emulator.status.feed_rate = feed;
+        emulator.status.feed_rate = 0.0;
     }
     Ok(Value::Null)
 }
@@ -420,8 +461,7 @@ pub(super) fn jog_continuous_xy(
     }
 
     if x_direction == 0 && y_direction == 0 {
-        emulator.continuous_jog_xy = None;
-        emulator.jog_velocity = 0.0;
+        begin_jog_deceleration(emulator);
     } else {
         if emulator.active_move.is_some() || emulator.status.homing {
             return Err(api_error("motion_busy", "another movement is already active"));
@@ -444,9 +484,10 @@ pub(super) fn jog_continuous_xy(
             );
         }
 
+        emulator.jog_stop = None;
         emulator.continuous_jog = None;
         emulator.continuous_jog_xy = Some((x_direction, y_direction, max_feed));
-        emulator.status.feed_rate = max_feed;
+        emulator.status.feed_rate = 0.0;
     }
     Ok(Value::Null)
 }

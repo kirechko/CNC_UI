@@ -29,6 +29,8 @@ pub(super) struct Emulator {
     pub(super) continuous_jog: Option<(Axis, i8, f64)>,
     pub(super) continuous_jog_xy: Option<(i8, i8, f64)>,
     pub(super) jog_move_active: bool,
+    /// Направление и ускорение для плавной остановки непрерывного Jog.
+    pub(super) jog_stop: Option<([f64; 5], f64)>,
     pub(super) active_move_is_rapid: bool,
     pub(super) homing_queue: Vec<Axis>,
     pub(super) homing_axis: Option<Axis>,
@@ -99,6 +101,7 @@ impl Emulator {
             continuous_jog: None,
             continuous_jog_xy: None,
             jog_move_active: false,
+            jog_stop: None,
             active_move_is_rapid: false,
             homing_queue: Vec::new(),
             homing_axis: None,
