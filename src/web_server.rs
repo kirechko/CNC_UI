@@ -326,6 +326,12 @@ pub(crate) fn load_program(
 }
 
 #[derive(Deserialize)]
+struct SpindleRequest {
+    rpm: f64,
+    enabled: bool,
+}
+
+#[derive(Deserialize)]
 struct JogRequest {
     axis: Axis,
     direction: i8,
@@ -368,6 +374,57 @@ struct AxisPositionRequest {
     axis: Axis,
     system: String,
     value: f64,
+}
+
+async fn set_spindle(
+    State(state): State<SharedController>,
+    Json(request): Json<SpindleRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+
+    if !request.enabled {
+        controller.stop_spindle();
+        return Ok(StatusCode::ACCEPTED);
+    }
+
+    if !request.rpm.is_finite() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Скорость шпинделя должна быть конечным числом".into(),
+        ));
+    }
+
+    let status = controller.get_status_snapshot();
+    if status.state == "DISCONNECTED" {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "Нет соединения со станком".into()));
+    }
+
+    let spindle = status
+        .machine_configuration
+        .as_ref()
+        .map(|configuration| &configuration.spindle)
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Конфигурация шпинделя недоступна".into(),
+            )
+        })?;
+    let minimum = spindle.min_rpm.unwrap_or(0.0);
+    let maximum = spindle.max_rpm.unwrap_or(status.spindle_max_speed);
+
+    if maximum <= 0.0 || request.rpm < minimum || request.rpm > maximum {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Скорость шпинделя должна быть в диапазоне {minimum:.0}–{maximum:.0} RPM"),
+        ));
+    }
+
+    controller.set_spindle_speed(request.rpm);
+    controller.set_spindle_direction(crate::cnc_controller::SpindleDirection::CW);
+    Ok(StatusCode::ACCEPTED)
 }
 
 async fn jog_continuous(
@@ -510,6 +567,10 @@ pub(crate) struct StatusResponse {
     feed_rate: f64,
     jog_rate: f64,
     spindle_rpm: f64,
+    spindle_commanded_rpm: f64,
+    spindle_enabled: bool,
+    spindle_min_rpm: f64,
+    spindle_max_rpm: f64,
     current_line: u32,
     total_lines: u32,
     message: Option<String>,
@@ -518,6 +579,17 @@ pub(crate) struct StatusResponse {
 
 impl From<CNCStatus> for StatusResponse {
     fn from(status: CNCStatus) -> Self {
+        let spindle_min_rpm = status
+            .machine_configuration
+            .as_ref()
+            .and_then(|configuration| configuration.spindle.min_rpm)
+            .unwrap_or(0.0);
+        let spindle_max_rpm = status
+            .machine_configuration
+            .as_ref()
+            .and_then(|configuration| configuration.spindle.max_rpm)
+            .unwrap_or(status.spindle_max_speed);
+
         Self {
             connected: status.state != "DISCONNECTED",
             state: status.state,
@@ -536,6 +608,10 @@ impl From<CNCStatus> for StatusResponse {
             feed_rate: status.feed_rate,
             jog_rate: status.jog_rate,
             spindle_rpm: status.spindle_actual_speed,
+            spindle_commanded_rpm: status.spindle_speed,
+            spindle_enabled: status.spindle_on,
+            spindle_min_rpm,
+            spindle_max_rpm,
             current_line: status.current_line,
             total_lines: status.total_lines,
             message: status.message,
@@ -729,6 +805,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/program/resume", post(resume_program))
         .route("/api/program/abort", post(abort_program))
         .route("/api/jog", post(jog))
+        .route("/api/spindle", post(set_spindle))
         .route("/api/jog/xy", post(jog_xy))
         .route("/api/jog/continuous", post(jog_continuous))
         .route("/api/jog/continuous-xy", post(jog_continuous_xy))
