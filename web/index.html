@@ -549,6 +549,19 @@
         font-size: 10px;
       }
 
+      .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .toolbar-separator {
+        width: 1px;
+        height: 20px;
+        flex: 0 0 1px;
+        background: var(--border);
+      }
+
       .toolbar-icon-button {
         display: grid;
         width: 29px;
@@ -926,32 +939,69 @@
             <span class="panel-title">G-CODE VIEWER</span>
             <div class="viewer-toolbar">
               <input id="program-file" type="file" accept=".nc,.ngc,.gcode" hidden>
-              <button class="toolbar-button toolbar-icon-button" id="load-program" type="button" aria-label="Загрузить G-Code" title="Загрузка программы G-Code">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 3h10l4 4v14H5z"></path>
-                  <path d="M14 3v5h5M8 13h8M8 17h5"></path>
-                </svg>
-              </button>
-              <button class="toolbar-button" id="fit-program" type="button" title="Вписать сцену в окно">Fit</button>
-              <button class="toolbar-button active" id="projection-toggle" type="button" title="Переключить перспективную проекцию" aria-pressed="true">3D</button>
-              <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" aria-label="Вкл/выкл заготовки" title="Вкл/выкл заготовки" aria-pressed="true">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
-                  <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
-                  <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
-                </svg>
-              </button>
+              <div class="toolbar-group" role="group" aria-label="Траектория">
+                <button class="toolbar-button toolbar-icon-button" id="load-program" type="button" aria-label="Загрузить G-Code" title="Загрузка программы G-Code">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 3h10l4 4v14H5z"></path>
+                    <path d="M14 3v5h5M8 13h8M8 17h5"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="job-run" type="button" aria-label="Запустить программу" title="Запустить или продолжить программу" disabled>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 4.8v14.4L19 12 7 4.8Z"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="job-pause" type="button" aria-label="Пауза программы" title="Приостановить программу" disabled>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="5" width="4" height="14" rx="1"></rect>
+                    <rect x="14" y="5" width="4" height="14" rx="1"></rect>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="job-abort" type="button" aria-label="Остановить программу" title="Остановить программу" disabled>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                  </svg>
+                </button>
+              </div>
+
+              <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
+
               <input id="stock-file" type="file" accept=".stl,model/stl" hidden>
-              <button class="toolbar-button toolbar-icon-button" id="load-stock" type="button" aria-label="Загрузка геометрии заготовки" title="Загрузка геометрии заготовки">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
-                  <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
-                  <path d="M12 15V8m-3 3 3-3 3 3"></path>
-                </svg>
-              </button>
-              <div class="job-buttons viewer-job-buttons">
-                <button id="job-run" type="button" title="Запустить или продолжить программу" disabled>▶ Запуск</button>
-                <button id="job-pause" type="button" title="Приостановить программу" disabled>Ⅱ Пауза</button>
-                <button id="job-abort" type="button" title="Остановить программу" disabled>■ Стоп</button>
+              <div class="toolbar-group" role="group" aria-label="Заготовка">
+                <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" aria-label="Вкл/выкл заготовки" title="Вкл/выкл заготовки" aria-pressed="true">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                    <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="load-stock" type="button" aria-label="Загрузка геометрии заготовки" title="Загрузка геометрии заготовки">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                    <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                    <path d="M12 15V8m-3 3 3-3 3 3"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
+
+              <div class="toolbar-group" role="group" aria-label="Сцена">
+                <button class="toolbar-button toolbar-icon-button active projection-toggle" id="projection-toggle" type="button" data-perspective="true" title="Переключить на ортографическую проекцию" aria-label="Перспективная проекция; переключить на ортографическую" aria-pressed="true">
+                  <svg class="perspective-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                    <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                  </svg>
+                  <svg class="ortho-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 7h10v10H4zM8 4h12v12"></path>
+                    <path d="M7 10h4M7 13h4M16 7v5m3-5v5"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="fit-program" type="button" aria-label="Вписать сцену в окно" title="Вписать сцену в окно">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"></path>
+                    <path d="M9 9h6v6H9z"></path>
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
@@ -2433,7 +2483,11 @@
         const canControl = Boolean(status.connected) && hasProgram;
 
         jobRunButton.disabled = !canControl || (running && !paused);
-        jobRunButton.textContent = paused ? "▶ Продолжить" : "▶ Запуск";
+        jobRunButton.title = paused ? "Продолжить программу" : "Запустить программу";
+        jobRunButton.setAttribute(
+          "aria-label",
+          paused ? "Продолжить программу" : "Запустить программу",
+        );
         jobPauseButton.disabled = !canControl || !running;
         jobAbortButton.disabled = !canControl || (!running && !paused);
 
@@ -2501,10 +2555,16 @@
       const projectionToggle = document.querySelector("#projection-toggle");
       projectionToggle.addEventListener("click", () => {
         camera.perspective = !camera.perspective;
-        projectionToggle.textContent = camera.perspective ? "3D" : "Ortho";
+        projectionToggle.dataset.perspective = String(camera.perspective);
         projectionToggle.title = camera.perspective
           ? "Переключить на ортографическую проекцию"
           : "Переключить на перспективную проекцию";
+        projectionToggle.setAttribute(
+          "aria-label",
+          camera.perspective
+            ? "Перспективная проекция; переключить на ортографическую"
+            : "Ортографическая проекция; переключить на перспективную",
+        );
         projectionToggle.classList.toggle("active", camera.perspective);
         projectionToggle.setAttribute("aria-pressed", String(camera.perspective));
         drawToolpath();
