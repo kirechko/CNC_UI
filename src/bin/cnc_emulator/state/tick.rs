@@ -143,6 +143,8 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         });
 
         emulator.jog_velocity = (emulator.jog_velocity + acceleration * dt).min(max_velocity);
+        emulator.status.jog_rate = emulator.jog_velocity * 60.0;
+        emulator.status.feed_rate = 0.0;
         let mut position = emulator.position_array();
         let (x_min, x_max, _, _) = emulator.config.axis_limits(Axis::X);
         let (y_min, y_max, _, _) = emulator.config.axis_limits(Axis::Y);
@@ -162,6 +164,25 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         let index = super::axis_index(axis);
         position[index] = (position[index] + delta).clamp(minimum, maximum);
         emulator.set_position(position);
+    } else if let Some((direction, acceleration)) = emulator.jog_stop {
+        emulator.jog_velocity = (emulator.jog_velocity - acceleration * dt).max(0.0);
+        if emulator.jog_velocity > 0.0 {
+            let mut position = emulator.position_array();
+            for (axis, component) in direction.iter().enumerate() {
+                position[axis] += component * emulator.jog_velocity * dt;
+            }
+            if emulator.check_target(position).is_ok() {
+                emulator.set_position(position);
+            } else {
+                emulator.jog_velocity = 0.0;
+            }
+        }
+
+        emulator.status.jog_rate = emulator.jog_velocity * 60.0;
+        if emulator.jog_velocity <= 0.0 {
+            emulator.jog_stop = None;
+            emulator.status.jog_rate = 0.0;
+        }
     } else {
         emulator.jog_velocity = 0.0;
         if !emulator.jog_move_active && !emulator.active_move_is_rapid {

@@ -38,6 +38,32 @@ fn small_floating_point_tolerance_is_allowed() {
 }
 
 #[test]
+fn incremental_jog_motion_ramps_up_under_configured_acceleration() {
+    let mut emulator = test_emulator();
+    let request = Request {
+        method: "jog_increment".into(),
+        args: serde_json::json!({
+            "request": {
+                "axis": "X",
+                "direction": 1,
+                "distance": 10.0,
+                "feed_rate": 1200.0
+            }
+        }),
+    };
+
+    emulator.handle(request).unwrap();
+    let mut movement = emulator.active_move.take().unwrap();
+
+    assert_eq!(movement.velocity_mm_min(), 0.0);
+    movement.tick(0.01);
+
+    assert!(movement.velocity_mm_min() > 0.0);
+    assert!(movement.velocity_mm_min() < 1200.0);
+    assert!((movement.velocity_mm_min() - 60.0).abs() < 1e-6);
+}
+
+#[test]
 fn load_program_strips_semicolon_comments_but_keeps_parenthesis_comments() {
     let mut emulator = test_emulator();
 

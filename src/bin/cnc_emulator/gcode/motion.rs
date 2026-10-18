@@ -177,6 +177,39 @@ mod tests {
     }
 
     #[test]
+    fn rapid_and_linear_moves_ramp_up_under_configured_acceleration() {
+        for command in ["G0 X100", "G1 F1200 X100"] {
+            let mut emulator = test_emulator();
+            emulator.execute_gcode(command).unwrap();
+            let mut movement = emulator.active_move.take().unwrap();
+
+            assert_eq!(movement.velocity_mm_min(), 0.0);
+            movement.tick(0.01);
+            let first_tick_speed = movement.velocity_mm_min();
+
+            assert!(first_tick_speed > 0.0, "{command}");
+            assert!(first_tick_speed < 1200.0, "{command}");
+            assert!((first_tick_speed - 60.0).abs() < 1e-6, "{command}");
+        }
+    }
+
+    #[test]
+    fn arc_moves_ramp_up_under_configured_acceleration() {
+        let mut emulator = test_emulator();
+        emulator.status.position.x = 100.0;
+        emulator.status.position.y = 100.0;
+        emulator.execute_gcode("G2 F1200 X110 Y100 I5 J0").unwrap();
+        let mut movement = emulator.active_move.take().unwrap();
+
+        assert_eq!(movement.velocity_mm_min(), 0.0);
+        movement.tick(0.01);
+
+        assert!(movement.velocity_mm_min() > 0.0);
+        assert!(movement.velocity_mm_min() < 1200.0);
+        assert!((movement.velocity_mm_min() - 60.0).abs() < 1e-6);
+    }
+
+    #[test]
     fn no_op_lines_and_moves_do_not_create_active_moves() {
         let mut emulator = test_emulator();
         assert!(emulator.execute_gcode("M7").is_ok());
