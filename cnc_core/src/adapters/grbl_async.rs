@@ -982,7 +982,7 @@ mod tests {
         let error = GrblAdapter::validate_command(&"G".repeat(MAX_COMMAND_LENGTH + 1)).unwrap_err();
         assert_eq!(error.code, "bad_command");
 
-        let error = GrblAdapter::validate_command("G1 X1\\nM3 S1000").unwrap_err();
+        let error = GrblAdapter::validate_command("G1 X1\nM3 S1000").unwrap_err();
         assert_eq!(error.code, "bad_command");
     }
 
