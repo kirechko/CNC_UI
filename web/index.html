@@ -1384,9 +1384,9 @@
           else context.lineTo(point.x, point.y);
         });
         context.closePath();
-        context.fillStyle = "rgba(17, 25, 29, .26)";
+        context.fillStyle = "rgba(17, 25, 29, .52)";
         context.fill();
-        context.strokeStyle = "rgba(102, 127, 137, .19)";
+        context.strokeStyle = "rgba(102, 127, 137, .38)";
         context.lineWidth = 1;
         context.stroke();
 
@@ -1403,7 +1403,7 @@
           context.moveTo(a.x, a.y);
           context.lineTo(b.x, b.y);
           const major = Math.abs(x / step - Math.round(x / step)) < 1e-6;
-          context.strokeStyle = major ? "rgba(104, 131, 142, .15)" : "rgba(104, 131, 142, .065)";
+          context.strokeStyle = major ? "rgba(104, 131, 142, .30)" : "rgba(104, 131, 142, .13)";
           context.stroke();
         }
 
@@ -1414,7 +1414,7 @@
           context.moveTo(a.x, a.y);
           context.lineTo(b.x, b.y);
           const major = Math.abs(y / step - Math.round(y / step)) < 1e-6;
-          context.strokeStyle = major ? "rgba(104, 131, 142, .15)" : "rgba(104, 131, 142, .065)";
+          context.strokeStyle = major ? "rgba(104, 131, 142, .30)" : "rgba(104, 131, 142, .13)";
           context.stroke();
         }
 
