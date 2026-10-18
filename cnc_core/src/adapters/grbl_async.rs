@@ -136,7 +136,9 @@ impl GrblAdapter {
             }
         })
         .await
-        .map_err(|_| ControllerError::new("timeout", "timed out waiting for GRBL acknowledgement"))?
+        .map_err(|_| {
+            ControllerError::new("timeout", "timed out waiting for GRBL acknowledgement")
+        })?
     }
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
@@ -156,10 +158,9 @@ impl GrblAdapter {
                 jog.feed_rate
             )
         } else {
-            let norm = f64::from(
-                jog.x_direction * jog.x_direction + jog.y_direction * jog.y_direction,
-            )
-            .sqrt();
+            let norm =
+                f64::from(jog.x_direction * jog.x_direction + jog.y_direction * jog.y_direction)
+                    .sqrt();
             let x = JOG_CHUNK_MM * f64::from(jog.x_direction) / norm;
             let y = JOG_CHUNK_MM * f64::from(jog.y_direction) / norm;
             format!("$J=G91 X{x:.4} Y{y:.4} F{:.0}", jog.feed_rate)
@@ -279,11 +280,13 @@ impl GrblAdapter {
         let offset = work_offset.unwrap_or([0.0; 3]);
         let machine = machine_position
             .or_else(|| {
-                work_position.map(|work| [
-                    work[0] + offset[0],
-                    work[1] + offset[1],
-                    work[2] + offset[2],
-                ])
+                work_position.map(|work| {
+                    [
+                        work[0] + offset[0],
+                        work[1] + offset[1],
+                        work[2] + offset[2],
+                    ]
+                })
             })
             .unwrap_or([0.0; 3]);
         let state_lower = state.to_ascii_lowercase();
@@ -295,8 +298,16 @@ impl GrblAdapter {
 
         Ok(MachineStatus {
             connected: true,
-            task_mode: if running { TaskMode::Auto } else { TaskMode::Manual },
-            task_state: if alarm { TaskState::Estop } else { TaskState::On },
+            task_mode: if running {
+                TaskMode::Auto
+            } else {
+                TaskMode::Manual
+            },
+            task_state: if alarm {
+                TaskState::Estop
+            } else {
+                TaskState::On
+            },
             interpreter_state: if running {
                 InterpreterState::Reading
             } else if paused {
@@ -393,12 +404,9 @@ impl LinuxCncApi for GrblAdapter {
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
         let mut session = self.session.lock().await;
         let settings = Self::query_settings(&mut session).await?;
-        let travel = |number: u16| {
-            settings.get(&number).copied().filter(|value| *value > 0.0)
-        };
-        let spindle_rpm = |number: u16| {
-            settings.get(&number).copied().filter(|value| *value >= 0.0)
-        };
+        let travel = |number: u16| settings.get(&number).copied().filter(|value| *value > 0.0);
+        let spindle_rpm =
+            |number: u16| settings.get(&number).copied().filter(|value| *value >= 0.0);
 
         Ok(MachineConfiguration {
             axes: vec![
@@ -420,9 +428,8 @@ impl LinuxCncApi for GrblAdapter {
             ],
             spindle: SpindleConfiguration {
                 min_rpm: spindle_rpm(31),
-                max_rpm: spindle_rpm(30).filter(|maximum| {
-                    settings.get(&31).is_none_or(|minimum| minimum <= maximum)
-                }),
+                max_rpm: spindle_rpm(30)
+                    .filter(|maximum| settings.get(&31).is_none_or(|minimum| minimum <= maximum)),
             },
         })
     }
@@ -491,7 +498,10 @@ impl LinuxCncApi for GrblAdapter {
         }
         let feed_rate = request.feed_rate.unwrap_or(100.0);
         if !feed_rate.is_finite() || feed_rate <= 0.0 {
-            return Err(ControllerError::new("bad_jog", "jog feed rate must be positive"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog feed rate must be positive",
+            ));
         }
 
         let value = request.distance * f64::from(request.direction);
@@ -503,20 +513,21 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_command(&mut session, &command).await
     }
 
-    async fn jog_continuous(
-        &self,
-        axis: Axis,
-        direction: i8,
-        feed_rate: f64,
-    ) -> CncResult<()> {
+    async fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()> {
         if ![-1, 0, 1].contains(&direction) {
-            return Err(ControllerError::new("bad_jog", "invalid continuous jog direction"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "invalid continuous jog direction",
+            ));
         }
         if direction == 0 {
             return self.cancel_jog().await;
         }
         if !feed_rate.is_finite() || feed_rate <= 0.0 {
-            return Err(ControllerError::new("bad_jog", "jog feed rate must be positive"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog feed rate must be positive",
+            ));
         }
 
         let jog = ContinuousJog {
