@@ -90,6 +90,24 @@ fn jog_continuous(
 }
 
 #[tauri::command]
+fn jog_continuous_xy(
+    state: State<'_, AppState>,
+    x_direction: i8,
+    y_direction: i8,
+) -> Result<(), String> {
+    if ![-1, 0, 1].contains(&x_direction) || ![-1, 0, 1].contains(&y_direction) {
+        return Err("XY directions must be -1, 0, or 1".into());
+    }
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.jog_xy_continuous(x_direction, y_direction);
+    Ok(())
+}
+
+#[tauri::command]
 fn select_coordinate_system(state: State<'_, AppState>, system: String) -> Result<(), String> {
     state.select_coordinate_system(&system)
 }
@@ -174,6 +192,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             abort_program,
             jog,
             jog_continuous,
+            jog_continuous_xy,
             select_coordinate_system,
             zero_all,
             zero_axis,

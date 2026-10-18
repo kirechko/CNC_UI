@@ -339,6 +339,13 @@ struct ContinuousJogRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContinuousXyJogRequest {
+    x_direction: i8,
+    y_direction: i8,
+}
+
+#[derive(Deserialize)]
 struct CoordinateRequest {
     system: String,
 }
@@ -372,6 +379,27 @@ async fn jog_continuous(
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
     let axis = axis_letter(request.axis);
     controller.jog_axis_continuous(axis, request.direction);
+    Ok(StatusCode::ACCEPTED)
+}
+
+async fn jog_continuous_xy(
+    State(state): State<SharedController>,
+    Json(request): Json<ContinuousXyJogRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    if ![-1, 0, 1].contains(&request.x_direction)
+        || ![-1, 0, 1].contains(&request.y_direction)
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "XY directions must be -1, 0, or 1".into(),
+        ));
+    }
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller.jog_xy_continuous(request.x_direction, request.y_direction);
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -659,6 +687,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/program/abort", post(abort_program))
         .route("/api/jog", post(jog))
         .route("/api/jog/continuous", post(jog_continuous))
+        .route("/api/jog/continuous-xy", post(jog_continuous_xy))
         .route("/api/position/select", post(select_coordinate_system))
         .route("/api/position/zero", post(zero_all))
         .route("/api/position/zero-axis", post(zero_axis))

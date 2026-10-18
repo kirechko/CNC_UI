@@ -113,6 +113,19 @@ macro_rules! debug_adapter {
                 Ok(())
             }
 
+            fn jog_continuous_xy(
+                &self,
+                x_direction: i8,
+                y_direction: i8,
+                feed_rate: f64,
+            ) -> CncResult<()> {
+                eprintln!(
+                    "[{}] jog_continuous_xy x_direction={x_direction} y_direction={y_direction} feed_rate={feed_rate}",
+                    $label
+                );
+                Ok(())
+            }
+
             fn mdi(&self, command: &str) -> CncResult<()> {
                 eprintln!("[{}] mdi command={command:?}", $label);
                 Ok(())

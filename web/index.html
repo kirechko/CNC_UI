@@ -2892,6 +2892,30 @@
         }
       }
 
+      const continuousXyDirections = { X: 0, Y: 0 };
+      let continuousXyRequest = Promise.resolve();
+
+      function sendContinuousXY(xDirection, yDirection) {
+        const request = { xDirection, yDirection };
+        continuousXyRequest = continuousXyRequest.then(async () => {
+          const invoke = window.__TAURI__?.core?.invoke;
+          if (invoke) {
+            await invoke("jog_continuous_xy", request);
+            return;
+          }
+
+          const response = await fetch("/api/jog/continuous-xy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+          });
+          if (!response.ok) {
+            throw new Error((await response.text()) || `HTTP ${response.status}`);
+          }
+        });
+        return continuousXyRequest;
+      }
+
       async function sendContinuousJog(axis, direction) {
         const request = { axis, direction };
         const invoke = window.__TAURI__?.core?.invoke;
@@ -2912,7 +2936,26 @@
       }
 
       async function startContinuousJog(axis, direction) {
-        if (!machineConnected || activeContinuousAxes.has(axis)) return;
+        if (!machineConnected) return;
+
+        if (axis === "X" || axis === "Y") {
+          continuousXyDirections[axis] = direction;
+          activeContinuousAxes.add(axis);
+          try {
+            await sendContinuousXY(
+              continuousXyDirections.X,
+              continuousXyDirections.Y,
+            );
+          } catch (error) {
+            continuousXyDirections[axis] = 0;
+            activeContinuousAxes.delete(axis);
+            feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
+            feedback.className = "error";
+          }
+          return;
+        }
+
+        if (activeContinuousAxes.has(axis)) return;
         activeContinuousAxes.add(axis);
         try {
           await sendContinuousJog(axis, direction);
@@ -2924,8 +2967,33 @@
       }
 
       async function stopContinuousJog(axis = null) {
-        const axes = axis ? [axis].filter((activeAxis) => activeContinuousAxes.has(activeAxis)) : [...activeContinuousAxes];
+        const xyAxis = axis === "X" || axis === "Y";
+        const stopXy = axis === null
+          ? activeContinuousAxes.has("X") || activeContinuousAxes.has("Y")
+          : xyAxis && activeContinuousAxes.has(axis);
+
+        if (axis === null || axis === "X") continuousXyDirections.X = 0;
+        if (axis === null || axis === "Y") continuousXyDirections.Y = 0;
+
+        const axes = axis
+          ? [axis].filter((activeAxis) => activeContinuousAxes.has(activeAxis) && activeAxis !== "X" && activeAxis !== "Y")
+          : [...activeContinuousAxes].filter((activeAxis) => activeAxis !== "X" && activeAxis !== "Y");
+
         axes.forEach((activeAxis) => activeContinuousAxes.delete(activeAxis));
+        if (axis === null || axis === "X") activeContinuousAxes.delete("X");
+        if (axis === null || axis === "Y") activeContinuousAxes.delete("Y");
+
+        if (stopXy) {
+          try {
+            await sendContinuousXY(
+              continuousXyDirections.X,
+              continuousXyDirections.Y,
+            );
+          } catch (error) {
+            feedback.textContent = `Ошибка остановки XY Jog: ${error.message}`;
+            feedback.className = "error";
+          }
+        }
 
         for (const activeAxis of axes) {
           try {
@@ -3236,15 +3304,27 @@
         const moves = selection && dialMoves(selection);
         if (!moves) return;
 
-        if (moves.length !== 1) {
-          feedback.textContent = "Непрерывный Jog по диагонали пока не поддерживается.";
-          feedback.className = "panel-caption";
-          return;
-        }
-
         event.preventDefault();
         jogDialCanvas.setPointerCapture(event.pointerId);
-        startContinuousJog(moves[0][0], moves[0][1]);
+        if (moves.length === 1) {
+          startContinuousJog(moves[0][0], moves[0][1]);
+        } else {
+          continuousXyDirections.X = moves[0][1];
+          continuousXyDirections.Y = moves[1][1];
+          activeContinuousAxes.add("X");
+          activeContinuousAxes.add("Y");
+          sendContinuousXY(
+            continuousXyDirections.X,
+            continuousXyDirections.Y,
+          ).catch((error) => {
+            continuousXyDirections.X = 0;
+            continuousXyDirections.Y = 0;
+            activeContinuousAxes.delete("X");
+            activeContinuousAxes.delete("Y");
+            feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
+            feedback.className = "error";
+          });
+        }
       });
       jogDialCanvas.addEventListener("pointerup", () => {
         if (jogMotionMode === "continuous") stopContinuousJog();

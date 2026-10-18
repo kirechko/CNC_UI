@@ -44,6 +44,7 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
         "home" => home(emulator, args),
         "jog_increment" => jog_increment(emulator, args),
         "jog_continuous" => jog_continuous(emulator, args),
+        "jog_continuous_xy" => jog_continuous_xy(emulator, args),
         "mdi" => mdi(emulator, args),
         "load_program" => load_program(emulator, args),
         "program_run" => program_run(emulator, args),
@@ -111,6 +112,7 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
     emulator.status.current_line = 0;
     emulator.active_move = None;
     emulator.continuous_jog = None;
+    emulator.continuous_jog_xy = None;
     emulator.jog_velocity = 0.0;
 
     // STOP принудительно гасит шпиндель, не выполняя ramp-down.
@@ -225,6 +227,7 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     emulator.pending_spindle = None;
     emulator.active_move = None;
     emulator.continuous_jog = None;
+    emulator.continuous_jog_xy = None;
     emulator.jog_velocity = 0.0;
     emulator.homing_queue.clear();
     emulator.homing_axis = None;
@@ -362,8 +365,64 @@ pub(super) fn jog_continuous(emulator: &mut Emulator, args: Value) -> Result<Val
         return Err(api_error("bad_jog", "invalid continuous jog parameters"));
     } else {
         let feed = feed.min(emulator.config.axis_limits(axis).2);
+        emulator.continuous_jog_xy = None;
         emulator.continuous_jog = Some((axis, direction, feed));
         emulator.status.feed_rate = feed;
+    }
+    Ok(Value::Null)
+}
+
+pub(super) fn jog_continuous_xy(
+    emulator: &mut Emulator,
+    args: Value,
+) -> Result<Value, WireError> {
+    emulator.ensure_motion_allowed()?;
+    let x_direction = args
+        .get("x_direction")
+        .and_then(Value::as_i64)
+        .unwrap_or(0) as i8;
+    let y_direction = args
+        .get("y_direction")
+        .and_then(Value::as_i64)
+        .unwrap_or(0) as i8;
+    let feed = args.get("feed_rate").and_then(Value::as_f64).unwrap_or(0.0);
+
+    if ![-1, 0, 1].contains(&x_direction)
+        || ![-1, 0, 1].contains(&y_direction)
+        || !feed.is_finite()
+        || feed <= 0.0
+    {
+        return Err(api_error("bad_jog", "invalid continuous XY jog parameters"));
+    }
+
+    if x_direction == 0 && y_direction == 0 {
+        emulator.continuous_jog_xy = None;
+        emulator.jog_velocity = 0.0;
+    } else {
+        if emulator.active_move.is_some() || emulator.status.homing {
+            return Err(api_error("motion_busy", "another movement is already active"));
+        }
+
+        let norm = f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
+        let mut max_feed = feed;
+        if x_direction != 0 {
+            max_feed = max_feed.min(
+                emulator.config.axis_limits(Axis::X).2
+                    * norm
+                    / f64::from(x_direction.abs()),
+            );
+        }
+        if y_direction != 0 {
+            max_feed = max_feed.min(
+                emulator.config.axis_limits(Axis::Y).2
+                    * norm
+                    / f64::from(y_direction.abs()),
+            );
+        }
+
+        emulator.continuous_jog = None;
+        emulator.continuous_jog_xy = Some((x_direction, y_direction, max_feed));
+        emulator.status.feed_rate = max_feed;
     }
     Ok(Value::Null)
 }
