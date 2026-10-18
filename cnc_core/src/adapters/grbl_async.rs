@@ -46,6 +46,8 @@ struct Session {
 }
 
 pub struct GrblAdapter {
+    // Tokio mutex сериализует полные транзакции GRBL, включая ожидание I/O,
+    // не блокируя поток runtime во время await.
     session: Mutex<Session>,
 }
 
