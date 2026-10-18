@@ -1,7 +1,7 @@
  //! Handles G-code M-words and simulated spindle state transitions.
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
-use crate::cnc_api::*;
+use crate::*;
 
 pub(super) fn handle_m_word(emulator: &mut Emulator, value: f64) -> Result<(), WireError> {
     match value as i32 {

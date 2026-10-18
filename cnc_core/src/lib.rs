@@ -2,6 +2,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+pub mod adapters;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Axis {
     X,

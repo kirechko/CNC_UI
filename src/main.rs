@@ -3,9 +3,6 @@ use cnc_core as cnc_api;
 mod cnc_controller;
 mod adapters;
 mod config;
-mod grbl_adapter;
-#[path = "linuxcnc_api.rs"]
-mod em_adapter;
 mod web_server;
 mod tauri_app;
 
