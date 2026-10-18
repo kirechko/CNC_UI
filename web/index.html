@@ -575,6 +575,15 @@
         height: 16px;
       }
 
+      .projection-toggle .ortho-icon,
+      .projection-toggle[data-perspective="true"] .ortho-icon {
+        display: none;
+      }
+
+      .projection-toggle[data-perspective="false"] .perspective-icon {
+        display: none;
+      }
+
       .viewer-stage {
         position: relative;
         display: grid;
