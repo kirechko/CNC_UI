@@ -15,10 +15,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install GTK4 build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes build-essential pkg-config libgtk-4-dev
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
