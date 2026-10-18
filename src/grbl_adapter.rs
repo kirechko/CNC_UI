@@ -16,6 +16,13 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_RESPONSE_LINE: usize = 4096;
 
+#[derive(Clone, Copy)]
+struct ContinuousXyJog {
+    x_direction: i8,
+    y_direction: i8,
+    feed_rate: f64,
+}
+
 struct Session {
     port: Box<dyn SerialPort>,
     program: Vec<String>,
@@ -23,6 +30,7 @@ struct Session {
     current_line: u32,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
+    continuous_xy_jog: Option<ContinuousXyJog>,
 }
 
 /// GRBL 1.1 Serial adapter. E-Stop must be provided by the machine's hardware;
@@ -49,6 +57,7 @@ impl GrblAdapter {
                     direction: SpindleDirection::Stopped,
                     rpm: 0.0,
                 },
+                continuous_xy_jog: None,
             }),
         })
     }
@@ -138,6 +147,26 @@ impl GrblAdapter {
             .write_all(&[byte])
             .and_then(|_| session.port.flush())
             .map_err(|error| ControllerError::new("io", error.to_string()))
+    }
+
+    fn send_continuous_xy_chunk(
+        session: &mut Session,
+        jog: ContinuousXyJog,
+    ) -> CncResult<()> {
+        // Ограниченные короткие $J-блоки дают непрерывное движение, пока UI
+        // удерживает команду; GRBL штатно отменяет текущий блок realtime-командой 0x85.
+        const CHUNK_LENGTH_MM: f64 = 10.0;
+        let norm = f64::from(
+            jog.x_direction * jog.x_direction + jog.y_direction * jog.y_direction,
+        )
+        .sqrt();
+        let x = CHUNK_LENGTH_MM * f64::from(jog.x_direction) / norm;
+        let y = CHUNK_LENGTH_MM * f64::from(jog.y_direction) / norm;
+        let command = format!(
+            "$J=G91 X{x:.4} Y{y:.4} F{:.0}",
+            jog.feed_rate
+        );
+        Self::send_command(session, &command)
     }
 
     fn query_status(session: &mut Session) -> CncResult<String> {
@@ -341,6 +370,16 @@ impl LinuxCncApi for GrblAdapter {
     fn status(&self) -> CncResult<MachineStatus> {
         let mut session = self.lock_session()?;
         let response = Self::query_status(&mut session)?;
+
+        if response.starts_with("<Idle") {
+            if let Some(jog) = session.continuous_xy_jog {
+                if let Err(error) = Self::send_continuous_xy_chunk(&mut session, jog) {
+                    session.continuous_xy_jog = None;
+                    return Err(error);
+                }
+            }
+        }
+
         Self::parse_status(&response, &session)
     }
 
@@ -460,17 +499,56 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_command(&mut session, &command)
     }
 
-    fn jog_continuous(&self, _axis: Axis, direction: i8, _feed_rate: f64) -> CncResult<()> {
-        let mut session = self.lock_session()?;
-        if direction == 0 {
-            // GRBL real-time jog cancel.
-            Self::send_realtime(&mut session, 0x85)
-        } else {
-            Err(ControllerError::new(
-                "unsupported",
-                "continuous jog requires a bounded GRBL $J= distance; use incremental jog",
-            ))
+    fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()> {
+        let (x_direction, y_direction) = match axis {
+            Axis::X => (direction, 0),
+            Axis::Y => (0, direction),
+            _ if direction == 0 => {
+                let mut session = self.lock_session()?;
+                session.continuous_xy_jog = None;
+                return Self::send_realtime(&mut session, 0x85);
+            }
+            _ => {
+                return Err(ControllerError::new(
+                    "unsupported",
+                    "GRBL continuous jog currently supports X and Y axes",
+                ));
+            }
+        };
+        self.jog_continuous_xy(x_direction, y_direction, feed_rate)
+    }
+
+    fn jog_continuous_xy(
+        &self,
+        x_direction: i8,
+        y_direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<()> {
+        if ![-1, 0, 1].contains(&x_direction)
+            || ![-1, 0, 1].contains(&y_direction)
+            || !feed_rate.is_finite()
+            || feed_rate <= 0.0
+        {
+            return Err(ControllerError::new("bad_jog", "invalid continuous XY jog"));
         }
+
+        let mut session = self.lock_session()?;
+        if x_direction == 0 && y_direction == 0 {
+            session.continuous_xy_jog = None;
+            return Self::send_realtime(&mut session, 0x85);
+        }
+
+        let jog = ContinuousXyJog {
+            x_direction,
+            y_direction,
+            feed_rate,
+        };
+        session.continuous_xy_jog = Some(jog);
+        if let Err(error) = Self::send_continuous_xy_chunk(&mut session, jog) {
+            session.continuous_xy_jog = None;
+            return Err(error);
+        }
+        Ok(())
     }
 
     fn mdi(&self, command: &str) -> CncResult<()> {

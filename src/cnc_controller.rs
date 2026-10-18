@@ -72,6 +72,7 @@ enum Command {
     Spindle(SpindleCommand),
     JogIncrement(crate::cnc_api::JogRequest),
     JogContinuous(Axis, i8, f64),
+    JogContinuousXY(i8, i8, f64),
 }
 
 pub struct CNCController {
@@ -375,6 +376,22 @@ impl CNCController {
         self.enqueue(Command::JogContinuous(axis, direction, feed_rate));
     }
 
+    pub fn jog_xy_continuous(&self, x_direction: i8, y_direction: i8) {
+        if ![-1, 0, 1].contains(&x_direction)
+            || ![-1, 0, 1].contains(&y_direction)
+        {
+            eprintln!("[UI] Invalid continuous XY jog direction");
+            return;
+        }
+
+        let feed_rate = *self.xy_jog_speed.lock().unwrap();
+        self.enqueue(Command::JogContinuousXY(
+            x_direction,
+            y_direction,
+            feed_rate,
+        ));
+    }
+
     /// Возвращает кэшированный снимок без сетевого запроса.
     pub fn get_status_snapshot(&self) -> CNCStatus {
         self.status.lock().unwrap().clone()
@@ -447,6 +464,9 @@ fn api_worker(
                     Command::JogIncrement(request) => api.jog_increment(request),
                     Command::JogContinuous(axis, direction, feed_rate) => {
                         api.jog_continuous(axis, direction, feed_rate)
+                    }
+                    Command::JogContinuousXY(x_direction, y_direction, feed_rate) => {
+                        api.jog_continuous_xy(x_direction, y_direction, feed_rate)
                     }
                 };
 

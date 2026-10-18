@@ -103,7 +103,44 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         }
     }
 
-    if let Some((axis, direction, feed)) = emulator.continuous_jog {
+    if let Some((x_direction, y_direction, feed)) = emulator.continuous_jog_xy {
+        let norm = f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
+        let x_component = f64::from(x_direction) / norm;
+        let y_component = f64::from(y_direction) / norm;
+        let (_, _, x_velocity, x_acceleration) = emulator.config.axis_limits(Axis::X);
+        let (_, _, y_velocity, y_acceleration) = emulator.config.axis_limits(Axis::Y);
+        let max_velocity = (feed / 60.0)
+            .min(if x_component.abs() > 1e-9 {
+                x_velocity / 60.0 / x_component.abs()
+            } else {
+                f64::INFINITY
+            })
+            .min(if y_component.abs() > 1e-9 {
+                y_velocity / 60.0 / y_component.abs()
+            } else {
+                f64::INFINITY
+            });
+        let acceleration = (if x_component.abs() > 1e-9 {
+            x_acceleration / x_component.abs()
+        } else {
+            f64::INFINITY
+        })
+        .min(if y_component.abs() > 1e-9 {
+            y_acceleration / y_component.abs()
+        } else {
+            f64::INFINITY
+        });
+
+        emulator.jog_velocity = (emulator.jog_velocity + acceleration * dt).min(max_velocity);
+        let mut position = emulator.position_array();
+        let (x_min, x_max, _, _) = emulator.config.axis_limits(Axis::X);
+        let (y_min, y_max, _, _) = emulator.config.axis_limits(Axis::Y);
+        position[0] = (position[0] + x_component * emulator.jog_velocity * dt)
+            .clamp(x_min, x_max);
+        position[1] = (position[1] + y_component * emulator.jog_velocity * dt)
+            .clamp(y_min, y_max);
+        emulator.set_position(position);
+    } else if let Some((axis, direction, feed)) = emulator.continuous_jog {
         let (minimum, maximum, max_velocity, acceleration) = emulator.config.axis_limits(axis);
         let max_v = (feed / 60.0).min(max_velocity / 60.0);
         emulator.jog_velocity = (emulator.jog_velocity + acceleration * dt).min(max_v);

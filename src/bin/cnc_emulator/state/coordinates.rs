@@ -31,6 +31,7 @@ impl Emulator {
     ) -> Result<(), WireError> {
         if self.active_move.is_some()
             || self.continuous_jog.is_some()
+            || self.continuous_jog_xy.is_some()
             || self.status.homing
             || self.status.interpreter_state == InterpreterState::Reading
         {
@@ -69,6 +70,7 @@ impl Emulator {
     pub(super) fn set_axis_work_zero(&mut self, axis: Axis) -> Result<(), WireError> {
         if self.active_move.is_some()
             || self.continuous_jog.is_some()
+            || self.continuous_jog_xy.is_some()
             || self.status.homing
             || self.status.interpreter_state == InterpreterState::Reading
         {
