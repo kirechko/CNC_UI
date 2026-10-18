@@ -681,6 +681,27 @@ impl GrblAdapter {
         }
     }
 
+    fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
+        let mut lines = Vec::new();
+
+        for (line_index, line) in content.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            Self::validate_command(line).map_err(|error| {
+                ControllerError::new(
+                    "bad_program",
+                    format!("invalid GRBL program line {}: {}", line_index + 1, error.message),
+                )
+            })?;
+            lines.push(line.to_owned());
+        }
+
+        Ok(lines)
+    }
+
     fn coordinate_number(system: CoordinateSystem) -> u8 {
         match system {
             CoordinateSystem::G54 => 1,
@@ -955,26 +976,6 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_command(&mut session, command).await
     }
 
-    fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
-        let mut lines = Vec::new();
-
-        for (line_index, line) in content.lines().enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            Self::validate_command(line).map_err(|error| {
-                ControllerError::new(
-                    "bad_program",
-                    format!("invalid GRBL program line {}: {}", line_index + 1, error.message),
-                )
-            })?;
-            lines.push(line.to_owned());
-        }
-
-        Ok(lines)
-    }
 
     async fn load_program(&self, path: &Path) -> CncResult<()> {
         let content = fs::read_to_string(path)
