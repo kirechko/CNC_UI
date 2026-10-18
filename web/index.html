@@ -4168,20 +4168,22 @@
         }
 
         if (hoveredDialSelection) {
-          const ring = [0.1, 1, 10, 100].indexOf(hoveredDialSelection.step);
-          const sector = hoveredDialSelection.sector;
-          const center = sector * Math.PI / 4;
-          const start = center - Math.PI / 8 + 0.012;
-          const end = center + Math.PI / 8 - 0.012;
-          jogDialContext.beginPath();
-          jogDialContext.arc(cx, cy, radius * inner[ring + 1], start, end);
-          jogDialContext.arc(cx, cy, radius * inner[ring], end, start, true);
-          jogDialContext.closePath();
-          jogDialContext.fillStyle = "rgba(255, 255, 255, .24)";
-          jogDialContext.fill();
-          jogDialContext.strokeStyle = "rgba(255, 255, 255, .9)";
-          jogDialContext.lineWidth = 2;
-          jogDialContext.stroke();
+          const ring = jogStepValues.indexOf(hoveredDialSelection.step);
+          if (ring !== -1) {
+            const sector = hoveredDialSelection.sector;
+            const center = sector * Math.PI / 4;
+            const start = center - Math.PI / 8 + 0.012;
+            const end = center + Math.PI / 8 - 0.012;
+            jogDialContext.beginPath();
+            jogDialContext.arc(cx, cy, radius * inner[ring + 1], start, end);
+            jogDialContext.arc(cx, cy, radius * inner[ring], end, start, true);
+            jogDialContext.closePath();
+            jogDialContext.fillStyle = "rgba(255, 255, 255, .24)";
+            jogDialContext.fill();
+            jogDialContext.strokeStyle = "rgba(255, 255, 255, .9)";
+            jogDialContext.lineWidth = 2;
+            jogDialContext.stroke();
+          }
         }
 
         jogDialContext.beginPath();
