@@ -1544,11 +1544,13 @@
       }
 
       function drawGrid(context, width, height, project, bounds) {
-        // Станочная плоскость XY центрирована на машинном нуле и вдвое шире заготовки.
-        const planeMinX = -(bounds.max[0] - bounds.min[0]);
-        const planeMaxX = bounds.max[0] - bounds.min[0];
-        const planeMinY = -(bounds.max[1] - bounds.min[1]);
-        const planeMaxY = bounds.max[1] - bounds.min[1];
+        // Плоскость XY вдвое больше заготовки и симметрична относительно её габаритов.
+        const stockWidth = bounds.max[0] - bounds.min[0];
+        const stockHeight = bounds.max[1] - bounds.min[1];
+        const planeMinX = bounds.min[0] - stockWidth / 2;
+        const planeMaxX = bounds.max[0] + stockWidth / 2;
+        const planeMinY = bounds.min[1] - stockHeight / 2;
+        const planeMaxY = bounds.max[1] + stockHeight / 2;
         const corners = [
           [planeMinX, planeMinY, 0],
           [planeMaxX, planeMinY, 0],
