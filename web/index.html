@@ -589,15 +589,21 @@
       }
 
       .jog-dial-z-steps {
-        height: auto;
+        height: 92%;
         align-self: flex-end;
         margin-bottom: 4%;
-        grid-template-rows: auto repeat(4, 18px) 6px repeat(4, 18px);
+        grid-template-rows: 12px repeat(4, minmax(0, 1fr)) 6px repeat(4, minmax(0, 1fr));
         gap: 2px;
       }
 
       .jog-dial-z-steps button {
-        min-height: 18px;
+        min-height: 0;
+        transform: none;
+      }
+
+      .jog-dial-z-steps .jog-dial-z-label {
+        height: 12px;
+        line-height: 12px;
       }
 
       .jog-dial-z-continuous {
