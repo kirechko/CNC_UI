@@ -192,7 +192,8 @@ impl GrblAdapter {
     }
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
-        Self::ensure_protocol_usable(session.protocol_poisoned)?;
+        // Realtime-команды не ждут ACK; блокировать отмену движения из-за
+        // рассинхронизации обычного протокола небезопасно.
         if let Err(error) = session.port.write_all(&[byte]).await {
             session.protocol_poisoned = true;
             return Err(ControllerError::new("io", error.to_string()));
@@ -488,6 +489,17 @@ impl GrblAdapter {
             homed: [false; 5],
             homing,
         })
+    }
+
+    fn normalize_spindle_command(command: SpindleCommand) -> SpindleCommand {
+        if command.rpm == 0.0 || command.direction == SpindleDirection::Stopped {
+            SpindleCommand {
+                direction: SpindleDirection::Stopped,
+                rpm: 0.0,
+            }
+        } else {
+            command
+        }
     }
 
     fn ensure_supported_axis(axis: Axis) -> CncResult<()> {
@@ -846,15 +858,12 @@ impl LinuxCncApi for GrblAdapter {
             ));
         }
 
+        let command = Self::normalize_spindle_command(command);
         let mut session = self.session.lock().await;
-        let gcode = if command.rpm == 0.0 || command.direction == SpindleDirection::Stopped {
-            "M5".to_owned()
-        } else {
-            match command.direction {
-                SpindleDirection::Stopped => unreachable!("handled above"),
-                SpindleDirection::Clockwise => format!("M3 S{:.0}", command.rpm),
-                SpindleDirection::CounterClockwise => format!("M4 S{:.0}", command.rpm),
-            }
+        let gcode = match command.direction {
+            SpindleDirection::Stopped => "M5".to_owned(),
+            SpindleDirection::Clockwise => format!("M3 S{:.0}", command.rpm),
+            SpindleDirection::CounterClockwise => format!("M4 S{:.0}", command.rpm),
         };
         Self::send_command(&mut session, &gcode).await?;
         session.spindle_command = command;
@@ -876,6 +885,29 @@ mod tests {
             direction: SpindleDirection::Clockwise,
             rpm: 1200.0,
         }
+    }
+
+    #[test]
+    fn stopped_or_zero_speed_spindle_commands_are_normalized() {
+        let stopped = GrblAdapter::normalize_spindle_command(SpindleCommand {
+            direction: SpindleDirection::Clockwise,
+            rpm: 0.0,
+        });
+        assert_eq!(stopped.direction, SpindleDirection::Stopped);
+        assert_eq!(stopped.rpm, 0.0);
+
+        let zero_direction = GrblAdapter::normalize_spindle_command(SpindleCommand {
+            direction: SpindleDirection::Stopped,
+            rpm: 1200.0,
+        });
+        assert_eq!(zero_direction.direction, SpindleDirection::Stopped);
+        assert_eq!(zero_direction.rpm, 0.0);
+
+        let running = spindle_command();
+        assert_eq!(
+            GrblAdapter::normalize_spindle_command(running),
+            running
+        );
     }
 
     #[test]
