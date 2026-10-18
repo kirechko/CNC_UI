@@ -943,16 +943,32 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_command(&mut session, command).await
     }
 
+    fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
+        let mut lines = Vec::new();
+
+        for (line_index, line) in content.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            Self::validate_command(line).map_err(|error| {
+                ControllerError::new(
+                    "bad_program",
+                    format!("invalid GRBL program line {}: {}", line_index + 1, error.message),
+                )
+            })?;
+            lines.push(line.to_owned());
+        }
+
+        Ok(lines)
+    }
+
     async fn load_program(&self, path: &Path) -> CncResult<()> {
         let content = fs::read_to_string(path)
             .await
             .map_err(|error| ControllerError::new("program_read", error.to_string()))?;
-        let lines = content
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(str::to_owned)
-            .collect();
+        let lines = Self::parse_program_lines(&content)?;
         let name = path
             .file_name()
             .and_then(|name| name.to_str())
@@ -1109,6 +1125,21 @@ mod tests {
             let error = GrblAdapter::validate_command(command).unwrap_err();
             assert_eq!(error.code, "bad_command", "command: {command:?}");
         }
+    }
+
+    #[test]
+    fn validates_every_program_line_before_execution() {
+        let lines = GrblAdapter::parse_program_lines("\nG0 X1\n\nG1 X2\n").unwrap();
+        assert_eq!(lines, ["G0 X1", "G1 X2"]);
+
+        let error = GrblAdapter::parse_program_lines(&format!(
+            "G0 X1\n{}\nG1 X2",
+            "G".repeat(MAX_COMMAND_LENGTH + 1)
+        ))
+        .unwrap_err();
+
+        assert_eq!(error.code, "bad_program");
+        assert!(error.message.contains("line 2"));
     }
 
     #[test]
