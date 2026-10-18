@@ -1,4 +1,5 @@
-use crate::cnc_api::Axis;
+use crate::cnc_api::{Axis, SpindleDirection as ApiSpindleDirection};
+use crate::cnc_controller::SpindleDirection as UiSpindleDirection;
 use crate::web_server::{
     load_program as load_program_into_state, AppState, LoadedProgram, StatusResponse,
 };
@@ -61,6 +62,48 @@ fn abort_program(state: State<'_, AppState>) -> Result<(), String> {
         .lock()
         .map_err(|_| "controller lock poisoned".to_string())?;
     controller.program_abort().map_err(|error| format!("{}: {}", error.code, error.message))
+}
+
+#[tauri::command]
+fn set_spindle(state: State<'_, AppState>, rpm: f64, enabled: bool) -> Result<(), String> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+
+    if !enabled {
+        controller.stop_spindle();
+        return Ok(());
+    }
+
+    if !rpm.is_finite() {
+        return Err("Скорость шпинделя должна быть конечным числом".into());
+    }
+
+    let status = controller.get_status_snapshot();
+    if status.state == "DISCONNECTED" {
+        return Err("Нет соединения со станком".into());
+    }
+
+    let spindle = status
+        .machine_configuration
+        .as_ref()
+        .map(|configuration| &configuration.spindle)
+        .ok_or_else(|| "Конфигурация шпинделя недоступна".to_string())?;
+    let minimum = spindle.min_rpm.unwrap_or(0.0);
+    let maximum = spindle
+        .max_rpm
+        .unwrap_or(status.spindle_max_speed);
+
+    if maximum <= 0.0 || rpm < minimum || rpm > maximum {
+        return Err(format!(
+            "Скорость шпинделя должна быть в диапазоне {minimum:.0}–{maximum:.0} RPM"
+        ));
+    }
+
+    controller.set_spindle_speed(rpm);
+    controller.set_spindle_direction(UiSpindleDirection::CW);
+    Ok(())
 }
 
 #[tauri::command]
@@ -223,6 +266,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             resume_program,
             abort_program,
             jog,
+            set_spindle,
             jog_continuous,
             jog_continuous_xy,
             cancel_jog,

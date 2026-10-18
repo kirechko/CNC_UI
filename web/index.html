@@ -747,10 +747,95 @@
         font-size: 12px;
       }
 
-      .spindle-placeholder {
-        padding: 11px;
-        border: 1px dashed #3b464b;
+      .spindle-control {
+        display: grid;
+        gap: 14px;
+      }
+
+      .spindle-speed-control {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 88px;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .spindle-speed-control label {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 650;
+        letter-spacing: 0.06em;
+      }
+
+      .spindle-speed-control input[type="number"] {
+        width: 88px;
+        min-height: 32px;
+        padding: 0 7px;
+        border: 1px solid var(--border);
         border-radius: 6px;
+        background: #171c1f;
+        color: #d8e0e2;
+        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+        text-align: right;
+      }
+
+      .spindle-slider {
+        display: grid;
+        gap: 6px;
+      }
+
+      .spindle-slider input {
+        width: 100%;
+        accent-color: var(--accent-bright);
+      }
+
+      .spindle-limits {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      .spindle-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .spindle-toggle {
+        display: grid;
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        min-height: 42px;
+        padding: 0;
+        place-items: center;
+        border-color: #39704f;
+        background: #19291f;
+        color: #76d49c;
+      }
+
+      .spindle-toggle:hover:not(:disabled) {
+        border-color: #56a875;
+        background: #20372a;
+      }
+
+      .spindle-toggle.running {
+        border-color: #7c3033;
+        background: #351719;
+        color: #f08b8b;
+      }
+
+      .spindle-toggle.running:hover:not(:disabled) {
+        border-color: #bd4d51;
+        background: #4a1d20;
+      }
+
+      .spindle-toggle svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .spindle-state {
         color: var(--muted);
         font-size: 10px;
         line-height: 1.5;
@@ -1195,31 +1280,40 @@
                 </div>
               </div>
             </div>
-            <div class="secondary-controls">
-              <button type="button" disabled title="Функция пока не подключена к API">Home axes</button>
-              <button type="button" disabled title="Функция пока не подключена к API">Zero axes</button>
-            </div>
-            <p id="feedback" class="panel-caption" role="status" aria-live="polite"></p>
           </div>
         </section>
 
         <section class="panel">
           <div class="panel-heading">
             <span class="panel-title">SPINDLE</span>
-            <span class="panel-caption">Телеметрия пока недоступна</span>
+            <span class="panel-caption" id="spindle-state">Остановлен</span>
           </div>
-          <div class="panel-body">
-            <div class="spindle-reading"><span>ФАКТИЧЕСКИЕ ОБОРОТЫ</span><strong>— RPM</strong></div>
-            <div class="spindle-placeholder">
-              Отображение и управление шпинделем появятся после расширения общего API состояния.
+          <div class="panel-body spindle-control">
+            <div class="spindle-reading">
+              <span>ФАКТИЧЕСКИЕ ОБОРОТЫ</span>
+              <strong id="spindle-actual-rpm">0 RPM</strong>
+            </div>
+            <div class="spindle-speed-control">
+              <label for="spindle-speed">СКОРОСТЬ, RPM</label>
+              <input id="spindle-speed" type="number" min="0" max="24000" step="100" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
+            </div>
+            <div class="spindle-slider">
+              <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
+              <div class="spindle-limits">
+                <span id="spindle-min">0 RPM</span>
+                <span id="spindle-max">24000 RPM</span>
+              </div>
+            </div>
+            <div class="spindle-actions">
+              <button class="spindle-toggle" id="spindle-toggle" type="button" aria-label="Запустить шпиндель" title="Запустить шпиндель на заданной скорости" disabled>
+                <svg id="spindle-toggle-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7L8 5Z"></path>
+                </svg>
+              </button>
+              <span class="spindle-state" id="spindle-commanded-state">Задайте скорость и нажмите «Старт».</span>
             </div>
           </div>
         </section>
-
-        <div class="safety-note">
-          Веб-управление не защищено аутентификацией. Используйте только в доверенной сети.
-          Для аварийной остановки используйте аппаратный E-Stop станка.
-        </div>
       </aside>
 
       <section class="center-column" aria-label="Просмотр программы и управление заданием">
@@ -2736,6 +2830,16 @@
       const jobAbortButton = document.querySelector("#job-abort");
       const jobCaption = document.querySelector("#job-caption");
       const jobNote = document.querySelector("#job-note");
+      const spindleSpeed = document.querySelector("#spindle-speed");
+      const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
+      const spindleToggle = document.querySelector("#spindle-toggle");
+      const spindleToggleIcon = document.querySelector("#spindle-toggle-icon");
+      const spindleState = document.querySelector("#spindle-state");
+      const spindleActualRpm = document.querySelector("#spindle-actual-rpm");
+      const spindleCommandedState = document.querySelector("#spindle-commanded-state");
+      let spindleIsRunning = false;
+      let spindleMinimumRpm = 0;
+      let spindleMaximumRpm = 0;
 
       jobRunButton.addEventListener("click", async () => {
         jobRunButton.disabled = true;
@@ -2772,6 +2876,49 @@
           jobNote.textContent = `Ошибка остановки: ${error.message}`;
         }
       });
+
+      function updateSpindleControls(status) {
+        spindleIsRunning = Boolean(status.spindle_enabled);
+        spindleMinimumRpm = Math.max(0, Number(status.spindle_min_rpm) || 0);
+        spindleMaximumRpm = Math.max(0, Number(status.spindle_max_rpm) || 0);
+
+        const step = spindleMaximumRpm > 10000 ? 100 : 10;
+        spindleSpeed.min = String(spindleMinimumRpm);
+        spindleSpeed.max = String(spindleMaximumRpm);
+        spindleSpeed.step = String(step);
+        spindleSpeedSlider.min = String(spindleMinimumRpm);
+        spindleSpeedSlider.max = String(spindleMaximumRpm);
+        spindleSpeedSlider.step = String(step);
+        document.querySelector("#spindle-min").textContent = `${spindleMinimumRpm.toFixed(0)} RPM`;
+        document.querySelector("#spindle-max").textContent = `${spindleMaximumRpm.toFixed(0)} RPM`;
+
+        const reportedSetpoint = Number(status.spindle_commanded_rpm);
+        const currentSetpoint = Number(spindleSpeed.value);
+        const nextSetpoint = spindleIsRunning && Number.isFinite(reportedSetpoint) && reportedSetpoint > 0
+          ? reportedSetpoint
+          : Number.isFinite(currentSetpoint) && currentSetpoint >= spindleMinimumRpm
+            ? Math.min(currentSetpoint, spindleMaximumRpm)
+            : spindleMinimumRpm;
+        spindleSpeed.value = String(nextSetpoint);
+        spindleSpeedSlider.value = String(nextSetpoint);
+
+        spindleActualRpm.textContent = `${(Number(status.spindle_rpm) || 0).toFixed(0)} RPM`;
+        spindleState.textContent = spindleIsRunning ? "Работает" : "Остановлен";
+        spindleCommandedState.textContent = spindleIsRunning
+          ? `Задано ${reportedSetpoint.toFixed(0)} RPM`
+          : "Задайте скорость и нажмите «Старт».";
+        spindleToggle.classList.toggle("running", spindleIsRunning);
+        spindleToggle.setAttribute("aria-label", spindleIsRunning ? "Остановить шпиндель" : "Запустить шпиндель");
+        spindleToggle.title = spindleIsRunning
+          ? "Остановить шпиндель"
+          : "Запустить шпиндель на заданной скорости";
+        spindleToggleIcon.innerHTML = spindleIsRunning
+          ? '<rect x="5" y="5" width="14" height="14" rx="2"></rect>'
+          : '<path d="M8 5v14l11-7L8 5Z"></path>';
+        spindleToggle.disabled = !status.connected || spindleMaximumRpm <= 0;
+        spindleSpeed.disabled = !status.connected || spindleMaximumRpm <= 0 || spindleIsRunning;
+        spindleSpeedSlider.disabled = !status.connected || spindleMaximumRpm <= 0 || spindleIsRunning;
+      }
 
       function updateJobControls(status) {
         const hasProgram = Boolean(loadedProgram);
@@ -2936,6 +3083,7 @@
           if (stateClass) state.classList.add(stateClass);
           setJogEnabled(machineConnected);
           updateJobControls(status);
+          updateSpindleControls(status);
           renderConfiguredAxes(status.configuration);
           updatePositionDisplay();
           coordinateSystem.value = status.coordinate_system || "g54";
