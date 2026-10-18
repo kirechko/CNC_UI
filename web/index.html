@@ -781,6 +781,46 @@
         font-size: 10px;
       }
 
+      .spindle-speed-picker {
+        position: relative;
+      }
+
+      .spindle-speed-options {
+        position: absolute;
+        z-index: 5;
+        right: 0;
+        bottom: calc(100% + 6px);
+        display: grid;
+        min-width: 112px;
+        gap: 3px;
+        padding: 5px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: #202629;
+        box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+      }
+
+      .spindle-speed-options[hidden] {
+        display: none;
+      }
+
+      .spindle-speed-option {
+        min-height: 28px;
+        padding: 0 8px;
+        border-color: transparent;
+        background: transparent;
+        color: #c8d1d4;
+        font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+        text-align: right;
+      }
+
+      .spindle-speed-option:hover,
+      .spindle-speed-option[aria-selected="true"] {
+        border-color: #344e5b;
+        background: #1a2b33;
+        color: #a3d5e9;
+      }
+
       .spindle-limits {
         display: flex;
         justify-content: space-between;
@@ -1287,7 +1327,10 @@
             <div class="spindle-speed-control">
               <label for="spindle-speed">RPM</label>
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
-              <button class="spindle-step-button" id="spindle-step" type="button" title="Заданная скорость шпинделя, RPM" aria-label="Заданная скорость шпинделя">0</button>
+              <div class="spindle-speed-picker">
+                <button class="spindle-step-button" id="spindle-step" type="button" title="Выбрать предустановленную скорость шпинделя" aria-label="Заданная скорость шпинделя; открыть список предустановок" aria-haspopup="listbox" aria-expanded="false">0</button>
+                <div class="spindle-speed-options" id="spindle-speed-options" role="listbox" aria-label="Предустановленные скорости шпинделя" hidden></div>
+              </div>
             </div>
             <div class="spindle-actions">
               <button class="spindle-toggle" id="spindle-toggle" type="button" aria-label="Запустить шпиндель" title="Запустить шпиндель на заданной скорости" disabled>
@@ -2819,6 +2862,7 @@
       const spindleToggleIcon = document.querySelector("#spindle-toggle-icon");
       const spindleToggleValue = document.querySelector("#spindle-toggle-value");
       const spindleStepButton = document.querySelector("#spindle-step");
+      const spindleSpeedOptions = document.querySelector("#spindle-speed-options");
       let spindleIsRunning = false;
       let spindleMinimumRpm = 0;
       let spindleMaximumRpm = 0;
@@ -2870,6 +2914,73 @@
       }
 
       spindleSpeedSlider.addEventListener("input", () => syncSpindleSpeed(spindleSpeedSlider.value));
+
+      function spindleSpeedPresets() {
+        const minimum = spindleMinimumRpm;
+        const maximum = spindleMaximumRpm;
+        const rounding = maximum <= 9000 ? 100 : 1000;
+        const values = [minimum];
+
+        for (let index = 1; index <= 4; index++) {
+          const evenlySpaced = minimum + (maximum - minimum) * index / 5;
+          values.push(Math.round(evenlySpaced / rounding) * rounding);
+        }
+
+        values.push(maximum);
+        return [...new Set(values.map((value) =>
+          Math.max(minimum, Math.min(maximum, value)),
+        ))].sort((a, b) => a - b);
+      }
+
+      function closeSpindleSpeedOptions() {
+        spindleSpeedOptions.hidden = true;
+        spindleStepButton.setAttribute("aria-expanded", "false");
+      }
+
+      function openSpindleSpeedOptions() {
+        spindleSpeedOptions.replaceChildren();
+
+        for (const rpm of spindleSpeedPresets()) {
+          const option = document.createElement("button");
+          option.className = "spindle-speed-option";
+          option.type = "button";
+          option.role = "option";
+          option.textContent = rpm.toFixed(0);
+          option.setAttribute(
+            "aria-selected",
+            String(rpm === Number(spindleSpeedSlider.value)),
+          );
+          option.addEventListener("click", () => {
+            syncSpindleSpeed(rpm);
+            closeSpindleSpeedOptions();
+          });
+          spindleSpeedOptions.append(option);
+        }
+
+        spindleSpeedOptions.hidden = false;
+        spindleStepButton.setAttribute("aria-expanded", "true");
+      }
+
+      spindleStepButton.addEventListener("click", () => {
+        if (spindleSpeedOptions.hidden) {
+          openSpindleSpeedOptions();
+        } else {
+          closeSpindleSpeedOptions();
+        }
+      });
+
+      document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest(".spindle-speed-picker")) {
+          closeSpindleSpeedOptions();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !spindleSpeedOptions.hidden) {
+          closeSpindleSpeedOptions();
+          spindleStepButton.focus();
+        }
+      });
 
       spindleToggle.addEventListener("click", async () => {
         const enabled = !spindleIsRunning;
