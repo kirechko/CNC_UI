@@ -3007,7 +3007,7 @@
           Math.min(spindleMaximumRpm, Number(value) || spindleMinimumRpm),
         );
         spindleSpeedSlider.value = String(rpm);
-        spindleStepButton.textContent = rpm.toFixed(0);
+        spindleStepButton.textContent = String(rpm);
       }
 
       spindleSpeedSlider.addEventListener("input", () => syncSpindleSpeed(spindleSpeedSlider.value));
@@ -3183,10 +3183,9 @@
         spindleMinimumRpm = Math.max(0, Number(status.spindle_min_rpm) || 0);
         spindleMaximumRpm = Math.max(0, Number(status.spindle_max_rpm) || 0);
 
-        const step = spindleMaximumRpm > 10000 ? 100 : 10;
         spindleSpeedSlider.min = String(spindleMinimumRpm);
         spindleSpeedSlider.max = String(spindleMaximumRpm);
-        spindleSpeedSlider.step = String(step);
+        spindleSpeedSlider.step = "any";
         const reportedSetpoint = Number(status.spindle_commanded_rpm);
         const currentSetpoint = Number(spindleSpeedSlider.value);
         const nextSetpoint = spindleIsRunning && Number.isFinite(reportedSetpoint) && reportedSetpoint > 0
@@ -3195,7 +3194,7 @@
             ? Math.min(currentSetpoint, spindleMaximumRpm)
             : spindleMinimumRpm;
         spindleSpeedSlider.value = String(nextSetpoint);
-        spindleStepButton.textContent = nextSetpoint.toFixed(0);
+        spindleStepButton.textContent = String(nextSetpoint);
 
         const reportedDirection = status.spindle_direction || "stopped";
         const actualRpm = Number(status.spindle_rpm) || 0;
