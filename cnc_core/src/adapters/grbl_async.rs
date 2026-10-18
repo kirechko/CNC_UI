@@ -16,6 +16,7 @@ use tokio_serial::{SerialPortBuilderExt, SerialStream};
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_RESPONSE_LINE: usize = 4096;
+const MAX_COMMAND_LENGTH: usize = 80;
 const JOG_CHUNK_MM: f64 = 10.0;
 
 #[derive(Clone, Copy)]
@@ -133,15 +134,31 @@ impl GrblAdapter {
         Ok(())
     }
 
-    async fn send_command(session: &mut Session, command: &str) -> CncResult<()> {
-        Self::ensure_protocol_usable(session.protocol_poisoned)?;
-
+    fn validate_command(command: &str) -> CncResult<()> {
         if command.contains(['\n', '\r']) {
             return Err(ControllerError::new(
                 "bad_command",
                 "a GRBL command must contain exactly one line",
             ));
         }
+
+        let command = command.trim();
+        if command.len() > MAX_COMMAND_LENGTH {
+            return Err(ControllerError::new(
+                "bad_command",
+                format!(
+                    "GRBL command exceeds the {MAX_COMMAND_LENGTH}-byte line limit"
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn send_command(session: &mut Session, command: &str) -> CncResult<()> {
+        Self::ensure_protocol_usable(session.protocol_poisoned)?;
+        Self::validate_command(command)?;
+
         if command.trim().is_empty() {
             return Ok(());
         }
@@ -957,6 +974,19 @@ mod tests {
 
         let running = spindle_command();
         assert_eq!(GrblAdapter::normalize_spindle_command(running), running);
+    }
+
+    #[test]
+    fn validates_grbl_command_line_length_and_single_line_format() {
+        assert!(GrblAdapter::validate_command("G1 X10 Y20").is_ok());
+        assert!(GrblAdapter::validate_command(&"G".repeat(MAX_COMMAND_LENGTH)).is_ok());
+
+        let error =
+            GrblAdapter::validate_command(&"G".repeat(MAX_COMMAND_LENGTH + 1)).unwrap_err();
+        assert_eq!(error.code, "bad_command");
+
+        let error = GrblAdapter::validate_command("G1 X1\\nM3 S1000").unwrap_err();
+        assert_eq!(error.code, "bad_command");
     }
 
     #[test]
