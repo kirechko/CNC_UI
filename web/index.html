@@ -2923,12 +2923,13 @@
         }
       }
 
-      async function stopContinuousJog() {
-        const axes = [...activeContinuousAxes];
-        activeContinuousAxes.clear();
-        for (const axis of axes) {
+      async function stopContinuousJog(axis = null) {
+        const axes = axis ? [axis].filter((activeAxis) => activeContinuousAxes.has(activeAxis)) : [...activeContinuousAxes];
+        axes.forEach((activeAxis) => activeContinuousAxes.delete(activeAxis));
+
+        for (const activeAxis of axes) {
           try {
-            await sendContinuousJog(axis, 0);
+            await sendContinuousJog(activeAxis, 0);
           } catch (error) {
             feedback.textContent = `Ошибка остановки Jog: ${error.message}`;
             feedback.className = "error";
@@ -2943,12 +2944,32 @@
           button.setPointerCapture(event.pointerId);
           startContinuousJog(axis, direction);
         });
+
         const stop = () => {
-          if (jogMotionMode === "continuous") stopContinuousJog();
+          if (jogMotionMode === "continuous") stopContinuousJog(axis);
         };
         button.addEventListener("pointerup", stop);
         button.addEventListener("pointercancel", stop);
         button.addEventListener("lostpointercapture", stop);
+
+        button.addEventListener("keydown", (event) => {
+          if (
+            jogMotionMode !== "continuous" ||
+            button.disabled ||
+            !["Enter", " "].includes(event.key) ||
+            event.repeat
+          ) return;
+
+          event.preventDefault();
+          startContinuousJog(axis, direction);
+        });
+        button.addEventListener("keyup", (event) => {
+          if (jogMotionMode === "continuous" && ["Enter", " "].includes(event.key)) {
+            event.preventDefault();
+            stopContinuousJog(axis);
+          }
+        });
+        button.addEventListener("blur", stop);
       }
 
       jogButtons.forEach((button) => {
@@ -2962,6 +2983,7 @@
 
       const jogIncrementalMode = document.querySelector("#jog-incremental-mode");
       const jogContinuousMode = document.querySelector("#jog-continuous-mode");
+      const jogDistanceSelect = document.querySelector("#distance");
       function selectJogMotionMode(mode) {
         jogMotionMode = mode;
         const incremental = mode === "incremental";
@@ -2969,6 +2991,7 @@
         jogContinuousMode.classList.toggle("active", !incremental);
         jogIncrementalMode.setAttribute("aria-pressed", String(incremental));
         jogContinuousMode.setAttribute("aria-pressed", String(!incremental));
+        jogDistanceSelect.disabled = !incremental;
         if (incremental) stopContinuousJog();
       }
       jogIncrementalMode.addEventListener("click", () => selectJogMotionMode("incremental"));
