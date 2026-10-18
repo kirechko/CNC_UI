@@ -1021,6 +1021,7 @@ impl LinuxCncApi for GrblAdapter {
     async fn power_on(&self) -> CncResult<()> {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, "$X").await
     }
 
@@ -1047,6 +1048,7 @@ impl LinuxCncApi for GrblAdapter {
         }
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, "$H").await
     }
 
@@ -1286,6 +1288,7 @@ impl LinuxCncApi for GrblAdapter {
         let command = Self::normalize_spindle_command(command);
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::validate_spindle_command(command, session.min_spindle_rpm, session.max_spindle_rpm)?;
         let gcode = match command.direction {
             SpindleDirection::Stopped => "M5".to_owned(),
@@ -1300,6 +1303,7 @@ impl LinuxCncApi for GrblAdapter {
     async fn clear_error(&self) -> CncResult<()> {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, "$X").await
     }
 }
