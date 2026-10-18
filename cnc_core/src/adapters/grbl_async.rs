@@ -754,6 +754,14 @@ impl GrblAdapter {
         Ok(())
     }
 
+    fn is_idle_status(status_response: &str) -> bool {
+        status_response
+            .strip_prefix('<')
+            .and_then(|response| response.strip_suffix('>'))
+            .and_then(|response| response.split('|').next())
+            == Some("Idle")
+    }
+
     fn ensure_controller_idle(status_response: &str) -> CncResult<()> {
         let state = status_response
             .strip_prefix('<')
@@ -835,7 +843,7 @@ impl LinuxCncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         let response = Self::query_status(&mut session).await?;
 
-        if response.starts_with("<Idle") {
+        if Self::is_idle_status(&response) {
             session.jog_chunk_active = false;
             if session.program_streaming {
                 Self::stream_next_program_line(&mut session).await?;
@@ -1287,6 +1295,14 @@ mod tests {
 
         let error = GrblAdapter::ensure_manual_command_allowed(true).unwrap_err();
         assert_eq!(error.code, "motion_busy");
+    }
+
+    #[test]
+    fn idle_detection_requires_an_exact_valid_state_name() {
+        assert!(GrblAdapter::is_idle_status("<Idle|MPos:0,0,0>"));
+        assert!(!GrblAdapter::is_idle_status("<Idleish|MPos:0,0,0>"));
+        assert!(!GrblAdapter::is_idle_status("<Run|MPos:0,0,0>"));
+        assert!(!GrblAdapter::is_idle_status("Idle|MPos:0,0,0"));
     }
 
     #[test]
