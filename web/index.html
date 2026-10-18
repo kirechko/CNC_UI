@@ -4291,7 +4291,7 @@
         }
 
         if (hoveredDialSelection) {
-          const ring = jogStepValues.indexOf(hoveredDialSelection.step);
+          const ring = xyJogStepValues.indexOf(hoveredDialSelection.step);
           if (ring !== -1) {
             const sector = hoveredDialSelection.sector;
             const center = sector * Math.PI / 4;
