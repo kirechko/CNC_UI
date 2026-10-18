@@ -466,7 +466,21 @@ fn api_worker(
                     Command::HomeAll => api.home(None),
                     Command::Home(axis) => api.home(Some(axis)),
                     Command::Mdi(command) => api.mdi(&command),
-                    Command::Spindle(command) => api.set_spindle(command),
+                    Command::Spindle(command) => {
+                        eprintln!(
+                            "[Backend/Worker] sending spindle command to API: direction={:?}, rpm={:.0}",
+                            command.direction, command.rpm
+                        );
+                        let result = api.set_spindle(command);
+                        match &result {
+                            Ok(()) => eprintln!("[Backend/Worker] spindle command accepted by API"),
+                            Err(error) => eprintln!(
+                                "[Backend/Worker] spindle command failed: {}: {}",
+                                error.code, error.message
+                            ),
+                        }
+                        result
+                    }
                     Command::JogIncrement(request) => api.jog_increment(request),
                     Command::JogContinuous(axis, direction, feed_rate) => {
                         api.jog_continuous(axis, direction, feed_rate)
