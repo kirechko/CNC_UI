@@ -3916,6 +3916,22 @@
           }
         }
 
+        // Подписываем размер шага в каждом кольце в секторе +X/+Y.
+        const stepLabels = ["0.1", "1", "10", "100"];
+        const labelAngle = 7 * Math.PI / 4;
+        jogDialContext.fillStyle = "#f1f3f3";
+        jogDialContext.font = `bold ${Math.max(8, radius * 0.09)}px system-ui`;
+        jogDialContext.textAlign = "center";
+        jogDialContext.textBaseline = "middle";
+        for (let ring = 0; ring < stepLabels.length; ring++) {
+          const labelRadius = radius * (inner[ring] + inner[ring + 1]) / 2;
+          jogDialContext.fillText(
+            stepLabels[ring],
+            cx + Math.cos(labelAngle) * labelRadius,
+            cy + Math.sin(labelAngle) * labelRadius,
+          );
+        }
+
         if (hoveredDialSelection) {
           const ring = [0.1, 1, 10, 100].indexOf(hoveredDialSelection.step);
           const sector = hoveredDialSelection.sector;
