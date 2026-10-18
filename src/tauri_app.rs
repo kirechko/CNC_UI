@@ -1,4 +1,4 @@
-use crate::cnc_api::{Axis, SpindleDirection as ApiSpindleDirection};
+use crate::cnc_api::Axis;
 use crate::cnc_controller::SpindleDirection as UiSpindleDirection;
 use crate::web_server::{
     load_program as load_program_into_state, AppState, LoadedProgram, StatusResponse,
