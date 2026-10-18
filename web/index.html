@@ -583,8 +583,22 @@
 
       .jog-dial-z {
         display: grid;
+        height: 240px;
         grid-template-rows: auto repeat(4, 1fr) 8px repeat(4, 1fr);
         gap: 3px;
+      }
+
+      .jog-dial-z-continuous {
+        grid-template-rows: auto repeat(2, minmax(0, 1fr));
+      }
+
+      .jog-dial-z-continuous button {
+        min-height: 0;
+        font-size: 20px;
+      }
+
+      .jog-dial-z[hidden] {
+        display: none;
       }
 
       .jog-dial-z-label {
@@ -618,16 +632,29 @@
         font-size: 10px;
         text-align: center;
       }
+      .jog-keys-layout {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
       .jog-grid {
         display: grid;
-        width: min(100%, 135px);
-        grid-template-columns: repeat(3, minmax(26px, 1fr));
-        gap: 3.5px;
-        margin: 0 auto;
+        width: min(100%, 202.5px);
+        grid-template-columns: repeat(3, minmax(39px, 1fr));
+        gap: 5.25px;
+        margin: 0;
+      }
+
+      .jog-keys-z {
+        display: grid;
+        width: 48px;
+        gap: 5.25px;
       }
 
       .jog-button {
-        min-height: 28.5px;
+        min-height: 42.75px;
         padding: 0;
         font-size: 11px;
         font-weight: 720;
@@ -1090,26 +1117,28 @@
               </select>
             </div>
 
-            <div class="jog-grid" aria-label="Пошаговое перемещение осей">
-              <span></span>
-              <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс" title="Переместить ось Y в положительном направлении">Y+</button>
-              <span></span>
-              <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус" title="Переместить ось X в отрицательном направлении">X−</button>
-              <button class="jog-button jog-stop-key" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="5" y="5" width="14" height="14" rx="2"></rect>
-                </svg>
-              </button>
-              <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс" title="Переместить ось X в положительном направлении">X+</button>
-              <span></span>
-              <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус" title="Переместить ось Y в отрицательном направлении">Y−</button>
-              <span></span>
-              <span></span>
-              <button class="jog-button z" data-axis="Z" data-direction="1" aria-label="Переместить Z плюс" title="Переместить ось Z в положительном направлении">Z+</button>
-              <span></span>
-              <span></span>
-              <button class="jog-button z" data-axis="Z" data-direction="-1" aria-label="Переместить Z минус" title="Переместить ось Z в отрицательном направлении">Z−</button>
-              <span></span>
+            <div class="jog-keys-layout">
+              <div class="jog-grid" aria-label="Пошаговое перемещение осей XY">
+                <button class="jog-button xy" data-x-direction="-1" data-y-direction="1" aria-label="Переместить X минус и Y плюс" title="Диагональный Jog: X− / Y+">X−Y+</button>
+                <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс" title="Переместить ось Y в положительном направлении">Y+</button>
+                <button class="jog-button xy" data-x-direction="1" data-y-direction="1" aria-label="Переместить X плюс и Y плюс" title="Диагональный Jog: X+ / Y+">X+Y+</button>
+
+                <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус" title="Переместить ось X в отрицательном направлении">X−</button>
+                <button class="jog-button jog-stop-key" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                  </svg>
+                </button>
+                <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс" title="Переместить ось X в положительном направлении">X+</button>
+
+                <button class="jog-button xy" data-x-direction="-1" data-y-direction="-1" aria-label="Переместить X минус и Y минус" title="Диагональный Jog: X− / Y−">X−Y−</button>
+                <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус" title="Переместить ось Y в отрицательном направлении">Y−</button>
+                <button class="jog-button xy" data-x-direction="1" data-y-direction="-1" aria-label="Переместить X плюс и Y минус" title="Диагональный Jog: X+ / Y−">X+Y−</button>
+              </div>
+              <div class="jog-keys-z" aria-label="Перемещение оси Z">
+                <button class="jog-button z" data-axis="Z" data-direction="1" aria-label="Переместить Z плюс" title="Переместить ось Z в положительном направлении">Z+</button>
+                <button class="jog-button z" data-axis="Z" data-direction="-1" aria-label="Переместить Z минус" title="Переместить ось Z в отрицательном направлении">Z−</button>
+              </div>
             </div>
 
             <p class="jog-speed">Подача Jog берётся из настроек выбранного адаптера.</p>
@@ -1124,7 +1153,7 @@
                     </svg>
                   </button>
                 </div>
-                <div class="jog-dial-z" aria-label="Пошаговое перемещение оси Z">
+                <div class="jog-dial-z jog-dial-z-steps" id="jog-dial-z-steps" aria-label="Пошаговое перемещение оси Z">
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
                   <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" aria-label="Переместить Z плюс на 100 миллиметров">100</button>
                   <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" aria-label="Переместить Z плюс на 10 миллиметров">10</button>
@@ -1135,6 +1164,11 @@
                   <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="1" aria-label="Переместить Z минус на 1 миллиметр">−1</button>
                   <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="10" aria-label="Переместить Z минус на 10 миллиметров">−10</button>
                   <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="100" aria-label="Переместить Z минус на 100 миллиметров">−100</button>
+                </div>
+                <div class="jog-dial-z jog-dial-z-continuous" id="jog-dial-z-continuous" aria-label="Непрерывное перемещение оси Z" hidden>
+                  <span class="jog-dial-z-label" aria-hidden="true">Z</span>
+                  <button type="button" data-dial-continuous-axis="Z" data-direction="1" aria-label="Непрерывно перемещать Z вверх, пока кнопка удерживается" title="Удерживайте для непрерывного перемещения Z вверх">▲</button>
+                  <button type="button" data-dial-continuous-axis="Z" data-direction="-1" aria-label="Непрерывно перемещать Z вниз, пока кнопка удерживается" title="Удерживайте для непрерывного перемещения Z вниз">▼</button>
                 </div>
               </div>
               <p class="jog-dial-hint" id="jog-dial-hint">Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm</p>
@@ -2828,7 +2862,7 @@
         jogButtons.forEach((button) => {
           button.disabled = !enabled;
         });
-        document.querySelectorAll("[data-dial-axis]").forEach((button) => {
+        document.querySelectorAll("[data-dial-axis], [data-dial-continuous-axis]").forEach((button) => {
           button.disabled = !enabled;
         });
         axisRowsContainer.querySelectorAll("[data-zero-axis], [data-home-axis]").forEach((button) => {
@@ -2926,10 +2960,20 @@
         feedback.className = "panel-caption";
 
         try {
+          const distance = Number(document.querySelector("#distance").value);
+          if (button.dataset.xDirection && button.dataset.yDirection) {
+            const xDirection = Number(button.dataset.xDirection);
+            const yDirection = Number(button.dataset.yDirection);
+            await sendDialXyJog(xDirection, yDirection, distance);
+            feedback.textContent = `Диагональный Jog X${xDirection > 0 ? "+" : "−"} / Y${yDirection > 0 ? "+" : "−"} · ${distance} mm`;
+            await refreshStatus();
+            return;
+          }
+
           const request = {
             axis: button.dataset.axis,
             direction: Number(button.dataset.direction),
-            distance: Number(document.querySelector("#distance").value),
+            distance,
           };
           const invoke = window.__TAURI__?.core?.invoke;
 
@@ -3109,15 +3153,40 @@
       }
 
       function bindContinuousButton(button, axis, direction) {
+        const diagonalX = Number(button.dataset.xDirection);
+        const diagonalY = Number(button.dataset.yDirection);
+        const isDiagonal = Number.isInteger(diagonalX) && Number.isInteger(diagonalY);
+
+        const start = () => {
+          if (isDiagonal) {
+            continuousXyDirections.X = diagonalX;
+            continuousXyDirections.Y = diagonalY;
+            activeContinuousAxes.add("X");
+            activeContinuousAxes.add("Y");
+            sendContinuousXY(diagonalX, diagonalY).catch((error) => {
+              continuousXyDirections.X = 0;
+              continuousXyDirections.Y = 0;
+              activeContinuousAxes.delete("X");
+              activeContinuousAxes.delete("Y");
+              feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
+              feedback.className = "error";
+            });
+          } else {
+            startContinuousJog(axis, direction);
+          }
+        };
+
         button.addEventListener("pointerdown", (event) => {
           if (jogMotionMode !== "continuous" || button.disabled) return;
           event.preventDefault();
           button.setPointerCapture(event.pointerId);
-          startContinuousJog(axis, direction);
+          start();
         });
 
         const stop = () => {
-          if (jogMotionMode === "continuous") stopContinuousJog(axis);
+          if (jogMotionMode === "continuous") {
+            stopContinuousJog(isDiagonal ? null : axis);
+          }
         };
         button.addEventListener("pointerup", stop);
         button.addEventListener("pointercancel", stop);
@@ -3167,6 +3236,8 @@
           stopContinuousJog();
         }
 
+        document.querySelector("#jog-dial-z-steps").hidden = !incremental;
+        document.querySelector("#jog-dial-z-continuous").hidden = incremental;
         hoveredDialSelection = null;
         jogDialHint.textContent = incremental
           ? "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm"
@@ -3605,10 +3676,12 @@
             feedback.className = "error";
           }
         });
+      });
 
+      document.querySelectorAll("[data-dial-continuous-axis]").forEach((button) => {
         bindContinuousButton(
           button,
-          button.dataset.dialAxis,
+          button.dataset.dialContinuousAxis,
           Number(button.dataset.direction),
         );
       });
