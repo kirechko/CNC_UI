@@ -549,6 +549,19 @@
         font-size: 10px;
       }
 
+      .toolbar-icon-button {
+        display: grid;
+        width: 29px;
+        min-width: 29px;
+        padding: 0;
+        place-items: center;
+      }
+
+      .toolbar-icon-button svg {
+        width: 16px;
+        height: 16px;
+      }
+
       .viewer-stage {
         position: relative;
         display: grid;
@@ -916,9 +929,20 @@
               <button class="toolbar-button" id="load-program" type="button">Загрузить G-code</button>
               <button class="toolbar-button" id="fit-program" type="button">Fit</button>
               <button class="toolbar-button active" id="projection-toggle" type="button" aria-pressed="true">3D</button>
-              <button class="toolbar-button active" id="stock-toggle" type="button" aria-pressed="true">Заготовка: вкл</button>
+              <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" aria-label="Вкл/выкл заготовки" title="Вкл/выкл заготовки" aria-pressed="true">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                  <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                  <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                </svg>
+              </button>
               <input id="stock-file" type="file" accept=".stl,model/stl" hidden>
-              <button class="toolbar-button" id="load-stock" type="button">Загрузить STL</button>
+              <button class="toolbar-button toolbar-icon-button" id="load-stock" type="button" aria-label="Загрузка геометрии заготовки" title="Загрузка геометрии заготовки">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                  <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                  <path d="M12 15V8m-3 3 3-3 3 3"></path>
+                </svg>
+              </button>
               <div class="job-buttons viewer-job-buttons">
                 <button id="job-run" type="button" disabled>▶ Запуск</button>
                 <button id="job-pause" type="button" disabled>Ⅱ Пауза</button>
@@ -2422,7 +2446,6 @@
 
       stockToggle.addEventListener("click", () => {
         stockVisible = !stockVisible;
-        stockToggle.textContent = `Заготовка: ${stockVisible ? "вкл" : "выкл"}`;
         stockToggle.classList.toggle("active", stockVisible);
         stockToggle.setAttribute("aria-pressed", String(stockVisible));
         drawToolpath();
@@ -2436,7 +2459,6 @@
         try {
           loadedStockMesh = parseStl(await file.arrayBuffer());
           stockVisible = true;
-          stockToggle.textContent = "Заготовка: вкл";
           stockToggle.classList.add("active");
           stockToggle.setAttribute("aria-pressed", "true");
           document.querySelector("#program-name").textContent =
