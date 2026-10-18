@@ -4251,7 +4251,7 @@
                 : `${direction} · ${selection.step} mm`
               : jogMotionMode === "continuous"
                 ? "Удерживайте кнопку и перемещайте указатель по диску"
-                : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
+                : `Наведите на сектор: кольца задают шаг ${jogStepValues.map(formatJogStep).join(" / ")} mm`;
           }
           drawJogDial();
         }
