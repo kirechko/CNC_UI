@@ -311,3 +311,57 @@ pub trait LinuxCncApi: Send + Sync {
     /// Подтверждение/сброс ошибки контроллера, если поддерживается.
     fn clear_error(&self) -> CncResult<()>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn assert_core_adapter<T: LinuxCncApi>() {}
+
+    #[test]
+    fn migrated_adapters_implement_the_core_api() {
+        assert_core_adapter::<adapters::debug::LinuxCncAdapter>();
+        assert_core_adapter::<adapters::debug::FluidNcAdapter>();
+        assert_core_adapter::<adapters::emulator::EmAdapter>();
+        assert_core_adapter::<adapters::grbl::GrblAdapter>();
+    }
+
+    #[test]
+    fn core_types_keep_their_serialized_contract() {
+        let request = JogRequest {
+            axis: Axis::X,
+            direction: -1,
+            distance: 0.1,
+            feed_rate: Some(1200.0),
+        };
+        let value = serde_json::to_value(request).unwrap();
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "axis": "X",
+                "direction": -1,
+                "distance": 0.1,
+                "feed_rate": 1200.0
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(CoordinateSystem::G59_1).unwrap(),
+            "g59_1"
+        );
+    }
+
+    #[test]
+    fn position_deserialization_defaults_rotary_axes_for_older_payloads() {
+        let position: Position =
+            serde_json::from_value(serde_json::json!({ "x": 1.0, "y": 2.0, "z": 3.0 }))
+                .unwrap();
+
+        assert_eq!(position.a, 0.0);
+        assert_eq!(position.b, 0.0);
+    }
+
+    #[allow(dead_code)]
+    fn assert_load_program_accepts_paths(_: &Path) {}
+}
