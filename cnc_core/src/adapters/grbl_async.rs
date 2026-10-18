@@ -244,7 +244,10 @@ impl GrblAdapter {
             ));
         }
 
-        let command = format!("$J=G21 G91 {}{distance} F{feed_rate}", Self::axis_letter(axis));
+        let command = format!(
+            "$J=G21 G91 {}{distance} F{feed_rate}",
+            Self::axis_letter(axis)
+        );
         Self::validate_command(&command)?;
         Ok(command)
     }
@@ -263,8 +266,7 @@ impl GrblAdapter {
             return Err(ControllerError::new("bad_jog", "invalid continuous XY jog"));
         }
 
-        let norm =
-            f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
+        let norm = f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
         let x = JOG_CHUNK_MM * f64::from(x_direction) / norm;
         let y = JOG_CHUNK_MM * f64::from(y_direction) / norm;
         let command = format!("$J=G21 G91 X{x:.4} Y{y:.4} F{feed_rate}");
@@ -487,7 +489,10 @@ impl GrblAdapter {
         for field in fields {
             if let Some(value) = field.strip_prefix("MPos:") {
                 if machine_position.is_some() {
-                    return Err(ControllerError::new("protocol", "duplicate GRBL MPos field"));
+                    return Err(ControllerError::new(
+                        "protocol",
+                        "duplicate GRBL MPos field",
+                    ));
                 }
                 machine_position =
                     Some(Self::parse_triplet(value).ok_or_else(|| {
@@ -495,7 +500,10 @@ impl GrblAdapter {
                     })?);
             } else if let Some(value) = field.strip_prefix("WPos:") {
                 if work_position.is_some() {
-                    return Err(ControllerError::new("protocol", "duplicate GRBL WPos field"));
+                    return Err(ControllerError::new(
+                        "protocol",
+                        "duplicate GRBL WPos field",
+                    ));
                 }
                 work_position =
                     Some(Self::parse_triplet(value).ok_or_else(|| {
@@ -768,7 +776,11 @@ impl GrblAdapter {
             Self::validate_command(line).map_err(|error| {
                 ControllerError::new(
                     "bad_program",
-                    format!("invalid GRBL program line {}: {}", line_index + 1, error.message),
+                    format!(
+                        "invalid GRBL program line {}: {}",
+                        line_index + 1,
+                        error.message
+                    ),
                 )
             })?;
             lines.push(line.to_owned());
@@ -1055,7 +1067,6 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_command(&mut session, command).await
     }
 
-
     async fn load_program(&self, path: &Path) -> CncResult<()> {
         let content = fs::read_to_string(path)
             .await
@@ -1247,9 +1258,7 @@ mod tests {
     fn prevents_program_load_or_start_during_program_or_jog_motion() {
         assert!(GrblAdapter::ensure_program_idle(false, false).is_ok());
 
-        for (program_streaming, jog_active) in
-            [(true, false), (false, true), (true, true)]
-        {
+        for (program_streaming, jog_active) in [(true, false), (false, true), (true, true)] {
             let error =
                 GrblAdapter::ensure_program_idle(program_streaming, jog_active).unwrap_err();
             assert_eq!(error.code, "motion_busy");
@@ -1520,12 +1529,26 @@ mod tests {
 
     #[test]
     fn validates_grbl_state_subcodes() {
-        for state in ["Idle", "Run", "Jog", "Check", "Home", "Sleep", "Hold:0", "Hold:1", "Door:0", "Door:3", "Alarm", "Alarm:1"] {
+        for state in [
+            "Idle", "Run", "Jog", "Check", "Home", "Sleep", "Hold:0", "Hold:1", "Door:0", "Door:3",
+            "Alarm", "Alarm:1",
+        ] {
             assert!(GrblAdapter::is_known_machine_state(state), "state: {state}");
         }
 
-        for state in ["Idle:1", "Run:0", "Hold:2", "Door:4", "Door:invalid", "Alarm:0", "Alarm:invalid"] {
-            assert!(!GrblAdapter::is_known_machine_state(state), "state: {state}");
+        for state in [
+            "Idle:1",
+            "Run:0",
+            "Hold:2",
+            "Door:4",
+            "Door:invalid",
+            "Alarm:0",
+            "Alarm:invalid",
+        ] {
+            assert!(
+                !GrblAdapter::is_known_machine_state(state),
+                "state: {state}"
+            );
         }
     }
 
