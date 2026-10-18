@@ -601,8 +601,8 @@
         right: 10px;
         width: 112px;
         height: 112px;
-        cursor: default;
-        pointer-events: none;
+        cursor: pointer;
+        pointer-events: auto;
         touch-action: manipulation;
       }
 
@@ -1792,12 +1792,22 @@
       });
 
       trajectoryCanvas.addEventListener("pointerdown", (event) => {
-        if (event.button !== 2) return;
+        const mode = event.button === 0
+          ? "orbit"
+          : event.button === 1 || event.button === 2
+            ? "pan"
+            : null;
+        if (!mode) return;
+
+        event.preventDefault();
         trajectoryCanvas.setPointerCapture(event.pointerId);
         trajectoryCanvas.classList.add("dragging");
         dragState = {
+          mode,
           x: event.clientX,
           y: event.clientY,
+          yaw: camera.yaw,
+          pitch: camera.pitch,
           panX: camera.panX,
           panY: camera.panY,
         };
@@ -1807,8 +1817,18 @@
         if (!dragState) return;
         const dx = event.clientX - dragState.x;
         const dy = event.clientY - dragState.y;
-        camera.panX = dragState.panX + dx;
-        camera.panY = dragState.panY + dy;
+
+        if (dragState.mode === "orbit") {
+          camera.yaw = dragState.yaw + dx * 0.01;
+          camera.pitch = Math.max(
+            -Math.PI / 2 + 0.01,
+            Math.min(Math.PI / 2 - 0.01, dragState.pitch + dy * 0.01),
+          );
+        } else {
+          camera.panX = dragState.panX + dx;
+          camera.panY = dragState.panY + dy;
+        }
+
         drawToolpath();
       });
 
