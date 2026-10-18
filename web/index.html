@@ -3021,7 +3021,10 @@
       });
 
       async function commandSpindle(direction) {
-        const nextDirection = spindleUiDirection === direction ? "stopped" : direction;
+        const requestedDirection = direction.toLowerCase();
+        const nextDirection = spindleUiDirection === requestedDirection
+          ? "stopped"
+          : requestedDirection;
         const enabled = nextDirection !== "stopped";
         const rpm = Number(spindleSpeedSlider.value);
 
