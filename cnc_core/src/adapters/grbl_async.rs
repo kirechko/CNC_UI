@@ -271,17 +271,20 @@ impl GrblAdapter {
 
         for field in fields {
             if let Some(value) = field.strip_prefix("MPos:") {
-                machine_position = Some(Self::parse_triplet(value).ok_or_else(|| {
-                    ControllerError::new("protocol", "invalid GRBL MPos field")
-                })?);
+                machine_position =
+                    Some(Self::parse_triplet(value).ok_or_else(|| {
+                        ControllerError::new("protocol", "invalid GRBL MPos field")
+                    })?);
             } else if let Some(value) = field.strip_prefix("WPos:") {
-                work_position = Some(Self::parse_triplet(value).ok_or_else(|| {
-                    ControllerError::new("protocol", "invalid GRBL WPos field")
-                })?);
+                work_position =
+                    Some(Self::parse_triplet(value).ok_or_else(|| {
+                        ControllerError::new("protocol", "invalid GRBL WPos field")
+                    })?);
             } else if let Some(value) = field.strip_prefix("WCO:") {
-                work_offset = Some(Self::parse_triplet(value).ok_or_else(|| {
-                    ControllerError::new("protocol", "invalid GRBL WCO field")
-                })?);
+                work_offset =
+                    Some(Self::parse_triplet(value).ok_or_else(|| {
+                        ControllerError::new("protocol", "invalid GRBL WCO field")
+                    })?);
             } else if let Some(value) = field.strip_prefix("FS:") {
                 let mut values = value.split(',');
                 feed_rate = values
