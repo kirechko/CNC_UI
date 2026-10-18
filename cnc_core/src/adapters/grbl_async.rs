@@ -88,7 +88,10 @@ impl GrblAdapter {
 
             let line: Vec<u8> = rx_buffer.drain(..=line_end).collect();
             let line = std::str::from_utf8(&line[..line.len() - 1]).map_err(|error| {
-                ControllerError::new("protocol", format!("GRBL response is not valid UTF-8: {error}"))
+                ControllerError::new(
+                    "protocol",
+                    format!("GRBL response is not valid UTF-8: {error}"),
+                )
             })?;
             return Ok(Some(line.trim().to_string()));
         }
@@ -146,9 +149,7 @@ impl GrblAdapter {
         if command.len() > MAX_COMMAND_LENGTH {
             return Err(ControllerError::new(
                 "bad_command",
-                format!(
-                    "GRBL command exceeds the {MAX_COMMAND_LENGTH}-byte line limit"
-                ),
+                format!("GRBL command exceeds the {MAX_COMMAND_LENGTH}-byte line limit"),
             ));
         }
 
@@ -533,10 +534,7 @@ impl GrblAdapter {
         feed_rate: f64,
     ) -> CncResult<()> {
         if ![-1, 0, 1].contains(&x_direction) || ![-1, 0, 1].contains(&y_direction) {
-            return Err(ControllerError::new(
-                "bad_jog",
-                "invalid continuous XY jog",
-            ));
+            return Err(ControllerError::new("bad_jog", "invalid continuous XY jog"));
         }
 
         // Скорость не нужна для остановки, когда обе компоненты равны нулю.
@@ -981,8 +979,7 @@ mod tests {
         assert!(GrblAdapter::validate_command("G1 X10 Y20").is_ok());
         assert!(GrblAdapter::validate_command(&"G".repeat(MAX_COMMAND_LENGTH)).is_ok());
 
-        let error =
-            GrblAdapter::validate_command(&"G".repeat(MAX_COMMAND_LENGTH + 1)).unwrap_err();
+        let error = GrblAdapter::validate_command(&"G".repeat(MAX_COMMAND_LENGTH + 1)).unwrap_err();
         assert_eq!(error.code, "bad_command");
 
         let error = GrblAdapter::validate_command("G1 X1\\nM3 S1000").unwrap_err();
