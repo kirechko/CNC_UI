@@ -1288,11 +1288,10 @@
 
         <section class="spindle-control">
             <div class="spindle-speed-control">
-              <label for="spindle-speed">СКОРОСТЬ, RPM</label>
-              <input id="spindle-speed" type="number" min="0" max="24000" step="100" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
-            </div>
-            <div class="spindle-slider">
+              <label for="spindle-speed">RPM</label>
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
+              <input id="spindle-speed" type="number" min="0" max="24000" step="100" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
+              <button class="spindle-step-button" id="spindle-step" type="button" title="Шаг изменения скорости шпинделя" aria-label="Выбрать шаг изменения скорости шпинделя">100</button>
             </div>
             <div class="spindle-actions">
               <button class="spindle-toggle" id="spindle-toggle" type="button" aria-label="Запустить шпиндель" title="Запустить шпиндель на заданной скорости" disabled>
