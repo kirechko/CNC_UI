@@ -1213,8 +1213,23 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn load_program(&self, path: &Path) -> CncResult<()> {
-        let content = fs::read_to_string(path)
+        let file = fs::File::open(path)
             .await
+            .map_err(|error| ControllerError::new("program_read", error.to_string()))?;
+        let mut bytes = Vec::with_capacity(MAX_PROGRAM_BYTES.min(64 * 1024));
+        file.take((MAX_PROGRAM_BYTES as u64) + 1)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|error| ControllerError::new("program_read", error.to_string()))?;
+
+        if bytes.len() > MAX_PROGRAM_BYTES {
+            return Err(ControllerError::new(
+                "bad_program",
+                format!("GRBL program exceeds the {MAX_PROGRAM_BYTES}-byte size limit"),
+            ));
+        }
+
+        let content = String::from_utf8(bytes)
             .map_err(|error| ControllerError::new("program_read", error.to_string()))?;
         let lines = Self::parse_program_lines(&content)?;
         let name = path
