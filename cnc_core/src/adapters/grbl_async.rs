@@ -39,6 +39,7 @@ struct Session {
     current_line: u32,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
+    max_spindle_rpm: f64,
     continuous_jog: Option<ContinuousJog>,
 }
 
@@ -67,6 +68,7 @@ impl GrblAdapter {
                     direction: SpindleDirection::Stopped,
                     rpm: 0.0,
                 },
+                max_spindle_rpm: 0.0,
                 continuous_jog: None,
                 rx_buffer: Vec::new(),
                 last_work_offset: None,
@@ -637,7 +639,7 @@ impl LinuxCncApi for GrblAdapter {
             }
         }
 
-        let status = Self::parse_status(
+        let mut status = Self::parse_status(
             &response,
             session.last_work_offset,
             session.active_coordinate_system,
@@ -646,6 +648,7 @@ impl LinuxCncApi for GrblAdapter {
             session.current_line,
             session.program.len() as u32,
         )?;
+        status.max_spindle_rpm = session.max_spindle_rpm;
 
         if response.contains("|WCO:")
             || (response.contains("|MPos:") && response.contains("|WPos:"))
@@ -666,6 +669,10 @@ impl LinuxCncApi for GrblAdapter {
         let travel = |number: u16| settings.get(&number).copied().filter(|value| *value > 0.0);
         let spindle_rpm =
             |number: u16| settings.get(&number).copied().filter(|value| *value >= 0.0);
+        let min_rpm = spindle_rpm(31);
+        let max_rpm = spindle_rpm(30)
+            .filter(|maximum| min_rpm.is_none_or(|minimum| minimum <= *maximum));
+        session.max_spindle_rpm = max_rpm.unwrap_or(0.0);
 
         Ok(MachineConfiguration {
             axes: vec![
@@ -685,11 +692,7 @@ impl LinuxCncApi for GrblAdapter {
                     max_travel: travel(132),
                 },
             ],
-            spindle: SpindleConfiguration {
-                min_rpm: spindle_rpm(31),
-                max_rpm: spindle_rpm(30)
-                    .filter(|maximum| settings.get(&31).is_none_or(|minimum| minimum <= maximum)),
-            },
+            spindle: SpindleConfiguration { min_rpm, max_rpm },
         })
     }
 
