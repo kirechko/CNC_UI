@@ -1,7 +1,6 @@
  //! Initializes GTK, applies the application theme, and starts the CNC control UI.
 use cnc_core as cnc_api;
 mod cnc_controller;
-mod adapters;
 mod config;
 mod web_server;
 mod tauri_app;

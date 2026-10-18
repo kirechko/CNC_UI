@@ -672,7 +672,7 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
             )
         }
         crate::config::Backend::LinuxCnc => {
-            Arc::new(crate::adapters::LinuxCncAdapter::new())
+            Arc::new(cnc_core::adapters::debug::LinuxCncAdapter::new())
         }
         crate::config::Backend::Grbl => Arc::new(
             cnc_core::adapters::grbl::GrblAdapter::connect(
@@ -682,7 +682,7 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
             .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
         ),
         crate::config::Backend::FluidNc => {
-            Arc::new(crate::adapters::FluidNcAdapter::new())
+            Arc::new(cnc_core::adapters::debug::FluidNcAdapter::new())
         }
     };
 
