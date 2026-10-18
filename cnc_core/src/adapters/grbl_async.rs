@@ -382,6 +382,16 @@ impl GrblAdapter {
         })
     }
 
+    fn ensure_supported_axis(axis: Axis) -> CncResult<()> {
+        match axis {
+            Axis::X | Axis::Y | Axis::Z => Ok(()),
+            Axis::A | Axis::B => Err(ControllerError::new(
+                "unsupported_axis",
+                format!("GRBL 1.1 does not support the {axis:?} rotary axis"),
+            )),
+        }
+    }
+
     fn axis_letter(axis: Axis) -> char {
         match axis {
             Axis::X => 'X',
@@ -534,6 +544,8 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
+        Self::ensure_supported_axis(request.axis)?;
+
         if ![-1, 1].contains(&request.direction)
             || !request.distance.is_finite()
             || request.distance <= 0.0
@@ -567,6 +579,7 @@ impl LinuxCncApi for GrblAdapter {
         if direction == 0 {
             return self.cancel_jog().await;
         }
+        Self::ensure_supported_axis(axis)?;
         if !feed_rate.is_finite() || feed_rate <= 0.0 {
             return Err(ControllerError::new(
                 "bad_jog",
@@ -787,6 +800,18 @@ mod tests {
         assert_eq!(status.work_offset.x, 8.0);
         assert_eq!(status.work_offset.y, 17.0);
         assert_eq!(status.work_offset.z, 26.0);
+    }
+
+    #[test]
+    fn rejects_rotary_axes_for_grbl_jog() {
+        for axis in [Axis::A, Axis::B] {
+            let error = GrblAdapter::ensure_supported_axis(axis).unwrap_err();
+            assert_eq!(error.code, "unsupported_axis");
+        }
+
+        for axis in [Axis::X, Axis::Y, Axis::Z] {
+            assert!(GrblAdapter::ensure_supported_axis(axis).is_ok());
+        }
     }
 
     #[test]
