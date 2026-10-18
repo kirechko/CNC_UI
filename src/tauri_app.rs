@@ -298,7 +298,6 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             home_all,
             set_axis_work_value,
             go_to_axis_work_value,
-            jog,
             jog_xy
         ])
         .run(tauri::generate_context!())?;
