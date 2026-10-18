@@ -32,6 +32,7 @@ struct Session {
     last_work_offset: Option<[f64; 3]>,
     protocol_poisoned: bool,
     program_streaming: bool,
+    jog_chunk_active: bool,
     program: Vec<String>,
     program_name: Option<String>,
     current_line: u32,
@@ -70,6 +71,7 @@ impl GrblAdapter {
                 last_work_offset: None,
                 protocol_poisoned: false,
                 program_streaming: false,
+                jog_chunk_active: false,
             }),
         })
     }
@@ -594,6 +596,7 @@ impl LinuxCncApi for GrblAdapter {
         let response = Self::query_status(&mut session).await?;
 
         if response.starts_with("<Idle") {
+            session.jog_chunk_active = false;
             if session.program_streaming {
                 Self::stream_next_program_line(&mut session).await?;
             } else if let Some(jog) = session.continuous_jog {
@@ -601,6 +604,7 @@ impl LinuxCncApi for GrblAdapter {
                     session.continuous_jog = None;
                     return Err(error);
                 }
+                session.jog_chunk_active = true;
             }
         }
 
@@ -774,11 +778,20 @@ impl LinuxCncApi for GrblAdapter {
             feed_rate,
         };
         let mut session = self.session.lock().await;
+        let chunk_active = session.jog_chunk_active;
         session.continuous_jog = Some(jog);
+
+        if chunk_active {
+            Self::send_realtime(&mut session, 0x85).await?;
+            session.jog_chunk_active = false;
+            return Ok(());
+        }
+
         if let Err(error) = Self::send_jog_chunk(&mut session, jog).await {
             session.continuous_jog = None;
             return Err(error);
         }
+        session.jog_chunk_active = true;
         Ok(())
     }
 
@@ -801,17 +814,27 @@ impl LinuxCncApi for GrblAdapter {
             feed_rate,
         };
         let mut session = self.session.lock().await;
+        let chunk_active = session.jog_chunk_active;
         session.continuous_jog = Some(jog);
+
+        if chunk_active {
+            Self::send_realtime(&mut session, 0x85).await?;
+            session.jog_chunk_active = false;
+            return Ok(());
+        }
+
         if let Err(error) = Self::send_jog_chunk(&mut session, jog).await {
             session.continuous_jog = None;
             return Err(error);
         }
+        session.jog_chunk_active = true;
         Ok(())
     }
 
     async fn cancel_jog(&self) -> CncResult<()> {
         let mut session = self.session.lock().await;
         session.continuous_jog = None;
+        session.jog_chunk_active = false;
         Self::send_realtime(&mut session, 0x85).await
     }
 
@@ -873,6 +896,7 @@ impl LinuxCncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         session.program_streaming = false;
         session.continuous_jog = None;
+        session.jog_chunk_active = false;
         Self::send_realtime(&mut session, 0x18).await?;
         session.current_line = 0;
         Ok(())
