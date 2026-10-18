@@ -31,7 +31,7 @@ struct ContinuousJog {
 struct Session {
     port: SerialStream,
     rx_buffer: Vec<u8>,
-    last_work_offset: Option<[f64; 3]>,
+    work_offsets: HashMap<CoordinateSystem, [f64; 3]>,
     protocol_poisoned: bool,
     program_streaming: bool,
     jog_chunk_active: bool,
@@ -74,7 +74,7 @@ impl GrblAdapter {
                 max_spindle_rpm: None,
                 continuous_jog: None,
                 rx_buffer: Vec::new(),
-                last_work_offset: None,
+                work_offsets: HashMap::new(),
                 protocol_poisoned: false,
                 program_streaming: false,
                 jog_chunk_active: false,
@@ -896,10 +896,11 @@ impl LinuxCncApi for GrblAdapter {
             }
         }
 
+        let active_coordinate_system = session.active_coordinate_system;
         let mut status = Self::parse_status(
             &response,
-            session.last_work_offset,
-            session.active_coordinate_system,
+            session.work_offsets.get(&active_coordinate_system).copied(),
+            active_coordinate_system,
             session.spindle_command,
             session.program_name.as_deref(),
             session.current_line,
@@ -915,11 +916,14 @@ impl LinuxCncApi for GrblAdapter {
         if response.contains("|WCO:")
             || (response.contains("|MPos:") && response.contains("|WPos:"))
         {
-            session.last_work_offset = Some([
-                status.work_offset.x,
-                status.work_offset.y,
-                status.work_offset.z,
-            ]);
+            session.work_offsets.insert(
+                active_coordinate_system,
+                [
+                    status.work_offset.x,
+                    status.work_offset.y,
+                    status.work_offset.z,
+                ],
+            );
         }
 
         Ok(status)
@@ -998,7 +1002,6 @@ impl LinuxCncApi for GrblAdapter {
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, system.label()).await?;
         session.active_coordinate_system = system;
-        session.last_work_offset = None;
         Ok(())
     }
 
@@ -1011,7 +1014,7 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_command(&mut session, &command).await?;
         // G10 L20 Pn обновляет смещение указанной системы, но не выбирает её.
         // Активную систему отражает только select_coordinate_system().
-        session.last_work_offset = None;
+        session.work_offsets.remove(&system);
         Ok(())
     }
 
@@ -1027,7 +1030,9 @@ impl LinuxCncApi for GrblAdapter {
             Self::axis_letter(axis)
         );
         Self::send_command(&mut session, &command).await?;
-        session.last_work_offset = None;
+        session
+            .work_offsets
+            .remove(&session.active_coordinate_system);
         Ok(())
     }
 
