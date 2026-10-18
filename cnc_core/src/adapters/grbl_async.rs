@@ -148,6 +148,12 @@ impl GrblAdapter {
                 "a GRBL command must contain exactly one line",
             ));
         }
+        if !command.bytes().all(|byte| (0x20..=0x7e).contains(&byte)) {
+            return Err(ControllerError::new(
+                "bad_command",
+                "GRBL commands must contain printable ASCII characters only",
+            ));
+        }
 
         let command = command.trim();
         if command.len() > MAX_COMMAND_LENGTH {
@@ -1095,6 +1101,14 @@ mod tests {
         assert!(GrblAdapter::format_axis_jog_command(Axis::X, f64::NAN, 100.0).is_err());
         assert!(GrblAdapter::format_axis_jog_command(Axis::X, 1.0, 0.0).is_err());
         assert!(GrblAdapter::format_axis_jog_command(Axis::X, 1.0, f64::INFINITY).is_err());
+    }
+
+    #[test]
+    fn rejects_non_ascii_and_control_characters_in_commands() {
+        for command in ["G1 X1\tY2", "G1 X1\0", "G1 X1 °"] {
+            let error = GrblAdapter::validate_command(command).unwrap_err();
+            assert_eq!(error.code, "bad_command", "command: {command:?}");
+        }
     }
 
     #[test]
