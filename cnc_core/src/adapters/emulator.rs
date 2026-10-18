@@ -1,5 +1,5 @@
  //! Implements the CNC API client using a persistent Unix-socket connection.
-use crate::cnc_api::*;
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
