@@ -3060,7 +3060,15 @@
         jogIncrementalMode.setAttribute("aria-pressed", String(incremental));
         jogContinuousMode.setAttribute("aria-pressed", String(!incremental));
         jogDistanceSelect.disabled = !incremental;
-        if (incremental) stopContinuousJog();
+        if (incremental) {
+          stopContinuousJog();
+        }
+
+        hoveredDialSelection = null;
+        jogDialHint.textContent = incremental
+          ? "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm"
+          : "Удерживайте кнопку и перемещайте указатель по диску";
+        if (!jogDialPanel.hidden) drawJogDial();
       }
       jogIncrementalMode.addEventListener("click", () => selectJogMotionMode("incremental"));
       jogContinuousMode.addEventListener("click", () => selectJogMotionMode("continuous"));
