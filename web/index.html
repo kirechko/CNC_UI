@@ -816,8 +816,8 @@
           <div class="panel-heading position-panel-heading">
             <span class="panel-title">POSITION</span>
             <div class="section-heading">
-              <button class="position-mode-toggle active" id="wpos-toggle" type="button" aria-pressed="true">WPOS</button>
-              <button class="position-mode-toggle" id="mpos-toggle" type="button" aria-pressed="false">MPOS</button>
+              <button class="position-mode-toggle active" id="wpos-toggle" type="button" title="Показать рабочие координаты" aria-pressed="true">WPOS</button>
+              <button class="position-mode-toggle" id="mpos-toggle" type="button" title="Показать машинные координаты" aria-pressed="false">MPOS</button>
               <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
               <option value="g54">G54</option>
               <option value="g55">G55</option>
@@ -836,14 +836,14 @@
               <div id="axis-rows"></div>
             </div>
             <div class="position-actions">
-              <button id="zero-all" type="button">
+              <button id="zero-all" type="button" title="Установить рабочий ноль всех осей в выбранной системе координат">
                 <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
                   <circle cx="10" cy="10" r="7"></circle>
                   <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
                 </svg>
                 Zero all
               </button>
-              <button id="home-all" type="button">
+              <button id="home-all" type="button" title="Выполнить homing всех осей">
                 <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M2.5 9.2 10 3l7.5 6.2"></path>
                   <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
@@ -876,19 +876,19 @@
 
             <div class="jog-grid" aria-label="Пошаговое перемещение осей">
               <span></span>
-              <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс">Y+</button>
+              <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс" title="Переместить ось Y в положительном направлении">Y+</button>
               <span></span>
-              <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус">X−</button>
+              <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус" title="Переместить ось X в отрицательном направлении">X−</button>
               <button class="jog-button center" disabled aria-label="Центр координат">XY</button>
-              <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс">X+</button>
+              <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс" title="Переместить ось X в положительном направлении">X+</button>
               <span></span>
-              <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус">Y−</button>
-              <span></span>
-              <span></span>
-              <button class="jog-button z" data-axis="Z" data-direction="1" aria-label="Переместить Z плюс">Z+</button>
+              <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус" title="Переместить ось Y в отрицательном направлении">Y−</button>
               <span></span>
               <span></span>
-              <button class="jog-button z" data-axis="Z" data-direction="-1" aria-label="Переместить Z минус">Z−</button>
+              <button class="jog-button z" data-axis="Z" data-direction="1" aria-label="Переместить Z плюс" title="Переместить ось Z в положительном направлении">Z+</button>
+              <span></span>
+              <span></span>
+              <button class="jog-button z" data-axis="Z" data-direction="-1" aria-label="Переместить Z минус" title="Переместить ось Z в отрицательном направлении">Z−</button>
               <span></span>
             </div>
 
@@ -926,9 +926,14 @@
             <span class="panel-title">G-CODE VIEWER</span>
             <div class="viewer-toolbar">
               <input id="program-file" type="file" accept=".nc,.ngc,.gcode" hidden>
-              <button class="toolbar-button" id="load-program" type="button">Загрузить G-code</button>
-              <button class="toolbar-button" id="fit-program" type="button">Fit</button>
-              <button class="toolbar-button active" id="projection-toggle" type="button" aria-pressed="true">3D</button>
+              <button class="toolbar-button toolbar-icon-button" id="load-program" type="button" aria-label="Загрузить G-Code" title="Загрузка программы G-Code">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 3h10l4 4v14H5z"></path>
+                  <path d="M14 3v5h5M8 13h8M8 17h5"></path>
+                </svg>
+              </button>
+              <button class="toolbar-button" id="fit-program" type="button" title="Вписать сцену в окно">Fit</button>
+              <button class="toolbar-button active" id="projection-toggle" type="button" title="Переключить перспективную проекцию" aria-pressed="true">3D</button>
               <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" aria-label="Вкл/выкл заготовки" title="Вкл/выкл заготовки" aria-pressed="true">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
                   <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
@@ -944,9 +949,9 @@
                 </svg>
               </button>
               <div class="job-buttons viewer-job-buttons">
-                <button id="job-run" type="button" disabled>▶ Запуск</button>
-                <button id="job-pause" type="button" disabled>Ⅱ Пауза</button>
-                <button id="job-abort" type="button" disabled>■ Стоп</button>
+                <button id="job-run" type="button" title="Запустить или продолжить программу" disabled>▶ Запуск</button>
+                <button id="job-pause" type="button" title="Приостановить программу" disabled>Ⅱ Пауза</button>
+                <button id="job-abort" type="button" title="Остановить программу" disabled>■ Стоп</button>
               </div>
             </div>
           </div>
@@ -1012,9 +1017,9 @@
         <label for="position-value" id="position-value-label">Рабочая координата</label>
         <input id="position-value" type="number" step="any" inputmode="decimal" required>
         <div class="position-dialog-actions">
-          <button type="button" id="position-cancel">Отмена</button>
-          <button type="button" id="position-set" class="primary">Set</button>
-          <button type="button" id="position-go" class="primary">Go</button>
+          <button type="button" id="position-cancel" title="Закрыть без изменений">Отмена</button>
+          <button type="button" id="position-set" class="primary" title="Задать рабочую координату оси">Set</button>
+          <button type="button" id="position-go" class="primary" title="Переместить ось к указанной рабочей координате">Go</button>
         </div>
       </form>
     </dialog>
@@ -2497,6 +2502,9 @@
       projectionToggle.addEventListener("click", () => {
         camera.perspective = !camera.perspective;
         projectionToggle.textContent = camera.perspective ? "3D" : "Ortho";
+        projectionToggle.title = camera.perspective
+          ? "Переключить на ортографическую проекцию"
+          : "Переключить на перспективную проекцию";
         projectionToggle.classList.toggle("active", camera.perspective);
         projectionToggle.setAttribute("aria-pressed", String(camera.perspective));
         drawToolpath();
