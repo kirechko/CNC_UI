@@ -1,29 +1,27 @@
 # CNC UI
 
-A desktop CNC control interface built with Rust and GTK4. The project includes a standalone software emulator for developing and testing the UI without connecting to a physical machine.
+A CNC control application built with Rust and Tauri. It provides a desktop interface and an optional browser-based web interface, plus a standalone software emulator for development and testing without a physical machine.
 
-The UI communicates with the emulator over a local Unix-domain socket using a project-specific, LinuxCNC-inspired API. This API is intended for this application; it is **not NML-compatible** and is not a replacement for a LinuxCNC controller.
+The UI communicates with the selected backend through a project-specific CNC API. The emulator uses a local Unix-domain socket and a JSON protocol inspired by LinuxCNC; it is **not NML-compatible** and is not a replacement for a LinuxCNC controller.
 
 ## Features
 
-- GTK4 desktop interface with XY and Z jog controls
-- Configurable XY and Z jog feed rates
-- G-code file loading and toolpath visualization
-- 3D orientation cube with clickable faces
-- Tool visualization synchronized with emulator position and spindle telemetry
-- Simulated spindle speed ramp, direction, and coolant states
-- Simulated E-stop, alarm reset, homing, and work-coordinate selection
-- Standalone emulator communicating with the UI over a Unix socket
-- YAML configuration for axis travel, maximum velocity, acceleration, and spindle settings
+- Tauri desktop application and optional browser-based web interface
+- XY and Z jog controls, including incremental and continuous movement
+- G-code loading, toolpath visualization, and program controls
+- Position readouts, work-coordinate selection, zeroing, and homing controls
+- Spindle speed and direction controls with telemetry display
+- Standalone emulator with simulated motion, spindle, coolant, homing, and soft limits
+- GRBL 1.1 serial adapter
+- YAML configuration for backend selection, connection settings, axis limits, and emulator dynamics
 
 ## Requirements
 
 - Linux
 - Rust toolchain and Cargo
-- GTK4 development libraries
-- GTK and GLib system dependencies required by the `gtk4` Rust crate
+- Tauri's Linux system dependencies, including the WebKitGTK development libraries
 
-Install the GTK4 development package using your distribution's package manager if it is not already installed.
+Install the prerequisites for your distribution using the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/).
 
 ## Build
 
@@ -55,9 +53,17 @@ Start the UI in a second terminal:
 cargo run --bin linuxcnc-ui
 ```
 
-The emulator must be running before the UI starts.
+The emulator must be running before the desktop application starts.
 
-To use a different socket path, set `CNC_EMULATOR_SOCKET` when launching the UI:
+To run the browser-based web interface instead, start the emulator and run:
+
+```bash
+cargo run --bin linuxcnc-ui -- --web
+```
+
+The web server listens on `0.0.0.0:8080`; open `http://localhost:8080` in a browser. The server has no authentication, so use it only on a trusted network.
+
+To use a different emulator socket path for the UI, set `CNC_EMULATOR_SOCKET`:
 
 ```bash
 CNC_EMULATOR_SOCKET=/tmp/my-cnc.sock cargo run --bin linuxcnc-ui
@@ -68,6 +74,23 @@ The emulator accepts an optional socket path followed by an optional configurati
 ```bash
 cargo run --bin cnc-emulator -- /tmp/my-cnc.sock config/emulator.yaml
 ```
+
+## Architecture
+
+The desktop and web interfaces share the browser-based UI in `web/index.html`. The Tauri application embeds this interface; the optional web mode serves it through Axum.
+
+UI commands are handled by `CNCController`, which queues commands on a worker thread and maintains a cached status snapshot. The worker communicates through the shared `LinuxCncApi` interface. The emulator runs as a separate process; `EmAdapter` connects to it over a Unix-domain socket and translates API calls to the emulator's JSON protocol.
+
+## Backend configuration
+
+The application reads `cnc-ui.yaml` from the current working directory by default. Set `CNC_UI_CONFIG` to use a different configuration file. Select one backend with the `backend` setting:
+
+- `emulator` — connects to the standalone emulator. Its socket path can be configured in `emulator.socket_path`; `CNC_EMULATOR_SOCKET` can override it for the UI.
+- `grbl` — connects to a GRBL 1.1 controller over the configured serial port and baud rate. The user running the application must have permission to access the device.
+- `linux_cnc` — currently uses a debug adapter and does not connect to LinuxCNC.
+- `fluid_nc` — currently uses a debug adapter and does not connect to FluidNC.
+
+The `linuxcnc.socket_path` and `fluidnc.base_url` settings are placeholders for future adapters.
 
 ## Emulator configuration
 
@@ -84,9 +107,11 @@ Axis ranges are machine-coordinate soft limits. Review the configuration and wor
 
 ## G-code support
 
-The emulator implements a limited G-code subset for UI development. Supported behavior includes common rapid and linear moves, XY-plane circular moves, absolute and incremental positioning, feed rate, spindle commands, dwell, coolant commands, and program control.
+The emulator implements a limited G-code subset for UI development. It supports rapid and linear moves (`G0`, `G1`), XY-plane arcs (`G2`, `G3` with `I`/`J` center offsets), absolute and incremental positioning (`G90`, `G91`), work-coordinate selection (`G54`–`G59.3`), feed rate, spindle commands (`M3`, `M4`, `M5`, and `S`), dwell (`G4`), coolant commands (`M7`–`M9`), and basic program control.
 
-This is **not a complete LinuxCNC interpreter**. Unsupported commands may stop program execution with an error. Check that a program uses only supported commands before running it in the emulator.
+The GRBL adapter communicates with GRBL 1.1 over serial and supports status and settings queries, jogging, coordinate-system commands, spindle control, and basic program commands. Program lines are sent sequentially; this is not a buffered streaming implementation.
+
+Neither backend is a complete LinuxCNC interpreter. Unsupported commands or machine-specific behavior may produce errors or differ from a production controller. Check programs and machine behavior in a safe environment before use.
 
 ## Coordinate systems
 
@@ -103,10 +128,12 @@ The UI and emulator expose the LinuxCNC-style work-coordinate systems `G54`–`G
 ## Safety and limitations
 
 - The emulator is software only and does not control a physical machine.
-- The project-specific socket API is not NML and is not compatible with arbitrary LinuxCNC clients.
-- Emulator behavior is intended for UI development and testing, not machine commissioning or safety validation.
-- Do not use this emulator or an unverified UI build as a safety controller for a real machine.
-- A future real-machine backend will require a separate LinuxCNC adapter and validation against the actual machine configuration.
+- The emulator socket API is project-specific, is not NML, and is not compatible with arbitrary LinuxCNC clients.
+- The LinuxCNC and FluidNC backends are debug placeholders and do not control real machines.
+- GRBL serial commands are not an emergency stop. Use the machine's hardware E-stop.
+- The web interface has no authentication. Do not expose it to untrusted networks or the public internet.
+- This application is not a safety controller. Emulator and adapter behavior is intended for development and testing, not machine commissioning or safety validation.
+- Before operating a physical machine, independently validate the hardware, configuration, toolpaths, and machine behavior.
 
 ## License
 
