@@ -329,6 +329,7 @@ pub(crate) fn load_program(
 struct SpindleRequest {
     rpm: f64,
     enabled: bool,
+    direction: String,
 }
 
 #[derive(Deserialize)]
@@ -422,8 +423,19 @@ async fn set_spindle(
         ));
     }
 
+    let direction = match request.direction.as_str() {
+        "CW" => crate::cnc_controller::SpindleDirection::CW,
+        "CCW" => crate::cnc_controller::SpindleDirection::CCW,
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Направление шпинделя должно быть CW или CCW".into(),
+            ));
+        }
+    };
+
     controller.set_spindle_speed(request.rpm);
-    controller.set_spindle_direction(crate::cnc_controller::SpindleDirection::CW);
+    controller.set_spindle_direction(direction);
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -569,6 +581,7 @@ pub(crate) struct StatusResponse {
     spindle_rpm: f64,
     spindle_commanded_rpm: f64,
     spindle_enabled: bool,
+    spindle_direction: String,
     spindle_min_rpm: f64,
     spindle_max_rpm: f64,
     current_line: u32,
@@ -610,6 +623,12 @@ impl From<CNCStatus> for StatusResponse {
             spindle_rpm: status.spindle_actual_speed,
             spindle_commanded_rpm: status.spindle_speed,
             spindle_enabled: status.spindle_on,
+            spindle_direction: match status.spindle_direction {
+                crate::cnc_controller::SpindleDirection::Off => "stopped",
+                crate::cnc_controller::SpindleDirection::CW => "cw",
+                crate::cnc_controller::SpindleDirection::CCW => "ccw",
+            }
+            .into(),
             spindle_min_rpm,
             spindle_max_rpm,
             current_line: status.current_line,
