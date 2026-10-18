@@ -555,7 +555,9 @@ impl GrblAdapter {
         let alarm = state_lower.starts_with("alarm");
         let running = state_lower.starts_with("run");
         let jogging = state_lower.starts_with("jog");
-        let paused = state_lower.starts_with("hold");
+        // GRBL reports the door interlock as Door:n; surface it as paused
+        // instead of presenting an interlocked machine as idle.
+        let paused = state_lower.starts_with("hold") || state_lower.starts_with("door");
         let homing = state_lower.starts_with("home");
 
         Ok(MachineStatus {
@@ -1480,6 +1482,23 @@ mod tests {
 
         assert_eq!(error.code, "protocol");
         assert!(error.message.contains("work coordinate offset"));
+    }
+
+    #[test]
+    fn maps_grbl_door_interlock_to_paused_state() {
+        let status = GrblAdapter::parse_status(
+            "<Door:1|MPos:1,2,3|WCO:0,0,0|FS:0,0>",
+            None,
+            CoordinateSystem::G54,
+            spindle_command(),
+            None,
+            0,
+            0,
+        )
+        .unwrap();
+
+        assert_eq!(status.interpreter_state, InterpreterState::Paused);
+        assert_eq!(status.message.as_deref(), Some("GRBL Door:1"));
     }
 
     #[test]
