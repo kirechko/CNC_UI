@@ -532,12 +532,47 @@
         gap: 10px;
       }
 
+      .jog-dial-control {
+        position: relative;
+        display: grid;
+        flex: 0 1 240px;
+        place-items: center;
+      }
+
       .jog-dial-canvas {
         width: min(240px, calc(100vw - 100px));
         height: min(240px, calc(100vw - 100px));
-        flex: 0 1 240px;
         cursor: crosshair;
         touch-action: manipulation;
+      }
+
+      .jog-stop-button {
+        display: grid;
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        min-height: 38px;
+        padding: 0;
+        place-items: center;
+        border: 1px solid #7c3033;
+        border-radius: 50%;
+        background: #351719;
+        color: #f08b8b;
+      }
+
+      .jog-stop-button:hover:not(:disabled) {
+        border-color: #bd4d51;
+        background: #4a1d20;
+      }
+
+      .jog-stop-button svg {
+        width: 17px;
+        height: 17px;
+      }
+
+      .jog-dial-stop {
+        position: absolute;
+        z-index: 1;
       }
 
       .jog-dial-canvas:focus-visible {
@@ -585,17 +620,36 @@
       }
       .jog-grid {
         display: grid;
-        width: min(100%, 270px);
-        grid-template-columns: repeat(3, minmax(52px, 1fr));
-        gap: 7px;
+        width: min(100%, 135px);
+        grid-template-columns: repeat(3, minmax(26px, 1fr));
+        gap: 3.5px;
         margin: 0 auto;
       }
 
       .jog-button {
-        min-height: 57px;
-        font-size: 14px;
+        min-height: 28.5px;
+        padding: 0;
+        font-size: 11px;
         font-weight: 720;
         touch-action: manipulation;
+      }
+
+      .jog-stop-key {
+        border-color: #7c3033;
+        background: #351719;
+        color: #f08b8b;
+      }
+
+      .jog-stop-key:hover:not(:disabled) {
+        border-color: #bd4d51;
+        background: #4a1d20;
+      }
+
+      .jog-stop-key svg {
+        display: block;
+        width: 14px;
+        height: 14px;
+        margin: auto;
       }
 
       .jog-button.xy { border-color: #385347; }
@@ -1041,7 +1095,11 @@
               <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс" title="Переместить ось Y в положительном направлении">Y+</button>
               <span></span>
               <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус" title="Переместить ось X в отрицательном направлении">X−</button>
-              <button class="jog-button center" disabled aria-label="Центр координат">XY</button>
+              <button class="jog-button jog-stop-key" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                </svg>
+              </button>
               <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс" title="Переместить ось X в положительном направлении">X+</button>
               <span></span>
               <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус" title="Переместить ось Y в отрицательном направлении">Y−</button>
@@ -1058,7 +1116,14 @@
             </div>
             <div id="jog-dial-panel" hidden>
               <div class="jog-dial-layout">
-                <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: направления и шаг перемещения выбираются кольцом"></canvas>
+                <div class="jog-dial-control">
+                  <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: направления и шаг перемещения выбираются кольцом"></canvas>
+                  <button class="jog-stop-button jog-dial-stop" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                    </svg>
+                  </button>
+                </div>
                 <div class="jog-dial-z" aria-label="Пошаговое перемещение оси Z">
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
                   <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" aria-label="Переместить Z плюс на 100 миллиметров">100</button>
@@ -2771,6 +2836,9 @@
         });
         document.querySelector("#zero-all").disabled = !enabled;
         document.querySelector("#home-all").disabled = !enabled;
+        document.querySelectorAll("[data-jog-stop]").forEach((button) => {
+          button.disabled = !enabled;
+        });
         coordinateSystem.disabled = !enabled;
       }
 
@@ -2965,6 +3033,41 @@
           feedback.className = "error";
         }
       }
+
+      async function cancelJog() {
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (invoke) {
+          await invoke("cancel_jog");
+          return;
+        }
+
+        const response = await fetch("/api/jog/cancel", { method: "POST" });
+        if (!response.ok) {
+          throw new Error((await response.text()) || `HTTP ${response.status}`);
+        }
+      }
+
+      async function stopAllJog() {
+        await stopContinuousJog();
+        await cancelJog();
+        feedback.textContent = "Jog остановлен";
+        feedback.className = "panel-caption";
+        await refreshStatus();
+      }
+
+      document.querySelectorAll("[data-jog-stop]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            await stopAllJog();
+          } catch (error) {
+            feedback.textContent = `Ошибка остановки Jog: ${error.message}`;
+            feedback.className = "error";
+          } finally {
+            button.disabled = !machineConnected;
+          }
+        });
+      });
 
       async function stopContinuousJog(axis = null) {
         const xyAxis = axis === "X" || axis === "Y";

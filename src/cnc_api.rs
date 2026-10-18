@@ -275,6 +275,14 @@ pub trait LinuxCncApi: Send + Sync {
         ))
     }
 
+    /// Немедленно отменить активное движение, запущенное командами Jog.
+    fn cancel_jog(&self) -> CncResult<()> {
+        Err(ControllerError::new(
+            "unsupported",
+            "jog cancellation is not supported by this adapter",
+        ))
+    }
+
     /// Отправка одной MDI-команды G-code.
     fn mdi(&self, command: &str) -> CncResult<()>;
 

@@ -73,6 +73,7 @@ enum Command {
     JogIncrement(crate::cnc_api::JogRequest),
     JogContinuous(Axis, i8, f64),
     JogContinuousXY(i8, i8, f64),
+    JogCancel,
 }
 
 pub struct CNCController {
@@ -392,6 +393,10 @@ impl CNCController {
         ));
     }
 
+    pub fn cancel_jog(&self) {
+        self.enqueue(Command::JogCancel);
+    }
+
     /// Возвращает кэшированный снимок без сетевого запроса.
     pub fn get_status_snapshot(&self) -> CNCStatus {
         self.status.lock().unwrap().clone()
@@ -468,6 +473,7 @@ fn api_worker(
                     Command::JogContinuousXY(x_direction, y_direction, feed_rate) => {
                         api.jog_continuous_xy(x_direction, y_direction, feed_rate)
                     }
+                    Command::JogCancel => api.cancel_jog(),
                 };
 
                 match result {

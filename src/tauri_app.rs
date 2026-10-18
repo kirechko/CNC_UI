@@ -90,6 +90,16 @@ fn jog_continuous(
 }
 
 #[tauri::command]
+fn cancel_jog(state: State<'_, AppState>) -> Result<(), String> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    controller.cancel_jog();
+    Ok(())
+}
+
+#[tauri::command]
 fn jog_continuous_xy(
     state: State<'_, AppState>,
     x_direction: i8,
@@ -215,6 +225,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             jog,
             jog_continuous,
             jog_continuous_xy,
+            cancel_jog,
             select_coordinate_system,
             zero_all,
             zero_axis,

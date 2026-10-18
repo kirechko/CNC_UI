@@ -390,6 +390,17 @@ async fn jog_continuous(
     Ok(StatusCode::ACCEPTED)
 }
 
+async fn jog_cancel(
+    State(state): State<SharedController>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller.cancel_jog();
+    Ok(StatusCode::ACCEPTED)
+}
+
 async fn jog_continuous_xy(
     State(state): State<SharedController>,
     Json(request): Json<ContinuousXyJogRequest>,
@@ -719,6 +730,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/jog/xy", post(jog_xy))
         .route("/api/jog/continuous", post(jog_continuous))
         .route("/api/jog/continuous-xy", post(jog_continuous_xy))
+        .route("/api/jog/cancel", post(jog_cancel))
         .route("/api/position/select", post(select_coordinate_system))
         .route("/api/position/zero", post(zero_all))
         .route("/api/position/zero-axis", post(zero_axis))
