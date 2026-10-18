@@ -1375,13 +1375,13 @@
               </div>
             </div>
             <div class="spindle-actions">
-              <button class="spindle-direction-button" id="spindle-cw" type="button" aria-label="Запустить шпиндель по часовой стрелке" title="Запустить шпиндель по часовой стрелке" disabled>
+              <button class="spindle-direction-button" id="spindle-cw" type="button" aria-label="Запустить шпиндель по часовой стрелке" title="Запустить шпиндель по часовой стрелке">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path>
                   <path d="M4 4v5h5"></path>
                 </svg>
               </button>
-              <button class="spindle-direction-button" id="spindle-ccw" type="button" aria-label="Запустить шпиндель против часовой стрелки" title="Запустить шпиндель против часовой стрелки" disabled>
+              <button class="spindle-direction-button" id="spindle-ccw" type="button" aria-label="Запустить шпиндель против часовой стрелки" title="Запустить шпиндель против часовой стрелки">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path>
                   <path d="M20 4v5h-5"></path>
@@ -3094,10 +3094,8 @@
         spindleCcwButton.setAttribute("aria-label", ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки");
         spindleCwButton.title = cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке";
         spindleCcwButton.title = ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки";
-        // Не блокируем кнопки из-за отсутствующего лимита RPM в статусе:
-        // команда дойдёт до backend, который вернёт конкретную ошибку конфигурации.
-        spindleCwButton.disabled = !machineConnected;
-        spindleCcwButton.disabled = !machineConnected;
+        // Кнопки остаются доступными при кратковременной потере статуса.
+        // Backend вернёт ошибку, если запуск сейчас невозможен.
       }
 
       function updateSpindleControls(status) {
