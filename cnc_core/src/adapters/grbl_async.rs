@@ -556,10 +556,7 @@ impl GrblAdapter {
                 "GRBL status response contains no machine or work position",
             ));
         }
-        if machine_position.is_none()
-            && work_offset.is_none()
-            && cached_work_offset.is_none()
-        {
+        if machine_position.is_none() && work_offset.is_none() && cached_work_offset.is_none() {
             return Err(ControllerError::new(
                 "protocol",
                 "cannot determine work coordinates without a work coordinate offset",
@@ -793,9 +790,7 @@ impl GrblAdapter {
             .strip_prefix('<')
             .and_then(|response| response.strip_suffix('>'))
             .and_then(|response| response.split('|').next())
-            .ok_or_else(|| {
-                ControllerError::new("protocol", "malformed GRBL status response")
-            })?;
+            .ok_or_else(|| ControllerError::new("protocol", "malformed GRBL status response"))?;
 
         if !Self::is_known_machine_state(state) {
             return Err(ControllerError::new(
@@ -1348,10 +1343,7 @@ mod tests {
             GrblAdapter::coordinate_system_select("G1 X1 (G55) ; G56"),
             None
         );
-        assert_eq!(
-            GrblAdapter::coordinate_system_select("G54.1 P1"),
-            None
-        );
+        assert_eq!(GrblAdapter::coordinate_system_select("G54.1 P1"), None);
     }
 
     #[test]
