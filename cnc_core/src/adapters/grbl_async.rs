@@ -300,6 +300,16 @@ impl GrblAdapter {
         Self::send_command(session, &command).await
     }
 
+    fn should_stream_program(status_response: &str) -> bool {
+        status_response
+            .strip_prefix('<')
+            .and_then(|response| response.strip_suffix('>'))
+            .and_then(|response| response.split('|').next())
+            .is_some_and(|state| {
+                state.eq_ignore_ascii_case("Idle") || state.eq_ignore_ascii_case("Run")
+            })
+    }
+
     async fn stream_next_program_line(session: &mut Session) -> CncResult<()> {
         if !session.program_streaming {
             return Ok(());
@@ -312,6 +322,8 @@ impl GrblAdapter {
         }
 
         let line = session.program[index].clone();
+        // Отправляем только одну строку за раз и ждём её `ok`: размер строки
+        // ограничен 80 байтами, поэтому RX-буфер GRBL не может переполниться.
         if let Err(error) = Self::send_command(session, &line).await {
             session.program_streaming = false;
             return Err(error);
@@ -953,16 +965,20 @@ impl LinuxCncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         let response = Self::query_status(&mut session).await?;
 
+        if session.program_streaming && Self::should_stream_program(&response) {
+            Self::stream_next_program_line(&mut session).await?;
+        }
+
         if Self::is_idle_status(&response) {
             session.jog_chunk_active = false;
-            if session.program_streaming {
-                Self::stream_next_program_line(&mut session).await?;
-            } else if let Some(jog) = session.continuous_jog {
-                if let Err(error) = Self::send_jog_chunk(&mut session, jog).await {
-                    session.continuous_jog = None;
-                    return Err(error);
+            if !session.program_streaming {
+                if let Some(jog) = session.continuous_jog {
+                    if let Err(error) = Self::send_jog_chunk(&mut session, jog).await {
+                        session.continuous_jog = None;
+                        return Err(error);
+                    }
+                    session.jog_chunk_active = true;
                 }
-                session.jog_chunk_active = true;
             }
         }
 
@@ -1459,6 +1475,23 @@ mod tests {
         assert!(!GrblAdapter::is_idle_status("<Idleish|MPos:0,0,0>"));
         assert!(!GrblAdapter::is_idle_status("<Run|MPos:0,0,0>"));
         assert!(!GrblAdapter::is_idle_status("Idle|MPos:0,0,0"));
+    }
+
+    #[test]
+    fn program_streaming_continues_only_in_idle_or_run_states() {
+        for state in ["Idle", "Run", "idle", "run"] {
+            assert!(
+                GrblAdapter::should_stream_program(&format!("<{state}|MPos:0,0,0>")),
+                "expected streaming in state {state}"
+            );
+        }
+
+        for state in ["Hold:0", "Door:1", "Jog", "Alarm:1", "Check"] {
+            assert!(
+                !GrblAdapter::should_stream_program(&format!("<{state}|MPos:0,0,0>")),
+                "expected streaming to pause in state {state}"
+            );
+        }
     }
 
     #[test]
