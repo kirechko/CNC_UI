@@ -754,7 +754,7 @@
 
       .spindle-speed-control {
         display: grid;
-        grid-template-columns: auto minmax(60px, 1fr) 78px 42px;
+        grid-template-columns: auto minmax(60px, 1fr) 42px;
         align-items: center;
         gap: 8px;
       }
@@ -765,17 +765,6 @@
         font-weight: 650;
       }
 
-      .spindle-speed-control input[type="text"] {
-        width: 78px;
-        min-height: 32px;
-        padding: 0 7px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #171c1f;
-        color: #d8e0e2;
-        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
-        text-align: right;
-      }
 
       .spindle-speed-control input[type="range"] {
         width: 100%;
@@ -806,13 +795,15 @@
       }
 
       .spindle-toggle {
-        display: grid;
-        width: 42px;
-        min-width: 42px;
+        display: flex;
+        width: auto;
+        min-width: 76px;
         height: 42px;
         min-height: 42px;
-        padding: 0;
-        place-items: center;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 8px;
         border-color: #39704f;
         background: #19291f;
         color: #76d49c;
@@ -837,6 +828,12 @@
       .spindle-toggle svg {
         width: 18px;
         height: 18px;
+        flex: 0 0 auto;
+      }
+
+      .spindle-toggle-value {
+        font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-variant-numeric: tabular-nums;
       }
 
       .spindle-state {
@@ -1290,7 +1287,6 @@
             <div class="spindle-speed-control">
               <label for="spindle-speed">RPM</label>
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
-              <input id="spindle-speed" type="text" inputmode="numeric" value="0" aria-label="Заданная скорость шпинделя в оборотах в минуту">
               <button class="spindle-step-button" id="spindle-step" type="button" title="Шаг изменения скорости шпинделя" aria-label="Выбрать шаг изменения скорости шпинделя">100</button>
             </div>
             <div class="spindle-actions">
@@ -1298,6 +1294,7 @@
                 <svg id="spindle-toggle-icon" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5v14l11-7L8 5Z"></path>
                 </svg>
+                <span class="spindle-toggle-value" id="spindle-toggle-value">0</span>
               </button>
             </div>
         </section>
@@ -2817,10 +2814,10 @@
       const jobAbortButton = document.querySelector("#job-abort");
       const jobCaption = document.querySelector("#job-caption");
       const jobNote = document.querySelector("#job-note");
-      const spindleSpeed = document.querySelector("#spindle-speed");
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
       const spindleToggle = document.querySelector("#spindle-toggle");
       const spindleToggleIcon = document.querySelector("#spindle-toggle-icon");
+      const spindleToggleValue = document.querySelector("#spindle-toggle-value");
       let spindleIsRunning = false;
       let spindleMinimumRpm = 0;
       let spindleMaximumRpm = 0;
@@ -2866,16 +2863,15 @@
           spindleMinimumRpm,
           Math.min(spindleMaximumRpm, Number(value) || spindleMinimumRpm),
         );
-        spindleSpeed.value = String(rpm);
         spindleSpeedSlider.value = String(rpm);
+        spindleToggleValue.textContent = rpm.toFixed(0);
       }
 
-      spindleSpeed.addEventListener("input", () => syncSpindleSpeed(spindleSpeed.value));
       spindleSpeedSlider.addEventListener("input", () => syncSpindleSpeed(spindleSpeedSlider.value));
 
       spindleToggle.addEventListener("click", async () => {
         const enabled = !spindleIsRunning;
-        const rpm = Number(spindleSpeed.value);
+        const rpm = Number(spindleSpeedSlider.value);
         spindleToggle.disabled = true;
 
         try {
@@ -2899,21 +2895,18 @@
         spindleMaximumRpm = Math.max(0, Number(status.spindle_max_rpm) || 0);
 
         const step = spindleMaximumRpm > 10000 ? 100 : 10;
-        spindleSpeed.min = String(spindleMinimumRpm);
-        spindleSpeed.max = String(spindleMaximumRpm);
-        spindleSpeed.step = String(step);
         spindleSpeedSlider.min = String(spindleMinimumRpm);
         spindleSpeedSlider.max = String(spindleMaximumRpm);
         spindleSpeedSlider.step = String(step);
         const reportedSetpoint = Number(status.spindle_commanded_rpm);
-        const currentSetpoint = Number(spindleSpeed.value);
+        const currentSetpoint = Number(spindleSpeedSlider.value);
         const nextSetpoint = spindleIsRunning && Number.isFinite(reportedSetpoint) && reportedSetpoint > 0
           ? reportedSetpoint
           : Number.isFinite(currentSetpoint) && currentSetpoint >= spindleMinimumRpm
             ? Math.min(currentSetpoint, spindleMaximumRpm)
             : spindleMinimumRpm;
-        spindleSpeed.value = String(nextSetpoint);
         spindleSpeedSlider.value = String(nextSetpoint);
+        spindleToggleValue.textContent = nextSetpoint.toFixed(0);
 
         spindleToggle.classList.toggle("running", spindleIsRunning);
         spindleToggle.setAttribute("aria-label", spindleIsRunning ? "Остановить шпиндель" : "Запустить шпиндель");
@@ -2924,7 +2917,6 @@
           ? '<rect x="5" y="5" width="14" height="14" rx="2"></rect>'
           : '<path d="M8 5v14l11-7L8 5Z"></path>';
         spindleToggle.disabled = !status.connected || spindleMaximumRpm <= 0;
-        spindleSpeed.disabled = !status.connected || spindleMaximumRpm <= 0 || spindleIsRunning;
         spindleSpeedSlider.disabled = !status.connected || spindleMaximumRpm <= 0 || spindleIsRunning;
       }
 
