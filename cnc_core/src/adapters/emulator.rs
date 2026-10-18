@@ -2,11 +2,13 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::time::Duration;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::net::UnixStream;
+use tokio::sync::Mutex;
+use tokio::time::timeout;
 
 #[derive(Serialize)]
 struct Request<'a> {
@@ -56,122 +58,119 @@ impl EmAdapter {
         &self.socket_path
     }
 
-    fn call(&self, method: &str, args: Value) -> CncResult<Value> {
-        let mut slot = self
-            .connection
-            .lock()
-            .map_err(|_| ControllerError::new("connection", "API connection lock poisoned"))?;
+    async fn call(&self, method: &str, args: Value) -> CncResult<Value> {
+        let mut slot = self.connection.lock().await;
 
         if slot.is_none() {
-            let stream = UnixStream::connect(&self.socket_path)
-                .map_err(|e| ControllerError::new("connect", e.to_string()))?;
-            stream
-                .set_read_timeout(Some(self.timeout))
-                .map_err(|e| ControllerError::new("socket", e.to_string()))?;
-            stream
-                .set_write_timeout(Some(self.timeout))
-                .map_err(|e| ControllerError::new("socket", e.to_string()))?;
+            let stream = timeout(self.timeout, UnixStream::connect(&self.socket_path))
+                .await
+                .map_err(|_| ControllerError::new("timeout", "timed out connecting to emulator"))?
+                .map_err(|error| ControllerError::new("connect", error.to_string()))?;
             *slot = Some(ApiConnection {
                 reader: BufReader::new(stream),
             });
         }
 
-        let connection = slot.as_mut().expect("connection was initialized");
-        let request = serde_json::to_vec(&Request { method, args })
-            .map_err(|e| ControllerError::new("serialize", e.to_string()))?;
+        let result = match timeout(self.timeout, async {
+            let connection = slot.as_mut().expect("connection was initialized");
+            let request = serde_json::to_vec(&Request { method, args })
+                .map_err(|error| ControllerError::new("serialize", error.to_string()))?;
 
-        if let Err(error) = connection
-            .reader
-            .get_mut()
-            .write_all(&request)
-            .and_then(|_| connection.reader.get_mut().write_all(b"\n"))
-        {
-            *slot = None;
-            return Err(ControllerError::new("io", error.to_string()));
-        }
+            connection
+                .reader
+                .get_mut()
+                .write_all(&request)
+                .await
+                .and_then(|_| async { connection.reader.get_mut().write_all(b"\n").await }.await)
+                .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
-        let mut line = String::new();
-        match connection.reader.read_line(&mut line) {
-            Ok(0) => {
-                *slot = None;
+            let mut line = String::new();
+            let bytes_read = connection
+                .reader
+                .read_line(&mut line)
+                .await
+                .map_err(|error| ControllerError::new("io", error.to_string()))?;
+            if bytes_read == 0 {
                 return Err(ControllerError::new(
                     "disconnected",
                     "emulator closed connection",
                 ));
             }
-            Ok(_) => {}
-            Err(error) => {
-                *slot = None;
-                return Err(ControllerError::new("io", error.to_string()));
-            }
-        }
 
-        let response: Response = match serde_json::from_str(&line) {
-            Ok(response) => response,
-            Err(error) => {
-                *slot = None;
-                return Err(ControllerError::new("protocol", error.to_string()));
+            let response: Response = serde_json::from_str(&line)
+                .map_err(|error| ControllerError::new("protocol", error.to_string()))?;
+            if !response.ok {
+                let error = response.error.unwrap_or(RemoteError {
+                    code: "unknown".into(),
+                    message: "emulator returned an unspecified error".into(),
+                });
+                return Err(ControllerError::new(error.code, error.message));
             }
+
+            Ok(response.result)
+        })
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => Err(ControllerError::new(
+                "timeout",
+                "timed out waiting for emulator response",
+            )),
         };
 
-        if !response.ok {
-            let error = response.error.unwrap_or(RemoteError {
-                code: "unknown".into(),
-                message: "emulator returned an unspecified error".into(),
-            });
-            return Err(ControllerError::new(error.code, error.message));
+        if result.is_err() {
+            *slot = None;
         }
-
-        Ok(response.result)
+        result
     }
 
-    fn unit(&self, method: &str, args: Value) -> CncResult<()> {
-        self.call(method, args).map(|_| ())
+    async fn unit(&self, method: &str, args: Value) -> CncResult<()> {
+        self.call(method, args).await.map(|_| ())
     }
 }
 
 #[async_trait::async_trait]
 impl LinuxCncApi for EmAdapter {
     async fn status(&self) -> CncResult<MachineStatus> {
-        let value = self.call("status", json!({}))?;
+        let value = self.call("status", json!({})).await?;
         serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
-        let value = self.call("machine_configuration", json!({}))?;
+        let value = self.call("machine_configuration", json!({})).await?;
         serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
     }
 
     async fn power_on(&self) -> CncResult<()> {
-        self.unit("power_on", json!({}))
+        self.unit("power_on", json!({})).await
     }
 
     async fn power_off(&self) -> CncResult<()> {
-        self.unit("power_off", json!({}))
+        self.unit("power_off", json!({})).await
     }
 
     async fn estop(&self) -> CncResult<()> {
-        self.unit("estop", json!({}))
+        self.unit("estop", json!({})).await
     }
 
     async fn home(&self, axis: Option<Axis>) -> CncResult<()> {
-        self.unit("home", json!({ "axis": axis }))
+        self.unit("home", json!({ "axis": axis })).await
     }
 
     async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
-        self.unit("select_coordinate_system", json!({ "system": system }))
+        self.unit("select_coordinate_system", json!({ "system": system })).await
     }
 
     async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()> {
-        self.unit("set_work_zero", json!({ "system": system }))
+        self.unit("set_work_zero", json!({ "system": system })).await
     }
 
     async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
-        self.unit("set_axis_work_zero", json!({ "axis": axis }))
+        self.unit("set_axis_work_zero", json!({ "axis": axis })).await
     }
 
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
-        self.unit("jog_increment", json!({ "request": request }))
+        self.unit("jog_increment", json!({ "request": request })).await
     }
 
     async fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()> {
@@ -179,6 +178,7 @@ impl LinuxCncApi for EmAdapter {
             "jog_continuous",
             json!({ "axis": axis, "direction": direction, "feed_rate": feed_rate }),
         )
+        .await
     }
 
     async fn jog_continuous_xy(
@@ -195,47 +195,51 @@ impl LinuxCncApi for EmAdapter {
                 "feed_rate": feed_rate
             }),
         )
+        .await
     }
 
     async fn cancel_jog(&self) -> CncResult<()> {
-        self.unit("jog_cancel", json!({}))
+        self.unit("jog_cancel", json!({})).await
     }
 
     async fn mdi(&self, command: &str) -> CncResult<()> {
-        self.unit("mdi", json!({ "command": command }))
+        self.unit("mdi", json!({ "command": command })).await
     }
 
     async fn load_program(&self, path: &Path) -> CncResult<()> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| ControllerError::new("program_read", e.to_string()))?;
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .map_err(|error| ControllerError::new("program_read", error.to_string()))?;
         let name = path
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("program.ngc");
         self.unit("load_program", json!({ "name": name, "content": content }))
+            .await
     }
 
     async fn program_run(&self, start_line: u32) -> CncResult<()> {
         self.unit("program_run", json!({ "start_line": start_line }))
+            .await
     }
 
     async fn program_pause(&self) -> CncResult<()> {
-        self.unit("program_pause", json!({}))
+        self.unit("program_pause", json!({})).await
     }
 
     async fn program_resume(&self) -> CncResult<()> {
-        self.unit("program_resume", json!({}))
+        self.unit("program_resume", json!({})).await
     }
 
     async fn program_abort(&self) -> CncResult<()> {
-        self.unit("program_abort", json!({}))
+        self.unit("program_abort", json!({})).await
     }
 
     async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()> {
-        self.unit("set_spindle", json!({ "command": command }))
+        self.unit("set_spindle", json!({ "command": command })).await
     }
 
     async fn clear_error(&self) -> CncResult<()> {
-        self.unit("clear_error", json!({}))
+        self.unit("clear_error", json!({})).await
     }
 }
