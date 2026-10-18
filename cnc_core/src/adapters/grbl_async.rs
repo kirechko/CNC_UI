@@ -450,9 +450,7 @@ impl GrblAdapter {
                 .is_some_and(|state| state <= 3),
             "alarm" => match detail {
                 None => true,
-                Some(value) => value
-                    .parse::<u16>()
-                    .is_ok_and(|code| code > 0),
+                Some(value) => value.parse::<u16>().is_ok_and(|code| code > 0),
             },
             _ => false,
         }
