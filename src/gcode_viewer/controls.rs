@@ -21,6 +21,7 @@ pub(super) fn attach_controls(
     rotate.set_button(gtk4::gdk::BUTTON_PRIMARY);
     let rotate_camera = camera.clone();
     let rotate_area = area.clone();
+    let rotate_cube = orientation_widget.clone();
     let rotate_previous = Rc::new(RefCell::new((0.0, 0.0)));
 
     let previous = rotate_previous.clone();
@@ -41,7 +42,7 @@ pub(super) fn attach_controls(
         drop(cam);
 
         rotate_area.queue_draw();
-        orientation_widget.queue_draw();
+        rotate_cube.queue_draw();
     });
     area.add_controller(rotate);
 
