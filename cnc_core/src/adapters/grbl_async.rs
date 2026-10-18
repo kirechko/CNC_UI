@@ -460,6 +460,23 @@ impl GrblAdapter {
         }
     }
 
+    fn ensure_supported_coordinate_system(system: CoordinateSystem) -> CncResult<()> {
+        match system {
+            CoordinateSystem::G54
+            | CoordinateSystem::G55
+            | CoordinateSystem::G56
+            | CoordinateSystem::G57
+            | CoordinateSystem::G58
+            | CoordinateSystem::G59 => Ok(()),
+            CoordinateSystem::G59_1
+            | CoordinateSystem::G59_2
+            | CoordinateSystem::G59_3 => Err(ControllerError::new(
+                "unsupported_coordinate_system",
+                format!("GRBL 1.1 does not support {}", system.label()),
+            )),
+        }
+    }
+
     fn axis_letter(axis: Axis) -> char {
         match axis {
             Axis::X => 'X',
@@ -587,6 +604,7 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
+        Self::ensure_supported_coordinate_system(system)?;
         let mut session = self.session.lock().await;
         Self::send_command(&mut session, system.label()).await?;
         session.active_coordinate_system = system;
@@ -594,6 +612,7 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()> {
+        Self::ensure_supported_coordinate_system(system)?;
         let mut session = self.session.lock().await;
         let command = format!("G10 L20 P{} X0 Y0 Z0", Self::coordinate_number(system));
         Self::send_command(&mut session, &command).await?;
@@ -602,7 +621,9 @@ impl LinuxCncApi for GrblAdapter {
     }
 
     async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
+        Self::ensure_supported_axis(axis)?;
         let mut session = self.session.lock().await;
+        Self::ensure_supported_coordinate_system(session.active_coordinate_system)?;
         let command = format!(
             "G10 L20 P{} {}0",
             Self::coordinate_number(session.active_coordinate_system),
@@ -899,6 +920,29 @@ mod tests {
         assert_eq!(status.work_offset.x, 8.0);
         assert_eq!(status.work_offset.y, 17.0);
         assert_eq!(status.work_offset.z, 26.0);
+    }
+
+    #[test]
+    fn rejects_coordinate_systems_not_supported_by_grbl() {
+        for system in [
+            CoordinateSystem::G59_1,
+            CoordinateSystem::G59_2,
+            CoordinateSystem::G59_3,
+        ] {
+            let error = GrblAdapter::ensure_supported_coordinate_system(system).unwrap_err();
+            assert_eq!(error.code, "unsupported_coordinate_system");
+        }
+
+        for system in [
+            CoordinateSystem::G54,
+            CoordinateSystem::G55,
+            CoordinateSystem::G56,
+            CoordinateSystem::G57,
+            CoordinateSystem::G58,
+            CoordinateSystem::G59,
+        ] {
+            assert!(GrblAdapter::ensure_supported_coordinate_system(system).is_ok());
+        }
     }
 
     #[test]
