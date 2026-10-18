@@ -1,7 +1,5 @@
  //! Starts the CNC emulator, loads configuration, and accepts client connections.
-#[allow(dead_code)]
-#[path = "../cnc_api.rs"]
-mod cnc_api;
+use cnc_core as cnc_api;
 #[path = "cnc_emulator/config.rs"]
 mod config;
 #[path = "cnc_emulator/gcode.rs"]

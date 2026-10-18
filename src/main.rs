@@ -1,6 +1,5 @@
  //! Initializes GTK, applies the application theme, and starts the CNC control UI.
-#[allow(dead_code)]
-mod cnc_api;
+use cnc_core as cnc_api;
 mod cnc_controller;
 mod adapters;
 mod config;
