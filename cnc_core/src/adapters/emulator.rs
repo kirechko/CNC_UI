@@ -1,4 +1,5 @@
- //! Implements the CNC API client using a persistent Unix-socket connection.
+
+//! Implements the CNC API client using a persistent Unix-socket connection.
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -35,7 +36,7 @@ struct ApiConnection {
     reader: BufReader<UnixStream>,
 }
 
- /// Адаптер эмулятора: преобразует общий CNC API в запросы по Unix-сокету.
+/// Адаптер эмулятора: преобразует общий CNC API в запросы по Unix-сокету.
 /// Использует собственный JSON-протокол эмулятора, а не NML.
 pub struct EmAdapter {
     socket_path: PathBuf,
@@ -158,19 +159,23 @@ impl LinuxCncApi for EmAdapter {
     }
 
     async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
-        self.unit("select_coordinate_system", json!({ "system": system })).await
+        self.unit("select_coordinate_system", json!({ "system": system }))
+            .await
     }
 
     async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()> {
-        self.unit("set_work_zero", json!({ "system": system })).await
+        self.unit("set_work_zero", json!({ "system": system }))
+            .await
     }
 
     async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
-        self.unit("set_axis_work_zero", json!({ "axis": axis })).await
+        self.unit("set_axis_work_zero", json!({ "axis": axis }))
+            .await
     }
 
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
-        self.unit("jog_increment", json!({ "request": request })).await
+        self.unit("jog_increment", json!({ "request": request }))
+            .await
     }
 
     async fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()> {
@@ -236,7 +241,8 @@ impl LinuxCncApi for EmAdapter {
     }
 
     async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()> {
-        self.unit("set_spindle", json!({ "command": command })).await
+        self.unit("set_spindle", json!({ "command": command }))
+            .await
     }
 
     async fn clear_error(&self) -> CncResult<()> {
