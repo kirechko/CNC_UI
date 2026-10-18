@@ -39,7 +39,8 @@ struct Session {
     current_line: u32,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
-    max_spindle_rpm: f64,
+    min_spindle_rpm: Option<f64>,
+    max_spindle_rpm: Option<f64>,
     continuous_jog: Option<ContinuousJog>,
 }
 
@@ -68,7 +69,8 @@ impl GrblAdapter {
                     direction: SpindleDirection::Stopped,
                     rpm: 0.0,
                 },
-                max_spindle_rpm: 0.0,
+                min_spindle_rpm: None,
+                max_spindle_rpm: None,
                 continuous_jog: None,
                 rx_buffer: Vec::new(),
                 last_work_offset: None,
@@ -567,6 +569,32 @@ impl GrblAdapter {
         })
     }
 
+    fn validate_spindle_command(
+        command: SpindleCommand,
+        min_rpm: Option<f64>,
+        max_rpm: Option<f64>,
+    ) -> CncResult<()> {
+        if command.direction == SpindleDirection::Stopped {
+            return Ok(());
+        }
+
+        if min_rpm.is_some_and(|minimum| command.rpm < minimum)
+            || max_rpm.is_some_and(|maximum| command.rpm > maximum)
+        {
+            return Err(ControllerError::new(
+                "spindle_limit",
+                format!(
+                    "requested {:.0} RPM is outside the configured range {:.0}–{:.0} RPM",
+                    command.rpm,
+                    min_rpm.unwrap_or(0.0),
+                    max_rpm.unwrap_or(f64::INFINITY),
+                ),
+            ));
+        }
+
+        Ok(())
+    }
+
     fn normalize_spindle_command(command: SpindleCommand) -> SpindleCommand {
         if command.rpm == 0.0 || command.direction == SpindleDirection::Stopped {
             SpindleCommand {
@@ -682,7 +710,7 @@ impl LinuxCncApi for GrblAdapter {
             session.current_line,
             session.program.len() as u32,
         )?;
-        status.max_spindle_rpm = session.max_spindle_rpm;
+        status.max_spindle_rpm = session.max_spindle_rpm.unwrap_or(0.0);
 
         if response.contains("|WCO:")
             || (response.contains("|MPos:") && response.contains("|WPos:"))
@@ -706,7 +734,8 @@ impl LinuxCncApi for GrblAdapter {
         let min_rpm = spindle_rpm(31);
         let max_rpm =
             spindle_rpm(30).filter(|maximum| min_rpm.is_none_or(|minimum| minimum <= *maximum));
-        session.max_spindle_rpm = max_rpm.unwrap_or(0.0);
+        session.min_spindle_rpm = min_rpm;
+        session.max_spindle_rpm = max_rpm;
 
         Ok(MachineConfiguration {
             axes: vec![
@@ -976,10 +1005,15 @@ impl LinuxCncApi for GrblAdapter {
 
         let command = Self::normalize_spindle_command(command);
         let mut session = self.session.lock().await;
+        Self::validate_spindle_command(
+            command,
+            session.min_spindle_rpm,
+            session.max_spindle_rpm,
+        )?;
         let gcode = match command.direction {
             SpindleDirection::Stopped => "M5".to_owned(),
-            SpindleDirection::Clockwise => format!("M3 S{:.0}", command.rpm),
-            SpindleDirection::CounterClockwise => format!("M4 S{:.0}", command.rpm),
+            SpindleDirection::Clockwise => format!("M3 S{}", command.rpm),
+            SpindleDirection::CounterClockwise => format!("M4 S{}", command.rpm),
         };
         Self::send_command(&mut session, &gcode).await?;
         session.spindle_command = command;
@@ -1021,6 +1055,34 @@ mod tests {
 
         let running = spindle_command();
         assert_eq!(GrblAdapter::normalize_spindle_command(running), running);
+    }
+
+    #[test]
+    fn spindle_commands_respect_reported_controller_limits() {
+        let command = SpindleCommand {
+            direction: SpindleDirection::Clockwise,
+            rpm: 1200.0,
+        };
+
+        assert!(GrblAdapter::validate_spindle_command(command, Some(500.0), Some(24000.0)).is_ok());
+        assert_eq!(
+            GrblAdapter::validate_spindle_command(command, Some(1500.0), Some(24000.0))
+                .unwrap_err()
+                .code,
+            "spindle_limit"
+        );
+        assert_eq!(
+            GrblAdapter::validate_spindle_command(command, Some(500.0), Some(1000.0))
+                .unwrap_err()
+                .code,
+            "spindle_limit"
+        );
+
+        let stopped = SpindleCommand {
+            direction: SpindleDirection::Stopped,
+            rpm: 0.0,
+        };
+        assert!(GrblAdapter::validate_spindle_command(stopped, Some(500.0), Some(24000.0)).is_ok());
     }
 
     #[test]
