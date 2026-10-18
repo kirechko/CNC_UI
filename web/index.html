@@ -1376,6 +1376,12 @@
               </div>
             </div>
             <div class="spindle-actions">
+              <button class="spindle-direction-button" id="spindle-cw" type="button" aria-label="Запустить шпиндель по часовой стрелке" title="Запустить шпиндель по часовой стрелке">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path>
+                  <path d="M4 4v5h5"></path>
+                </svg>
+              </button>
               <button class="spindle-direction-button" id="spindle-ccw" type="button" aria-label="Запустить шпиндель против часовой стрелки" title="Запустить шпиндель против часовой стрелки">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path>
@@ -2911,6 +2917,7 @@
       const jobCaption = document.querySelector("#job-caption");
       const jobNote = document.querySelector("#job-note");
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
+      const spindleCwButton = document.querySelector("#spindle-cw");
       const spindleCcwButton = document.querySelector("#spindle-ccw");
       const spindleDebug = document.querySelector("#spindle-debug");
       let spindleUiDirection = "stopped";
@@ -3070,25 +3077,37 @@
         }
       }
 
+      spindleCwButton.addEventListener("click", () => commandSpindle("CW"));
       spindleCcwButton.addEventListener("click", () => commandSpindle("CCW"));
 
       function updateSpindleButtons() {
+        const cwActive = spindleUiDirection === "cw";
         const ccwActive = spindleUiDirection === "ccw";
         const stopIcon = '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"></rect>';
+        const cwIcon = '<path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path><path d="M4 4v5h5"></path>';
         const ccwIcon = '<path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path><path d="M20 4v5h-5"></path>';
 
-        const iconState = ccwActive ? "stop" : "ccw";
+        const cwIconState = cwActive ? "stop" : "cw";
+        const ccwIconState = ccwActive ? "stop" : "ccw";
 
+        spindleCwButton.classList.toggle("active-cw", cwActive);
         spindleCcwButton.classList.toggle("active-ccw", ccwActive);
         // Не пересоздаём SVG при каждом обновлении телеметрии: замена элемента
         // во время pointerdown может отменить браузерное событие click.
-        if (spindleCcwButton.dataset.iconState !== iconState) {
-          spindleCcwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ccwActive ? stopIcon : ccwIcon}</svg>`;
-          spindleCcwButton.dataset.iconState = iconState;
+        if (spindleCwButton.dataset.iconState !== cwIconState) {
+          spindleCwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${cwActive ? stopIcon : cwIcon}</svg>`;
+          spindleCwButton.dataset.iconState = cwIconState;
         }
+        if (spindleCcwButton.dataset.iconState !== ccwIconState) {
+          spindleCcwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ccwActive ? stopIcon : ccwIcon}</svg>`;
+          spindleCcwButton.dataset.iconState = ccwIconState;
+        }
+
+        spindleCwButton.setAttribute("aria-label", cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке");
         spindleCcwButton.setAttribute("aria-label", ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки");
+        spindleCwButton.title = cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке";
         spindleCcwButton.title = ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки";
-        // Кнопка остаётся доступной при кратковременной потере статуса.
+        // Кнопки остаются доступными при кратковременной потере статуса.
         // Backend вернёт ошибку, если запуск сейчас невозможен.
       }
 
