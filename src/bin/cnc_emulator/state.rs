@@ -91,6 +91,7 @@ impl Emulator {
                 mist_coolant_on: false,
                 flood_coolant_on: false,
                 jog_rate: 0.0,
+                motion_mode: None,
             },
             config,
             coordinate_offsets_path,

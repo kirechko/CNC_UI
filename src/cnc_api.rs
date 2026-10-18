@@ -180,6 +180,9 @@ pub struct MachineStatus {
     /// Текущая скорость Jog или быстрого перемещения G0, в единицах/мин.
     #[serde(default)]
     pub jog_rate: f64,
+    /// Тип текущего движения, например Jog, G0 или G1.
+    #[serde(default)]
+    pub motion_mode: Option<String>,
     pub max_spindle_rpm: f64,
     pub loaded_program: Option<String>,
     pub current_line: u32,
