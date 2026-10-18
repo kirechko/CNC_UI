@@ -5,16 +5,8 @@ mod cnc_controller;
 mod adapters;
 mod config;
 mod grbl_adapter;
-#[allow(dead_code)] // GTK viewer retained for the ongoing UI migration.
-mod gcode_viewer;
-#[allow(dead_code)] // GTK jog dial retained for the ongoing UI migration.
-mod jog_dial;
 #[path = "linuxcnc_api.rs"]
 mod em_adapter;
-#[allow(dead_code)] // GTK theme retained while the UI migrates to Tauri.
-mod theme;
-#[allow(dead_code)] // GTK UI retained while the shared frontend is migrated.
-mod ui; // <-- НОВЫЙ МОДУЛЬ
 mod web_server;
 mod tauri_app;
 
