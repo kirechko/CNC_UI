@@ -509,6 +509,33 @@ impl GrblAdapter {
         }
     }
 
+    fn validate_continuous_xy_jog(
+        x_direction: i8,
+        y_direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<()> {
+        if ![-1, 0, 1].contains(&x_direction) || ![-1, 0, 1].contains(&y_direction) {
+            return Err(ControllerError::new(
+                "bad_jog",
+                "invalid continuous XY jog",
+            ));
+        }
+
+        // Скорость не нужна для остановки, когда обе компоненты равны нулю.
+        if x_direction == 0 && y_direction == 0 {
+            return Ok(());
+        }
+
+        if !feed_rate.is_finite() || feed_rate <= 0.0 {
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog feed rate must be positive",
+            ));
+        }
+
+        Ok(())
+    }
+
     fn ensure_supported_axis(axis: Axis) -> CncResult<()> {
         match axis {
             Axis::X | Axis::Y | Axis::Z => Ok(()),
@@ -762,13 +789,8 @@ impl LinuxCncApi for GrblAdapter {
         y_direction: i8,
         feed_rate: f64,
     ) -> CncResult<()> {
-        if ![-1, 0, 1].contains(&x_direction)
-            || ![-1, 0, 1].contains(&y_direction)
-            || !feed_rate.is_finite()
-            || feed_rate <= 0.0
-        {
-            return Err(ControllerError::new("bad_jog", "invalid continuous XY jog"));
-        }
+        Self::validate_continuous_xy_jog(x_direction, y_direction, feed_rate)?;
+
         if x_direction == 0 && y_direction == 0 {
             return self.cancel_jog().await;
         }
@@ -1006,6 +1028,14 @@ mod tests {
         assert_eq!(status.work_offset.x, 8.0);
         assert_eq!(status.work_offset.y, 17.0);
         assert_eq!(status.work_offset.z, 26.0);
+    }
+
+    #[test]
+    fn continuous_xy_stop_does_not_require_a_positive_feed_rate() {
+        assert!(GrblAdapter::validate_continuous_xy_jog(0, 0, 0.0).is_ok());
+        assert!(GrblAdapter::validate_continuous_xy_jog(0, 0, f64::NAN).is_ok());
+        assert!(GrblAdapter::validate_continuous_xy_jog(1, 0, 0.0).is_err());
+        assert!(GrblAdapter::validate_continuous_xy_jog(2, 0, 100.0).is_err());
     }
 
     #[test]
