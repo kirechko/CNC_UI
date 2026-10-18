@@ -227,6 +227,61 @@ pub struct SpindleCommand {
 
 pub type CncResult<T> = Result<T, ControllerError>;
 
+#[async_trait::async_trait]
+pub trait LinuxCncApi: Send + Sync {
+    async fn status(&self) -> CncResult<MachineStatus>;
+
+    async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
+        Err(ControllerError::new(
+            "unsupported",
+            "machine configuration is not available for this adapter",
+        ))
+    }
+
+    async fn power_on(&self) -> CncResult<()>;
+    async fn power_off(&self) -> CncResult<()>;
+    async fn estop(&self) -> CncResult<()>;
+    async fn home(&self, axis: Option<Axis>) -> CncResult<()>;
+    async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()>;
+    async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()>;
+    async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()>;
+    async fn jog_increment(&self, request: JogRequest) -> CncResult<()>;
+    async fn jog_continuous(
+        &self,
+        axis: Axis,
+        direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<()>;
+
+    async fn jog_continuous_xy(
+        &self,
+        x_direction: i8,
+        y_direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<()> {
+        let _ = (x_direction, y_direction, feed_rate);
+        Err(ControllerError::new(
+            "unsupported",
+            "coordinated continuous XY jog is not supported by this adapter",
+        ))
+    }
+
+    async fn cancel_jog(&self) -> CncResult<()> {
+        Err(ControllerError::new(
+            "unsupported",
+            "jog cancellation is not supported by this adapter",
+        ))
+    }
+
+    async fn mdi(&self, command: &str) -> CncResult<()>;
+    async fn load_program(&self, path: &Path) -> CncResult<()>;
+    async fn program_run(&self, start_line: u32) -> CncResult<()>;
+    async fn program_pause(&self) -> CncResult<()>;
+    async fn program_resume(&self) -> CncResult<()>;
+    async fn program_abort(&self) -> CncResult<()>;
+    async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()>;
+    async fn clear_error(&self) -> CncResult<()>;
+}
 
 #[cfg(test)]
 mod tests {
