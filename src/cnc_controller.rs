@@ -435,6 +435,13 @@ fn api_worker(
 
         match api.status() {
             Ok(status) => {
+                let reconnected = shared_status.lock().unwrap().state == "DISCONNECTED";
+                if reconnected {
+                    if let Ok(configuration) = api.machine_configuration() {
+                        shared_status.lock().unwrap().machine_configuration = Some(configuration);
+                    }
+                }
+
                 let mut fresh = from_api_status(status);
                 let mut current = shared_status.lock().unwrap();
                 fresh.machine_configuration = current.machine_configuration.clone();
