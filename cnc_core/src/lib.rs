@@ -227,7 +227,6 @@ pub struct SpindleCommand {
 
 pub type CncResult<T> = Result<T, ControllerError>;
 
-— нужно заменить весь трейт на async-версию и перевести каждую его реализацию на async_trait.
 
 #[cfg(test)]
 mod tests {
