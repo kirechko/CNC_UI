@@ -437,6 +437,13 @@ impl GrblAdapter {
             })
             .or(cached_work_offset)
             .unwrap_or([0.0; 3]);
+        if offset.iter().any(|value| !value.is_finite()) {
+            return Err(ControllerError::new(
+                "protocol",
+                "GRBL status produced a non-finite work coordinate offset",
+            ));
+        }
+
         let machine = machine_position
             .or_else(|| {
                 work_position.map(|work| {
@@ -448,6 +455,13 @@ impl GrblAdapter {
                 })
             })
             .unwrap_or([0.0; 3]);
+        if machine.iter().any(|value| !value.is_finite()) {
+            return Err(ControllerError::new(
+                "protocol",
+                "GRBL status produced a non-finite machine position",
+            ));
+        }
+
         let state_lower = state.to_ascii_lowercase();
         let alarm = state_lower.starts_with("alarm");
         let running = state_lower.starts_with("run");
@@ -1151,6 +1165,30 @@ mod tests {
                 .is_err(),
                 "expected malformed status field to be rejected: {response}"
             );
+        }
+    }
+
+    #[test]
+    fn rejects_overflow_when_deriving_offsets_or_machine_positions() {
+        for (response, cached_offset) in [
+            (
+                "<Idle|MPos:1e308,0,0|WPos:-1e308,0,0|FS:0,0>",
+                None,
+            ),
+            ("<Idle|WPos:1e308,0,0|FS:0,0>", Some([1e308, 0.0, 0.0])),
+        ] {
+            let error = GrblAdapter::parse_status(
+                response,
+                cached_offset,
+                CoordinateSystem::G54,
+                spindle_command(),
+                None,
+                0,
+                0,
+            )
+            .unwrap_err();
+
+            assert_eq!(error.code, "protocol");
         }
     }
 
