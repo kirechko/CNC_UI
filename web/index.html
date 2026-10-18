@@ -1889,7 +1889,9 @@
         }
 
         viewerEmpty.hidden = true;
-        const stock = trajectoryBounds();
+        const stock = loadedStockMesh
+          ? { min: loadedStockMesh.min, max: loadedStockMesh.max }
+          : trajectoryBounds();
         drawGrid(trajectoryContext, width, height, project, stock);
         const angleA = (Number(latestStatus?.machine_a) || 0) * Math.PI / 180;
         const angleB = (Number(latestStatus?.machine_b) || 0) * Math.PI / 180;
