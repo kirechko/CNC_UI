@@ -480,25 +480,39 @@ impl GrblAdapter {
         let mut work_offset = None;
         let mut feed_rate = 0.0;
         let mut actual_rpm = 0.0;
+        let mut feed_spindle_seen = false;
 
         for field in fields {
             if let Some(value) = field.strip_prefix("MPos:") {
+                if machine_position.is_some() {
+                    return Err(ControllerError::new("protocol", "duplicate GRBL MPos field"));
+                }
                 machine_position =
                     Some(Self::parse_triplet(value).ok_or_else(|| {
                         ControllerError::new("protocol", "invalid GRBL MPos field")
                     })?);
             } else if let Some(value) = field.strip_prefix("WPos:") {
+                if work_position.is_some() {
+                    return Err(ControllerError::new("protocol", "duplicate GRBL WPos field"));
+                }
                 work_position =
                     Some(Self::parse_triplet(value).ok_or_else(|| {
                         ControllerError::new("protocol", "invalid GRBL WPos field")
                     })?);
             } else if let Some(value) = field.strip_prefix("WCO:") {
+                if work_offset.is_some() {
+                    return Err(ControllerError::new("protocol", "duplicate GRBL WCO field"));
+                }
                 work_offset =
                     Some(Self::parse_triplet(value).ok_or_else(|| {
                         ControllerError::new("protocol", "invalid GRBL WCO field")
                     })?);
             } else if let Some(value) = field.strip_prefix("FS:") {
+                if feed_spindle_seen {
+                    return Err(ControllerError::new("protocol", "duplicate GRBL FS field"));
+                }
                 (feed_rate, actual_rpm) = Self::parse_feed_spindle(value)?;
+                feed_spindle_seen = true;
             }
         }
 
@@ -1397,6 +1411,29 @@ mod tests {
             "<Idle|MPos:0,0,0|FS:100,NaN>",
             "<Idle|MPos:0,0,0|FS:-1,0>",
             "<Idle|MPos:0,0,0|FS:100,0,extra>",
+        ] {
+            let error = GrblAdapter::parse_status(
+                response,
+                None,
+                CoordinateSystem::G54,
+                spindle_command(),
+                None,
+                0,
+                0,
+            )
+            .unwrap_err();
+
+            assert_eq!(error.code, "protocol", "response: {response}");
+        }
+    }
+
+    #[test]
+    fn rejects_duplicate_position_and_telemetry_fields() {
+        for response in [
+            "<Idle|MPos:1,2,3|MPos:4,5,6|WCO:0,0,0|FS:0,0>",
+            "<Idle|WPos:1,2,3|WPos:4,5,6|WCO:0,0,0|FS:0,0>",
+            "<Idle|MPos:1,2,3|WCO:0,0,0|WCO:1,1,1|FS:0,0>",
+            "<Idle|MPos:1,2,3|WCO:0,0,0|FS:0,0|FS:1,1>",
         ] {
             let error = GrblAdapter::parse_status(
                 response,
