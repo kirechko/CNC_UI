@@ -238,10 +238,7 @@ impl GrblAdapter {
             ));
         }
 
-        let command = format!(
-            "$J=G91 {}{distance} F{feed_rate}",
-            Self::axis_letter(axis)
-        );
+        let command = format!("$J=G91 {}{distance} F{feed_rate}", Self::axis_letter(axis));
         Self::validate_command(&command)?;
         Ok(command)
     }
@@ -1005,11 +1002,7 @@ impl LinuxCncApi for GrblAdapter {
 
         let command = Self::normalize_spindle_command(command);
         let mut session = self.session.lock().await;
-        Self::validate_spindle_command(
-            command,
-            session.min_spindle_rpm,
-            session.max_spindle_rpm,
-        )?;
+        Self::validate_spindle_command(command, session.min_spindle_rpm, session.max_spindle_rpm)?;
         let gcode = match command.direction {
             SpindleDirection::Stopped => "M5".to_owned(),
             SpindleDirection::Clockwise => format!("M3 S{}", command.rpm),
