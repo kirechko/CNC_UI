@@ -126,6 +126,11 @@ macro_rules! debug_adapter {
                 Ok(())
             }
 
+            fn cancel_jog(&self) -> CncResult<()> {
+                eprintln!(concat!("[", $label, "] cancel_jog"));
+                Ok(())
+            }
+
             fn mdi(&self, command: &str) -> CncResult<()> {
                 eprintln!("[{}] mdi command={command:?}", $label);
                 Ok(())

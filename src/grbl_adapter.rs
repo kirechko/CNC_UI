@@ -518,6 +518,12 @@ impl LinuxCncApi for GrblAdapter {
         self.jog_continuous_xy(x_direction, y_direction, feed_rate)
     }
 
+    fn cancel_jog(&self) -> CncResult<()> {
+        let mut session = self.lock_session()?;
+        session.continuous_xy_jog = None;
+        Self::send_realtime(&mut session, 0x85)
+    }
+
     fn jog_continuous_xy(
         &self,
         x_direction: i8,

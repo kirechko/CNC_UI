@@ -196,6 +196,10 @@ impl LinuxCncApi for EmAdapter {
         )
     }
 
+    fn cancel_jog(&self) -> CncResult<()> {
+        self.unit("jog_cancel", json!({}))
+    }
+
     fn mdi(&self, command: &str) -> CncResult<()> {
         self.unit("mdi", json!({ "command": command }))
     }
