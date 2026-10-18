@@ -84,11 +84,10 @@ impl GrblAdapter {
             }
 
             let line: Vec<u8> = rx_buffer.drain(..=line_end).collect();
-            return Ok(Some(
-                String::from_utf8_lossy(&line[..line.len() - 1])
-                    .trim()
-                    .to_string(),
-            ));
+            let line = std::str::from_utf8(&line[..line.len() - 1]).map_err(|error| {
+                ControllerError::new("protocol", format!("GRBL response is not valid UTF-8: {error}"))
+            })?;
+            return Ok(Some(line.trim().to_string()));
         }
 
         if rx_buffer.len() > MAX_RESPONSE_LINE {
@@ -956,6 +955,14 @@ mod tests {
             Some("<Idle|MPos:1,2,3|FS:0,0>")
         );
         assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn rejects_non_utf8_response_lines() {
+        let mut buffer = vec![0xff, b'\n'];
+
+        let error = GrblAdapter::extract_line(&mut buffer).unwrap_err();
+        assert_eq!(error.code, "protocol");
     }
 
     #[test]
