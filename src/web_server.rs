@@ -333,6 +333,14 @@ struct JogRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct XyJogRequest {
+    x_direction: i8,
+    y_direction: i8,
+    distance: f64,
+}
+
+#[derive(Deserialize)]
 struct ContinuousJogRequest {
     axis: Axis,
     direction: i8,
@@ -649,6 +657,28 @@ async fn abort_program(
         .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
 }
 
+async fn jog_xy(
+    State(state): State<SharedController>,
+    Json(request): Json<XyJogRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    if ![-1, 1].contains(&request.x_direction)
+        || ![-1, 1].contains(&request.y_direction)
+        || ![0.1, 1.0, 10.0, 100.0].contains(&request.distance)
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "XY directions must be -1 or 1; distance must be 0.1, 1, 10, or 100 mm".into(),
+        ));
+    }
+
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    controller.jog_xy_step(request.x_direction, request.y_direction, request.distance);
+    Ok(StatusCode::ACCEPTED)
+}
+
 async fn jog(
     State(state): State<SharedController>,
     Json(request): Json<JogRequest>,
@@ -686,6 +716,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/program/resume", post(resume_program))
         .route("/api/program/abort", post(abort_program))
         .route("/api/jog", post(jog))
+        .route("/api/jog/xy", post(jog_xy))
         .route("/api/jog/continuous", post(jog_continuous))
         .route("/api/jog/continuous-xy", post(jog_continuous_xy))
         .route("/api/position/select", post(select_coordinate_system))
