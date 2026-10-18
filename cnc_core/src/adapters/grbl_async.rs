@@ -754,6 +754,31 @@ impl GrblAdapter {
         Ok(())
     }
 
+    fn ensure_controller_idle(status_response: &str) -> CncResult<()> {
+        let state = status_response
+            .strip_prefix('<')
+            .and_then(|response| response.strip_suffix('>'))
+            .and_then(|response| response.split('|').next())
+            .ok_or_else(|| {
+                ControllerError::new("protocol", "malformed GRBL status response")
+            })?;
+
+        if !Self::is_known_machine_state(state) {
+            return Err(ControllerError::new(
+                "protocol",
+                format!("unknown GRBL machine state: {state}"),
+            ));
+        }
+        if state != "Idle" {
+            return Err(ControllerError::new(
+                "motion_busy",
+                format!("cannot start a program while GRBL state is {state}"),
+            ));
+        }
+
+        Ok(())
+    }
+
     fn ensure_program_idle(program_streaming: bool, jog_active: bool) -> CncResult<()> {
         if program_streaming || jog_active {
             return Err(ControllerError::new(
@@ -1101,6 +1126,9 @@ impl LinuxCncApi for GrblAdapter {
             session.program_streaming,
             session.continuous_jog.is_some() || session.jog_chunk_active,
         )?;
+        let status = Self::query_status(&mut session).await?;
+        Self::ensure_controller_idle(&status)?;
+
         let start = start_line as usize;
         if session.program.is_empty() || start >= session.program.len() {
             return Err(ControllerError::new(
@@ -1259,6 +1287,24 @@ mod tests {
 
         let error = GrblAdapter::ensure_manual_command_allowed(true).unwrap_err();
         assert_eq!(error.code, "motion_busy");
+    }
+
+    #[test]
+    fn only_starts_program_when_grbl_reports_idle() {
+        assert!(GrblAdapter::ensure_controller_idle("<Idle|MPos:0,0,0>").is_ok());
+
+        for state in ["Run", "Jog", "Hold:0", "Door:1", "Alarm:1"] {
+            let response = format!("<{state}|MPos:0,0,0>");
+            let error = GrblAdapter::ensure_controller_idle(&response).unwrap_err();
+            assert_eq!(error.code, "motion_busy", "state: {state}");
+        }
+
+        assert_eq!(
+            GrblAdapter::ensure_controller_idle("<Unknown|MPos:0,0,0>")
+                .unwrap_err()
+                .code,
+            "protocol"
+        );
     }
 
     #[test]
