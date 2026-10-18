@@ -734,6 +734,16 @@ impl GrblAdapter {
         }
     }
 
+    fn ensure_manual_command_allowed(program_streaming: bool) -> CncResult<()> {
+        if program_streaming {
+            return Err(ControllerError::new(
+                "motion_busy",
+                "cannot issue a manual command while a program is streaming",
+            ));
+        }
+        Ok(())
+    }
+
     fn ensure_program_idle(program_streaming: bool, jog_active: bool) -> CncResult<()> {
         if program_streaming || jog_active {
             return Err(ControllerError::new(
@@ -946,6 +956,7 @@ impl LinuxCncApi for GrblAdapter {
         let value = request.distance * f64::from(request.direction);
         let command = Self::format_axis_jog_command(request.axis, value, feed_rate)?;
         let mut session = self.session.lock().await;
+        Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::send_command(&mut session, &command).await
     }
 
@@ -974,6 +985,7 @@ impl LinuxCncApi for GrblAdapter {
             feed_rate,
         };
         let mut session = self.session.lock().await;
+        Self::ensure_manual_command_allowed(session.program_streaming)?;
         let chunk_active = session.jog_chunk_active;
         session.continuous_jog = Some(jog);
 
@@ -1010,6 +1022,7 @@ impl LinuxCncApi for GrblAdapter {
             feed_rate,
         };
         let mut session = self.session.lock().await;
+        Self::ensure_manual_command_allowed(session.program_streaming)?;
         let chunk_active = session.jog_chunk_active;
         session.continuous_jog = Some(jog);
 
@@ -1036,6 +1049,7 @@ impl LinuxCncApi for GrblAdapter {
 
     async fn mdi(&self, command: &str) -> CncResult<()> {
         let mut session = self.session.lock().await;
+        Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::send_command(&mut session, command).await
     }
 
@@ -1217,6 +1231,14 @@ mod tests {
             let error = GrblAdapter::validate_command(command).unwrap_err();
             assert_eq!(error.code, "bad_command", "command: {command:?}");
         }
+    }
+
+    #[test]
+    fn prevents_manual_commands_during_program_streaming() {
+        assert!(GrblAdapter::ensure_manual_command_allowed(false).is_ok());
+
+        let error = GrblAdapter::ensure_manual_command_allowed(true).unwrap_err();
+        assert_eq!(error.code, "motion_busy");
     }
 
     #[test]
