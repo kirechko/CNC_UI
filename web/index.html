@@ -749,8 +749,18 @@
 
       .spindle-control {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: 8px;
+      }
+
+      .spindle-debug {
+        flex: 0 0 100%;
+        min-height: 14px;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
       }
 
       .spindle-speed-control {
@@ -1378,6 +1388,7 @@
                 </svg>
               </button>
             </div>
+            <output class="spindle-debug" id="spindle-debug" aria-live="polite">Ожидание нажатия кнопки шпинделя</output>
         </section>
       </aside>
 
@@ -2898,6 +2909,7 @@
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
       const spindleCwButton = document.querySelector("#spindle-cw");
       const spindleCcwButton = document.querySelector("#spindle-ccw");
+      const spindleDebug = document.querySelector("#spindle-debug");
       let spindleUiDirection = "stopped";
       let pendingSpindleDirection = null;
       let spindleCommandError = null;
@@ -3022,6 +3034,9 @@
       });
 
       async function commandSpindle(direction) {
+        spindleDebug.textContent =
+          `Получено нажатие ${direction}; текущее направление: ${spindleUiDirection}.`;
+
         const requestedDirection = direction.toLowerCase();
         const nextDirection = spindleUiDirection === requestedDirection
           ? "stopped"
@@ -3041,10 +3056,13 @@
             "POST",
           );
           spindleCommandError = null;
+          spindleDebug.textContent =
+            `Команда ${enabled ? direction : "СТОП"} отправлена в backend (${rpm.toFixed(0)} RPM).`;
           await refreshStatus();
         } catch (error) {
           pendingSpindleDirection = null;
           spindleCommandError = `Ошибка шпинделя: ${error.message}`;
+          spindleDebug.textContent = `Ошибка отправки команды ${direction}: ${error.message}`;
           await refreshStatus();
         }
       }
