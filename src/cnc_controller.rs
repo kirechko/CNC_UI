@@ -241,6 +241,7 @@ impl CNCController {
         crate::message_log::record("информация", source, &description);
 
         if let Err(error) = self.commands.send(command) {
+            crate::message_log::record("ошибка", "команда UI", &format!("Команда не отправлена: {error}"));
             eprintln!("[LinuxCncApi] worker unavailable: {error}");
         }
     }
@@ -378,6 +379,13 @@ impl CNCController {
         }
 
         let feed = *self.xy_jog_speed.lock().unwrap();
+        crate::message_log::record(
+            "информация",
+            "Jog",
+            &format!(
+                "Пошаговое движение XY: X {x_direction:+}, Y {y_direction:+}, расстояние {step:.3} mm, подача {feed:.3} mm/min",
+            ),
+        );
         self.enqueue(Command::Mdi(format!(
             "G91 G1 X{:.3} Y{:.3} F{feed:.0}",
             step * f64::from(x_direction),
@@ -409,6 +417,14 @@ impl CNCController {
             Axis::X | Axis::Y | Axis::A | Axis::B => *self.xy_jog_speed.lock().unwrap(),
         };
 
+        crate::message_log::record(
+            "информация",
+            "Jog",
+            &format!(
+                "Пошаговое движение {:?}: направление {direction:+}, расстояние {step:.3}, подача {feed_rate:.3}",
+                axis,
+            ),
+        );
         self.enqueue(Command::JogIncrement(crate::cnc_api::JogRequest {
             axis,
             direction,
@@ -490,9 +506,10 @@ fn record_adapter_message(last_message: &mut Option<String>, severity: &str, mes
         return;
     }
 
-    if last_message.as_deref() != Some(message) {
+    let key = format!("{severity}\u{1f}{message}");
+    if last_message.as_deref() != Some(key.as_str()) {
         crate::message_log::record(severity, "CNC/адаптер", message);
-        *last_message = Some(message.to_string());
+        *last_message = Some(key);
     }
 }
 
@@ -601,7 +618,18 @@ fn api_worker(
         match runtime.block_on(api.status()) {
             Ok(status) => {
                 if let Some(message) = status.message.as_deref() {
-                    record_adapter_message(&mut last_adapter_message, "информация", message);
+                    let severity = if status.task_state == crate::cnc_api::TaskState::Estop
+                        || message.to_ascii_lowercase().starts_with("alarm")
+                    {
+                        "авария"
+                    } else if message.to_ascii_lowercase().starts_with("error")
+                        || message.to_ascii_lowercase().starts_with("ошибка")
+                    {
+                        "ошибка"
+                    } else {
+                        "информация"
+                    };
+                    record_adapter_message(&mut last_adapter_message, severity, message);
                 } else {
                     last_adapter_message = None;
                 }
