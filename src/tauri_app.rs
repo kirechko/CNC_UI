@@ -1,8 +1,9 @@
 use crate::cnc_api::Axis;
 use crate::cnc_controller::SpindleDirection as UiSpindleDirection;
 use crate::web_server::{
-    load_program as load_program_into_state, AppState, LoadedProgram, StatusResponse,
+    load_program as load_program_into_state, AppState, LoadedProgram, LogEntry, StatusResponse,
 };
+use serde::Serialize;
 use tauri::State;
 
 #[tauri::command]
@@ -281,6 +282,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .manage(AppState::new()?)
         .invoke_handler(tauri::generate_handler![
             get_status,
+            get_log,
             get_program,
             load_program,
             start_program,

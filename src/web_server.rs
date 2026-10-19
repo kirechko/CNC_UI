@@ -1,9 +1,10 @@
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
 };
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -22,6 +23,40 @@ const WEB_ROOT: &str = "web";
 type SharedController = Arc<AppState>;
 static UPLOADED_PROGRAM_ID: AtomicU64 = AtomicU64::new(0);
 const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
+const DEFAULT_LOG_PAGE_SIZE: usize = 100;
+const MAX_LOG_PAGE_SIZE: usize = 500;
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct LogEntry {
+    pub(crate) id: i64,
+    pub(crate) timestamp_ms: i64,
+    pub(crate) severity: String,
+    pub(crate) source: String,
+    pub(crate) message: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct LatestLogMessages {
+    pub(crate) critical: Option<LogEntry>,
+    pub(crate) other: Option<LogEntry>,
+}
+
+#[derive(Deserialize)]
+struct LogQuery {
+    severity: Option<String>,
+    source: Option<String>,
+    search: Option<String>,
+    sort: Option<String>,
+    descending: Option<bool>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct LogPage {
+    entries: Vec<LogEntry>,
+    total: i64,
+}
 
 #[derive(Clone, Serialize)]
 pub(crate) struct LoadedProgram {
@@ -32,6 +67,207 @@ pub(crate) struct LoadedProgram {
 pub(crate) struct AppState {
     pub(crate) controller: Mutex<CNCController>,
     pub(crate) program: Mutex<Option<LoadedProgram>>,
+    log: Mutex<Connection>,
+    last_logged_status: Mutex<Option<String>>,
+}
+
+impl AppState {
+    fn open_log() -> io::Result<Connection> {
+        let path = std::env::var_os("CNC_UI_LOG_DB")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                let state_dir = std::env::var_os("XDG_STATE_HOME")
+                    .map(PathBuf::from)
+                    .or_else(|| {
+                        std::env::var_os("HOME")
+                            .map(PathBuf::from)
+                            .map(|home| home.join(".local").join("state"))
+                    })
+                    .unwrap_or_else(std::env::temp_dir);
+                state_dir
+                    .join("linuxcnc-ui")
+                    .join("messages.sqlite3")
+            });
+
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let connection = Connection::open(&path)
+            .map_err(|error| startup_error(format!("cannot open message log {}: {error}", path.display())))?;
+        connection
+            .execute_batch(
+                "PRAGMA journal_mode = WAL;
+                 CREATE TABLE IF NOT EXISTS messages (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     timestamp_ms INTEGER NOT NULL,
+                     severity TEXT NOT NULL,
+                     source TEXT NOT NULL,
+                     message TEXT NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS messages_severity_id
+                     ON messages(severity, id DESC);
+                 CREATE INDEX IF NOT EXISTS messages_id
+                     ON messages(id DESC);",
+            )
+            .map_err(|error| startup_error(format!("cannot initialize message log: {error}")))?;
+        Ok(connection)
+    }
+
+    pub(crate) fn record_status(&self, status: &CNCStatus) {
+        let alert = status.ui_alert.as_ref().map(|(kind, message)| (kind, message));
+        let key = format!(
+            "{}\u{1f}{}\u{1f}{}\u{1f}{}",
+            status.state,
+            status.message.as_deref().unwrap_or(""),
+            alert.map(|(kind, _)| kind).unwrap_or(""),
+            alert.map(|(_, message)| message).unwrap_or(""),
+        );
+
+        let Ok(mut previous) = self.last_logged_status.lock() else {
+            return;
+        };
+        if previous.as_deref() == Some(&key) {
+            return;
+        }
+        *previous = Some(key);
+        drop(previous);
+
+        if let Some((_, message)) = alert {
+            self.insert_log("авария", "контроллер", message);
+        }
+        if let Some(message) = status.message.as_deref().filter(|message| !message.is_empty()) {
+            let severity = if status.state == "ALARM" {
+                "авария"
+            } else {
+                "информация"
+            };
+            self.insert_log(severity, "контроллер", message);
+        }
+    }
+
+    fn insert_log(&self, severity: &str, source: &str, message: &str) {
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(i64::MAX as u128) as i64;
+
+        if let Ok(connection) = self.log.lock() {
+            if let Err(error) = connection.execute(
+                "INSERT INTO messages (timestamp_ms, severity, source, message)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![timestamp_ms, severity, source, message],
+            ) {
+                eprintln!("Could not write message log: {error}");
+            }
+        }
+    }
+
+    pub(crate) fn latest_log_messages(&self) -> Result<LatestLogMessages, String> {
+        let connection = self
+            .log
+            .lock()
+            .map_err(|_| "message log lock poisoned".to_string())?;
+        let critical = connection
+            .query_row(
+                "SELECT id, timestamp_ms, severity, source, message
+                 FROM messages WHERE severity = 'авария' ORDER BY id DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok(LogEntry {
+                        id: row.get(0)?,
+                        timestamp_ms: row.get(1)?,
+                        severity: row.get(2)?,
+                        source: row.get(3)?,
+                        message: row.get(4)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        let other = connection
+            .query_row(
+                "SELECT id, timestamp_ms, severity, source, message
+                 FROM messages WHERE severity != 'авария' ORDER BY id DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok(LogEntry {
+                        id: row.get(0)?,
+                        timestamp_ms: row.get(1)?,
+                        severity: row.get(2)?,
+                        source: row.get(3)?,
+                        message: row.get(4)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+
+        Ok(LatestLogMessages { critical, other })
+    }
+
+    fn query_log(&self, query: &LogQuery) -> Result<LogPage, String> {
+        let connection = self
+            .log
+            .lock()
+            .map_err(|_| "message log lock poisoned".to_string())?;
+        let severity = query.severity.as_deref().filter(|value| !value.is_empty());
+        let source = query.source.as_deref().filter(|value| !value.is_empty());
+        let search = query.search.as_deref().filter(|value| !value.is_empty());
+        let limit = query
+            .limit
+            .unwrap_or(DEFAULT_LOG_PAGE_SIZE)
+            .clamp(1, MAX_LOG_PAGE_SIZE);
+        let offset = query.offset.unwrap_or(0);
+        let order = match query.sort.as_deref() {
+            Some("severity") => "severity",
+            Some("source") => "source",
+            Some("message") => "message",
+            _ => "timestamp_ms",
+        };
+        let direction = if query.descending.unwrap_or(true) {
+            "DESC"
+        } else {
+            "ASC"
+        };
+
+        let total = connection
+            .query_row(
+                "SELECT COUNT(*) FROM messages
+                 WHERE (?1 IS NULL OR severity = ?1)
+                   AND (?2 IS NULL OR source = ?2)
+                   AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')",
+                params![severity, source, search],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let sql = format!(
+            "SELECT id, timestamp_ms, severity, source, message FROM messages
+             WHERE (?1 IS NULL OR severity = ?1)
+               AND (?2 IS NULL OR source = ?2)
+               AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')
+             ORDER BY {order} {direction}, id DESC LIMIT ?4 OFFSET ?5"
+        );
+        let mut statement = connection
+            .prepare(&sql)
+            .map_err(|error| error.to_string())?;
+        let entries = statement
+            .query_map(params![severity, source, search, limit, offset], |row| {
+                Ok(LogEntry {
+                    id: row.get(0)?,
+                    timestamp_ms: row.get(1)?,
+                    severity: row.get(2)?,
+                    source: row.get(3)?,
+                    message: row.get(4)?,
+                })
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+
+        Ok(LogPage { entries, total })
+    }
 }
 
 fn parse_coordinate_system(value: &str) -> Result<crate::cnc_api::CoordinateSystem, String> {
@@ -233,6 +469,8 @@ impl AppState {
         let state = Self {
             controller: Mutex::new(create_controller()?),
             program: Mutex::new(None),
+            log: Mutex::new(Self::open_log()?),
+            last_logged_status: Mutex::new(None),
         };
         let default_path = PathBuf::from("test.gcode");
 
@@ -616,6 +854,8 @@ pub(crate) struct StatusResponse {
     total_lines: u32,
     message: Option<String>,
     error: Option<String>,
+    latest_critical: Option<LogEntry>,
+    latest_other: Option<LogEntry>,
 }
 
 impl From<CNCStatus> for StatusResponse {
@@ -673,6 +913,8 @@ impl From<CNCStatus> for StatusResponse {
             error: status
                 .ui_alert
                 .map(|(kind, message)| format!("{kind}: {message}")),
+            latest_critical: None,
+            latest_other: None,
         }
     }
 }
@@ -720,13 +962,32 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
 async fn get_status(
     State(state): State<SharedController>,
 ) -> Result<Json<StatusResponse>, (StatusCode, String)> {
-    let controller = state.controller.lock().map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "controller lock poisoned".into(),
-        )
-    })?;
-    Ok(Json(controller.get_status_snapshot().into()))
+    let status = {
+        let controller = state.controller.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "controller lock poisoned".into(),
+            )
+        })?;
+        controller.get_status_snapshot()
+    };
+    state.record_status(&status);
+    let mut response = StatusResponse::from(status);
+    if let Ok(latest) = state.latest_log_messages() {
+        response.latest_critical = latest.critical;
+        response.latest_other = latest.other;
+    }
+    Ok(Json(response))
+}
+
+async fn get_log(
+    State(state): State<SharedController>,
+    Query(query): Query<LogQuery>,
+) -> Result<Json<LogPage>, (StatusCode, String)> {
+    state
+        .query_log(&query)
+        .map(Json)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))
 }
 
 async fn get_program(
@@ -889,6 +1150,7 @@ pub async fn run() -> io::Result<()> {
         ServeDir::new(WEB_ROOT).fallback(ServeFile::new(format!("{WEB_ROOT}/index.html")));
     let app = Router::new()
         .route("/api/status", get(get_status))
+        .route("/api/log", get(get_log))
         .route("/api/program", get(get_program).post(post_program))
         .route("/api/program/run", post(start_program))
         .route("/api/program/pause", post(pause_program))
