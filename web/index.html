@@ -2407,6 +2407,7 @@
       import { createPositionReadoutUpdater } from "./js/position-readouts.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
+      import { initProgramLoader } from "./js/program-loader.js";
       import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
       import { initLogCalendar } from "./js/log-calendar-control.js";
       import { initSpindleControls } from "./js/spindle-control.js";
@@ -2497,7 +2498,6 @@
       const viewerStage = document.querySelector(".viewer-stage");
       const viewerEmpty = document.querySelector("#viewer-empty");
       const programName = document.querySelector("#program-name");
-      const fileInput = document.querySelector("#program-file");
       const camera = { yaw: -0.72, pitch: 0.62, zoom: 1, panX: 0, panY: 0, perspective: true };
       const toolPosition = [0, 0, 0];
       let toolSpindleRpm = 0;
@@ -2631,16 +2631,13 @@
       }
 
 
-      async function loadProgram(file) {
-        const content = await file.text();
-        const result = await invokeOrFetch(
-          "load_program",
-          { fileName: file.name, content },
-          "/api/program",
-          "POST",
-        );
-        showProgram(result.name, result.content);
-      }
+      const programLoader = initProgramLoader({
+        onLoad: showProgram,
+        onError(error) {
+          document.querySelector("#message").textContent =
+            `Ошибка загрузки G-code: ${error.message}`;
+        },
+      });
 
       initProgramEditor({
         getProgram: () => loadedProgram,
@@ -2656,14 +2653,6 @@
         isConnected: () => machineConnected,
       });
 
-      async function loadDefaultProgram() {
-        try {
-          const program = await invokeOrFetch("get_program", null, "/api/program");
-          if (program) showProgram(program.name, program.content);
-        } catch (error) {
-          console.warn("Не удалось получить траекторию:", error);
-        }
-      }
 
       const positionControls = initPositionControls({
         getStatus: () => latestStatus,
@@ -2834,18 +2823,6 @@
         },
       });
 
-      document.querySelector("#load-program").addEventListener("click", () => fileInput.click());
-      fileInput.addEventListener("change", async () => {
-        const file = fileInput.files?.[0];
-        if (!file) return;
-        try {
-          await loadProgram(file);
-        } catch (error) {
-          document.querySelector("#message").textContent = `Ошибка загрузки G-code: ${error.message}`;
-        } finally {
-          fileInput.value = "";
-        }
-      });
       document.querySelector("#fit-program").addEventListener("click", () => {
         camera.yaw = -0.72;
         camera.pitch = 0.62;
@@ -3472,7 +3449,7 @@
 
       setJogEnabled(false);
       commandConsole.loadHistory();
-      loadDefaultProgram();
+      programLoader.loadDefault();
       refreshStatus();
       window.setInterval(refreshStatus, 50);
     </script>
