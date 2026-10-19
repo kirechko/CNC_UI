@@ -2409,7 +2409,7 @@
       import { logRangeLabel, parseLocalDate } from "./js/log-calendar-utils.js";
       import { renderLogCalendarGrid } from "./js/log-calendar.js";
       import { initSpindleControls } from "./js/spindle-control.js";
-      import { dialDirectionAt, dialSelectionAt } from "./js/jog-dial-hit-test.js";
+      import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -4986,7 +4986,7 @@
       let continuousDialPointerId = null;
 
       function setContinuousDialDirection(selection) {
-        const moves = selection && dialMoves(selection);
+        const moves = dialMoves(selection);
         const xDirection = moves?.find(([axis]) => axis === "X")?.[1] || 0;
         const yDirection = moves?.find(([axis]) => axis === "Y")?.[1] || 0;
 
@@ -5108,16 +5108,8 @@
       async function jogDialSelection(selection) {
         if (!selection || !machineConnected) return;
 
-        const moves = [
-          [["X", 1]],
-          [["X", 1], ["Y", -1]],
-          [["Y", -1]],
-          [["X", -1], ["Y", -1]],
-          [["X", -1]],
-          [["X", -1], ["Y", 1]],
-          [["Y", 1]],
-          [["X", 1], ["Y", 1]],
-        ][selection.sector];
+        const moves = dialMoves(selection);
+        if (!moves) return;
 
         try {
           if (moves.length === 2) {
@@ -5134,18 +5126,6 @@
         }
       }
 
-      function dialMoves(selection) {
-        return [
-          [["X", 1]],
-          [["X", 1], ["Y", -1]],
-          [["Y", -1]],
-          [["X", -1], ["Y", -1]],
-          [["X", -1]],
-          [["X", -1], ["Y", 1]],
-          [["Y", 1]],
-          [["X", 1], ["Y", 1]],
-        ][selection.sector];
-      }
 
       jogDialCanvas.addEventListener("pointerdown", (event) => {
         if (jogMotionMode !== "continuous" || !machineConnected) return;
