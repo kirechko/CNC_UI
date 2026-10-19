@@ -1,4 +1,3 @@
-
 //! Implements the CNC API client using a persistent Unix-socket connection.
 use crate::*;
 use serde::{Deserialize, Serialize};
