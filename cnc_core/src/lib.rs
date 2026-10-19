@@ -270,8 +270,18 @@ pub trait LinuxCncApi: Send + Sync {
 
     /// Выполнить команду контроллера и вернуть текстовый ответ, если он доступен.
     /// Может поддерживать G-code и команды, специфичные для адаптера.
-    async fn execute_command(&self, command: &str) -> CncResult<String> {
+    async fn execute_command(
+        &self,
+        command: &str,
+        cancellation: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> CncResult<String> {
+        if cancellation.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+        }
         self.mdi(command).await?;
+        if cancellation.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+        }
         Ok("Команда принята контроллером.".into())
     }
 

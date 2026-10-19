@@ -4,7 +4,15 @@ use crate::{
     Position, SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode,
     TaskState,
 };
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 use tokio::{
     fs,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -1238,13 +1246,31 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_realtime(&mut session, 0x85).await
     }
 
-    async fn execute_command(&self, command: &str) -> CncResult<String> {
+    async fn execute_command(
+        &self,
+        command: &str,
+        cancellation: Arc<AtomicBool>,
+    ) -> CncResult<String> {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
 
+        if cancellation.load(Ordering::Acquire) {
+            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+        }
+
         if command.trim() == "$$" {
-            let mut settings = Self::query_settings(&mut session).await?.into_iter().collect::<Vec<_>>();
+            let result = tokio::select! {
+                result = Self::query_settings(&mut session) => result,
+                _ = wait_for_command_cancellation(cancellation.clone()) => {
+                    Self::reset_after_command_cancellation(&mut session).await?;
+                    return Err(ControllerError::new(
+                        "command_cancelled",
+                        "Команда отменена сбросом GRBL; переподключитесь к контроллеру.",
+                    ));
+                }
+            };
+            let mut settings = result?.into_iter().collect::<Vec<_>>();
             settings.sort_unstable_by_key(|(number, _)| *number);
             return Ok(settings
                 .into_iter()
@@ -1253,7 +1279,17 @@ impl LinuxCncApi for GrblAdapter {
                 .join("\\n"));
         }
 
-        Self::send_command(&mut session, command).await?;
+        let result = tokio::select! {
+            result = Self::send_command(&mut session, command) => result,
+            _ = wait_for_command_cancellation(cancellation) => {
+                Self::reset_after_command_cancellation(&mut session).await?;
+                return Err(ControllerError::new(
+                    "command_cancelled",
+                    "Команда отменена сбросом GRBL; переподключитесь к контроллеру.",
+                ));
+            }
+        };
+        result?;
         Ok("Команда принята контроллером.".into())
     }
 

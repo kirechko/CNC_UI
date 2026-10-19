@@ -210,8 +210,18 @@ impl LinuxCncApi for EmAdapter {
         self.unit("jog_cancel", json!({})).await
     }
 
-    async fn execute_command(&self, command: &str) -> CncResult<String> {
+    async fn execute_command(
+        &self,
+        command: &str,
+        cancellation: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> CncResult<String> {
+        if cancellation.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+        }
         self.unit("mdi", json!({ "command": command })).await?;
+        if cancellation.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+        }
         Ok("Команда принята эмулятором.".into())
     }
 

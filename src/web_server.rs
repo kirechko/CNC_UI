@@ -71,6 +71,7 @@ pub(crate) struct AppState {
     pub(crate) program: Mutex<Option<LoadedProgram>>,
     log: Mutex<Connection>,
     last_logged_status: Mutex<Option<String>>,
+    command_cancel_requested: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl AppState {
@@ -470,6 +471,13 @@ impl AppState {
         Ok(commands)
     }
 
+    pub(crate) fn cancel_machine_command(&self) {
+        self.command_cancel_requested.store(
+            true,
+            std::sync::atomic::Ordering::Release,
+        );
+    }
+
     pub(crate) fn execute_command(&self, command: &str) -> Result<String, String> {
         let command = command.trim();
         if command.is_empty()
@@ -554,11 +562,14 @@ impl AppState {
 
 impl AppState {
     pub(crate) fn new() -> io::Result<Self> {
+        let controller = create_controller()?;
+        let command_cancel_requested = controller.command_cancellation_handle();
         let state = Self {
-            controller: Mutex::new(create_controller()?),
+            controller: Mutex::new(controller),
             program: Mutex::new(None),
             log: Mutex::new(Self::open_log()?),
             last_logged_status: Mutex::new(None),
+            command_cancel_requested,
         };
         let default_path = PathBuf::from("test.gcode");
 
@@ -1085,6 +1096,13 @@ async fn get_status(
     Ok(Json(response))
 }
 
+async fn cancel_machine_command(
+    State(state): State<SharedController>,
+) -> StatusCode {
+    state.cancel_machine_command();
+    StatusCode::ACCEPTED
+}
+
 async fn get_command_history(
     State(state): State<SharedController>,
 ) -> Result<Json<Vec<String>>, (StatusCode, String)> {
@@ -1307,6 +1325,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/status", get(get_status))
         .route("/api/log", get(get_log).post(post_log_message))
         .route("/api/command", post(post_machine_command))
+        .route("/api/command/cancel", post(cancel_machine_command))
         .route("/api/command-history", get(get_command_history))
         .route("/api/program", get(get_program).post(post_program))
         .route("/api/program/run", post(start_program))

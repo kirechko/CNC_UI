@@ -5,7 +5,10 @@ use crate::cnc_api::{
 };
 use cnc_core::adapters::emulator::EmAdapter;
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc, Arc, Mutex,
+};
 use std::thread;
 use std::time::Duration;
 
@@ -86,6 +89,7 @@ pub struct CNCController {
     xy_jog_speed: Mutex<f64>,
     z_jog_speed: Mutex<f64>,
     spindle_speed_setpoint: Mutex<f64>,
+    command_cancel_requested: Arc<AtomicBool>,
 }
 
 #[allow(dead_code)]
@@ -98,6 +102,8 @@ impl CNCController {
         let worker_status = status.clone();
         let (commands, receiver) = mpsc::channel();
         let (emergency_stop, emergency_receiver) = mpsc::channel();
+        let command_cancel_requested = Arc::new(AtomicBool::new(false));
+        let worker_command_cancel_requested = command_cancel_requested.clone();
 
         thread::Builder::new()
             .name("cnc-api-worker".into())
@@ -117,6 +123,7 @@ impl CNCController {
                                     receiver,
                                     emergency_receiver,
                                     worker_status.clone(),
+                                    worker_command_cancel_requested,
                                     &runtime,
                                 );
                                 return;
@@ -142,6 +149,7 @@ impl CNCController {
             xy_jog_speed: Mutex::new(1000.0),
             z_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
+            command_cancel_requested,
         })
     }
 
@@ -150,6 +158,8 @@ impl CNCController {
         let worker_status = status.clone();
         let (commands, receiver) = mpsc::channel();
         let (emergency_stop, emergency_receiver) = mpsc::channel();
+        let command_cancel_requested = Arc::new(AtomicBool::new(false));
+        let worker_command_cancel_requested = command_cancel_requested.clone();
 
         thread::Builder::new()
             .name("cnc-api-worker".into())
@@ -168,7 +178,14 @@ impl CNCController {
                     }
                 }
 
-                api_worker(api, receiver, emergency_receiver, worker_status, &runtime);
+                api_worker(
+                    api,
+                    receiver,
+                    emergency_receiver,
+                    worker_status,
+                    worker_command_cancel_requested,
+                    &runtime,
+                );
             })
             .map_err(|error| crate::cnc_api::ControllerError::new("worker", error.to_string()))?;
 
@@ -179,7 +196,16 @@ impl CNCController {
             xy_jog_speed: Mutex::new(1000.0),
             z_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
+            command_cancel_requested,
         })
+    }
+
+    pub fn command_cancellation_handle(&self) -> Arc<AtomicBool> {
+        self.command_cancel_requested.clone()
+    }
+
+    pub fn cancel_machine_command(&self) {
+        self.command_cancel_requested.store(true, Ordering::Release);
     }
 
     fn enqueue(&self, command: Command) {
@@ -320,6 +346,7 @@ impl CNCController {
             ));
         }
 
+        self.command_cancel_requested.store(false, Ordering::Release);
         let (reply_sender, reply_receiver) = mpsc::channel();
         self.enqueue(Command::ExecuteCommand(
             command.trim().to_string(),
@@ -544,6 +571,7 @@ fn api_worker(
     receiver: mpsc::Receiver<Command>,
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
+    command_cancel_requested: Arc<AtomicBool>,
     runtime: &tokio::runtime::Runtime,
 ) {
     let configuration = runtime.block_on(api.machine_configuration()).ok();
@@ -572,7 +600,10 @@ fn api_worker(
             Ok(command) => {
                 let command = match command {
                     Command::ExecuteCommand(command, reply) => {
-                        let result = runtime.block_on(api.execute_command(&command));
+                        let result = runtime.block_on(api.execute_command(
+                            &command,
+                            command_cancel_requested.clone(),
+                        ));
                         match &result {
                             Ok(output) => {
                                 crate::message_log::record(
