@@ -1747,15 +1747,10 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-heading">
-            <span class="panel-title">JOB CONTROL</span>
-            <span class="panel-caption" id="job-caption">Нет загруженной программы</span>
-          </div>
-          <div class="panel-body">
-            <p class="job-note" id="job-note" role="status" aria-live="polite">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
-          </div>
-        </section>
+        <div hidden>
+          <span id="job-caption">Нет загруженной программы</span>
+          <p class="job-note" id="job-note">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
+        </div>
       </section>
 
       <aside class="right-column" aria-label="Файлы и сообщения">
@@ -1772,14 +1767,9 @@
           </div>
         </section>
 
-        <section class="panel event-panel">
-          <div class="panel-heading">
-            <span class="panel-title">MACHINE MESSAGE</span>
-          </div>
-          <div class="panel-body">
-            <div class="event-message" id="message" aria-live="polite">Ожидание состояния контроллера…</div>
-          </div>
-        </section>
+        <div hidden>
+          <div id="message">Ожидание состояния контроллера…</div>
+        </div>
       </aside>
     </main>
 
