@@ -1299,8 +1299,8 @@
       .log-calendar-heading,
       .log-calendar-footer {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
+        flex-direction: column;
+        align-items: stretch;
         gap: 8px;
       }
 
@@ -1362,29 +1362,19 @@
       .log-calendar-date-times {
         display: grid;
         min-width: 0;
-        flex: 1;
-        grid-template-columns: 1fr 1fr;
         gap: 6px;
       }
 
       .log-calendar-date-time {
         display: grid;
         min-width: 0;
-        gap: 2px;
+        grid-template-columns: 1fr;
+        gap: 3px;
       }
 
-      .log-calendar-date-time button {
-        overflow: hidden;
-        min-height: 24px;
-        padding: 0 4px;
-        color: var(--accent-bright);
-        font-size: 10px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .log-calendar-date-time button:disabled {
+      .log-calendar-date-time label {
         color: var(--muted);
+        font-size: 10px;
       }
 
       .log-calendar-date-time input {
@@ -2000,11 +1990,11 @@
               <div class="log-calendar-footer">
                 <div class="log-calendar-date-times">
                   <div class="log-calendar-date-time">
-                    <button type="button" id="log-calendar-start-date" disabled>Начало: —</button>
+                    <label for="log-calendar-start-time">Время начала</label>
                     <input id="log-calendar-start-time" type="time" value="00:00" aria-label="Время начала периода" disabled>
                   </div>
                   <div class="log-calendar-date-time">
-                    <button type="button" id="log-calendar-end-date" disabled>Конец: —</button>
+                    <label for="log-calendar-end-time">Время окончания</label>
                     <input id="log-calendar-end-time" type="time" value="23:59" aria-label="Время окончания периода" disabled>
                   </div>
                 </div>
@@ -3926,8 +3916,6 @@
       const logCalendar = document.querySelector("#log-calendar");
       const logCalendarGrid = document.querySelector("#log-calendar-grid");
       const logCalendarMonthLabel = document.querySelector("#log-calendar-month");
-      const logCalendarStartDate = document.querySelector("#log-calendar-start-date");
-      const logCalendarEndDate = document.querySelector("#log-calendar-end-date");
       const logCalendarStartTime = document.querySelector("#log-calendar-start-time");
       const logCalendarEndTime = document.querySelector("#log-calendar-end-time");
       const logDatePickerButton = document.querySelector("#log-date-picker-button");
@@ -3960,16 +3948,8 @@
         const start = draftLogDateRange.start;
         const end = draftLogDateRange.end || start;
 
-        logCalendarStartDate.textContent = start
-          ? `Начало: ${formatLocalDate(start)}`
-          : "Начало: —";
-        logCalendarEndDate.textContent = end
-          ? `Конец: ${formatLocalDate(end)}`
-          : "Конец: —";
         logCalendarStartTime.value = draftLogDateRange.startTime || "00:00";
         logCalendarEndTime.value = draftLogDateRange.endTime || "23:59";
-        logCalendarStartDate.disabled = !hasDate;
-        logCalendarEndDate.disabled = !hasDate;
         logCalendarStartTime.disabled = !hasDate;
         logCalendarEndTime.disabled = !hasDate;
       }
@@ -4121,13 +4101,6 @@
           input.click();
         }
       }
-
-      logCalendarStartDate.addEventListener("click", () =>
-        openLogTimePicker(logCalendarStartTime),
-      );
-      logCalendarEndDate.addEventListener("click", () =>
-        openLogTimePicker(logCalendarEndTime),
-      );
 
       logCalendarStartTime.addEventListener("input", () => {
         draftLogDateRange.startTime = logCalendarStartTime.value || "00:00";
