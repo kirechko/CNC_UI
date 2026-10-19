@@ -133,8 +133,13 @@ impl AppState {
         *previous = Some(key);
         drop(previous);
 
-        if let Some((_, message)) = alert {
-            self.insert_log("авария", "контроллер", message);
+        if let Some((kind, message)) = alert {
+            let severity = match (status.state.as_str(), kind.as_str()) {
+                ("ALARM", _) => "авария",
+                (_, "axis_limit") => "предупреждение",
+                _ => "ошибка",
+            };
+            self.insert_log(severity, "контроллер", message);
         }
         if let Some(message) = status.message.as_deref().filter(|message| !message.is_empty()) {
             let severity = if status.state == "ALARM" {
