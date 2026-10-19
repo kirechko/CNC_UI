@@ -2423,6 +2423,7 @@
       } from "./js/scene-projection.js";
       import { drawAxes, drawGrid } from "./js/scene-renderer.js";
       import { initToolAnimation } from "./js/tool-animation.js";
+      import { calculateToolpathProgress } from "./js/toolpath-progress.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2776,41 +2777,6 @@
         render: drawHexPencil,
       });
 
-      function getCurrentLineProgress() {
-        const line = currentProgramLine;
-        const segments = loadedProgram?.segments.filter((segment) => segment.programLine === line) || [];
-        if (!line || segments.length === 0) return null;
-
-        let cumulative = 0;
-        let closest = null;
-
-        for (const segment of segments) {
-          const delta = segment.to.map((value, axis) => value - segment.from[axis]);
-          const lengthSquared = delta.reduce((sum, value) => sum + value * value, 0);
-          const length = Math.sqrt(lengthSquared);
-          let t = 0;
-
-          if (lengthSquared > 1e-12) {
-            const relative = toolPosition.map((value, axis) => value - segment.from[axis]);
-            t = Math.max(0, Math.min(1,
-              relative.reduce((sum, value, axis) => sum + value * delta[axis], 0) / lengthSquared,
-            ));
-          }
-
-          const projected = segment.from.map((value, axis) => value + delta[axis] * t);
-          const distanceSquared = projected.reduce(
-            (sum, value, axis) => sum + (value - toolPosition[axis]) ** 2,
-            0,
-          );
-
-          if (!closest || distanceSquared < closest.distanceSquared) {
-            closest = { distanceSquared, distance: cumulative + length * t };
-          }
-          cumulative += length;
-        }
-
-        return closest ? { line, distance: closest.distance } : null;
-      }
 
       function drawToolpath() {
         const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
@@ -2847,7 +2813,11 @@
           "arc-cw": "#f1aa58",
           "arc-ccw": "#f1aa58",
         };
-        const activeProgress = getCurrentLineProgress();
+        const activeProgress = calculateToolpathProgress(
+          loadedProgram?.segments || [],
+          currentProgramLine,
+          toolPosition,
+        );
         let activeLineDistance = 0;
 
         const drawSegmentPart = (segment, startRatio, endRatio, alpha) => {
