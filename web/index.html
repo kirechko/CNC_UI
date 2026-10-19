@@ -1482,6 +1482,17 @@
         padding: 0 9px;
       }
 
+      .message-log-page-size {
+        min-height: 30px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: inherit;
+        font-size: 10px;
+      }
+
       .legend-item { display: flex; align-items: center; gap: 5px; }
       .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
       .legend-dot.rapid { background: #99a8ae; }
@@ -2043,6 +2054,16 @@
         </div>
         <div class="message-log-footer">
           <span id="message-log-count">Загрузка…</span>
+          <label>
+            На странице
+            <select class="message-log-page-size" id="message-log-page-size" aria-label="Количество записей на странице">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </label>
           <div>
             <!-- Постраничная навигация: API возвращает по 100 записей, offset выбирает страницу. -->
             <button type="button" id="message-log-prev">Назад</button>
@@ -2120,7 +2141,7 @@
       const messageLogDialog = document.querySelector("#message-log-dialog");
       const messageLogRows = document.querySelector("#message-log-rows");
       const messageLogCount = document.querySelector("#message-log-count");
-      const messageLogPageSize = 100;
+      let messageLogPageSize = 100;
       let messageLogOffset = 0;
       let messageLogSort = { column: null, direction: 0 };
       let logDateRange = {
@@ -4299,6 +4320,12 @@
           refreshMessageLog();
         });
       });
+      document.querySelector("#message-log-page-size").addEventListener("change", (event) => {
+        messageLogPageSize = Number(event.currentTarget.value);
+        messageLogOffset = 0;
+        refreshMessageLog();
+      });
+
       document.querySelector("#message-log-prev").addEventListener("click", () => {
         messageLogOffset = Math.max(0, messageLogOffset - messageLogPageSize);
         refreshMessageLog();
