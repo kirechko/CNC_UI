@@ -1240,6 +1240,11 @@
 
       .message-log-heading h2 { margin: 0; font-size: 15px; }
 
+      .message-log-heading > button {
+        font-size: 15px;
+        font-weight: 700;
+      }
+
       .message-log-filters {
         display: grid;
         grid-template-columns:
@@ -1354,13 +1359,48 @@
         border-top: 1px solid var(--border);
       }
 
-      .log-calendar-range {
-        overflow: hidden;
+      .log-calendar-date-times {
+        display: grid;
+        min-width: 0;
         flex: 1;
-        color: var(--muted);
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+
+      .log-calendar-date-time {
+        display: grid;
+        min-width: 0;
+        gap: 2px;
+      }
+
+      .log-calendar-date-time button {
+        overflow: hidden;
+        min-height: 24px;
+        padding: 0 4px;
+        color: var(--accent-bright);
         font-size: 10px;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .log-calendar-date-time button:disabled {
+        color: var(--muted);
+      }
+
+      .log-calendar-date-time input {
+        width: 100%;
+        min-height: 23px;
+        padding: 0 3px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: inherit;
+        font-size: 10px;
+      }
+
+      .log-calendar-date-time input:disabled {
+        opacity: 0.48;
       }
 
       @media (max-width: 700px) {
@@ -1958,7 +1998,16 @@
               </div>
               <div class="log-calendar-grid" id="log-calendar-grid"></div>
               <div class="log-calendar-footer">
-                <span class="log-calendar-range" id="log-calendar-range">Выберите день или протяните по диапазону</span>
+                <div class="log-calendar-date-times">
+                  <div class="log-calendar-date-time">
+                    <button type="button" id="log-calendar-start-date" disabled>Начало: —</button>
+                    <input id="log-calendar-start-time" type="time" value="00:00" aria-label="Время начала периода" disabled>
+                  </div>
+                  <div class="log-calendar-date-time">
+                    <button type="button" id="log-calendar-end-date" disabled>Конец: —</button>
+                    <input id="log-calendar-end-time" type="time" value="23:59" aria-label="Время окончания периода" disabled>
+                  </div>
+                </div>
                 <button type="button" id="log-calendar-clear">Очистить</button>
                 <button type="button" id="log-calendar-done">Готово</button>
               </div>
@@ -2065,8 +2114,13 @@
       const messageLogPageSize = 100;
       let messageLogOffset = 0;
       let messageLogSort = { column: null, direction: 0 };
-      let logDateRange = { start: null, end: null };
-      let draftLogDateRange = { start: null, end: null };
+      let logDateRange = {
+        start: null,
+        end: null,
+        startTime: "00:00",
+        endTime: "23:59",
+      };
+      let draftLogDateRange = { ...logDateRange };
       let logCalendarMonth = new Date();
       let draggingLogCalendar = false;
       const connectionChip = document.querySelector(".connection-chip");
@@ -3872,7 +3926,10 @@
       const logCalendar = document.querySelector("#log-calendar");
       const logCalendarGrid = document.querySelector("#log-calendar-grid");
       const logCalendarMonthLabel = document.querySelector("#log-calendar-month");
-      const logCalendarRangeLabel = document.querySelector("#log-calendar-range");
+      const logCalendarStartDate = document.querySelector("#log-calendar-start-date");
+      const logCalendarEndDate = document.querySelector("#log-calendar-end-date");
+      const logCalendarStartTime = document.querySelector("#log-calendar-start-time");
+      const logCalendarEndTime = document.querySelector("#log-calendar-end-time");
       const logDatePickerButton = document.querySelector("#log-date-picker-button");
 
       function localDateKey(date) {
@@ -3899,9 +3956,22 @@
       }
 
       function updateLogCalendarRangeLabel() {
-        logCalendarRangeLabel.textContent = draftLogDateRange.start
-          ? logRangeLabel(draftLogDateRange)
-          : "Выберите день или протяните по диапазону";
+        const hasDate = Boolean(draftLogDateRange.start);
+        const start = draftLogDateRange.start;
+        const end = draftLogDateRange.end || start;
+
+        logCalendarStartDate.textContent = start
+          ? `Начало: ${formatLocalDate(start)}`
+          : "Начало: —";
+        logCalendarEndDate.textContent = end
+          ? `Конец: ${formatLocalDate(end)}`
+          : "Конец: —";
+        logCalendarStartTime.value = draftLogDateRange.startTime || "00:00";
+        logCalendarEndTime.value = draftLogDateRange.endTime || "23:59";
+        logCalendarStartDate.disabled = !hasDate;
+        logCalendarEndDate.disabled = !hasDate;
+        logCalendarStartTime.disabled = !hasDate;
+        logCalendarEndTime.disabled = !hasDate;
       }
 
       function renderLogCalendar() {
@@ -3965,7 +4035,7 @@
       }
 
       function startLogCalendarSelection(key) {
-        draftLogDateRange = { start: key, end: key };
+        draftLogDateRange = { ...draftLogDateRange, start: key, end: key };
         draggingLogCalendar = true;
         updateLogCalendarSelection();
       }
@@ -3974,8 +4044,8 @@
         if (!draggingLogCalendar || !draftLogDateRange.start) return;
         const anchor = draftLogDateRange.start;
         draftLogDateRange = anchor <= key
-          ? { start: anchor, end: key }
-          : { start: key, end: anchor };
+          ? { ...draftLogDateRange, start: anchor, end: key }
+          : { ...draftLogDateRange, start: key, end: anchor };
         updateLogCalendarSelection();
       }
 
@@ -4042,8 +4112,39 @@
         if (event.detail === 0) applyLogCalendarSelection();
       });
 
+      function openLogTimePicker(input) {
+        if (input.disabled) return;
+        if (typeof input.showPicker === "function") {
+          input.showPicker();
+        } else {
+          input.focus();
+          input.click();
+        }
+      }
+
+      logCalendarStartDate.addEventListener("click", () =>
+        openLogTimePicker(logCalendarStartTime),
+      );
+      logCalendarEndDate.addEventListener("click", () =>
+        openLogTimePicker(logCalendarEndTime),
+      );
+
+      logCalendarStartTime.addEventListener("input", () => {
+        draftLogDateRange.startTime = logCalendarStartTime.value || "00:00";
+        updateLogCalendarRangeLabel();
+      });
+      logCalendarEndTime.addEventListener("input", () => {
+        draftLogDateRange.endTime = logCalendarEndTime.value || "23:59";
+        updateLogCalendarRangeLabel();
+      });
+
       document.querySelector("#log-calendar-clear").addEventListener("click", () => {
-        draftLogDateRange = { start: null, end: null };
+        draftLogDateRange = {
+          start: null,
+          end: null,
+          startTime: "00:00",
+          endTime: "23:59",
+        };
         logDateRange = { ...draftLogDateRange };
         logDatePickerButton.textContent = logRangeLabel(logDateRange);
         messageLogOffset = 0;
@@ -4078,11 +4179,25 @@
         const search = document.querySelector("#log-search").value.trim();
         const startDate = parseLocalDate(logDateRange.start);
         const endDate = parseLocalDate(logDateRange.end || logDateRange.start);
+        const [startHour, startMinute] = (logDateRange.startTime || "00:00").split(":").map(Number);
+        const [endHour, endMinute] = (logDateRange.endTime || "23:59").split(":").map(Number);
         const timeFromMs = startDate
-          ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime()
+          ? new Date(
+              startDate.getFullYear(),
+              startDate.getMonth(),
+              startDate.getDate(),
+              startHour,
+              startMinute,
+            ).getTime()
           : null;
         const timeToMs = endDate
-          ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1).getTime() - 1
+          ? new Date(
+              endDate.getFullYear(),
+              endDate.getMonth(),
+              endDate.getDate(),
+              endHour,
+              endMinute + 1,
+            ).getTime() - 1
           : null;
         if (severity) params.set("severity", severity);
         if (source) params.set("source", source);
