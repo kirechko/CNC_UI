@@ -2406,12 +2406,8 @@
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
       import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
-      import {
-        formatLocalDate,
-        localDateKey,
-        logRangeLabel,
-        parseLocalDate,
-      } from "./js/log-calendar-utils.js";
+      import { logRangeLabel, parseLocalDate } from "./js/log-calendar-utils.js";
+      import { renderLogCalendarGrid } from "./js/log-calendar.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -4245,50 +4241,12 @@
       }
 
       function renderLogCalendar() {
-        const year = logCalendarMonth.getFullYear();
-        const month = logCalendarMonth.getMonth();
-        logCalendarMonthLabel.textContent = logCalendarMonth.toLocaleDateString("ru-RU", {
-          month: "long",
-          year: "numeric",
+        renderLogCalendarGrid({
+          month: logCalendarMonth,
+          range: draftLogDateRange,
+          grid: logCalendarGrid,
+          monthLabel: logCalendarMonthLabel,
         });
-
-        const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-        logCalendarGrid.replaceChildren();
-        for (const weekday of weekdays) {
-          const label = document.createElement("span");
-          label.className = "log-calendar-weekday";
-          label.textContent = weekday;
-          logCalendarGrid.append(label);
-        }
-
-        const firstDay = new Date(year, month, 1);
-        const offset = (firstDay.getDay() + 6) % 7;
-        const gridStart = new Date(year, month, 1 - offset);
-        for (let index = 0; index < 42; index++) {
-          const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
-          const key = localDateKey(date);
-          const day = document.createElement("button");
-          day.type = "button";
-          day.className = "log-calendar-day";
-          day.dataset.date = key;
-          day.textContent = String(date.getDate());
-          day.setAttribute("aria-label", date.toLocaleDateString("ru-RU", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          }));
-
-          if (date.getMonth() !== month) day.classList.add("outside-month");
-          const start = draftLogDateRange.start;
-          const end = draftLogDateRange.end || start;
-          if (start && end && key >= start && key <= end) day.classList.add("in-range");
-          if (key === start) day.classList.add("range-start");
-          if (key === draftLogDateRange.end) day.classList.add("range-end");
-          if (key === localDateKey(new Date())) day.setAttribute("aria-current", "date");
-          logCalendarGrid.append(day);
-        }
-
         updateLogCalendarRangeLabel();
       }
 
