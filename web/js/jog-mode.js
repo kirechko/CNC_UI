@@ -18,9 +18,11 @@ export function initJogModeControls({
   drawDial,
   getStepValues,
   clearHoveredSelection,
+  onMotionModeChange,
 }) {
   function setMotionMode(mode) {
     const incremental = mode === "incremental";
+    onMotionModeChange?.(mode);
 
     incrementalButton.classList.toggle("active", incremental);
     continuousButton.classList.toggle("active", !incremental);
