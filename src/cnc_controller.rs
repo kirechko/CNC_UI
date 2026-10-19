@@ -205,6 +205,7 @@ impl CNCController {
             z_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
             command_cancel_requested,
+            motion_stop_requested,
         })
     }
 
