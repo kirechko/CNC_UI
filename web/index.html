@@ -2405,6 +2405,7 @@
       import { initStockLoader } from "./js/stock-loader.js";
       import { initPositionControls } from "./js/position-controls.js";
       import { createPositionReadoutUpdater } from "./js/position-readouts.js";
+      import { initPositionAxisView } from "./js/position-axis-view.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
       import { initProgramLoader } from "./js/program-loader.js";
@@ -2456,7 +2457,6 @@
       const coordinateSystem = document.querySelector("#coordinate-system");
       let editingAxis = null;
       let latestStatus = null;
-      let positionDisplay = { work: true, machine: true };
       let machineConnected = false;
       let statusRequestInFlight = false;
       let jogMotionMode = "incremental";
@@ -2660,121 +2660,35 @@
       });
 
       function renderConfiguredAxes(configuration) {
-        const configuredAxes = Array.isArray(configuration?.axes)
-          ? configuration.axes.map((item) => String(item.axis).toUpperCase())
-          : ["X", "Y", "Z", "A", "B"];
-        const axes = [...new Set(configuredAxes)]
-          .filter((axis) => ["X", "Y", "Z", "A", "B"].includes(axis))
-          .slice(0, 5);
-        const signature = axes.join(",");
-        if (signature === renderedAxisSignature) return;
-        renderedAxisSignature = signature;
-
-        axisRowsContainer.replaceChildren();
-        for (const axis of axes) {
-          const lowerAxis = axis.toLowerCase();
-          const supported = ["X", "Y", "Z", "A", "B"].includes(axis);
-          const row = document.createElement("div");
-          row.className = "axis-row wpos-only";
-          row.dataset.axis = axis;
-
-          const controls = supported
-            ? `<button class="position-action axis-${lowerAxis}" type="button" data-zero-axis="${axis}" title="Установить ноль ${axis}" aria-label="Установить ноль ${axis}">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">
-                  <circle cx="10" cy="10" r="7"></circle>
-                  <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
-                </svg>
-              </button>
-              <button class="position-action axis-${lowerAxis}" type="button" data-home-axis="${axis}" title="Home ${axis}" aria-label="Home ${axis}">
-                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M2.5 9.2 10 3l7.5 6.2"></path>
-                  <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
-                </svg>
-              </button>`
-            : `<span></span><span></span>`;
-
-          row.innerHTML = `
-            <span class="axis-label ${lowerAxis}">${axis}</span>
-            <strong class="axis-value work position-column" ${supported ? `id="${lowerAxis}" tabindex="0" role="button"` : ""}>—</strong>
-            <span class="axis-value machine position-column" id="machine-${lowerAxis}">—</span>
-            ${controls}
-          `;
-          axisRowsContainer.append(row);
-
-          if (supported) {
-            const value = row.querySelector(".axis-value.work");
-            value.addEventListener("click", () => positionControls.openDialog(axis));
-            value.addEventListener("keydown", (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                openPositionDialog(axis);
-              }
-            });
-
-            row.querySelector("[data-zero-axis]").addEventListener("click", async (event) => {
-              try {
-                await positionControls.sendPositionAction(
-                  "zero_axis",
-                  "/api/position/zero-axis",
-                  { axis: event.currentTarget.dataset.zeroAxis },
-                );
-                await refreshStatus();
-              } catch (error) {
-                document.querySelector("#message").textContent = `Ошибка установки нуля: ${error.message}`;
-              }
-            });
-
-            row.querySelector("[data-home-axis]").addEventListener("click", async (event) => {
-              try {
-                await positionControls.sendPositionAction(
-                  "home_axis",
-                  "/api/position/home",
-                  { axis: event.currentTarget.dataset.homeAxis },
-                );
-                document.querySelector("#message").textContent =
-                  `Запущено homing оси ${event.currentTarget.dataset.homeAxis}.`;
-              } catch (error) {
-                document.querySelector("#message").textContent = `Ошибка homing: ${error.message}`;
-              }
-            });
-          }
-        }
-
-        updatePositionDisplay();
+        positionAxisView.render(configuration);
       }
 
 
-      const wposToggle = document.querySelector("#wpos-toggle");
-      const mposToggle = document.querySelector("#mpos-toggle");
-      function updatePositionDisplay() {
-        const mode = positionDisplay.work && positionDisplay.machine
-          ? "both"
-          : positionDisplay.machine
-            ? "mpos-only"
-            : "wpos-only";
-
-        for (const row of axisRowsContainer.querySelectorAll(".axis-row")) {
-          row.classList.remove("both", "mpos-only", "wpos-only");
-          row.classList.add(mode);
-        }
-        wposToggle.setAttribute("aria-pressed", String(positionDisplay.work));
-        mposToggle.setAttribute("aria-pressed", String(positionDisplay.machine));
-        wposToggle.classList.toggle("active", positionDisplay.work);
-        mposToggle.classList.toggle("active", positionDisplay.machine);
-
-        if (latestStatus) updatePositionReadouts(latestStatus);
-      }
-
-      wposToggle.addEventListener("click", () => {
-        if (positionDisplay.work && !positionDisplay.machine) return;
-        positionDisplay.work = !positionDisplay.work;
-        updatePositionDisplay();
-      });
-
-      mposToggle.addEventListener("click", () => {
-        if (positionDisplay.machine && !positionDisplay.work) return;
-        positionDisplay.machine = !positionDisplay.machine;
-        updatePositionDisplay();
+      const positionAxisView = initPositionAxisView({
+        container: axisRowsContainer,
+        workToggle: document.querySelector("#wpos-toggle"),
+        machineToggle: document.querySelector("#mpos-toggle"),
+        openPosition: (axis) => positionControls.openDialog(axis),
+        async zeroAxis(axis) {
+          await positionControls.sendPositionAction(
+            "zero_axis",
+            "/api/position/zero-axis",
+            { axis },
+          );
+          await refreshStatus();
+        },
+        async homeAxis(axis) {
+          await positionControls.sendPositionAction(
+            "home_axis",
+            "/api/position/home",
+            { axis },
+          );
+          document.querySelector("#message").textContent =
+            `Запущено homing оси ${axis}.`;
+        },
+        showError(message) {
+          document.querySelector("#message").textContent = message;
+        },
       });
 
       const updatePositionReadouts = createPositionReadoutUpdater(axisRowsContainer);
@@ -2923,7 +2837,7 @@
           jobControls.update(status);
           spindleControls.update(status);
           renderConfiguredAxes(status.configuration);
-          updatePositionDisplay();
+          positionAxisView.updateDisplay();
           coordinateSystem.value = status.coordinate_system || "g54";
           const movementSpeed = Number(status.movement_speed) || 0;
           const movementMode = status.movement_mode || "—";
