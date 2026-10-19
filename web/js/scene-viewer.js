@@ -1,0 +1,119 @@
+import {
+  calculateSceneBounds,
+  calculateTrajectoryBounds,
+  makeProjector,
+} from "./scene-projection.js";
+import { drawAxes, drawGrid } from "./scene-renderer.js";
+import { drawStockBox, drawStockMesh } from "./stock-renderer.js";
+import { drawTool } from "./tool-renderer.js";
+import { calculateToolpathProgress } from "./toolpath-progress.js";
+import { drawTrajectorySegments } from "./trajectory-renderer.js";
+
+function resizeCanvas(canvas, context) {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * ratio));
+  const height = Math.max(1, Math.round(rect.height * ratio));
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return { width: rect.width, height: rect.height };
+}
+
+export function initSceneViewer({
+  trajectoryCanvas,
+  trajectoryContext,
+  toolCanvas,
+  toolContext,
+  viewerEmpty,
+  getProgram,
+  getStockMesh,
+  isStockVisible,
+  getCamera,
+  getStatus,
+  getToolPosition,
+  getCurrentProgramLine,
+  isConnected,
+  getToolRotationPhase,
+  renderOrientationCube,
+}) {
+  function drawTool() {
+    const camera = getCamera();
+    const program = getProgram();
+    const stockMesh = getStockMesh();
+    const bounds = calculateSceneBounds(program?.segments || [], stockMesh);
+
+    drawTool({
+      canvas: toolCanvas,
+      context: toolContext,
+      connected: isConnected(),
+      position: getToolPosition(),
+      rotationPhase: getToolRotationPhase(),
+      bounds,
+      camera,
+    });
+  }
+
+  function drawStock(context, project, bounds, angleA, angleB, stockMesh) {
+    if (stockMesh) {
+      drawStockMesh(context, project, stockMesh, angleA, angleB);
+    } else {
+      drawStockBox(context, project, bounds, angleA, angleB);
+    }
+  }
+
+  function draw() {
+    const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
+    const program = getProgram();
+    const stockMesh = getStockMesh();
+    const segments = program?.segments || [];
+    const camera = getCamera();
+    const bounds = calculateSceneBounds(segments, stockMesh);
+    const project = makeProjector(width, height, bounds, camera);
+
+    trajectoryContext.clearRect(0, 0, width, height);
+
+    if (segments.length === 0 && !stockMesh) {
+      viewerEmpty.hidden = false;
+      renderOrientationCube();
+      drawTool();
+      return;
+    }
+
+    viewerEmpty.hidden = true;
+    const stockBounds = stockMesh
+      ? { min: stockMesh.min, max: stockMesh.max }
+      : calculateTrajectoryBounds(segments, stockMesh);
+    drawGrid(trajectoryContext, width, height, project, stockBounds);
+
+    const status = getStatus();
+    const angleA = (Number(status?.machine_a) || 0) * Math.PI / 180;
+    const angleB = (Number(status?.machine_b) || 0) * Math.PI / 180;
+    if (isStockVisible()) {
+      drawStock(trajectoryContext, project, stockBounds, angleA, angleB, stockMesh);
+    }
+
+    const activeProgress = calculateToolpathProgress(
+      segments,
+      getCurrentProgramLine(),
+      getToolPosition(),
+    );
+    drawTrajectorySegments({
+      context: trajectoryContext,
+      segments,
+      currentProgramLine: getCurrentProgramLine(),
+      activeProgress,
+      project,
+    });
+
+    drawAxes(trajectoryContext, project, bounds);
+    renderOrientationCube();
+    drawTool();
+  }
+
+  return { draw, drawTool };
+}

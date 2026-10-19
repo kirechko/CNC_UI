@@ -2400,8 +2400,6 @@
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
-      import { drawStockBox, drawStockMesh } from "./js/stock-renderer.js";
-      import { drawTool } from "./js/tool-renderer.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { initStockLoader } from "./js/stock-loader.js";
       import { initPositionControls } from "./js/position-controls.js";
@@ -2417,17 +2415,8 @@
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
       import { initOrientationCube } from "./js/orientation-cube.js";
-      import {
-        calculateSceneBounds,
-        calculateTrajectoryBounds,
-        makeProjector,
-        makeTrajectoryProjector,
-        rotatePoint,
-      } from "./js/scene-projection.js";
-      import { drawAxes, drawGrid } from "./js/scene-renderer.js";
+      import { initSceneViewer } from "./js/scene-viewer.js";
       import { initToolAnimation } from "./js/tool-animation.js";
-      import { calculateToolpathProgress } from "./js/toolpath-progress.js";
-      import { drawTrajectorySegments } from "./js/trajectory-renderer.js";
       import {
         formatJogStep,
         isValidJogStepValues,
@@ -2568,30 +2557,26 @@
 
 
 
-      function drawStock(context, project, bounds, angleA, angleB) {
-        if (loadedStockMesh) {
-          drawStockMesh(context, project, loadedStockMesh, angleA, angleB);
-          return;
-        }
+      const sceneViewer = initSceneViewer({
+        trajectoryCanvas,
+        trajectoryContext,
+        toolCanvas,
+        toolContext,
+        viewerEmpty,
+        getProgram: () => loadedProgram,
+        getStockMesh: () => loadedStockMesh,
+        isStockVisible: () => stockVisible,
+        getCamera: () => camera,
+        getStatus: () => latestStatus,
+        getToolPosition: () => toolPosition,
+        getCurrentProgramLine: () => currentProgramLine,
+        isConnected: () => machineConnected,
+        getToolRotationPhase: () => toolRotationPhase,
+        renderOrientationCube: () => orientationCubeRenderer.render(),
+      });
 
-        drawStockBox(context, project, bounds, angleA, angleB);
-      }
-
-
-      function drawHexPencil() {
-        const bounds = calculateSceneBounds(
-          loadedProgram?.segments || [],
-          loadedStockMesh,
-        );
-        drawTool({
-          canvas: toolCanvas,
-          context: toolContext,
-          connected: machineConnected,
-          position: toolPosition,
-          rotationPhase: toolRotationPhase,
-          bounds,
-          camera,
-        });
+      function drawToolpath() {
+        sceneViewer.draw();
       }
 
       const toolAnimation = initToolAnimation({
@@ -2602,56 +2587,8 @@
             toolRotationPhase + toolSpindleRpm * (Math.PI * 2 / 60) * 0.05 * elapsed
           ) % (Math.PI * 2);
         },
-        render: drawHexPencil,
+        render: sceneViewer.drawTool,
       });
-
-
-      function drawToolpath() {
-        const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
-        const bounds = calculateSceneBounds(
-          loadedProgram?.segments || [],
-          loadedStockMesh,
-        );
-        const project = makeProjector(width, height, bounds, camera);
-        const projectTrajectory = makeTrajectoryProjector(project);
-        trajectoryContext.clearRect(0, 0, width, height);
-
-        if ((!loadedProgram || loadedProgram.segments.length === 0) && !loadedStockMesh) {
-          viewerEmpty.hidden = false;
-          drawOrientationCube();
-          drawHexPencil();
-          return;
-        }
-
-        viewerEmpty.hidden = true;
-        const stock = loadedStockMesh
-          ? { min: loadedStockMesh.min, max: loadedStockMesh.max }
-          : calculateTrajectoryBounds(
-              loadedProgram?.segments || [],
-              loadedStockMesh,
-            );
-        drawGrid(trajectoryContext, width, height, project, stock);
-        const angleA = (Number(latestStatus?.machine_a) || 0) * Math.PI / 180;
-        const angleB = (Number(latestStatus?.machine_b) || 0) * Math.PI / 180;
-        if (stockVisible) drawStock(trajectoryContext, project, stock, angleA, angleB);
-
-        const activeProgress = calculateToolpathProgress(
-          loadedProgram?.segments || [],
-          currentProgramLine,
-          toolPosition,
-        );
-        drawTrajectorySegments({
-          context: trajectoryContext,
-          segments: loadedProgram?.segments || [],
-          currentProgramLine,
-          activeProgress,
-          project: projectTrajectory,
-        });
-
-        drawAxes(trajectoryContext, project, bounds);
-        drawOrientationCube();
-        drawHexPencil();
-      }
 
       const orientationCubeRenderer = initOrientationCube({
         canvas: orientationCube,
