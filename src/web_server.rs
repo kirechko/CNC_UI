@@ -232,7 +232,7 @@ impl AppState {
             .query_row(
                 "SELECT COUNT(*) FROM messages
                  WHERE (?1 IS NULL OR severity = ?1)
-                   AND (?2 IS NULL OR source = ?2)
+                   AND (?2 IS NULL OR instr(source, ?2) > 0)
                    AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')",
                 params![severity, source, search],
                 |row| row.get(0),
@@ -241,7 +241,7 @@ impl AppState {
         let sql = format!(
             "SELECT id, timestamp_ms, severity, source, message FROM messages
              WHERE (?1 IS NULL OR severity = ?1)
-               AND (?2 IS NULL OR source = ?2)
+               AND (?2 IS NULL OR instr(source, ?2) > 0)
                AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')
              ORDER BY {order} {direction}, id DESC LIMIT ?4 OFFSET ?5"
         );
