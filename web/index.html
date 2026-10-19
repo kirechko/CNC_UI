@@ -1242,13 +1242,24 @@
 
       .message-log-filters {
         display: grid;
-        grid-template-columns: 25fr 18fr 20fr 37fr;
+        grid-template-columns:
+          minmax(0, 25fr)
+          minmax(0, 18fr)
+          minmax(0, 20fr)
+          minmax(0, 37fr);
+        grid-template-rows: auto;
+        align-items: center;
         gap: 8px;
         padding: 12px 16px;
         border-bottom: 1px solid var(--border);
       }
 
-      .log-date-picker { position: relative; min-width: 0; }
+      .log-date-picker {
+        position: relative;
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+      }
 
       .log-date-picker-button {
         width: 100%;
@@ -3939,10 +3950,22 @@
         updateLogCalendarRangeLabel();
       }
 
+      function updateLogCalendarSelection() {
+        const start = draftLogDateRange.start;
+        const end = draftLogDateRange.end || start;
+        for (const day of logCalendarGrid.querySelectorAll("[data-date]")) {
+          const key = day.dataset.date;
+          day.classList.toggle("in-range", Boolean(start && end && key >= start && key <= end));
+          day.classList.toggle("range-start", key === start);
+          day.classList.toggle("range-end", key === draftLogDateRange.end);
+        }
+        updateLogCalendarRangeLabel();
+      }
+
       function startLogCalendarSelection(key) {
         draftLogDateRange = { start: key, end: key };
         draggingLogCalendar = true;
-        renderLogCalendar();
+        updateLogCalendarSelection();
       }
 
       function extendLogCalendarSelection(key) {
@@ -3951,7 +3974,14 @@
         draftLogDateRange = anchor <= key
           ? { start: anchor, end: key }
           : { start: key, end: anchor };
-        renderLogCalendar();
+        updateLogCalendarSelection();
+      }
+
+      function applyLogCalendarSelection() {
+        logDateRange = { ...draftLogDateRange };
+        logDatePickerButton.textContent = logRangeLabel(logDateRange);
+        messageLogOffset = 0;
+        refreshMessageLog();
       }
 
       logDatePickerButton.addEventListener("click", () => {
@@ -3989,7 +4019,9 @@
       });
 
       document.addEventListener("pointerup", () => {
+        if (!draggingLogCalendar) return;
         draggingLogCalendar = false;
+        applyLogCalendarSelection();
       });
 
       logCalendarGrid.addEventListener("click", (event) => {
@@ -4004,7 +4036,8 @@
             ? { start: anchor, end: key }
             : { start: key, end: anchor };
         }
-        renderLogCalendar();
+        updateLogCalendarSelection();
+        if (event.detail === 0) applyLogCalendarSelection();
       });
 
       document.querySelector("#log-calendar-clear").addEventListener("click", () => {
@@ -4017,12 +4050,9 @@
       });
 
       document.querySelector("#log-calendar-done").addEventListener("click", () => {
-        logDateRange = { ...draftLogDateRange };
-        logDatePickerButton.textContent = logRangeLabel(logDateRange);
+        applyLogCalendarSelection();
         logCalendar.hidden = true;
         logDatePickerButton.setAttribute("aria-expanded", "false");
-        messageLogOffset = 0;
-        refreshMessageLog();
       });
 
       document.addEventListener("pointerdown", (event) => {
