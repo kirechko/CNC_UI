@@ -8,11 +8,52 @@ use tauri::State;
 
 #[tauri::command]
 fn get_status(state: State<'_, AppState>) -> Result<StatusResponse, String> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| "controller lock poisoned".to_string())?;
-    Ok(controller.get_status_snapshot().into())
+    let status = {
+        let controller = state
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller.get_status_snapshot()
+    };
+    state.record_status(&status);
+    let mut response = StatusResponse::from(status);
+    if let Ok(latest) = state.latest_log_messages() {
+        response.latest_critical = latest.critical;
+        response.latest_other = latest.other;
+    }
+    Ok(response)
+}
+
+#[derive(Serialize)]
+struct TauriLogPage {
+    entries: Vec<LogEntry>,
+    total: i64,
+}
+
+#[tauri::command]
+fn get_log(
+    state: State<'_, AppState>,
+    severity: Option<String>,
+    source: Option<String>,
+    search: Option<String>,
+    sort: Option<String>,
+    descending: Option<bool>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<TauriLogPage, String> {
+    let query = crate::web_server::LogQuery {
+        severity,
+        source,
+        search,
+        sort,
+        descending,
+        limit,
+        offset,
+    };
+    state.query_log(&query).map(|page| TauriLogPage {
+        entries: page.entries,
+        total: page.total,
+    })
 }
 
 #[tauri::command]
