@@ -71,6 +71,7 @@ enum Command {
     HomeAll,
     Home(Axis),
     Mdi(String),
+    ExecuteCommand(String, mpsc::Sender<CncResult<String>>),
     Spindle(SpindleCommand),
     JogIncrement(crate::cnc_api::JogRequest),
     JogContinuous(Axis, i8, f64),
@@ -197,6 +198,7 @@ impl CNCController {
             Command::HomeAll => "HomeAll".into(),
             Command::Home(axis) => format!("Home {axis:?}"),
             Command::Mdi(command) => format!("MDI: {command}"),
+            Command::ExecuteCommand(command, _) => format!("Команда станка: {command}"),
             Command::Spindle(command) => match command.direction {
                 ApiSpindleDirection::Stopped => {
                     format!("Шпиндель: команда остановки, задано {:.0} RPM", command.rpm)
@@ -308,6 +310,30 @@ impl CNCController {
 
     pub fn send_command(&self, command: &str) {
         self.enqueue(Command::Mdi(command.to_string()));
+    }
+
+    pub fn execute_command(&self, command: &str) -> CncResult<String> {
+        if command.trim().is_empty() || command.contains(['\\n', '\\r']) {
+            return Err(crate::cnc_api::ControllerError::new(
+                "bad_command",
+                "Введите одну непустую команду без переводов строк",
+            ));
+        }
+
+        let (reply_sender, reply_receiver) = mpsc::channel();
+        self.enqueue(Command::ExecuteCommand(
+            command.trim().to_string(),
+            reply_sender,
+        ));
+
+        reply_receiver
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|error| {
+                crate::cnc_api::ControllerError::new(
+                    "command_timeout",
+                    format!("Нет ответа от команды станка: {error}"),
+                )
+            })?
     }
 
     pub fn set_spindle_speed(&self, speed: f64) {
@@ -544,6 +570,32 @@ fn api_worker(
 
         match receiver.recv_timeout(Duration::from_millis(10)) {
             Ok(command) => {
+                let command = match command {
+                    Command::ExecuteCommand(command, reply) => {
+                        let result = runtime.block_on(api.execute_command(&command));
+                        match &result {
+                            Ok(output) => {
+                                crate::message_log::record(
+                                    "информация",
+                                    "команда станка",
+                                    &format!("{command} → {output}"),
+                                );
+                            }
+                            Err(error) => {
+                                crate::message_log::record(
+                                    "ошибка",
+                                    "команда станка",
+                                    &format!("{command}: {}: {}", error.code, error.message),
+                                );
+                                set_ui_alert(&shared_status, &error.code, &error.message);
+                            }
+                        }
+                        let _ = reply.send(result);
+                        continue;
+                    }
+                    command => command,
+                };
+
                 // E-Stop мог прийти, пока worker ожидал обычную команду.
                 if emergency_receiver.try_recv().is_ok() {
                     while receiver.try_recv().is_ok() {}

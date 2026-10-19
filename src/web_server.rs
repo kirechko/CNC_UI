@@ -442,6 +442,16 @@ impl AppState {
         Ok(())
     }
 
+    pub(crate) fn execute_command(&self, command: &str) -> Result<String, String> {
+        let controller = self
+            .controller
+            .lock()
+            .map_err(|_| "controller lock poisoned".to_string())?;
+        controller
+            .execute_command(command)
+            .map_err(|error| format!("{}: {}", error.code, error.message))
+    }
+
     pub(crate) fn start_loaded_program(&self) -> Result<(), String> {
         let program = self
             .program
@@ -531,6 +541,16 @@ impl AppState {
 
         Ok(state)
     }
+}
+
+#[derive(Deserialize)]
+struct MachineCommandRequest {
+    command: String,
+}
+
+#[derive(Serialize)]
+struct MachineCommandResponse {
+    output: String,
 }
 
 #[derive(Deserialize)]
@@ -1012,6 +1032,24 @@ async fn get_log(
         .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))
 }
 
+async fn post_machine_command(
+    State(state): State<SharedController>,
+    Json(request): Json<MachineCommandRequest>,
+) -> Result<Json<MachineCommandResponse>, (StatusCode, String)> {
+    let command = request.command.trim();
+    if command.is_empty() || command.len() > 4096 || command.contains(['\\n', '\\r']) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Введите одну непустую команду длиной не более 4096 символов".into(),
+        ));
+    }
+
+    state
+        .execute_command(command)
+        .map(|output| Json(MachineCommandResponse { output }))
+        .map_err(|error| (StatusCode::BAD_REQUEST, error))
+}
+
 async fn post_log_message(
     State(state): State<SharedController>,
     Json(request): Json<LogMessageRequest>,
@@ -1192,6 +1230,7 @@ pub async fn run() -> io::Result<()> {
     let app = Router::new()
         .route("/api/status", get(get_status))
         .route("/api/log", get(get_log).post(post_log_message))
+        .route("/api/command", post(post_machine_command))
         .route("/api/program", get(get_program).post(post_program))
         .route("/api/program/run", post(start_program))
         .route("/api/program/pause", post(pause_program))
