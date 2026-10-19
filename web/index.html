@@ -2413,6 +2413,7 @@
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
+      import { makeProjector, makeTrajectoryProjector, rotatePoint } from "./js/scene-projection.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2613,18 +2614,6 @@
         return { width: rect.width, height: rect.height };
       }
 
-      function rotatePoint(point, yaw = camera.yaw, pitch = camera.pitch) {
-        const [x, y, z] = point;
-        const cosYaw = Math.cos(yaw);
-        const sinYaw = Math.sin(yaw);
-        const horizontal = cosYaw * x - sinYaw * y;
-        const depthPlane = sinYaw * x + cosYaw * y;
-        return [
-          horizontal,
-          Math.cos(pitch) * z - Math.sin(pitch) * depthPlane,
-          Math.sin(pitch) * z + Math.cos(pitch) * depthPlane,
-        ];
-      }
 
 
       function sceneBounds() {
@@ -2673,48 +2662,6 @@
 
 
 
-      function makeProjector(width, height, bounds) {
-        const rotated = [
-          ...bounds.min.map((_, index) => {
-            const point = [bounds.min[0], bounds.min[1], bounds.min[2]];
-            point[index] = bounds.max[index];
-            return rotatePoint(point.map((value, axis) => value - bounds.center[axis]));
-          }),
-          ...[
-            [bounds.min[0], bounds.min[1], bounds.min[2]],
-            [bounds.min[0], bounds.min[1], bounds.max[2]],
-            [bounds.min[0], bounds.max[1], bounds.min[2]],
-            [bounds.min[0], bounds.max[1], bounds.max[2]],
-            [bounds.max[0], bounds.min[1], bounds.min[2]],
-            [bounds.max[0], bounds.min[1], bounds.max[2]],
-            [bounds.max[0], bounds.max[1], bounds.min[2]],
-            [bounds.max[0], bounds.max[1], bounds.max[2]],
-          ].map((point) => rotatePoint(point.map((value, axis) => value - bounds.center[axis]))),
-        ];
-
-        const extentX = Math.max(...rotated.map((point) => Math.abs(point[0])), 1);
-        const extentY = Math.max(...rotated.map((point) => Math.abs(point[1])), 1);
-        const scale = Math.min((width - 76) / (2 * extentX), (height - 76) / (2 * extentY)) * camera.zoom;
-        const focalLength = Math.max(width, height) * 2.5;
-
-        return (point) => {
-          const rotatedPoint = rotatePoint(
-            point.map((value, axis) => value - bounds.center[axis]),
-          );
-          const depthScale = camera.perspective
-            ? focalLength / Math.max(focalLength + rotatedPoint[2], focalLength * 0.35)
-            : 1;
-          return {
-            x: width / 2 + camera.panX + rotatedPoint[0] * scale * depthScale,
-            y: height / 2 + camera.panY - rotatedPoint[1] * scale * depthScale,
-            depth: rotatedPoint[2],
-          };
-        };
-      }
-
-      function makeTrajectoryProjector(project) {
-        return project;
-      }
 
       function drawGrid(context, width, height, project, bounds) {
         // Плоскость XY вдвое больше заготовки и симметрична относительно её габаритов.
@@ -2852,7 +2799,7 @@
         if (!machineConnected) return;
 
         const bounds = sceneBounds();
-        const project = makeProjector(width, height, bounds);
+        const project = makeProjector(width, height, bounds, camera);
         const sceneSpan = Math.max(
           bounds.max[0] - bounds.min[0],
           bounds.max[1] - bounds.min[1],
@@ -3011,7 +2958,7 @@
       function drawToolpath() {
         const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
         const bounds = sceneBounds();
-        const project = makeProjector(width, height, bounds);
+        const project = makeProjector(width, height, bounds, camera);
         const projectTrajectory = makeTrajectoryProjector(project);
         trajectoryContext.clearRect(0, 0, width, height);
 
@@ -3103,7 +3050,7 @@
           [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
         ];
         const projected = vertices.map((vertex) => {
-          const point = rotatePoint(vertex);
+          const point = rotatePoint(vertex, camera.yaw, camera.pitch);
           return { x: centerX + point[0] * size, y: centerY - point[1] * size, depth: point[2] };
         });
         const faces = [
@@ -3183,7 +3130,7 @@
           [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
         ];
         const projected = vertices.map((vertex) => {
-          const point = rotatePoint(vertex);
+          const point = rotatePoint(vertex, camera.yaw, camera.pitch);
           return [centerX + point[0] * size, centerY - point[1] * size, point[2]];
         });
         const faces = [
