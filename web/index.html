@@ -2410,6 +2410,7 @@
       import { initLogCalendar } from "./js/log-calendar-control.js";
       import { initSpindleControls } from "./js/spindle-control.js";
       import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
+      import { initJogModeControls } from "./js/jog-mode.js";
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
@@ -3971,34 +3972,6 @@
       const jogContinuousMode = document.querySelector("#jog-continuous-mode");
       const jogDistanceSelect = document.querySelector("#distance");
       const jogZDistanceSelect = document.querySelector("#distance-z");
-      function selectJogMotionMode(mode) {
-        jogMotionMode = mode;
-        const incremental = mode === "incremental";
-        jogIncrementalMode.classList.toggle("active", incremental);
-        jogContinuousMode.classList.toggle("active", !incremental);
-        jogIncrementalMode.setAttribute("aria-pressed", String(incremental));
-        jogContinuousMode.setAttribute("aria-pressed", String(!incremental));
-        jogDistanceSelect.disabled = !incremental;
-        jogZDistanceSelect.disabled = !incremental;
-        if (incremental) {
-          stopContinuousJog();
-        }
-
-        document.querySelector("#jog-dial-z-steps").hidden = !incremental;
-        document.querySelector("#jog-dial-z-continuous").hidden = incremental;
-        jogDialCanvas.title = incremental
-          ? "Пошаговый XY Jog: выберите направление на диске, кольцо задаёт расстояние перемещения"
-          : "Непрерывный XY Jog: удерживайте кнопку мыши на секторе; перемещайте указатель по диску для изменения направления";
-        hoveredDialSelection = null;
-        if (jogDialHint) {
-          jogDialHint.textContent = incremental
-            ? "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm"
-            : "Удерживайте кнопку и перемещайте указатель по диску";
-        }
-        if (!jogDialPanel.hidden) drawJogDial();
-      }
-      jogIncrementalMode.addEventListener("click", () => selectJogMotionMode("incremental"));
-      jogContinuousMode.addEventListener("click", () => selectJogMotionMode("continuous"));
 
       const jogKeysMode = document.querySelector("#jog-keys-mode");
       const jogDialMode = document.querySelector("#jog-dial-mode");
@@ -4011,6 +3984,25 @@
       const jogStepsInputs = [...jogStepsDialog.querySelectorAll(".jog-steps-fields input")];
       let editingJogStepAxis = "xy";
       let hoveredDialSelection = null;
+
+      initJogModeControls({
+        incrementalButton: jogIncrementalMode,
+        continuousButton: jogContinuousMode,
+        xyStepSelect: jogDistanceSelect,
+        zStepSelect: jogZDistanceSelect,
+        keysButton: jogKeysMode,
+        dialButton: jogDialMode,
+        keysPanel: jogKeysPanel,
+        dialPanel: jogDialPanel,
+        dialCanvas: jogDialCanvas,
+        dialHint: jogDialHint,
+        stopContinuousJog,
+        drawDial: drawJogDial,
+        getStepValues: () => xyJogStepValues,
+        clearHoveredSelection: () => {
+          hoveredDialSelection = null;
+        },
+      });
 
       function formatJogStep(value) {
         return String(value);
@@ -4137,20 +4129,6 @@
 
       updateJogStepControls();
 
-      function selectJogMode(mode) {
-        const dial = mode === "dial";
-        jogKeysPanel.hidden = dial;
-        jogDialPanel.hidden = !dial;
-        jogKeysMode.classList.toggle("active", !dial);
-        jogDialMode.classList.toggle("active", dial);
-        jogKeysMode.setAttribute("aria-pressed", String(!dial));
-        jogDialMode.setAttribute("aria-pressed", String(dial));
-        if (dial) drawJogDial();
-      }
-
-      jogKeysMode.addEventListener("click", () => selectJogMode("keys"));
-      jogDialMode.addEventListener("click", () => selectJogMode("dial"));
-      selectJogMode("dial");
 
 
       function drawJogDial() {
