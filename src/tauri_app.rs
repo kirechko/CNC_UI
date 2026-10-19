@@ -43,7 +43,9 @@ fn pause_program(state: State<'_, AppState>) -> Result<(), String> {
         .controller
         .lock()
         .map_err(|_| "controller lock poisoned".to_string())?;
-    controller.program_pause().map_err(|error| format!("{}: {}", error.code, error.message))
+    controller
+        .program_pause()
+        .map_err(|error| format!("{}: {}", error.code, error.message))
 }
 
 #[tauri::command]
@@ -52,7 +54,9 @@ fn resume_program(state: State<'_, AppState>) -> Result<(), String> {
         .controller
         .lock()
         .map_err(|_| "controller lock poisoned".to_string())?;
-    controller.program_resume().map_err(|error| format!("{}: {}", error.code, error.message))
+    controller
+        .program_resume()
+        .map_err(|error| format!("{}: {}", error.code, error.message))
 }
 
 #[tauri::command]
@@ -61,7 +65,9 @@ fn abort_program(state: State<'_, AppState>) -> Result<(), String> {
         .controller
         .lock()
         .map_err(|_| "controller lock poisoned".to_string())?;
-    controller.program_abort().map_err(|error| format!("{}: {}", error.code, error.message))
+    controller
+        .program_abort()
+        .map_err(|error| format!("{}: {}", error.code, error.message))
 }
 
 #[tauri::command]
@@ -100,9 +106,7 @@ fn set_spindle(
         .map(|configuration| &configuration.spindle)
         .ok_or_else(|| "Конфигурация шпинделя недоступна".to_string())?;
     let minimum = spindle.min_rpm.unwrap_or(0.0);
-    let maximum = spindle
-        .max_rpm
-        .unwrap_or(status.spindle_max_speed);
+    let maximum = spindle.max_rpm.unwrap_or(status.spindle_max_speed);
 
     if maximum <= 0.0 || rpm < minimum || rpm > maximum {
         return Err(format!(
@@ -122,11 +126,7 @@ fn set_spindle(
 }
 
 #[tauri::command]
-fn jog_continuous(
-    state: State<'_, AppState>,
-    axis: Axis,
-    direction: i8,
-) -> Result<(), String> {
+fn jog_continuous(state: State<'_, AppState>, axis: Axis, direction: i8) -> Result<(), String> {
     if ![-1, 0, 1].contains(&direction) {
         return Err("direction must be -1, 0, or 1".into());
     }
@@ -233,7 +233,10 @@ fn jog_xy(
         || distance <= 0.0
         || distance > 100_000.0
     {
-        return Err("XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into());
+        return Err(
+            "XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm"
+                .into(),
+        );
     }
 
     let controller = state
@@ -245,18 +248,16 @@ fn jog_xy(
 }
 
 #[tauri::command]
-fn jog(
-    state: State<'_, AppState>,
-    axis: Axis,
-    direction: i8,
-    distance: f64,
-) -> Result<(), String> {
+fn jog(state: State<'_, AppState>, axis: Axis, direction: i8, distance: f64) -> Result<(), String> {
     if ![-1, 1].contains(&direction)
         || !distance.is_finite()
         || distance <= 0.0
         || distance > 100_000.0
     {
-        return Err("direction must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into());
+        return Err(
+            "direction must be -1 or 1; distance must be greater than 0 and at most 100000 mm"
+                .into(),
+        );
     }
 
     let axis = match axis {
