@@ -2403,6 +2403,7 @@
       import { parseObj } from "./js/obj.js";
       import { finalizeStockMesh, parseStl, parseThreeJsJson } from "./js/stock.js";
       import { drawStockMesh, rotateStockPoint } from "./js/stock-renderer.js";
+      import { drawTool } from "./js/tool-renderer.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
@@ -2559,56 +2560,6 @@
       let currentProgramLine = 0;
 
 
-      function drawToolpath() {
-        const rect = viewerStage.getBoundingClientRect();
-        const scale = window.devicePixelRatio || 1;
-        trajectoryCanvas.width = Math.max(1, Math.round(rect.width * scale));
-        trajectoryCanvas.height = Math.max(1, Math.round(rect.height * scale));
-        trajectoryContext.setTransform(scale, 0, 0, scale, 0, 0);
-        trajectoryContext.clearRect(0, 0, rect.width, rect.height);
-
-        if (!loadedProgram || loadedProgram.segments.length === 0) {
-          viewerEmpty.hidden = false;
-          return;
-        }
-
-        viewerEmpty.hidden = true;
-        const points = loadedProgram.segments.flatMap(({ from, to }) => [from, to]);
-        const minX = Math.min(...points.map((point) => point[0]));
-        const maxX = Math.max(...points.map((point) => point[0]));
-        const minY = Math.min(...points.map((point) => point[1]));
-        const maxY = Math.max(...points.map((point) => point[1]));
-        const padding = 36;
-        const spanX = Math.max(maxX - minX, 1);
-        const spanY = Math.max(maxY - minY, 1);
-        const fitScale = Math.min((rect.width - padding * 2) / spanX, (rect.height - padding * 2) / spanY);
-        const offsetX = (rect.width - spanX * fitScale) / 2;
-        const offsetY = (rect.height - spanY * fitScale) / 2;
-        const project = ([x, y]) => [
-          offsetX + (x - minX) * fitScale,
-          rect.height - offsetY - (y - minY) * fitScale,
-        ];
-
-        trajectoryContext.lineWidth = 1.5;
-        trajectoryContext.lineCap = "round";
-        for (const segment of loadedProgram.segments) {
-          const from = project(segment.from);
-          const to = project(segment.to);
-          trajectoryContext.beginPath();
-          trajectoryContext.moveTo(...from);
-          trajectoryContext.lineTo(...to);
-          trajectoryContext.strokeStyle = segment.rapid ? "rgba(108, 135, 146, .45)" : "#55bd91";
-          trajectoryContext.setLineDash(segment.rapid ? [4, 5] : []);
-          trajectoryContext.stroke();
-        }
-        trajectoryContext.setLineDash([]);
-
-        const origin = project([0, 0]);
-        trajectoryContext.fillStyle = "#ef7777";
-        trajectoryContext.beginPath();
-        trajectoryContext.arc(...origin, 3, 0, Math.PI * 2);
-        trajectoryContext.fill();
-      }
 
 
       function resizeCanvas(canvas, context) {
@@ -2676,96 +2627,19 @@
 
 
       function drawHexPencil() {
-        const { width, height } = resizeCanvas(toolCanvas, toolContext);
-        toolContext.clearRect(0, 0, width, height);
-        if (!machineConnected) return;
-
         const bounds = calculateSceneBounds(
           loadedProgram?.segments || [],
           loadedStockMesh,
         );
-        const project = makeProjector(width, height, bounds, camera);
-        const sceneSpan = Math.max(
-          bounds.max[0] - bounds.min[0],
-          bounds.max[1] - bounds.min[1],
-          bounds.max[2] - bounds.min[2],
-          10,
-        );
-        const radius = Math.max(0.8, sceneSpan * 0.008);
-        const pointLength = Math.max(3, radius * 2.2);
-        const bodyLength = Math.max(12, sceneSpan * 0.12);
-        const tip = [...toolPosition];
-        const lowerZ = tip[2] + pointLength;
-        const upperZ = lowerZ + bodyLength;
-
-        const ring = (z) => Array.from({ length: 6 }, (_, index) => {
-          const angle = toolRotationPhase + index * Math.PI / 3;
-          return project([
-            tip[0] + radius * Math.cos(angle),
-            tip[1] + radius * Math.sin(angle),
-            z,
-          ]);
+        drawTool({
+          canvas: toolCanvas,
+          context: toolContext,
+          connected: machineConnected,
+          position: toolPosition,
+          rotationPhase: toolRotationPhase,
+          bounds,
+          camera,
         });
-
-        const lower = ring(lowerZ);
-        const upper = ring(upperZ);
-        const projectedTip = project(tip);
-        const faces = Array.from({ length: 6 }, (_, index) => {
-          const next = (index + 1) % 6;
-          return {
-            points: [lower[index], lower[next], upper[next], upper[index]],
-            depth: (lower[index].depth + lower[next].depth + upper[next].depth + upper[index].depth) / 4,
-            color: ["#c2c7ca", "#aeb4b8", "#d0d4d7", "#aeb4b8", "#c2c7ca", "#969da2"][index],
-          };
-        }).sort((a, b) => a.depth - b.depth);
-
-        // Фасетный корпус вращающегося шестигранного карандаша.
-        for (const face of faces) {
-          toolContext.beginPath();
-          toolContext.moveTo(face.points[0].x, face.points[0].y);
-          face.points.slice(1).forEach((point) => toolContext.lineTo(point.x, point.y));
-          toolContext.closePath();
-          toolContext.fillStyle = face.color;
-          toolContext.fill();
-          toolContext.strokeStyle = "rgba(220, 235, 239, .75)";
-          toolContext.lineWidth = 1;
-          toolContext.stroke();
-        }
-
-        // Заточенная деревянная часть и графитовый кончик.
-        for (let index = 0; index < 6; index++) {
-          const next = (index + 1) % 6;
-          toolContext.beginPath();
-          toolContext.moveTo(projectedTip.x, projectedTip.y);
-          toolContext.lineTo(lower[index].x, lower[index].y);
-          toolContext.lineTo(lower[next].x, lower[next].y);
-          toolContext.closePath();
-          toolContext.fillStyle = index % 2 === 0 ? "#b9bec2" : "#92999e";
-          toolContext.fill();
-          toolContext.strokeStyle = "rgba(240, 213, 167, .62)";
-          toolContext.lineWidth = 0.7;
-          toolContext.stroke();
-        }
-
-        const capCenter = project([tip[0], tip[1], upperZ]);
-        toolContext.beginPath();
-        upper.forEach((point, index) => {
-          if (index === 0) toolContext.moveTo(point.x, point.y);
-          else toolContext.lineTo(point.x, point.y);
-        });
-        toolContext.closePath();
-        toolContext.fillStyle = "#d5d9dc";
-        toolContext.fill();
-        toolContext.strokeStyle = "rgba(230, 241, 244, .8)";
-        toolContext.lineWidth = 1;
-        toolContext.stroke();
-
-        toolContext.beginPath();
-        toolContext.moveTo(projectedTip.x, projectedTip.y);
-        toolContext.lineTo(capCenter.x, capCenter.y);
-        toolContext.strokeStyle = "#303a3e";
-        toolContext.lineWidth = 1.2;
-        toolContext.stroke();
       }
 
       const toolAnimation = initToolAnimation({
