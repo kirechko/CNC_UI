@@ -2422,6 +2422,7 @@
         rotatePoint,
       } from "./js/scene-projection.js";
       import { drawAxes, drawGrid } from "./js/scene-renderer.js";
+      import { initToolAnimation } from "./js/tool-animation.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2552,8 +2553,6 @@
       const toolPosition = [0, 0, 0];
       let toolSpindleRpm = 0;
       let toolRotationPhase = 0;
-      let lastToolFrameTime = null;
-      let toolAnimationFrame = null;
       let currentProgramLine = 0;
 
 
@@ -2766,41 +2765,16 @@
         toolContext.stroke();
       }
 
-      function animateTool(now) {
-        if (lastToolFrameTime !== null && toolSpindleRpm > 0) {
-          const elapsed = Math.min((now - lastToolFrameTime) / 1000, 0.1);
+      const toolAnimation = initToolAnimation({
+        isActive: () => machineConnected && toolSpindleRpm > 0,
+        advance: (elapsed) => {
           // Масштабируем реальные обороты для читаемой анимации, сохраняя пропорциональность RPM.
           toolRotationPhase = (
             toolRotationPhase + toolSpindleRpm * (Math.PI * 2 / 60) * 0.05 * elapsed
           ) % (Math.PI * 2);
-        }
-        lastToolFrameTime = now;
-        drawHexPencil();
-
-        if (machineConnected && toolSpindleRpm > 0) {
-          toolAnimationFrame = window.requestAnimationFrame(animateTool);
-        } else {
-          toolAnimationFrame = null;
-          lastToolFrameTime = null;
-        }
-      }
-
-      function syncToolAnimation() {
-        if (machineConnected && toolSpindleRpm > 0) {
-          if (toolAnimationFrame === null) {
-            lastToolFrameTime = null;
-            toolAnimationFrame = window.requestAnimationFrame(animateTool);
-          }
-          return;
-        }
-
-        if (toolAnimationFrame !== null) {
-          window.cancelAnimationFrame(toolAnimationFrame);
-          toolAnimationFrame = null;
-        }
-        lastToolFrameTime = null;
-        drawHexPencil();
-      }
+        },
+        render: drawHexPencil,
+      });
 
       function getCurrentLineProgress() {
         const line = currentProgramLine;
@@ -3564,13 +3538,13 @@
           toolPosition[1] = Number(status.y) || 0;
           toolPosition[2] = Number(status.z) || 0;
           toolSpindleRpm = Math.max(0, Number(status.spindle_rpm) || 0);
-          syncToolAnimation();
+          toolAnimation.sync();
           drawToolpath();
         } catch (error) {
           machineConnected = false;
           toolSpindleRpm = 0;
           currentProgramLine = 0;
-          syncToolAnimation();
+          toolAnimation.sync();
           connection.textContent = "Ошибка связи";
           connectionDot.classList.remove("online");
           connectionDot.classList.add("offline");
