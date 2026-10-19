@@ -12,43 +12,11 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct CNCStatus {
-    pub mode: String,
-    pub state: String,
-    pub x_position: f64,
-    pub y_position: f64,
-    pub z_position: f64,
-    pub a_position: f64,
-    pub b_position: f64,
-    pub machine_x: f64,
-    pub machine_y: f64,
-    pub machine_z: f64,
-    pub machine_a: f64,
-    pub machine_b: f64,
-    pub machine_origin_x: f64,
-    pub machine_origin_y: f64,
-    pub machine_origin_z: f64,
-    pub machine_origin_a: f64,
-    pub machine_origin_b: f64,
-    pub active_coordinate_system: CoordinateSystem,
-    pub coordinate_systems: Vec<CoordinateSystemOffset>,
+pub struct ControllerSnapshot {
+    pub machine: MachineStatus,
     pub machine_configuration: Option<MachineConfiguration>,
-    pub feed_rate: f64,
-    pub jog_rate: f64,
-    pub motion_mode: Option<String>,
-    pub spindle_speed: f64,
-    pub spindle_actual_speed: f64,
-    pub spindle_max_speed: f64,
-    pub mist_coolant_on: bool,
-    pub flood_coolant_on: bool,
-    pub message: Option<String>,
-    pub spindle_on: bool,
-    pub spindle_direction: SpindleDirection,
     pub jog_step: f64,
-    pub current_line: u32,
-    pub total_lines: u32,
     /// Ошибка worker для отображения в интерфейсе: (тип, текст).
     pub ui_alert: Option<(String, String)>,
 }
@@ -83,7 +51,7 @@ enum Command {
 }
 
 pub struct CNCController {
-    pub status: Arc<Mutex<CNCStatus>>,
+    pub status: Arc<Mutex<ControllerSnapshot>>,
     commands: mpsc::Sender<Command>,
     emergency_stop: mpsc::Sender<()>,
     xy_jog_speed: Mutex<f64>,
@@ -178,7 +146,7 @@ impl CNCController {
 
                 match runtime.block_on(api.status()) {
                     Ok(initial_status) => {
-                        *worker_status.lock().unwrap() = from_api_status(initial_status);
+                        worker_status.lock().unwrap().machine = initial_status;
                     }
                     Err(error) => {
                         set_ui_alert(&worker_status, &error.code, &error.message);
@@ -392,7 +360,12 @@ impl CNCController {
         }
 
         let snapshot = self.get_status_snapshot();
-        if snapshot.spindle_on && snapshot.spindle_direction == direction {
+        let spindle_direction = match snapshot.machine.spindle.direction {
+            ApiSpindleDirection::Stopped => SpindleDirection::Off,
+            ApiSpindleDirection::Clockwise => SpindleDirection::CW,
+            ApiSpindleDirection::CounterClockwise => SpindleDirection::CCW,
+        };
+        if snapshot.machine.spindle.enabled && spindle_direction == direction {
             return;
         }
 
@@ -549,7 +522,7 @@ impl CNCController {
     }
 
     /// Возвращает кэшированный снимок без сетевого запроса.
-    pub fn get_status_snapshot(&self) -> CNCStatus {
+    pub fn get_status_snapshot(&self) -> ControllerSnapshot {
         self.status.lock().unwrap().clone()
     }
 }
@@ -563,7 +536,7 @@ fn error_alert(code: &str, message: &str) -> (String, String) {
     (kind.to_string(), message.to_string())
 }
 
-fn set_ui_alert(shared_status: &Arc<Mutex<CNCStatus>>, code: &str, message: &str) {
+fn set_ui_alert(shared_status: &Arc<Mutex<ControllerSnapshot>>, code: &str, message: &str) {
     shared_status.lock().unwrap().ui_alert = Some(error_alert(code, message));
 }
 
@@ -584,7 +557,7 @@ fn api_worker(
     api: Arc<dyn LinuxCncApi>,
     receiver: mpsc::Receiver<Command>,
     emergency_receiver: mpsc::Receiver<()>,
-    shared_status: Arc<Mutex<CNCStatus>>,
+    shared_status: Arc<Mutex<ControllerSnapshot>>,
     command_cancel_requested: Arc<AtomicBool>,
     motion_stop_requested: Arc<AtomicBool>,
     runtime: &tokio::runtime::Runtime,
@@ -796,22 +769,26 @@ fn api_worker(
                 }
                 spindle_was_active = spindle_active && !spindle_stopped;
 
-                let reconnected = shared_status.lock().unwrap().state == "DISCONNECTED";
+                let reconnected = !shared_status.lock().unwrap().machine.connected;
                 if reconnected {
                     if let Ok(configuration) = runtime.block_on(api.machine_configuration()) {
                         shared_status.lock().unwrap().machine_configuration = Some(configuration);
                     }
                 }
 
-                let mut fresh = from_api_status(status);
                 let mut current = shared_status.lock().unwrap();
-                fresh.machine_configuration = current.machine_configuration.clone();
-                if let Some((kind, _)) = current.ui_alert.as_ref() {
-                    if kind != "connection" {
-                        fresh.ui_alert = current.ui_alert.clone();
-                    }
+                current.machine = status;
+                if reconnected {
+                    current.machine_configuration =
+                        runtime.block_on(api.machine_configuration()).ok();
                 }
-                *current = fresh;
+                if current
+                    .ui_alert
+                    .as_ref()
+                    .is_some_and(|(kind, _)| kind == "connection")
+                {
+                    current.ui_alert = None;
+                }
             }
             Err(error) => {
                 eprintln!("[LinuxCncApi] status {}: {}", error.code, error.message);
@@ -821,105 +798,61 @@ fn api_worker(
                     &format!("status {}: {}", error.code, error.message),
                 );
                 let mut current = shared_status.lock().unwrap();
-                current.state = "DISCONNECTED".into();
-                current.message = Some(error.message.clone());
+                current.machine.connected = false;
+                current.machine.message = Some(error.message.clone());
                 current.ui_alert = Some(error_alert("connection", &error.message));
             }
         }
     }
 }
 
-fn initial_disconnected_status() -> CNCStatus {
-    CNCStatus {
-        mode: "MANUAL".into(),
-        state: "DISCONNECTED".into(),
-        x_position: 0.0,
-        y_position: 0.0,
-        z_position: 0.0,
-        a_position: 0.0,
-        b_position: 0.0,
-        machine_x: 0.0,
-        machine_y: 0.0,
-        machine_z: 0.0,
-        machine_a: 0.0,
-        machine_b: 0.0,
-        machine_origin_x: 0.0,
-        machine_origin_y: 0.0,
-        machine_origin_z: 0.0,
-        machine_origin_a: 0.0,
-        machine_origin_b: 0.0,
-        active_coordinate_system: CoordinateSystem::G54,
-        coordinate_systems: Vec::new(),
+fn initial_disconnected_status() -> ControllerSnapshot {
+    ControllerSnapshot {
+        machine: MachineStatus {
+            connected: false,
+            task_mode: crate::cnc_api::TaskMode::Manual,
+            task_state: crate::cnc_api::TaskState::Off,
+            interpreter_state: crate::cnc_api::InterpreterState::Idle,
+            position: crate::cnc_api::Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                a: 0.0,
+                b: 0.0,
+            },
+            work_offset: crate::cnc_api::Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                a: 0.0,
+                b: 0.0,
+            },
+            active_coordinate_system: CoordinateSystem::G54,
+            coordinate_systems: Vec::new(),
+            feed_rate: 0.0,
+            spindle: crate::cnc_api::SpindleStatus {
+                commanded_rpm: 0.0,
+                actual_rpm: 0.0,
+                direction: ApiSpindleDirection::Stopped,
+                enabled: false,
+            },
+            mist_coolant_on: false,
+            flood_coolant_on: false,
+            jog_rate: 0.0,
+            motion_mode: None,
+            max_spindle_rpm: 0.0,
+            loaded_program: None,
+            current_line: 0,
+            total_lines: 0,
+            message: Some("Waiting for CNC emulator connection".into()),
+            homed: [false; 5],
+            homing: false,
+        },
         machine_configuration: None,
-        feed_rate: 0.0,
-        jog_rate: 0.0,
-        motion_mode: None,
-        spindle_speed: 0.0,
-        spindle_actual_speed: 0.0,
-        spindle_max_speed: 0.0,
-        mist_coolant_on: false,
-        flood_coolant_on: false,
-        message: Some("Waiting for CNC emulator connection".into()),
-        spindle_on: false,
-        spindle_direction: SpindleDirection::Off,
         jog_step: 1.0,
-        current_line: 0,
-        total_lines: 0,
         ui_alert: Some((
             "connection".into(),
             "Waiting for CNC emulator connection".into(),
         )),
-    }
-}
-
-fn from_api_status(status: MachineStatus) -> CNCStatus {
-    let spindle_direction = match status.spindle.direction {
-        ApiSpindleDirection::Stopped => SpindleDirection::Off,
-        ApiSpindleDirection::Clockwise => SpindleDirection::CW,
-        ApiSpindleDirection::CounterClockwise => SpindleDirection::CCW,
-    };
-
-    CNCStatus {
-        mode: format!("{:?}", status.task_mode).to_uppercase(),
-        state: if status.task_state == crate::cnc_api::TaskState::Estop {
-            "ALARM".into()
-        } else if status.homing {
-            "HOMING".into()
-        } else {
-            format!("{:?}", status.interpreter_state).to_uppercase()
-        },
-        x_position: status.position.x - status.work_offset.x,
-        y_position: status.position.y - status.work_offset.y,
-        z_position: status.position.z - status.work_offset.z,
-        a_position: status.position.a - status.work_offset.a,
-        b_position: status.position.b - status.work_offset.b,
-        machine_x: status.position.x,
-        machine_y: status.position.y,
-        machine_z: status.position.z,
-        machine_a: status.position.a,
-        machine_b: status.position.b,
-        machine_origin_x: -status.work_offset.x,
-        machine_origin_y: -status.work_offset.y,
-        machine_origin_z: -status.work_offset.z,
-        machine_origin_a: -status.work_offset.a,
-        machine_origin_b: -status.work_offset.b,
-        active_coordinate_system: status.active_coordinate_system,
-        coordinate_systems: status.coordinate_systems.clone(),
-        machine_configuration: None,
-        feed_rate: status.feed_rate,
-        jog_rate: status.jog_rate,
-        motion_mode: status.motion_mode,
-        spindle_speed: status.spindle.commanded_rpm,
-        spindle_actual_speed: status.spindle.actual_rpm,
-        spindle_max_speed: status.max_spindle_rpm,
-        mist_coolant_on: status.mist_coolant_on,
-        flood_coolant_on: status.flood_coolant_on,
-        message: status.message,
-        spindle_on: status.spindle.enabled,
-        spindle_direction,
-        jog_step: 1.0,
-        current_line: status.current_line,
-        total_lines: status.total_lines,
-        ui_alert: None,
     }
 }
