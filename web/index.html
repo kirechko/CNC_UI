@@ -1094,13 +1094,67 @@
         font-size: 10px;
       }
 
-      .machine-console-output {
-        min-height: 20px;
-        margin: 0;
-        color: var(--muted);
-        font: 10px/1.5 var(--font-mono);
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
+      .program-editor-dialog {
+        width: min(1100px, calc(100vw - 32px));
+        height: min(900px, calc(100vh - 32px));
+        max-height: calc(100vh - 32px);
+        padding: 0;
+        border: 1px solid #3b484d;
+        border-radius: 10px;
+        background: #202629;
+        color: #e7ecee;
+        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+      }
+
+      .program-editor-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+      .program-editor-content {
+        display: grid;
+        height: 100%;
+        min-height: 0;
+        grid-template-rows: auto auto minmax(0, 1fr);
+      }
+
+      .program-editor-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .program-editor-heading h2 { margin: 0; font-size: 15px; }
+
+      .program-editor-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .program-editor-toolbar button {
+        min-height: 32px;
+        padding: 0 10px;
+        color: #aeb9bc;
+        font-size: 10px;
+      }
+
+      .program-editor-textarea {
+        width: calc(100% - 28px);
+        height: calc(100% - 28px);
+        min-height: 0;
+        margin: 14px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: 12px/1.55 var(--font-mono);
+        resize: none;
+        tab-size: 2;
       }
       .viewer-toolbar { display: flex; align-items: center; gap: 7px; }
       .toolbar-button {
@@ -2033,20 +2087,11 @@
             <span class="panel-caption">Команда выполняется отдельно; программа загружается перед запуском</span>
           </div>
           <div class="panel-body machine-console">
-            <div class="machine-console-toolbar">
-              <label for="program-editor">Текст программы</label>
-              <div class="toolbar-group">
-                <button id="editor-load-program" type="button">Загрузить из 3D</button>
-                <button id="editor-save-program" type="button">Сохранить файл</button>
-                <button id="editor-run-program" type="button">Запустить программу</button>
-              </div>
-            </div>
-            <textarea id="program-editor" spellcheck="false" aria-label="Редактор G-code программы" placeholder="Загрузите программу или введите G-code"></textarea>
+            <button id="open-program-editor" type="button">Открыть редактор G-code</button>
             <form class="machine-console-command" id="machine-command-form">
               <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Команда станка, например G0 X0 или $$" aria-label="Команда станка">
               <button type="submit" id="machine-command-run">Выполнить</button>
             </form>
-            <pre class="machine-console-output" id="machine-command-output" role="status" aria-live="polite"></pre>
           </div>
         </section>
 
@@ -2055,6 +2100,28 @@
         </div>
       </aside>
     </main>
+
+    <dialog class="program-editor-dialog" id="program-editor-dialog">
+      <section class="program-editor-content" aria-labelledby="program-editor-title">
+        <div class="program-editor-heading">
+          <h2 id="program-editor-title">Редактор G-code</h2>
+          <button type="button" id="close-program-editor">Закрыть</button>
+        </div>
+        <div class="program-editor-toolbar">
+          <button id="editor-load-program" type="button">Загрузить</button>
+          <button id="editor-save-program" type="button">Сохранить файл</button>
+          <button id="editor-cancel-changes" type="button">Отменить изменения</button>
+          <button id="editor-run-program" type="button">Запустить программу</button>
+        </div>
+        <textarea
+          class="program-editor-textarea"
+          id="program-editor"
+          spellcheck="false"
+          aria-label="Редактор G-code программы"
+          placeholder="Загрузите программу или введите G-code"
+        ></textarea>
+      </section>
+    </dialog>
 
     <dialog class="position-dialog jog-steps-dialog" id="jog-steps-dialog">
       <form class="position-dialog-content" id="jog-steps-form">
@@ -3337,26 +3404,32 @@
 
       const programEditor = document.querySelector("#program-editor");
       const machineCommandInput = document.querySelector("#machine-command-input");
-      const machineCommandOutput = document.querySelector("#machine-command-output");
+      const programEditorDialog = document.querySelector("#program-editor-dialog");
+      let programEditorOriginal = "";
 
-      async function logMachineConsoleError(context, error) {
-        const message = `${context}: ${error instanceof Error ? error.message : String(error)}`;
+      async function logMachineConsoleEvent(severity, message) {
         try {
           await invokeOrFetch(
             "log_message",
-            { severity: "ошибка", source: "команды и G-code", message },
+            { severity, source: "команды и G-code", message },
             "/api/log",
             "POST",
           );
-        } catch (logError) {
-          console.warn("Не удалось записать ошибку панели команд в журнал:", logError);
+        } catch (error) {
+          console.warn("Не удалось записать событие панели команд в журнал:", error);
         }
+      }
+
+      async function logMachineConsoleError(context, error) {
+        const message = `${context}: ${error instanceof Error ? error.message : String(error)}`;
+        await logMachineConsoleEvent("ошибка", message);
         return message;
       }
 
       function showProgram(name, content) {
         loadedProgram = { name, content, segments: parseToolpath(content) };
         programEditor.value = content;
+        programEditorOriginal = content;
         document.querySelector("#job-note").textContent =
           `G-code загружен: ${name} · ${loadedProgram.segments.length} сегментов.`;
         camera.zoom = 1;
@@ -3404,19 +3477,36 @@
         showProgram(result.name, result.content);
       }
 
-      document.querySelector("#editor-load-program").addEventListener("click", () => {
+      document.querySelector("#open-program-editor").addEventListener("click", () => {
+        programEditorOriginal = programEditor.value;
+        programEditorDialog.showModal();
+        programEditor.focus();
+      });
+
+      document.querySelector("#close-program-editor").addEventListener("click", () => {
+        programEditorDialog.close();
+      });
+
+      document.querySelector("#editor-load-program").addEventListener("click", async () => {
         if (!loadedProgram) {
-          machineCommandOutput.textContent = "Сначала загрузите G-code в 3D-просмотр.";
+          await logMachineConsoleEvent(
+            "предупреждение",
+            "Невозможно загрузить программу из 3D-просмотра: программа не загружена.",
+          );
           return;
         }
         programEditor.value = loadedProgram.content;
-        machineCommandOutput.textContent = `Загружена копия ${loadedProgram.name} для редактирования.`;
+        programEditorOriginal = loadedProgram.content;
+        await logMachineConsoleEvent(
+          "информация",
+          `G-code загружен в редактор из 3D-просмотра: ${loadedProgram.name}.`,
+        );
       });
 
-      document.querySelector("#editor-save-program").addEventListener("click", () => {
+      document.querySelector("#editor-save-program").addEventListener("click", async () => {
         const content = programEditor.value;
         if (!content.trim()) {
-          machineCommandOutput.textContent = "Нечего сохранять: редактор пуст.";
+          await logMachineConsoleEvent("ошибка", "Не удалось сохранить программу: редактор пуст.");
           return;
         }
 
@@ -3429,14 +3519,20 @@
         document.body.append(link);
         link.click();
         link.remove();
-        URL.revokeObjectURL(url);
-        machineCommandOutput.textContent = `Файл ${name} сохранён через загрузку браузера.`;
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        programEditorOriginal = content;
+        await logMachineConsoleEvent("информация", `G-code сохранён в файл: ${name}.`);
+      });
+
+      document.querySelector("#editor-cancel-changes").addEventListener("click", async () => {
+        programEditor.value = programEditorOriginal;
+        await logMachineConsoleEvent("информация", "Несохранённые изменения редактора G-code отменены.");
       });
 
       document.querySelector("#editor-run-program").addEventListener("click", async () => {
         const content = programEditor.value;
         if (!content.trim()) {
-          machineCommandOutput.textContent = "Нельзя запустить пустую программу.";
+          await logMachineConsoleEvent("ошибка", "Нельзя запустить пустую программу G-code.");
           return;
         }
 
@@ -3452,13 +3548,13 @@
           );
           showProgram(program.name, program.content);
           await sendJobCommand("start_program");
-          machineCommandOutput.textContent = `Загружена и запущена отредактированная программа ${program.name}.`;
+          await logMachineConsoleEvent(
+            "информация",
+            `Отредактированная программа загружена и запущена: ${program.name}.`,
+          );
           await refreshStatus();
         } catch (error) {
-          machineCommandOutput.textContent = await logMachineConsoleError(
-            "Ошибка запуска программы",
-            error,
-          );
+          await logMachineConsoleError("Ошибка запуска программы", error);
         } finally {
           button.disabled = !machineConnected;
         }
@@ -3471,7 +3567,6 @@
 
         const button = document.querySelector("#machine-command-run");
         button.disabled = true;
-        machineCommandOutput.textContent = `Выполняется: ${command}`;
         try {
           const output = await invokeOrFetch(
             "execute_machine_command",
@@ -3479,14 +3574,12 @@
             "/api/command",
             "POST",
           );
-          machineCommandOutput.textContent = output || "Команда выполнена.";
           machineCommandInput.value = "";
+          const result = output ? `Команда выполнена: ${command}. Ответ: ${output}` : `Команда выполнена: ${command}.`;
+          await logMachineConsoleEvent("информация", result);
           await refreshStatus();
         } catch (error) {
-          machineCommandOutput.textContent = await logMachineConsoleError(
-            "Ошибка команды",
-            error,
-          );
+          await logMachineConsoleError(`Ошибка команды «${command}»`, error);
         } finally {
           button.disabled = !machineConnected;
         }
