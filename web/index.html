@@ -2410,6 +2410,7 @@
       import { initSpindleControls } from "./js/spindle-control.js";
       import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
       import { initJogKeyboard } from "./js/jog-keyboard.js";
+      import { initJogApi } from "./js/jog-api.js";
       import { initJogModeControls } from "./js/jog-mode.js";
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
@@ -2506,6 +2507,14 @@
       xyJogStepValues = loadJogStepValues("cnc-ui-jog-steps-xy", legacyJogStepValues);
       zJogStepValues = loadJogStepValues("cnc-ui-jog-steps-z", legacyJogStepValues);
       const activeContinuousAxes = new Set();
+      const {
+        sendContinuousXY,
+        sendContinuousJog,
+        cancelJog,
+        cancelMachineCommand,
+        sendDialXyJog,
+        sendDialJog,
+      } = initJogApi({ isConnected: () => machineConnected });
       let loadedProgram = null;
       let loadedStockMesh = null;
       let stockVisible = true;
@@ -3097,47 +3106,6 @@
       }
 
       const continuousXyDirections = { X: 0, Y: 0 };
-      let continuousXyRequest = Promise.resolve();
-
-      function sendContinuousXY(xDirection, yDirection) {
-        const request = { xDirection, yDirection };
-        continuousXyRequest = continuousXyRequest.then(async () => {
-          const invoke = window.__TAURI__?.core?.invoke;
-          if (invoke) {
-            await invoke("jog_continuous_xy", request);
-            return;
-          }
-
-          const response = await fetch("/api/jog/continuous-xy", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(request),
-          });
-          if (!response.ok) {
-            throw new Error((await response.text()) || `HTTP ${response.status}`);
-          }
-        });
-        return continuousXyRequest;
-      }
-
-      async function sendContinuousJog(axis, direction) {
-        const request = { axis, direction };
-        const invoke = window.__TAURI__?.core?.invoke;
-
-        if (invoke) {
-          await invoke("jog_continuous", request);
-          return;
-        }
-
-        const response = await fetch("/api/jog/continuous", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
-        });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
 
       async function startContinuousJog(axis, direction) {
         if (!machineConnected) return;
@@ -3170,31 +3138,6 @@
         }
       }
 
-      async function cancelJog() {
-        const invoke = window.__TAURI__?.core?.invoke;
-        if (invoke) {
-          await invoke("cancel_jog");
-          return;
-        }
-
-        const response = await fetch("/api/jog/cancel", { method: "POST" });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
-
-      async function cancelMachineCommand() {
-        const invoke = window.__TAURI__?.core?.invoke;
-        if (invoke) {
-          await invoke("cancel_machine_command");
-          return;
-        }
-
-        const response = await fetch("/api/command/cancel", { method: "POST" });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
 
       async function stopAllJog() {
         await stopContinuousJog();
@@ -3590,45 +3533,6 @@
         drawJogDial();
       });
 
-      async function sendDialXyJog(xDirection, yDirection, distance) {
-        if (!machineConnected) return;
-        const request = { xDirection, yDirection, distance };
-        const invoke = window.__TAURI__?.core?.invoke;
-
-        if (invoke) {
-          await invoke("jog_xy", request);
-          return;
-        }
-
-        const response = await fetch("/api/jog/xy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
-        });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
-
-      async function sendDialJog(axis, direction, distance) {
-        if (!machineConnected) return;
-        const request = { axis, direction, distance };
-        const invoke = window.__TAURI__?.core?.invoke;
-
-        if (invoke) {
-          await invoke("jog", request);
-          return;
-        }
-
-        const response = await fetch("/api/jog", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
-        });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
 
       async function jogDialSelection(selection) {
         if (!selection || !machineConnected) return;
