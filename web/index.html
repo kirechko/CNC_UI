@@ -1087,11 +1087,32 @@
         padding: 0 9px;
       }
 
+      .machine-console input:focus,
+      .machine-console input:focus-visible {
+        border-color: #b87333;
+        outline: 1px solid #b87333;
+        outline-offset: 0;
+      }
+
       .machine-console button {
-        min-height: 32px;
-        padding: 0 10px;
-        color: #aeb9bc;
-        font-size: 10px;
+        display: grid;
+        width: 36px;
+        min-width: 36px;
+        min-height: 34px;
+        padding: 0;
+        place-items: center;
+        border-color: #b87333;
+        color: #d99a5e;
+      }
+
+      .machine-console button:hover:not(:disabled) {
+        border-color: #e69a4e;
+        color: #ffc17c;
+      }
+
+      .machine-console button svg {
+        width: 17px;
+        height: 17px;
       }
 
       .program-editor-dialog {
@@ -2090,7 +2111,13 @@
             <button id="open-program-editor" type="button">Открыть редактор G-code</button>
             <form class="machine-console-command" id="machine-command-form">
               <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Команда станка, например G0 X0 или $$" aria-label="Команда станка">
-              <button type="submit" id="machine-command-run">Выполнить</button>
+              <button type="submit" id="machine-command-run" title="Выполнить команду (Enter)" aria-label="Выполнить команду">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 12h13"></path>
+                  <path d="m12 6 6 6-6 6"></path>
+                  <path d="M19 5v14"></path>
+                </svg>
+              </button>
             </form>
           </div>
         </section>
@@ -3405,6 +3432,10 @@
       const machineCommandInput = document.querySelector("#machine-command-input");
       const programEditorDialog = document.querySelector("#program-editor-dialog");
       let programEditorOriginal = "";
+      let commandHistory = [];
+      let commandHistoryCursor = 0;
+      let commandHistoryDraft = "";
+      let lastCommandSearch = "";
 
       async function logMachineConsoleEvent(severity, message) {
         try {
@@ -3529,11 +3560,107 @@
       });
 
 
+      function addCommandToLocalHistory(command) {
+        if (commandHistory.at(-1) !== command) commandHistory.push(command);
+        commandHistory = commandHistory.slice(-500);
+        commandHistoryCursor = commandHistory.length;
+        commandHistoryDraft = "";
+      }
+
+      async function loadCommandHistory() {
+        try {
+          const history = await invokeOrFetch(
+            "get_command_history",
+            null,
+            "/api/command-history",
+          );
+          commandHistory = Array.isArray(history)
+            ? history.filter((command) => typeof command === "string")
+            : [];
+          commandHistoryCursor = commandHistory.length;
+        } catch (error) {
+          console.warn("Не удалось загрузить историю команд:", error);
+        }
+      }
+
+      function moveCommandHistory(direction) {
+        if (!commandHistory.length) return;
+
+        if (direction < 0) {
+          if (commandHistoryCursor === commandHistory.length) {
+            commandHistoryDraft = machineCommandInput.value;
+          }
+          commandHistoryCursor = Math.max(0, commandHistoryCursor - 1);
+          machineCommandInput.value = commandHistory[commandHistoryCursor] || "";
+        } else if (commandHistoryCursor < commandHistory.length) {
+          commandHistoryCursor += 1;
+          machineCommandInput.value = commandHistoryCursor === commandHistory.length
+            ? commandHistoryDraft
+            : commandHistory[commandHistoryCursor];
+        }
+
+        machineCommandInput.setSelectionRange(
+          machineCommandInput.value.length,
+          machineCommandInput.value.length,
+        );
+      }
+
+      function searchCommandHistory() {
+        const query = window.prompt("Поиск команды в истории:", lastCommandSearch);
+        if (query === null || !query.trim()) return;
+
+        lastCommandSearch = query.trim();
+        const start = commandHistoryCursor > 0
+          ? commandHistoryCursor - 1
+          : commandHistory.length - 1;
+        for (let offset = 0; offset < commandHistory.length; offset++) {
+          const index = (start - offset + commandHistory.length) % commandHistory.length;
+          if (commandHistory[index].toLocaleLowerCase().includes(lastCommandSearch.toLocaleLowerCase())) {
+            commandHistoryCursor = index;
+            commandHistoryDraft = "";
+            machineCommandInput.value = commandHistory[index];
+            machineCommandInput.setSelectionRange(
+              machineCommandInput.value.length,
+              machineCommandInput.value.length,
+            );
+            return;
+          }
+        }
+
+        void logMachineConsoleEvent(
+          "информация",
+          `Поиск в истории команд не дал результатов: ${lastCommandSearch}`,
+        );
+      }
+
+      machineCommandInput.addEventListener("keydown", (event) => {
+        if (event.ctrlKey && event.key.toLowerCase() === "r") {
+          event.preventDefault();
+          searchCommandHistory();
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          moveCommandHistory(-1);
+        } else if (event.key === "ArrowDown") {
+          event.preventDefault();
+          moveCommandHistory(1);
+        } else if (event.key === "Escape") {
+          commandHistoryCursor = commandHistory.length;
+          machineCommandInput.value = commandHistoryDraft;
+        }
+      });
+
+      machineCommandInput.addEventListener("input", () => {
+        if (commandHistoryCursor === commandHistory.length) {
+          commandHistoryDraft = machineCommandInput.value;
+        }
+      });
+
       document.querySelector("#machine-command-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const command = machineCommandInput.value.trim();
         if (!command) return;
 
+        addCommandToLocalHistory(command);
         const button = document.querySelector("#machine-command-run");
         button.disabled = true;
         try {
@@ -5721,6 +5848,7 @@
       macrosTab.addEventListener("click", () => selectSidebarTab("macros"));
 
       setJogEnabled(false);
+      loadCommandHistory();
       loadDefaultProgram();
       refreshStatus();
       window.setInterval(refreshStatus, 50);
