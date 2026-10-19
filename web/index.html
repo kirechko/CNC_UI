@@ -2401,7 +2401,7 @@
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
       import { parseObj } from "./js/obj.js";
-      import { parseStl } from "./js/stock.js";
+      import { parseStl, parseThreeJsJson } from "./js/stock.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2688,136 +2688,6 @@
         return { triangles, min, max };
       }
 
-
-      function parseThreeLegacyGeometry(geometry) {
-        if (!Array.isArray(geometry.vertices) || !Array.isArray(geometry.faces)) {
-          throw new Error("Three.js JSON: геометрия не содержит vertices/faces.");
-        }
-
-        const vertices = [];
-        for (let index = 0; index + 2 < geometry.vertices.length; index += 3) {
-          vertices.push(geometry.vertices.slice(index, index + 3).map(Number));
-        }
-
-        const triangles = [];
-        let offset = 0;
-        while (offset < geometry.faces.length) {
-          const flags = Number(geometry.faces[offset++]);
-          const isQuad = (flags & 1) !== 0;
-          const vertexCount = isQuad ? 4 : 3;
-          if (offset + vertexCount > geometry.faces.length) {
-            throw new Error("Three.js JSON: повреждён список граней.");
-          }
-
-          const indices = geometry.faces.slice(offset, offset + vertexCount).map(Number);
-          offset += vertexCount;
-          if (indices.some((index) => !Number.isInteger(index) || !vertices[index])) {
-            throw new Error("Three.js JSON: индекс грани ссылается на отсутствующую вершину.");
-          }
-
-          if (isQuad) {
-            triangles.push(
-              [vertices[indices[0]], vertices[indices[1]], vertices[indices[3]]],
-              [vertices[indices[1]], vertices[indices[2]], vertices[indices[3]]],
-            );
-          } else {
-            triangles.push(indices.map((index) => vertices[index]));
-          }
-          if (triangles.length > 1_000_000) {
-            throw new Error("Three.js JSON содержит больше 1 000 000 треугольников.");
-          }
-
-          if (flags & 2) offset += 1;
-          if (flags & 4) {
-            const uvLayers = geometry.uvs?.length || 0;
-            offset += uvLayers;
-          }
-          if (flags & 8) {
-            const uvLayers = geometry.uvs?.length || 0;
-            offset += uvLayers * vertexCount;
-          }
-          if (flags & 16) offset += 1;
-          if (flags & 32) offset += vertexCount;
-          if (flags & 64) offset += 1;
-          if (flags & 128) offset += vertexCount;
-
-          if (offset > geometry.faces.length) {
-            throw new Error("Three.js JSON: повреждены данные граней.");
-          }
-        }
-
-        return triangles;
-      }
-
-      function parseThreeBufferGeometry(geometry) {
-        const data = geometry.data || geometry;
-        const position = data.attributes?.position;
-        const positions = position?.array;
-        const itemSize = Number(position?.itemSize) || 3;
-        if (!Array.isArray(positions) || itemSize < 3 || positions.length % itemSize !== 0) {
-          throw new Error("Three.js JSON: не найден корректный атрибут position.");
-        }
-
-        const vertices = [];
-        for (let index = 0; index < positions.length; index += itemSize) {
-          vertices.push([
-            Number(positions[index]),
-            Number(positions[index + 1]),
-            Number(positions[index + 2]),
-          ]);
-        }
-
-        const indices = data.index?.array || data.index;
-        const vertexIndices = Array.isArray(indices)
-          ? indices.map(Number)
-          : vertices.map((_, index) => index);
-        if (vertexIndices.length % 3 !== 0) {
-          throw new Error("Three.js JSON: количество индексов не кратно трём.");
-        }
-
-        const triangles = [];
-        for (let index = 0; index < vertexIndices.length; index += 3) {
-          const triangleIndices = vertexIndices.slice(index, index + 3);
-          if (triangleIndices.some((vertex) =>
-            !Number.isInteger(vertex) || vertex < 0 || vertex >= vertices.length,
-          )) {
-            throw new Error("Three.js JSON: индекс ссылается на отсутствующую вершину.");
-          }
-          triangles.push(triangleIndices.map((vertex) => vertices[vertex]));
-          if (triangles.length > 1_000_000) {
-            throw new Error("Three.js JSON содержит больше 1 000 000 треугольников.");
-          }
-        }
-
-        return triangles;
-      }
-
-      function parseThreeJsJson(text) {
-        let model;
-        try {
-          model = JSON.parse(text);
-        } catch {
-          throw new Error("Файл не является корректным JSON Three.js.");
-        }
-
-        const geometries = Array.isArray(model.geometries) && model.geometries.length
-          ? model.geometries.map((entry) => entry.data || entry)
-          : [model.data || model];
-        const triangles = [];
-
-        for (const geometry of geometries) {
-          if (Array.isArray(geometry.vertices) && Array.isArray(geometry.faces)) {
-            triangles.push(...parseThreeLegacyGeometry(geometry));
-          } else if (geometry.attributes?.position || geometry.data?.attributes?.position) {
-            triangles.push(...parseThreeBufferGeometry(geometry));
-          }
-          if (triangles.length > 1_000_000) {
-            throw new Error("Three.js JSON содержит больше 1 000 000 треугольников.");
-          }
-        }
-
-        return finalizeStockMesh(triangles);
-      }
 
 
       function makeProjector(width, height, bounds) {
