@@ -191,7 +191,7 @@ fn set_spindle(
     }
 
     let status = controller.get_status_snapshot();
-    if status.state == "DISCONNECTED" {
+    if !status.machine.connected {
         return Err("Нет соединения со станком".into());
     }
 
@@ -201,7 +201,7 @@ fn set_spindle(
         .map(|configuration| &configuration.spindle)
         .ok_or_else(|| "Конфигурация шпинделя недоступна".to_string())?;
     let minimum = spindle.min_rpm.unwrap_or(0.0);
-    let maximum = spindle.max_rpm.unwrap_or(status.spindle_max_speed);
+    let maximum = spindle.max_rpm.unwrap_or(status.machine.max_spindle_rpm);
 
     if maximum <= 0.0 || rpm < minimum || rpm > maximum {
         return Err(format!(

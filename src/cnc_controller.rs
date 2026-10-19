@@ -1,6 +1,6 @@
 //! Queues UI commands on a worker thread and maintains a cached controller status.
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi, MachineConfiguration,
+    Axis, CncResult, CoordinateSystem, LinuxCncApi, MachineConfiguration,
     MachineStatus, SpindleCommand, SpindleDirection as ApiSpindleDirection,
 };
 use cnc_core::adapters::emulator::EmAdapter;
