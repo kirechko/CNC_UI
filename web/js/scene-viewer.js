@@ -5,7 +5,7 @@ import {
 } from "./scene-projection.js";
 import { drawAxes, drawGrid } from "./scene-renderer.js";
 import { drawStockBox, drawStockMesh } from "./stock-renderer.js";
-import { drawTool } from "./tool-renderer.js";
+import { drawTool as renderTool } from "./tool-renderer.js";
 import { calculateToolpathProgress } from "./toolpath-progress.js";
 import { drawTrajectorySegments } from "./trajectory-renderer.js";
 
@@ -47,7 +47,7 @@ export function initSceneViewer({
     const stockMesh = getStockMesh();
     const bounds = calculateSceneBounds(program?.segments || [], stockMesh);
 
-    drawTool({
+    renderTool({
       canvas: toolCanvas,
       context: toolContext,
       connected: isConnected(),
