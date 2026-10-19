@@ -1299,9 +1299,10 @@
       .log-calendar-heading,
       .log-calendar-footer {
         display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
       }
 
       .log-calendar-heading { margin-bottom: 8px; }
@@ -1362,6 +1363,13 @@
       .log-calendar-date-times {
         display: grid;
         min-width: 0;
+        flex: 1;
+        gap: 6px;
+      }
+
+      .log-calendar-actions {
+        display: grid;
+        flex: 0 0 auto;
         gap: 6px;
       }
 
@@ -1998,8 +2006,10 @@
                     <input id="log-calendar-end-time" type="time" value="23:59" aria-label="Время окончания периода" disabled>
                   </div>
                 </div>
-                <button type="button" id="log-calendar-clear">Очистить</button>
-                <button type="button" id="log-calendar-done">Готово</button>
+                <div class="log-calendar-actions">
+                  <button type="button" id="log-calendar-clear">Очистить</button>
+                  <button type="button" id="log-calendar-done">Готово</button>
+                </div>
               </div>
             </div>
           </div>
