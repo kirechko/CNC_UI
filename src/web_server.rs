@@ -14,8 +14,10 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::cnc_api::{Axis, LinuxCncApi, MachineConfiguration};
-use crate::cnc_controller::{CNCController, CNCStatus};
+use crate::cnc_api::{
+    Axis, InterpreterState, LinuxCncApi, MachineConfiguration, TaskMode, TaskState,
+};
+use crate::cnc_controller::{CNCController, ControllerSnapshot};
 
 const DEFAULT_ADDRESS: &str = "0.0.0.0:8080";
 const WEB_ROOT: &str = "web";
@@ -124,11 +126,11 @@ impl AppState {
         Ok(connection)
     }
 
-    pub(crate) fn record_status(&self, status: &CNCStatus) {
+    pub(crate) fn record_status(&self, status: &ControllerSnapshot) {
         let alert = status.ui_alert.as_ref().map(|(kind, message)| (kind, message));
         let key = format!(
             "{}\u{1f}{}\u{1f}{}",
-            status.state,
+            status_state(status),
             alert.map_or("", |(kind, _)| kind.as_str()),
             alert.map_or("", |(_, message)| message.as_str()),
         );
@@ -432,7 +434,7 @@ impl AppState {
             .lock()
             .map_err(|_| "controller lock poisoned".to_string())?;
         let status = controller.get_status_snapshot();
-        if status.state == "DISCONNECTED" {
+        if !status.machine.connected {
             return Err("Нет соединения со станком".into());
         }
 
@@ -781,7 +783,7 @@ async fn set_spindle(
     }
 
     let status = controller.get_status_snapshot();
-    if status.state == "DISCONNECTED" {
+    if !status.machine.connected {
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             "Нет соединения со станком".into(),
@@ -981,8 +983,9 @@ pub(crate) struct StatusResponse {
     pub(crate) latest_other: Option<LogEntry>,
 }
 
-impl From<CNCStatus> for StatusResponse {
-    fn from(status: CNCStatus) -> Self {
+impl From<ControllerSnapshot> for StatusResponse {
+    fn from(status: ControllerSnapshot) -> Self {
+        let machine = status.machine;
         let spindle_min_rpm = status
             .machine_configuration
             .as_ref()
@@ -992,52 +995,90 @@ impl From<CNCStatus> for StatusResponse {
             .machine_configuration
             .as_ref()
             .and_then(|configuration| configuration.spindle.max_rpm)
-            .unwrap_or(status.spindle_max_speed);
+            .unwrap_or(machine.max_spindle_rpm);
+
+        let state = if machine.task_state == TaskState::Estop {
+            "ALARM"
+        } else if machine.homing {
+            "HOMING"
+        } else if !machine.connected {
+            "DISCONNECTED"
+        } else {
+            match machine.interpreter_state {
+                InterpreterState::Idle => "IDLE",
+                InterpreterState::Reading => "READING",
+                InterpreterState::Paused => "PAUSED",
+                InterpreterState::Waiting => "WAITING",
+            }
+        };
+        let mode = match machine.task_mode {
+            TaskMode::Manual => "MANUAL",
+            TaskMode::Mdi => "MDI",
+            TaskMode::Auto => "AUTO",
+        };
 
         Self {
-            connected: status.state != "DISCONNECTED",
-            state: status.state,
-            x: status.x_position,
-            y: status.y_position,
-            z: status.z_position,
-            a: status.a_position,
-            b: status.b_position,
-            machine_x: status.machine_x,
-            machine_y: status.machine_y,
-            machine_z: status.machine_z,
-            machine_a: status.machine_a,
-            machine_b: status.machine_b,
-            coordinate_system: status
+            connected: machine.connected,
+            state: state.into(),
+            x: machine.position.x - machine.work_offset.x,
+            y: machine.position.y - machine.work_offset.y,
+            z: machine.position.z - machine.work_offset.z,
+            a: machine.position.a - machine.work_offset.a,
+            b: machine.position.b - machine.work_offset.b,
+            machine_x: machine.position.x,
+            machine_y: machine.position.y,
+            machine_z: machine.position.z,
+            machine_a: machine.position.a,
+            machine_b: machine.position.b,
+            coordinate_system: machine
                 .active_coordinate_system
                 .label()
                 .to_ascii_lowercase()
                 .replace('.', "_"),
             configuration: status.machine_configuration,
-            movement_speed: if status.jog_rate > 0.0 {
-                status.jog_rate
+            movement_speed: if machine.jog_rate > 0.0 {
+                machine.jog_rate
             } else {
-                status.feed_rate
+                machine.feed_rate
             },
-            movement_mode: status.motion_mode,
-            spindle_rpm: status.spindle_actual_speed,
-            spindle_commanded_rpm: status.spindle_speed,
-            spindle_enabled: status.spindle_on,
-            spindle_direction: match status.spindle_direction {
-                crate::cnc_controller::SpindleDirection::Off => "stopped",
-                crate::cnc_controller::SpindleDirection::CW => "cw",
-                crate::cnc_controller::SpindleDirection::CCW => "ccw",
+            movement_mode: machine.motion_mode,
+            spindle_rpm: machine.spindle.actual_rpm,
+            spindle_commanded_rpm: machine.spindle.commanded_rpm,
+            spindle_enabled: machine.spindle.enabled,
+            spindle_direction: match machine.spindle.direction {
+                crate::cnc_api::SpindleDirection::Stopped => "stopped",
+                crate::cnc_api::SpindleDirection::Clockwise => "cw",
+                crate::cnc_api::SpindleDirection::CounterClockwise => "ccw",
             }
             .into(),
             spindle_min_rpm,
             spindle_max_rpm,
-            current_line: status.current_line,
-            total_lines: status.total_lines,
-            message: status.message,
+            current_line: machine.current_line,
+            total_lines: machine.total_lines,
+            message: machine.message,
             error: status
                 .ui_alert
                 .map(|(kind, message)| format!("{kind}: {message}")),
             latest_critical: None,
             latest_other: None,
+        }
+    }
+}
+
+fn status_state(status: &ControllerSnapshot) -> &'static str {
+    let machine = &status.machine;
+    if machine.task_state == TaskState::Estop {
+        "ALARM"
+    } else if machine.homing {
+        "HOMING"
+    } else if !machine.connected {
+        "DISCONNECTED"
+    } else {
+        match machine.interpreter_state {
+            InterpreterState::Idle => "IDLE",
+            InterpreterState::Reading => "READING",
+            InterpreterState::Paused => "PAUSED",
+            InterpreterState::Waiting => "WAITING",
         }
     }
 }
@@ -1363,44 +1404,51 @@ pub async fn run() -> io::Result<()> {
 #[cfg(test)]
 mod contract_tests {
     use super::*;
-    use crate::cnc_controller::SpindleDirection;
 
-    fn sample_status() -> CNCStatus {
-        CNCStatus {
-            mode: "MANUAL".into(),
-            state: "IDLE".into(),
-            x_position: 1.0,
-            y_position: 2.0,
-            z_position: 3.0,
-            a_position: 4.0,
-            b_position: 5.0,
-            machine_x: 11.0,
-            machine_y: 12.0,
-            machine_z: 13.0,
-            machine_a: 14.0,
-            machine_b: 15.0,
-            machine_origin_x: 0.0,
-            machine_origin_y: 0.0,
-            machine_origin_z: 0.0,
-            machine_origin_a: 0.0,
-            machine_origin_b: 0.0,
-            active_coordinate_system: crate::cnc_api::CoordinateSystem::G59_1,
-            coordinate_systems: Vec::new(),
+    fn sample_status() -> ControllerSnapshot {
+        ControllerSnapshot {
+            machine: crate::cnc_api::MachineStatus {
+                connected: true,
+                task_mode: TaskMode::Manual,
+                task_state: TaskState::On,
+                interpreter_state: InterpreterState::Idle,
+                position: crate::cnc_api::Position {
+                    x: 11.0,
+                    y: 12.0,
+                    z: 13.0,
+                    a: 14.0,
+                    b: 15.0,
+                },
+                work_offset: crate::cnc_api::Position {
+                    x: 10.0,
+                    y: 10.0,
+                    z: 10.0,
+                    a: 10.0,
+                    b: 10.0,
+                },
+                active_coordinate_system: crate::cnc_api::CoordinateSystem::G59_1,
+                coordinate_systems: Vec::new(),
+                feed_rate: 100.0,
+                spindle: crate::cnc_api::SpindleStatus {
+                    commanded_rpm: 0.0,
+                    actual_rpm: 0.0,
+                    direction: crate::cnc_api::SpindleDirection::Stopped,
+                    enabled: false,
+                },
+                mist_coolant_on: false,
+                flood_coolant_on: false,
+                jog_rate: 0.0,
+                motion_mode: None,
+                max_spindle_rpm: 24_000.0,
+                loaded_program: None,
+                current_line: 0,
+                total_lines: 0,
+                message: Some("ready".into()),
+                homed: [false; 5],
+                homing: false,
+            },
             machine_configuration: None,
-            feed_rate: 100.0,
-            jog_rate: 0.0,
-            motion_mode: None,
-            spindle_speed: 0.0,
-            spindle_actual_speed: 0.0,
-            spindle_max_speed: 24_000.0,
-            mist_coolant_on: false,
-            flood_coolant_on: false,
-            message: Some("ready".into()),
-            spindle_on: false,
-            spindle_direction: SpindleDirection::Off,
             jog_step: 1.0,
-            current_line: 0,
-            total_lines: 0,
             ui_alert: None,
         }
     }
