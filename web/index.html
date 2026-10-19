@@ -2405,6 +2405,7 @@
       import { initSidebarTabs } from "./js/sidebar.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
+      import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -3336,8 +3337,6 @@
 
       const programEditor = document.querySelector("#program-editor");
       const machineCommandInput = document.querySelector("#machine-command-input");
-      const programEditorDialog = document.querySelector("#program-editor-dialog");
-      let programEditorOriginal = "";
       let commandHistory = [];
       let commandHistoryCursor = 0;
       let commandHistoryDraft = "";
@@ -3365,8 +3364,7 @@
 
       function showProgram(name, content) {
         loadedProgram = { name, content, segments: parseToolpath(content) };
-        programEditor.value = content;
-        programEditorOriginal = content;
+        setProgramEditorBaseline(content);
         document.querySelector("#job-note").textContent =
           `G-code загружен: ${name} · ${loadedProgram.segments.length} сегментов.`;
         camera.zoom = 1;
@@ -3390,56 +3388,10 @@
         showProgram(result.name, result.content);
       }
 
-      document.querySelector("#open-program-editor").addEventListener("click", () => {
-        programEditorOriginal = programEditor.value;
-        programEditorDialog.showModal();
-        programEditor.focus();
-      });
-
-      document.querySelector("#close-program-editor").addEventListener("click", () => {
-        programEditorDialog.close();
-      });
-
-      document.querySelector("#editor-load-program").addEventListener("click", async () => {
-        if (!loadedProgram) {
-          await logMachineConsoleEvent(
-            "предупреждение",
-            "Невозможно загрузить программу из 3D-просмотра: программа не загружена.",
-          );
-          return;
-        }
-        programEditor.value = loadedProgram.content;
-        programEditorOriginal = loadedProgram.content;
-        await logMachineConsoleEvent(
-          "информация",
-          `G-code загружен в редактор из 3D-просмотра: ${loadedProgram.name}.`,
-        );
-      });
-
-      document.querySelector("#editor-save-program").addEventListener("click", async () => {
-        const content = programEditor.value;
-        if (!content.trim()) {
-          await logMachineConsoleEvent("ошибка", "Не удалось сохранить программу: редактор пуст.");
-          return;
-        }
-
-        const name = loadedProgram?.name || "program.ngc";
-        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = name;
-        document.body.append(link);
-        link.click();
-        link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-        programEditorOriginal = content;
-        await logMachineConsoleEvent("информация", `G-code сохранён в файл: ${name}.`);
-      });
-
-      document.querySelector("#editor-cancel-changes").addEventListener("click", async () => {
-        programEditor.value = programEditorOriginal;
-        await logMachineConsoleEvent("информация", "Несохранённые изменения редактора G-code отменены.");
+      initProgramEditor({
+        getProgram: () => loadedProgram,
+        logEvent: logMachineConsoleEvent,
+        logError: logMachineConsoleError,
       });
 
 
