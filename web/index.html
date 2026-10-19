@@ -2424,6 +2424,7 @@
       import { drawAxes, drawGrid } from "./js/scene-renderer.js";
       import { initToolAnimation } from "./js/tool-animation.js";
       import { calculateToolpathProgress } from "./js/toolpath-progress.js";
+      import { drawTrajectorySegments } from "./js/trajectory-renderer.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2807,65 +2808,18 @@
         const angleB = (Number(latestStatus?.machine_b) || 0) * Math.PI / 180;
         if (stockVisible) drawStock(trajectoryContext, project, stock, angleA, angleB);
 
-        const colors = {
-          rapid: "rgba(153, 168, 174, .58)",
-          linear: "#55bd91",
-          "arc-cw": "#f1aa58",
-          "arc-ccw": "#f1aa58",
-        };
         const activeProgress = calculateToolpathProgress(
           loadedProgram?.segments || [],
           currentProgramLine,
           toolPosition,
         );
-        let activeLineDistance = 0;
-
-        const drawSegmentPart = (segment, startRatio, endRatio, alpha) => {
-          if (endRatio - startRatio <= 1e-9) return;
-
-          const interpolate = (ratio) => segment.from.map(
-            (value, axis) => value + (segment.to[axis] - value) * ratio,
-          );
-          const from = projectTrajectory(interpolate(startRatio));
-          const to = projectTrajectory(interpolate(endRatio));
-
-          trajectoryContext.beginPath();
-          trajectoryContext.moveTo(from.x, from.y);
-          trajectoryContext.lineTo(to.x, to.y);
-          trajectoryContext.strokeStyle = colors[segment.type] || colors.linear;
-          trajectoryContext.globalAlpha = alpha;
-          trajectoryContext.lineWidth = segment.type === "rapid" ? 1 : 1.7;
-          trajectoryContext.setLineDash(segment.type === "rapid" ? [4, 5] : []);
-          trajectoryContext.stroke();
-        };
-
-        for (const segment of loadedProgram?.segments || []) {
-          const delta = segment.to.map((value, axis) => value - segment.from[axis]);
-          const length = Math.sqrt(delta.reduce((sum, value) => sum + value * value, 0));
-
-          if (segment.programLine < currentProgramLine) {
-            drawSegmentPart(segment, 0, 1, 0.22);
-          } else if (
-            activeProgress &&
-            segment.programLine === activeProgress.line
-          ) {
-            const completedLength = Math.max(
-              0,
-              Math.min(length, activeProgress.distance - activeLineDistance),
-            );
-            const splitRatio = length > 1e-9 ? completedLength / length : 0;
-            drawSegmentPart(segment, 0, splitRatio, 0.22);
-            drawSegmentPart(segment, splitRatio, 1, 1);
-            activeLineDistance += length;
-          } else {
-            drawSegmentPart(segment, 0, 1, 1);
-            if (activeProgress && segment.programLine === activeProgress.line) {
-              activeLineDistance += length;
-            }
-          }
-        }
-        trajectoryContext.setLineDash([]);
-        trajectoryContext.globalAlpha = 1;
+        drawTrajectorySegments({
+          context: trajectoryContext,
+          segments: loadedProgram?.segments || [],
+          currentProgramLine,
+          activeProgress,
+          project: projectTrajectory,
+        });
 
         drawAxes(trajectoryContext, project, bounds);
         drawOrientationCube();
