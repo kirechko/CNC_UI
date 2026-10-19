@@ -197,20 +197,48 @@ impl CNCController {
             Command::HomeAll => "HomeAll".into(),
             Command::Home(axis) => format!("Home {axis:?}"),
             Command::Mdi(command) => format!("MDI: {command}"),
-            Command::Spindle(command) => format!(
-                "Spindle {:?} {:.0} RPM",
-                command.direction, command.rpm
+            Command::Spindle(command) => match command.direction {
+                ApiSpindleDirection::Stopped => {
+                    format!("Шпиндель: команда остановки, задано {:.0} RPM", command.rpm)
+                }
+                ApiSpindleDirection::Clockwise => {
+                    format!("Шпиндель: включение по часовой стрелке, {:.0} RPM", command.rpm)
+                }
+                ApiSpindleDirection::CounterClockwise => {
+                    format!("Шпиндель: включение против часовой стрелки, {:.0} RPM", command.rpm)
+                }
+            },
+            Command::JogIncrement(request) => format!(
+                "Jog: ось {:?}, направление {:+}, расстояние {:.3}, подача {:.3}",
+                request.axis,
+                request.direction,
+                request.distance,
+                request.feed_rate.unwrap_or(0.0),
             ),
-            Command::JogIncrement(request) => format!("JogIncrement {request:?}"),
             Command::JogContinuous(axis, direction, feed) => {
-                format!("JogContinuous {axis:?} direction={direction} feed={feed:.0}")
+                if *direction == 0 {
+                    format!("Jog: остановка оси {axis:?}")
+                } else {
+                    format!(
+                        "Jog: непрерывное движение оси {axis:?}, направление {direction:+}, подача {feed:.3}"
+                    )
+                }
             }
             Command::JogContinuousXY(x, y, feed) => {
-                format!("JogContinuousXY x={x} y={y} feed={feed:.0}")
+                if *x == 0 && *y == 0 {
+                    "Jog: остановка движения XY".into()
+                } else {
+                    format!("Jog: непрерывное движение XY, X {x:+}, Y {y:+}, подача {feed:.3}")
+                }
             }
-            Command::JogCancel => "JogCancel".into(),
+            Command::JogCancel => "Jog: отмена движения".into(),
         };
-        crate::message_log::record("информация", "команда UI", &description);
+        let source = if matches!(command, Command::Spindle(_)) {
+            "шпиндель"
+        } else {
+            "команда UI"
+        };
+        crate::message_log::record("информация", source, &description);
 
         if let Err(error) = self.commands.send(command) {
             eprintln!("[LinuxCncApi] worker unavailable: {error}");
@@ -456,6 +484,18 @@ fn set_ui_alert(shared_status: &Arc<Mutex<CNCStatus>>, code: &str, message: &str
     shared_status.lock().unwrap().ui_alert = Some(error_alert(code, message));
 }
 
+fn record_adapter_message(last_message: &mut Option<String>, severity: &str, message: &str) {
+    if message.trim().is_empty() {
+        *last_message = None;
+        return;
+    }
+
+    if last_message.as_deref() != Some(message) {
+        crate::message_log::record(severity, "CNC/адаптер", message);
+        *last_message = Some(message.to_string());
+    }
+}
+
 fn api_worker(
     api: Arc<dyn LinuxCncApi>,
     receiver: mpsc::Receiver<Command>,
@@ -465,6 +505,9 @@ fn api_worker(
 ) {
     let configuration = runtime.block_on(api.machine_configuration()).ok();
     shared_status.lock().unwrap().machine_configuration = configuration;
+    let mut last_adapter_message = None;
+    let mut spindle_was_active = false;
+    let mut reached_spindle_target = None;
 
     loop {
         // E-Stop проверяется раньше обычной очереди.
@@ -542,6 +585,11 @@ fn api_worker(
                     }
                     Err(error) => {
                         eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
+                        crate::message_log::record(
+                            "ошибка",
+                            "CNC/адаптер",
+                            &format!("{}: {}", error.code, error.message),
+                        );
                         set_ui_alert(&shared_status, &error.code, &error.message);
                     }
                 }
@@ -552,6 +600,48 @@ fn api_worker(
 
         match runtime.block_on(api.status()) {
             Ok(status) => {
+                if let Some(message) = status.message.as_deref() {
+                    record_adapter_message(&mut last_adapter_message, "информация", message);
+                } else {
+                    last_adapter_message = None;
+                }
+
+                let spindle = &status.spindle;
+                let spindle_active =
+                    spindle.enabled || spindle.actual_rpm > 0.01 || spindle.commanded_rpm > 0.01;
+                let tolerance = (spindle.commanded_rpm.abs() * 0.01).max(1.0);
+                let at_target = spindle.direction != ApiSpindleDirection::Stopped
+                    && spindle.commanded_rpm > 0.0
+                    && (spindle.actual_rpm - spindle.commanded_rpm).abs() <= tolerance;
+                let target_key = (spindle.direction, spindle.commanded_rpm.to_bits());
+
+                if at_target && reached_spindle_target != Some(target_key) {
+                    crate::message_log::record(
+                        "информация",
+                        "шпиндель",
+                        &format!(
+                            "Шпиндель достиг заданной скорости: {:.0} RPM",
+                            spindle.commanded_rpm
+                        ),
+                    );
+                    reached_spindle_target = Some(target_key);
+                } else if !at_target {
+                    reached_spindle_target = None;
+                }
+
+                let spindle_stopped = !spindle.enabled
+                    && spindle.actual_rpm <= 0.01
+                    && spindle.commanded_rpm <= 0.01;
+                if spindle_was_active && spindle_stopped {
+                    crate::message_log::record(
+                        "информация",
+                        "шпиндель",
+                        "Шпиндель остановился: 0 RPM",
+                    );
+                    reached_spindle_target = None;
+                }
+                spindle_was_active = spindle_active && !spindle_stopped;
+
                 let reconnected = shared_status.lock().unwrap().state == "DISCONNECTED";
                 if reconnected {
                     if let Ok(configuration) = runtime.block_on(api.machine_configuration()) {
@@ -571,6 +661,11 @@ fn api_worker(
             }
             Err(error) => {
                 eprintln!("[LinuxCncApi] status {}: {}", error.code, error.message);
+                record_adapter_message(
+                    &mut last_adapter_message,
+                    "ошибка",
+                    &format!("status {}: {}", error.code, error.message),
+                );
                 let mut current = shared_status.lock().unwrap();
                 current.state = "DISCONNECTED".into();
                 current.message = Some(error.message.clone());
