@@ -3792,7 +3792,7 @@
 
         const query = reverseSearch.query;
         lastCommandSearch = query;
-        commandSearchIndicator.textContent = `(reverse-i-search)\`${query}':`;
+        commandSearchIndicator.textContent = `r->\`${query}':`;
         commandHistoryMatchIndex = findCommandHistoryMatch(query, matchFrom);
 
         if (commandHistoryMatchIndex < 0) {
