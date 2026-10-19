@@ -88,6 +88,20 @@ impl GrblAdapter {
         })
     }
 
+    async fn reset_after_command_cancellation(session: &mut Session) -> CncResult<()> {
+        session.protocol_poisoned = true;
+        session.program_streaming = false;
+        session.continuous_jog = None;
+        session.jog_chunk_active = false;
+        session.current_line = 0;
+        session.rx_buffer.clear();
+        session.spindle_command = SpindleCommand {
+            direction: SpindleDirection::Stopped,
+            rpm: 0.0,
+        };
+        Self::send_realtime(session, 0x18).await
+    }
+
     fn extract_line(rx_buffer: &mut Vec<u8>) -> CncResult<Option<String>> {
         if let Some(line_end) = rx_buffer.iter().position(|byte| *byte == b'\n') {
             if line_end > MAX_RESPONSE_LINE {
