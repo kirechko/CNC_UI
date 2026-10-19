@@ -2412,6 +2412,7 @@
       import { initJogKeyboard } from "./js/jog-keyboard.js";
       import { initJogApi } from "./js/jog-api.js";
       import { initJogModeControls } from "./js/jog-mode.js";
+      import { initJogStepDialog } from "./js/jog-step-dialog.js";
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
@@ -3295,8 +3296,28 @@
       const jogDialHint = document.querySelector("#jog-dial-hint");
       const jogStepsDialog = document.querySelector("#jog-steps-dialog");
       const jogStepsInputs = [...jogStepsDialog.querySelectorAll(".jog-steps-fields input")];
-      let editingJogStepAxis = "xy";
       let hoveredDialSelection = null;
+
+      const jogStepDialog = initJogStepDialog({
+        dialog: jogStepsDialog,
+        inputs: jogStepsInputs,
+        getSteps: (axis) => axis === "z" ? zJogStepValues : xyJogStepValues,
+        onApply(axis, values) {
+          if (axis === "z") {
+            zJogStepValues = values;
+          } else {
+            xyJogStepValues = values;
+          }
+
+          try {
+            localStorage.setItem(`cnc-ui-jog-steps-${axis}`, JSON.stringify(values));
+          } catch {
+            // Настройки остаются активными до закрытия страницы.
+          }
+
+          updateJogStepControls();
+        },
+      });
 
       initJogModeControls({
         incrementalButton: jogIncrementalMode,
@@ -3371,19 +3392,7 @@
       }
 
       function openJogStepsDialog(axis) {
-        editingJogStepAxis = axis;
-        const values = axis === "z" ? zJogStepValues : xyJogStepValues;
-        jogStepsDialog.querySelector("h2").textContent =
-          `Пользовательские шаги Jog ${axis.toUpperCase()}`;
-        jogStepsDialog.querySelector(".panel-caption").textContent =
-          `Укажите четыре возрастающих шага в миллиметрах для перемещений ${axis.toUpperCase()}.`;
-        jogStepsInputs.forEach((input, index) => {
-          input.value = formatJogStep(values[index]);
-          input.setCustomValidity("");
-        });
-        jogStepsDialog.showModal();
-        jogStepsInputs[0].focus();
-        jogStepsInputs[0].select();
+        jogStepDialog.open(axis);
       }
 
       document.querySelectorAll("[data-open-jog-steps]").forEach((button) => {
@@ -3395,46 +3404,7 @@
       });
 
       document.querySelector("#jog-steps-apply").addEventListener("click", () => {
-        const values = jogStepsInputs.map((input) => Number(input.value));
-        let invalidIndex = -1;
-
-        for (let index = 0; index < values.length; index++) {
-          if (
-            !jogStepsInputs[index].value.trim() ||
-            !Number.isFinite(values[index]) ||
-            values[index] <= 0 ||
-            values[index] > 100000 ||
-            (index > 0 && values[index] <= values[index - 1])
-          ) {
-            invalidIndex = index;
-            break;
-          }
-        }
-
-        jogStepsInputs.forEach((input) => input.setCustomValidity(""));
-        if (invalidIndex !== -1) {
-          jogStepsInputs[invalidIndex].setCustomValidity(
-            "Введите положительные шаги по возрастанию, не больше 100000 mm.",
-          );
-          jogStepsInputs[invalidIndex].reportValidity();
-          return;
-        }
-
-        if (editingJogStepAxis === "z") {
-          zJogStepValues = values;
-        } else {
-          xyJogStepValues = values;
-        }
-        try {
-          localStorage.setItem(
-            `cnc-ui-jog-steps-${editingJogStepAxis}`,
-            JSON.stringify(values),
-          );
-        } catch {
-          // Настройки остаются активными до закрытия страницы.
-        }
-        updateJogStepControls();
-        jogStepsDialog.close();
+        jogStepDialog.apply();
       });
 
       updateJogStepControls();
