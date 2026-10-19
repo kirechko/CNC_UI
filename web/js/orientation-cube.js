@@ -1,4 +1,5 @@
 import { rotatePoint } from "./scene-projection.js";
+import { resizeCanvas } from "./canvas-utils.js";
 
 const VERTICES = [
   [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
@@ -22,21 +23,6 @@ const HIT_TEST_FACES = [
   { vertices: [1, 2, 6, 5], axis: "X", sign: 1 },
   { vertices: [0, 3, 7, 4], axis: "X", sign: -1 },
 ];
-
-function resizeCanvas(canvas, context) {
-  const rect = canvas.getBoundingClientRect();
-  const ratio = window.devicePixelRatio || 1;
-  const width = Math.max(1, Math.round(rect.width * ratio));
-  const height = Math.max(1, Math.round(rect.height * ratio));
-
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  return { width: rect.width, height: rect.height };
-}
 
 function projectVertices(width, height, camera) {
   const centerX = width / 2;
