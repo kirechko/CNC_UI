@@ -2403,7 +2403,7 @@
       import { parseObj } from "./js/obj.js";
       import { parseStl, parseThreeJsJson } from "./js/stock.js";
       import { initSidebarTabs } from "./js/sidebar.js";
-      import { renderLatestLogLine } from "./js/message-log.js";
+      import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
 
       const connection = document.querySelector("#connection");
@@ -2457,12 +2457,6 @@
         });
       }
       const latestOtherMessage = document.querySelector("#latest-other-message");
-      const messageLogDialog = document.querySelector("#message-log-dialog");
-      const messageLogRows = document.querySelector("#message-log-rows");
-      const messageLogCount = document.querySelector("#message-log-count");
-      let messageLogPageSize = 100;
-      let messageLogOffset = 0;
-      let messageLogSort = { column: null, direction: 0 };
       let logDateRange = {
         start: null,
         end: null,
@@ -2472,6 +2466,7 @@
       let draftLogDateRange = { ...logDateRange };
       let logCalendarMonth = new Date();
       let draggingLogCalendar = false;
+      const messageLog = initMessageLog({ getDateRange: () => logDateRange });
       const connectionChip = document.querySelector(".connection-chip");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
@@ -4481,7 +4476,7 @@
         logDatePickerButton.textContent = logRangeLabel(logDateRange);
         messageLogOffset = 0;
         renderLogCalendar();
-        refreshMessageLog();
+        messageLog.refresh();
       });
 
       document.querySelector("#log-calendar-done").addEventListener("click", () => {
@@ -4497,162 +4492,6 @@
         }
       });
 
-      async function requestLogPage(offset = messageLogOffset) {
-        const params = new URLSearchParams({
-          descending: String(messageLogSort.direction !== 1),
-          limit: String(messageLogPageSize),
-          offset: String(offset),
-        });
-        if (messageLogSort.column && messageLogSort.direction !== 0) {
-          params.set("sort", messageLogSort.column);
-        }
-        const severity = document.querySelector("#log-severity").value;
-        const source = document.querySelector("#log-source").value.trim();
-        const search = document.querySelector("#log-search").value.trim();
-        const startDate = parseLocalDate(logDateRange.start);
-        const endDate = parseLocalDate(logDateRange.end || logDateRange.start);
-        const [startHour, startMinute] = (logDateRange.startTime || "00:00").split(":").map(Number);
-        const [endHour, endMinute] = (logDateRange.endTime || "23:59").split(":").map(Number);
-        const timeFromMs = startDate
-          ? new Date(
-              startDate.getFullYear(),
-              startDate.getMonth(),
-              startDate.getDate(),
-              startHour,
-              startMinute,
-            ).getTime()
-          : null;
-        const timeToMs = endDate
-          ? new Date(
-              endDate.getFullYear(),
-              endDate.getMonth(),
-              endDate.getDate(),
-              endHour,
-              endMinute + 1,
-            ).getTime() - 1
-          : null;
-        if (severity) params.set("severity", severity);
-        if (source) params.set("source", source);
-        if (search) params.set("search", search);
-        if (timeFromMs !== null) params.set("time_from_ms", String(timeFromMs));
-        if (timeToMs !== null) params.set("time_to_ms", String(timeToMs));
-
-        const invoke = window.__TAURI__?.core?.invoke;
-        return invoke
-          ? invoke("get_log", {
-              severity: severity || null,
-              source: source || null,
-              search: search || null,
-              sort: messageLogSort.column && messageLogSort.direction !== 0
-                ? messageLogSort.column
-                : null,
-              descending: messageLogSort.direction !== 1,
-              timeFromMs,
-              timeToMs,
-              limit: messageLogPageSize,
-              offset,
-            })
-          : fetch(`/api/log?${params}`, { cache: "no-store" }).then(async (response) => {
-              if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
-              return response.json();
-            });
-      }
-
-      async function refreshMessageLog() {
-        try {
-          const page = await requestLogPage();
-          messageLogRows.replaceChildren();
-          for (const entry of page.entries) {
-            const row = document.createElement("tr");
-            const timestamp = document.createElement("td");
-            timestamp.textContent = formatLogTimestamp(entry.timestamp_ms);
-            const severity = document.createElement("td");
-            severity.textContent = entry.severity;
-            severity.className = entry.severity === "авария" ? "critical" : "";
-            const source = document.createElement("td");
-            source.textContent = entry.source;
-            const message = document.createElement("td");
-            message.textContent = entry.message;
-            row.append(timestamp, severity, source, message);
-            messageLogRows.append(row);
-          }
-          messageLogCount.textContent =
-            `${page.total} сообщений · ${page.total ? messageLogOffset + 1 : 0}–${Math.min(messageLogOffset + page.entries.length, page.total)}`;
-          document.querySelector("#message-log-prev").disabled = messageLogOffset <= 0;
-          document.querySelector("#message-log-next").disabled =
-            messageLogOffset + page.entries.length >= page.total;
-        } catch (error) {
-          messageLogCount.textContent = `Не удалось загрузить журнал: ${error.message}`;
-        }
-      }
-
-      document.querySelector("#open-message-log").addEventListener("click", () => {
-        messageLogOffset = 0;
-        messageLogDialog.showModal();
-        refreshMessageLog();
-      });
-      document.querySelector("#close-message-log").addEventListener("click", () => messageLogDialog.close());
-      document.querySelector("#message-log-filters").addEventListener("submit", (event) => {
-        event.preventDefault();
-        messageLogOffset = 0;
-        refreshMessageLog();
-      });
-
-      for (const control of document.querySelectorAll(
-        "#log-severity, #log-source, #log-search",
-      )) {
-        control.addEventListener(control.tagName === "SELECT" ? "change" : "input", () => {
-          messageLogOffset = 0;
-          refreshMessageLog();
-        });
-      }
-
-      document.querySelectorAll("[data-log-sort]").forEach((header) => {
-        const button = header.querySelector("button");
-        button.addEventListener("click", () => {
-          const column = header.dataset.logSort;
-          if (messageLogSort.column !== column) {
-            messageLogSort = { column, direction: 1 };
-          } else if (messageLogSort.direction === 0) {
-            messageLogSort.direction = 1;
-          } else if (messageLogSort.direction === 1) {
-            messageLogSort.direction = -1;
-          } else {
-            messageLogSort = { column: null, direction: 0 };
-          }
-
-          document.querySelectorAll("[data-log-sort]").forEach((item) => {
-            const active = item.dataset.logSort === messageLogSort.column;
-            const ariaSort = !active || messageLogSort.direction === 0
-              ? "none"
-              : messageLogSort.direction === 1
-                ? "ascending"
-                : "descending";
-            item.setAttribute("aria-sort", ariaSort);
-            const label = item.querySelector("button").textContent.replace(/[ ▲▼]$/, "");
-            item.querySelector("button").textContent = active && messageLogSort.direction !== 0
-              ? `${label} ${messageLogSort.direction === 1 ? "▲" : "▼"}`
-              : label;
-          });
-
-          messageLogOffset = 0;
-          refreshMessageLog();
-        });
-      });
-      document.querySelector("#message-log-page-size").addEventListener("change", (event) => {
-        messageLogPageSize = Number(event.currentTarget.value);
-        messageLogOffset = 0;
-        refreshMessageLog();
-      });
-
-      document.querySelector("#message-log-prev").addEventListener("click", () => {
-        messageLogOffset = Math.max(0, messageLogOffset - messageLogPageSize);
-        refreshMessageLog();
-      });
-      document.querySelector("#message-log-next").addEventListener("click", () => {
-        messageLogOffset += messageLogPageSize;
-        refreshMessageLog();
-      });
 
       async function requestStatus() {
         const invoke = window.__TAURI__?.core?.invoke;
@@ -4744,7 +4583,7 @@
             status.latest_other,
             "Сообщений нет",
           );
-          if (messageLogDialog.open) refreshMessageLog();
+          messageLog.refreshIfOpen();
           updatePositionReadouts(status);
 
           document.querySelector("#message").textContent =
