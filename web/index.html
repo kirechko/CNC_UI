@@ -1626,6 +1626,10 @@
       .sidebar-empty strong { color: #c0c9cc; font-size: 11px; }
       .sidebar-empty span { font-size: 10px; line-height: 1.55; }
 
+      .right-column > .machine-console-panel {
+        grid-column: 1 / -1;
+      }
+
       .event-panel { min-height: 134px; }
       .event-message {
         min-height: 46px;
@@ -2002,7 +2006,28 @@
           </div>
         </section>
 
+
+        <div hidden>
+          <span id="job-caption">Нет загруженной программы</span>
+          <p class="job-note" id="job-note">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
+        </div>
+      </section>
+
+      <aside class="right-column" aria-label="Файлы и сообщения">
         <section class="panel">
+          <div class="panel-tabs" role="tablist" aria-label="Боковая панель">
+            <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content">FILES</button>
+            <button class="tab-button" id="macros-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-content">MACROS</button>
+          </div>
+          <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
+            <div class="sidebar-empty">
+              <strong id="sidebar-title">Файловый менеджер</strong>
+              <span id="sidebar-description">Просмотр и загрузка файлов пока не подключены. Сейчас доступно пошаговое управление осями.</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel machine-console-panel">
           <div class="panel-heading">
             <span class="panel-title">КОМАНДЫ И G-CODE</span>
             <span class="panel-caption">Команда выполняется отдельно; программа загружается перед запуском</span>
@@ -2022,26 +2047,6 @@
               <button type="submit" id="machine-command-run">Выполнить</button>
             </form>
             <pre class="machine-console-output" id="machine-command-output" role="status" aria-live="polite"></pre>
-          </div>
-        </section>
-
-        <div hidden>
-          <span id="job-caption">Нет загруженной программы</span>
-          <p class="job-note" id="job-note">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
-        </div>
-      </section>
-
-      <aside class="right-column" aria-label="Файлы и сообщения">
-        <section class="panel">
-          <div class="panel-tabs" role="tablist" aria-label="Боковая панель">
-            <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content">FILES</button>
-            <button class="tab-button" id="macros-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-content">MACROS</button>
-          </div>
-          <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
-            <div class="sidebar-empty">
-              <strong id="sidebar-title">Файловый менеджер</strong>
-              <span id="sidebar-description">Просмотр и загрузка файлов пока не подключены. Сейчас доступно пошаговое управление осями.</span>
-            </div>
           </div>
         </section>
 
