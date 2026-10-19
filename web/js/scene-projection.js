@@ -1,3 +1,52 @@
+function boundsFromPoints(points) {
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+
+  for (const point of points) {
+    for (let axis = 0; axis < 3; axis++) {
+      min[axis] = Math.min(min[axis], point[axis]);
+      max[axis] = Math.max(max[axis], point[axis]);
+    }
+  }
+
+  return {
+    min,
+    max,
+    center: min.map((value, axis) => (value + max[axis]) / 2),
+  };
+}
+
+export function calculateSceneBounds(segments, stockMesh) {
+  const points = segments.flatMap(({ from, to }) => [from, to]);
+  if (stockMesh) {
+    for (const triangle of stockMesh.triangles) points.push(...triangle);
+  }
+  points.push([0, 0, 0]);
+
+  return boundsFromPoints(points);
+}
+
+export function calculateTrajectoryBounds(segments, stockMesh) {
+  const points = segments.flatMap(({ from, to }) => [from, to]);
+  if (points.length === 0) {
+    return calculateSceneBounds(segments, stockMesh);
+  }
+
+  const bounds = boundsFromPoints(points);
+
+  // Give flat paths a visible stock thickness while preserving their center.
+  for (let axis = 0; axis < 3; axis++) {
+    if (bounds.max[axis] - bounds.min[axis] < 1) {
+      const center = (bounds.min[axis] + bounds.max[axis]) / 2;
+      bounds.min[axis] = center - 0.5;
+      bounds.max[axis] = center + 0.5;
+    }
+  }
+
+  bounds.center = bounds.min.map((value, axis) => (value + bounds.max[axis]) / 2);
+  return bounds;
+}
+
 export function rotatePoint(point, yaw, pitch) {
   const [x, y, z] = point;
   const cosYaw = Math.cos(yaw);

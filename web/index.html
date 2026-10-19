@@ -2414,7 +2414,13 @@
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
-      import { makeProjector, makeTrajectoryProjector, rotatePoint } from "./js/scene-projection.js";
+      import {
+        calculateSceneBounds,
+        calculateTrajectoryBounds,
+        makeProjector,
+        makeTrajectoryProjector,
+        rotatePoint,
+      } from "./js/scene-projection.js";
       import { drawAxes, drawGrid } from "./js/scene-renderer.js";
 
       const connection = document.querySelector("#connection");
@@ -2618,48 +2624,6 @@
 
 
 
-      function sceneBounds() {
-        const points = loadedProgram?.segments.flatMap(({ from, to }) => [from, to]) || [];
-        if (loadedStockMesh) {
-          for (const triangle of loadedStockMesh.triangles) points.push(...triangle);
-        }
-        points.push([0, 0, 0]);
-        const min = [Infinity, Infinity, Infinity];
-        const max = [-Infinity, -Infinity, -Infinity];
-
-        for (const point of points) {
-          for (let axis = 0; axis < 3; axis++) {
-            min[axis] = Math.min(min[axis], point[axis]);
-            max[axis] = Math.max(max[axis], point[axis]);
-          }
-        }
-        return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
-      }
-
-      function trajectoryBounds() {
-        const points = loadedProgram?.segments.flatMap(({ from, to }) => [from, to]) || [];
-        if (points.length === 0) return sceneBounds();
-
-        const min = [Infinity, Infinity, Infinity];
-        const max = [-Infinity, -Infinity, -Infinity];
-        for (const point of points) {
-          for (let axis = 0; axis < 3; axis++) {
-            min[axis] = Math.min(min[axis], point[axis]);
-            max[axis] = Math.max(max[axis], point[axis]);
-          }
-        }
-
-        // Give flat paths a visible stock thickness while preserving their center.
-        for (let axis = 0; axis < 3; axis++) {
-          if (max[axis] - min[axis] < 1) {
-            const center = (min[axis] + max[axis]) / 2;
-            min[axis] = center - 0.5;
-            max[axis] = center + 0.5;
-          }
-        }
-
-        return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
-      }
 
 
 
@@ -2714,7 +2678,10 @@
         toolContext.clearRect(0, 0, width, height);
         if (!machineConnected) return;
 
-        const bounds = sceneBounds();
+        const bounds = calculateSceneBounds(
+          loadedProgram?.segments || [],
+          loadedStockMesh,
+        );
         const project = makeProjector(width, height, bounds, camera);
         const sceneSpan = Math.max(
           bounds.max[0] - bounds.min[0],
@@ -2873,7 +2840,10 @@
 
       function drawToolpath() {
         const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
-        const bounds = sceneBounds();
+        const bounds = calculateSceneBounds(
+          loadedProgram?.segments || [],
+          loadedStockMesh,
+        );
         const project = makeProjector(width, height, bounds, camera);
         const projectTrajectory = makeTrajectoryProjector(project);
         trajectoryContext.clearRect(0, 0, width, height);
@@ -2888,7 +2858,10 @@
         viewerEmpty.hidden = true;
         const stock = loadedStockMesh
           ? { min: loadedStockMesh.min, max: loadedStockMesh.max }
-          : trajectoryBounds();
+          : calculateTrajectoryBounds(
+              loadedProgram?.segments || [],
+              loadedStockMesh,
+            );
         drawGrid(trajectoryContext, width, height, project, stock);
         const angleA = (Number(latestStatus?.machine_a) || 0) * Math.PI / 180;
         const angleB = (Number(latestStatus?.machine_b) || 0) * Math.PI / 180;
