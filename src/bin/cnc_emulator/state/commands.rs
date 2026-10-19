@@ -49,6 +49,7 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
         "jog_continuous" => jog_continuous(emulator, args),
         "jog_continuous_xy" => jog_continuous_xy(emulator, args),
         "jog_cancel" => jog_cancel(emulator),
+        "stop_motion" => stop_motion(emulator),
         "mdi" => mdi(emulator, args),
         "load_program" => load_program(emulator, args),
         "program_run" => program_run(emulator, args),
@@ -418,6 +419,31 @@ pub(super) fn jog_cancel(emulator: &mut Emulator) -> Result<Value, WireError> {
     emulator.status.jog_rate = 0.0;
     emulator.status.motion_mode = None;
     emulator.status.message = Some("Jog stopped".into());
+    Ok(Value::Null)
+}
+
+pub(super) fn stop_motion(emulator: &mut Emulator) -> Result<Value, WireError> {
+    emulator.active_move = None;
+    emulator.continuous_jog = None;
+    emulator.continuous_jog_xy = None;
+    emulator.jog_stop = None;
+    emulator.jog_move_active = false;
+    emulator.active_move_is_rapid = false;
+    emulator.active_move_is_homing = false;
+    emulator.homing_queue.clear();
+    emulator.homing_axis = None;
+    emulator.status.homing = false;
+    emulator.jog_velocity = 0.0;
+    emulator.status.jog_rate = 0.0;
+    emulator.status.feed_rate = 0.0;
+    emulator.status.motion_mode = None;
+    emulator.dwell_remaining = 0.0;
+
+    if emulator.status.interpreter_state == InterpreterState::Reading {
+        emulator.status.interpreter_state = InterpreterState::Paused;
+    }
+
+    emulator.status.message = Some("Motion stopped".into());
     Ok(Value::Null)
 }
 

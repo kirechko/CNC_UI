@@ -210,6 +210,10 @@ impl LinuxCncApi for EmAdapter {
         self.unit("jog_cancel", json!({})).await
     }
 
+    async fn stop_motion(&self) -> CncResult<()> {
+        self.unit("stop_motion", json!({})).await
+    }
+
     async fn execute_command(
         &self,
         command: &str,

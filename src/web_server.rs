@@ -72,6 +72,7 @@ pub(crate) struct AppState {
     log: Mutex<Connection>,
     last_logged_status: Mutex<Option<String>>,
     command_cancel_requested: Arc<std::sync::atomic::AtomicBool>,
+    motion_stop_requested: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl AppState {
@@ -476,6 +477,10 @@ impl AppState {
             true,
             std::sync::atomic::Ordering::Release,
         );
+        self.motion_stop_requested.store(
+            true,
+            std::sync::atomic::Ordering::Release,
+        );
     }
 
     pub(crate) fn execute_command(&self, command: &str) -> Result<String, String> {
@@ -564,12 +569,14 @@ impl AppState {
     pub(crate) fn new() -> io::Result<Self> {
         let controller = create_controller()?;
         let command_cancel_requested = controller.command_cancellation_handle();
+        let motion_stop_requested = controller.motion_stop_handle();
         let state = Self {
             controller: Mutex::new(controller),
             program: Mutex::new(None),
             log: Mutex::new(Self::open_log()?),
             last_logged_status: Mutex::new(None),
             command_cancel_requested,
+            motion_stop_requested,
         };
         let default_path = PathBuf::from("test.gcode");
 
