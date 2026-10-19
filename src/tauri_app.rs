@@ -25,6 +25,11 @@ fn get_status(state: State<'_, AppState>) -> Result<StatusResponse, String> {
 }
 
 #[tauri::command]
+fn get_command_history(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    state.command_history()
+}
+
+#[tauri::command]
 fn execute_machine_command(
     state: State<'_, AppState>,
     command: String,
@@ -367,6 +372,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .invoke_handler(tauri::generate_handler![
             get_status,
             get_log,
+            get_command_history,
             log_message,
             execute_machine_command,
             get_program,

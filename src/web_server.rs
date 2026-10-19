@@ -110,7 +110,13 @@ impl AppState {
                  CREATE INDEX IF NOT EXISTS messages_severity_id
                      ON messages(severity, id DESC);
                  CREATE INDEX IF NOT EXISTS messages_id
-                     ON messages(id DESC);",
+                     ON messages(id DESC);
+                 CREATE TABLE IF NOT EXISTS command_history (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     command TEXT NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS command_history_id
+                     ON command_history(id DESC);",
             )
             .map_err(|error| startup_error(format!("cannot initialize message log: {error}")))?;
         Ok(connection)
@@ -442,7 +448,62 @@ impl AppState {
         Ok(())
     }
 
+    pub(crate) fn command_history(&self) -> Result<Vec<String>, String> {
+        let connection = self
+            .log
+            .lock()
+            .map_err(|_| "message log lock poisoned".to_string())?;
+        let mut statement = connection
+            .prepare(
+                "SELECT command FROM (
+                     SELECT id, command FROM command_history
+                     ORDER BY id DESC LIMIT 500
+                 ) ORDER BY id ASC",
+            )
+            .map_err(|error| error.to_string())?;
+        statement
+            .query_map([], |row| row.get(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<String>, _>>()
+            .map_err(|error| error.to_string())
+    }
+
     pub(crate) fn execute_command(&self, command: &str) -> Result<String, String> {
+        let command = command.trim();
+        if command.is_empty()
+            || command.len() > 4096
+            || command.contains('\n')
+            || command.contains('\r')
+        {
+            return Err("Некорректная команда: укажите одну строку длиной до 4096 символов".into());
+        }
+
+        if let Ok(connection) = self.log.lock() {
+            let result = connection.execute(
+                "INSERT INTO command_history (command)
+                 SELECT ?1
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM command_history
+                     ORDER BY id DESC LIMIT 1
+                 ) OR (
+                     SELECT command FROM command_history
+                     ORDER BY id DESC LIMIT 1
+                 ) != ?1",
+                [command],
+            );
+            if let Err(error) = result {
+                eprintln!("Could not store command history: {error}");
+            } else if let Err(error) = connection.execute(
+                "DELETE FROM command_history
+                 WHERE id NOT IN (
+                     SELECT id FROM command_history ORDER BY id DESC LIMIT 500
+                 )",
+                [],
+            ) {
+                eprintln!("Could not prune command history: {error}");
+            }
+        }
+
         let controller = self
             .controller
             .lock()
@@ -1022,6 +1083,15 @@ async fn get_status(
     Ok(Json(response))
 }
 
+async fn get_command_history(
+    State(state): State<SharedController>,
+) -> Result<Json<Vec<String>>, (StatusCode, String)> {
+    state
+        .command_history()
+        .map(Json)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))
+}
+
 async fn get_log(
     State(state): State<SharedController>,
     Query(query): Query<LogQuery>,
@@ -1235,6 +1305,7 @@ pub async fn run() -> io::Result<()> {
         .route("/api/status", get(get_status))
         .route("/api/log", get(get_log).post(post_log_message))
         .route("/api/command", post(post_machine_command))
+        .route("/api/command-history", get(get_command_history))
         .route("/api/program", get(get_program).post(post_program))
         .route("/api/program/run", post(start_program))
         .route("/api/program/pause", post(pause_program))
