@@ -30,7 +30,11 @@ fn execute_machine_command(
     command: String,
 ) -> Result<String, String> {
     let command = command.trim();
-    if command.is_empty() || command.len() > 4096 || command.contains(['\\n', '\\r']) {
+    if command.is_empty()
+        || command.len() > 4096
+        || command.contains('\n')
+        || command.contains('\r')
+    {
         return Err("Введите одну непустую команду длиной не более 4096 символов".into());
     }
 
