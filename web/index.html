@@ -2410,6 +2410,7 @@
       import { initLogCalendar } from "./js/log-calendar-control.js";
       import { initSpindleControls } from "./js/spindle-control.js";
       import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
+      import { initJogKeyboard } from "./js/jog-keyboard.js";
       import { initJogModeControls } from "./js/jog-mode.js";
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
@@ -3773,70 +3774,14 @@
         );
       });
 
-      const keyboardJogBindings = new Map([
-        ["ArrowUp", ["Y", 1]],
-        ["ArrowDown", ["Y", -1]],
-        ["ArrowLeft", ["X", -1]],
-        ["ArrowRight", ["X", 1]],
-        ["PageUp", ["Z", 1]],
-        ["PageDown", ["Z", -1]],
-      ]);
-      const activeKeyboardJogKeys = new Map();
-
-      window.addEventListener("keydown", (event) => {
-        const binding = keyboardJogBindings.get(event.code);
-        if (!binding) return;
-
-        const target = event.target;
-        if (
-          target instanceof HTMLElement &&
-          (target.isContentEditable ||
-            target.closest("input, select, textarea, button, [contenteditable='true']"))
-        ) return;
-        if (positionDialog.open || jogStepsDialog.open) return;
-
-        event.preventDefault();
-        if (activeKeyboardJogKeys.has(event.code)) return;
-        activeKeyboardJogKeys.set(event.code, binding);
-
-        if (!machineConnected) return;
-        const [axis, direction] = binding;
-
-        if (jogMotionMode === "continuous") {
-          startContinuousJog(axis, direction);
-          return;
-        }
-
-        const button = jogButtons.find(
-          (item) =>
-            item.dataset.axis === axis &&
-            Number(item.dataset.direction) === direction,
-        );
-        if (button) void jog(button);
-      });
-
-      window.addEventListener("keyup", (event) => {
-        const binding = activeKeyboardJogKeys.get(event.code);
-        if (!binding) return;
-
-        event.preventDefault();
-        activeKeyboardJogKeys.delete(event.code);
-        if (jogMotionMode === "continuous") {
-          stopContinuousJog(binding[0]);
-        }
-      });
-
-      function releaseKeyboardJogKeys() {
-        const activeAxes = new Set(
-          [...activeKeyboardJogKeys.values()].map(([axis]) => axis),
-        );
-        activeKeyboardJogKeys.clear();
-        if (activeAxes.size > 0) stopContinuousJog();
-      }
-
-      window.addEventListener("blur", releaseKeyboardJogKeys);
-      document.addEventListener("visibilitychange", () => {
-        if (document.hidden) releaseKeyboardJogKeys();
+      initJogKeyboard({
+        isConnected: () => machineConnected,
+        getMotionMode: () => jogMotionMode,
+        getJogButtons: () => jogButtons,
+        isDialogOpen: () => positionDialog.open || jogStepsDialog.open,
+        jog,
+        startContinuousJog,
+        stopContinuousJog,
       });
 
       const jogIncrementalMode = document.querySelector("#jog-incremental-mode");
