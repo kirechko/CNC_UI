@@ -34,3 +34,20 @@ export function dialDirectionAt(x, y, width, height) {
   const sector = getDialSector(x, y, width, height);
   return sector === null ? null : { sector };
 }
+
+const DIAL_MOVES = [
+  [["X", 1]],
+  [["X", 1], ["Y", -1]],
+  [["Y", -1]],
+  [["X", -1], ["Y", -1]],
+  [["X", -1]],
+  [["X", -1], ["Y", 1]],
+  [["Y", 1]],
+  [["X", 1], ["Y", 1]],
+];
+
+export function dialMoves(selection) {
+  return Number.isInteger(selection?.sector)
+    ? DIAL_MOVES[selection.sector] || null
+    : null;
+}
