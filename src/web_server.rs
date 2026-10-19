@@ -50,6 +50,8 @@ pub(crate) struct LogQuery {
     pub(crate) descending: Option<bool>,
     pub(crate) limit: Option<usize>,
     pub(crate) offset: Option<usize>,
+    pub(crate) time_from_ms: Option<i64>,
+    pub(crate) time_to_ms: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -211,6 +213,8 @@ impl AppState {
         let severity = query.severity.as_deref().filter(|value| !value.is_empty());
         let source = query.source.as_deref().filter(|value| !value.is_empty());
         let search = query.search.as_deref().filter(|value| !value.is_empty());
+        let time_from_ms = query.time_from_ms;
+        let time_to_ms = query.time_to_ms;
         let limit = query
             .limit
             .unwrap_or(DEFAULT_LOG_PAGE_SIZE)
@@ -220,7 +224,8 @@ impl AppState {
             Some("severity") => "severity",
             Some("source") => "source",
             Some("message") => "message",
-            _ => "timestamp_ms",
+            Some("timestamp") => "timestamp_ms",
+            _ => "id",
         };
         let direction = if query.descending.unwrap_or(true) {
             "DESC"
@@ -233,8 +238,10 @@ impl AppState {
                 "SELECT COUNT(*) FROM messages
                  WHERE (?1 IS NULL OR severity = ?1)
                    AND (?2 IS NULL OR instr(source, ?2) > 0)
-                   AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')",
-                params![severity, source, search],
+                   AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')
+                   AND (?4 IS NULL OR timestamp_ms >= ?4)
+                   AND (?5 IS NULL OR timestamp_ms <= ?5)",
+                params![severity, source, search, time_from_ms, time_to_ms],
                 |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
@@ -243,13 +250,25 @@ impl AppState {
              WHERE (?1 IS NULL OR severity = ?1)
                AND (?2 IS NULL OR instr(source, ?2) > 0)
                AND (?3 IS NULL OR message LIKE '%' || ?3 || '%')
-             ORDER BY {order} {direction}, id DESC LIMIT ?4 OFFSET ?5"
+               AND (?4 IS NULL OR timestamp_ms >= ?4)
+               AND (?5 IS NULL OR timestamp_ms <= ?5)
+             ORDER BY {order} {direction}, id DESC LIMIT ?6 OFFSET ?7"
         );
         let mut statement = connection
             .prepare(&sql)
             .map_err(|error| error.to_string())?;
         let entries = statement
-            .query_map(params![severity, source, search, limit, offset], |row| {
+            .query_map(
+                params![
+                    severity,
+                    source,
+                    search,
+                    time_from_ms,
+                    time_to_ms,
+                    limit,
+                    offset
+                ],
+                |row| {
                 Ok(LogEntry {
                     id: row.get(0)?,
                     timestamp_ms: row.get(1)?,

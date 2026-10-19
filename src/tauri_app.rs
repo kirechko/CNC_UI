@@ -62,6 +62,8 @@ fn get_log(
     descending: Option<bool>,
     limit: Option<usize>,
     offset: Option<usize>,
+    time_from_ms: Option<i64>,
+    time_to_ms: Option<i64>,
 ) -> Result<TauriLogPage, String> {
     let query = crate::web_server::LogQuery {
         severity,
@@ -71,6 +73,8 @@ fn get_log(
         descending,
         limit,
         offset,
+        time_from_ms,
+        time_to_ms,
     };
     state.query_log(&query).map(|page| TauriLogPage {
         entries: page.entries,
