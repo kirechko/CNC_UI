@@ -2405,6 +2405,7 @@
       import { drawStockBox, drawStockMesh } from "./js/stock-renderer.js";
       import { drawTool } from "./js/tool-renderer.js";
       import { initSidebarTabs } from "./js/sidebar.js";
+      import { initPositionControls } from "./js/position-controls.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
       import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
@@ -2874,69 +2875,10 @@
         }
       }
 
-      async function sendPositionAction(command, endpoint, args) {
-        const invoke = window.__TAURI__?.core?.invoke;
-        if (invoke) return invoke(command, args);
-
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-          body: JSON.stringify(args),
-        });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
-
-      function openPositionDialog(axis) {
-        editingAxis = axis;
-        const option = coordinateSystem.options[coordinateSystem.selectedIndex];
-        const angular = ["A", "B"].includes(axis);
-        document.querySelector("#position-dialog-title").textContent =
-          `Ось ${axis} · ${option.text}`;
-        document.querySelector("#position-value-label").textContent =
-          angular ? "Рабочая координата, °" : "Рабочая координата, mm";
-        positionValue.value = latestStatus
-          ? Number(latestStatus[axis.toLowerCase()]).toFixed(3)
-          : document.querySelector(`#${axis.toLowerCase()}`).textContent;
-        positionDialog.showModal();
-        positionValue.focus();
-        positionValue.select();
-      }
-
-      async function executePositionAction(action) {
-        if (!editingAxis) return;
-
-        const value = Number(positionValue.value);
-        if (!Number.isFinite(value) || Math.abs(value) > 100000) {
-          positionValue.setCustomValidity("Введите конечное значение в диапазоне ±100000 mm");
-          positionValue.reportValidity();
-          return;
-        }
-        positionValue.setCustomValidity("");
-
-        const args = {
-          axis: editingAxis,
-          system: coordinateSystem.value,
-          value,
-        };
-        const setPosition = action === "set";
-        try {
-          await sendPositionAction(
-            setPosition ? "set_axis_work_value" : "go_to_axis_work_value",
-            setPosition ? "/api/position/set" : "/api/position/go",
-            args,
-          );
-          positionDialog.close();
-          document.querySelector("#message").textContent = setPosition
-            ? `Рабочая координата ${editingAxis} задана.`
-            : `Команда перемещения ${editingAxis} отправлена.`;
-          await refreshStatus();
-        } catch (error) {
-          document.querySelector("#message").textContent = `Ошибка позиции: ${error.message}`;
-        }
-      }
+      const positionControls = initPositionControls({
+        getStatus: () => latestStatus,
+        refreshStatus,
+      });
 
       function renderConfiguredAxes(configuration) {
         const configuredAxes = Array.isArray(configuration?.axes)
@@ -2982,7 +2924,7 @@
 
           if (supported) {
             const value = row.querySelector(".axis-value.work");
-            value.addEventListener("click", () => openPositionDialog(axis));
+            value.addEventListener("click", () => positionControls.openDialog(axis));
             value.addEventListener("keydown", (event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
@@ -2992,7 +2934,7 @@
 
             row.querySelector("[data-zero-axis]").addEventListener("click", async (event) => {
               try {
-                await sendPositionAction(
+                await positionControls.sendPositionAction(
                   "zero_axis",
                   "/api/position/zero-axis",
                   { axis: event.currentTarget.dataset.zeroAxis },
@@ -3005,7 +2947,7 @@
 
             row.querySelector("[data-home-axis]").addEventListener("click", async (event) => {
               try {
-                await sendPositionAction(
+                await positionControls.sendPositionAction(
                   "home_axis",
                   "/api/position/home",
                   { axis: event.currentTarget.dataset.homeAxis },
@@ -3022,10 +2964,6 @@
         updatePositionDisplay();
       }
 
-      document.querySelector("#position-cancel").addEventListener("click", () => positionDialog.close());
-      document.querySelector("#position-set").addEventListener("click", () => executePositionAction("set"));
-      document.querySelector("#position-go").addEventListener("click", () => executePositionAction("go"));
-      positionValue.addEventListener("input", () => positionValue.setCustomValidity(""));
 
       const wposToggle = document.querySelector("#wpos-toggle");
       const mposToggle = document.querySelector("#mpos-toggle");
@@ -3072,42 +3010,6 @@
         }
       }
 
-      coordinateSystem.addEventListener("change", async () => {
-        try {
-          await sendPositionAction(
-            "select_coordinate_system",
-            "/api/position/select",
-            { system: coordinateSystem.value },
-          );
-          await refreshStatus();
-        } catch (error) {
-          document.querySelector("#message").textContent =
-            `Ошибка выбора системы координат: ${error.message}`;
-        }
-      });
-
-      document.querySelector("#zero-all").addEventListener("click", async () => {
-        try {
-          await sendPositionAction(
-            "zero_all",
-            "/api/position/zero",
-            { system: coordinateSystem.value },
-          );
-          await refreshStatus();
-        } catch (error) {
-          document.querySelector("#message").textContent = `Ошибка Zero all: ${error.message}`;
-        }
-      });
-
-
-      document.querySelector("#home-all").addEventListener("click", async () => {
-        try {
-          await sendPositionAction("home_all", "/api/position/home-all", {});
-          document.querySelector("#message").textContent = "Запущено homing всех осей.";
-        } catch (error) {
-          document.querySelector("#message").textContent = `Ошибка homing: ${error.message}`;
-        }
-      });
 
 
 
