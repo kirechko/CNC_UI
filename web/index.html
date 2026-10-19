@@ -2422,6 +2422,7 @@
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
       import { initOrientationCube } from "./js/orientation-cube.js";
+      import { initViewerToolbar } from "./js/viewer-toolbar.js";
       import { initSceneViewer } from "./js/scene-viewer.js";
       import { initToolAnimation } from "./js/tool-animation.js";
       import {
@@ -2737,32 +2738,7 @@
         },
       });
 
-      document.querySelector("#fit-program").addEventListener("click", () => {
-        camera.yaw = -0.72;
-        camera.pitch = 0.62;
-        camera.zoom = 1;
-        camera.panX = 0;
-        camera.panY = 0;
-        drawToolpath();
-      });
-
-      const projectionToggle = document.querySelector("#projection-toggle");
-      projectionToggle.addEventListener("click", () => {
-        camera.perspective = !camera.perspective;
-        projectionToggle.dataset.perspective = String(camera.perspective);
-        projectionToggle.title = camera.perspective
-          ? "Переключить на ортографическую проекцию"
-          : "Переключить на перспективную проекцию";
-        projectionToggle.setAttribute(
-          "aria-label",
-          camera.perspective
-            ? "Перспективная проекция; переключить на ортографическую"
-            : "Ортографическая проекция; переключить на перспективную",
-        );
-        projectionToggle.classList.toggle("active", camera.perspective);
-        projectionToggle.setAttribute("aria-pressed", String(camera.perspective));
-        drawToolpath();
-      });
+      initViewerToolbar({ camera, render: drawToolpath });
 
       window.addEventListener("resize", () => {
         drawToolpath();
