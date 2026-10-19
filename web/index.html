@@ -2401,7 +2401,7 @@
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
       import { parseObj } from "./js/obj.js";
-      import { parseStl, parseThreeJsJson } from "./js/stock.js";
+      import { finalizeStockMesh, parseStl, parseThreeJsJson } from "./js/stock.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
@@ -2672,27 +2672,6 @@
         return { min, max, center: min.map((value, axis) => (value + max[axis]) / 2) };
       }
 
-      function finalizeStockMesh(triangles) {
-        if (!triangles.length || triangles.length > 1_000_000) {
-          throw new Error("Модель должна содержать от 1 до 1 000 000 треугольников.");
-        }
-
-        const min = [Infinity, Infinity, Infinity];
-        const max = [-Infinity, -Infinity, -Infinity];
-        for (const triangle of triangles) {
-          for (const point of triangle) {
-            if (point.some((value) => !Number.isFinite(value))) {
-              throw new Error("Модель содержит некорректные координаты.");
-            }
-            for (let axis = 0; axis < 3; axis++) {
-              min[axis] = Math.min(min[axis], point[axis]);
-              max[axis] = Math.max(max[axis], point[axis]);
-            }
-          }
-        }
-
-        return { triangles, min, max };
-      }
 
 
 

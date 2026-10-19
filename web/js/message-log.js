@@ -1,4 +1,5 @@
 import { invokeOrFetch } from "./api.js";
+import { parseLocalDate } from "./log-calendar-utils.js";
 
 export function renderLatestLogLine(element, entry, emptyText) {
   if (!element) return;
@@ -92,11 +93,6 @@ export function initMessageLog({ getDateRange }) {
     return response.json();
   }
 
-  function parseLocalDate(key) {
-    if (!key) return null;
-    const [year, month, day] = key.split("-").map(Number);
-    return new Date(year, month - 1, day);
-  }
 
   async function refresh() {
     try {

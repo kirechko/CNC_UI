@@ -1,5 +1,3 @@
-import { invokeOrFetch } from "./api.js";
-
 const EDITOR_ID = "#program-editor";
 
 export function setProgramEditorBaseline(content) {
