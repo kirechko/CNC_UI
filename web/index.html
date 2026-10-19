@@ -2410,6 +2410,7 @@
       import { initLogCalendar } from "./js/log-calendar-control.js";
       import { initSpindleControls } from "./js/spindle-control.js";
       import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
+      import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
 
@@ -4291,189 +4292,13 @@
 
 
       function drawJogDial() {
-        const rect = jogDialCanvas.getBoundingClientRect();
-        if (!rect.width || !rect.height) return;
-
-        const ratio = window.devicePixelRatio || 1;
-        const width = Math.round(rect.width * ratio);
-        const height = Math.round(rect.height * ratio);
-        if (jogDialCanvas.width !== width || jogDialCanvas.height !== height) {
-          jogDialCanvas.width = width;
-          jogDialCanvas.height = height;
-        }
-        jogDialContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-        const w = rect.width;
-        const h = rect.height;
-        const cx = w / 2;
-        const cy = h / 2;
-        const radius = Math.min(w, h) * 0.46;
-        const inner = [0.15, 0.3625, 0.575, 0.7875, 1];
-        const colorsX = ["#3f2a2b", "#532e2e", "#6e3332", "#8d3837"];
-        const colorsY = ["#2b3937", "#314945", "#375e56", "#3d766c"];
-        const colorsDiagonal = ["#314965", "#46668b", "#4f749e", "#5a85b6"];
-        const labels = ["+X", "", "−Y", "", "−X", "", "+Y", ""];
-
-        jogDialContext.clearRect(0, 0, w, h);
-
-        if (jogMotionMode === "continuous") {
-          const directionColors = [
-            "#8d3837", "#5a85b6", "#3d766c", "#5a85b6",
-            "#8d3837", "#5a85b6", "#3d766c", "#5a85b6",
-          ];
-
-          for (let sector = 0; sector < 8; sector++) {
-            const center = sector * Math.PI / 4;
-            const start = center - Math.PI / 8 + 0.012;
-            const end = center + Math.PI / 8 - 0.012;
-
-            jogDialContext.beginPath();
-            jogDialContext.moveTo(cx, cy);
-            jogDialContext.arc(cx, cy, radius, start, end);
-            jogDialContext.closePath();
-            jogDialContext.fillStyle = directionColors[sector];
-            jogDialContext.fill();
-            jogDialContext.strokeStyle = "#111719";
-            jogDialContext.lineWidth = 1.5;
-            jogDialContext.stroke();
-
-            if (hoveredDialSelection?.sector === sector) {
-              jogDialContext.beginPath();
-              jogDialContext.moveTo(cx, cy);
-              jogDialContext.arc(cx, cy, radius, start, end);
-              jogDialContext.closePath();
-              jogDialContext.fillStyle = "rgba(255, 255, 255, .24)";
-              jogDialContext.fill();
-              jogDialContext.strokeStyle = "rgba(255, 255, 255, .9)";
-              jogDialContext.lineWidth = 2;
-              jogDialContext.stroke();
-            }
-          }
-
-          const continuousLabels = ["+X", "", "−Y", "", "−X", "", "+Y", ""];
-          for (let sector = 0; sector < continuousLabels.length; sector++) {
-            const label = continuousLabels[sector];
-            if (!label) continue;
-
-            const angle = sector * Math.PI / 4;
-            const labelRadius = radius * 0.76;
-            jogDialContext.fillStyle = "#f1f3f3";
-            jogDialContext.font = `bold ${Math.max(9, radius * 0.105)}px system-ui`;
-            jogDialContext.textAlign = "center";
-            jogDialContext.textBaseline = "middle";
-            jogDialContext.fillText(
-              label,
-              cx + Math.cos(angle) * labelRadius,
-              cy + Math.sin(angle) * labelRadius,
-            );
-          }
-
-          jogDialContext.beginPath();
-          jogDialContext.arc(cx, cy, radius * 0.15, 0, Math.PI * 2);
-          jogDialContext.fillStyle = "#202629";
-          jogDialContext.fill();
-          jogDialContext.strokeStyle = "#101416";
-          jogDialContext.lineWidth = 2;
-          jogDialContext.stroke();
-          jogDialContext.beginPath();
-          jogDialContext.moveTo(cx - 5, cy);
-          jogDialContext.lineTo(cx + 5, cy);
-          jogDialContext.moveTo(cx, cy - 5);
-          jogDialContext.lineTo(cx, cy + 5);
-          jogDialContext.strokeStyle = "#879398";
-          jogDialContext.lineWidth = 1.5;
-          jogDialContext.stroke();
-          return;
-        }
-
-        for (let ring = 0; ring < 4; ring++) {
-          for (let sector = 0; sector < 8; sector++) {
-            const center = sector * Math.PI / 4;
-            const start = center - Math.PI / 8 + 0.012;
-            const end = center + Math.PI / 8 - 0.012;
-            const innerRadius = radius * inner[ring];
-            const outerRadius = radius * inner[ring + 1];
-            const color = sector % 4 === 0
-              ? colorsX[ring]
-              : sector % 4 === 2
-                ? colorsY[ring]
-                : colorsDiagonal[ring];
-
-            jogDialContext.beginPath();
-            jogDialContext.arc(cx, cy, outerRadius, start, end);
-            jogDialContext.arc(cx, cy, innerRadius, end, start, true);
-            jogDialContext.closePath();
-            jogDialContext.fillStyle = color;
-            jogDialContext.fill();
-            jogDialContext.strokeStyle = "#111719";
-            jogDialContext.lineWidth = 1.5;
-            jogDialContext.stroke();
-
-            if (labels[sector] && ring === 3) {
-              const labelRadius = (innerRadius + outerRadius) / 2;
-              jogDialContext.fillStyle = "#f1f3f3";
-              jogDialContext.font = `bold ${Math.max(9, radius * 0.105)}px system-ui`;
-              jogDialContext.textAlign = "center";
-              jogDialContext.textBaseline = "middle";
-              jogDialContext.fillText(
-                labels[sector],
-                cx + Math.cos(center) * labelRadius,
-                cy + Math.sin(center) * labelRadius,
-              );
-            }
-          }
-        }
-
-        // Подписываем размер шага в каждом кольце в секторе +X/+Y.
-        const stepLabels = xyJogStepValues.map(formatJogStep);
-        const labelAngle = 7 * Math.PI / 4;
-        jogDialContext.fillStyle = "#f1f3f3";
-        jogDialContext.font = `bold ${Math.max(8, radius * 0.09)}px system-ui`;
-        jogDialContext.textAlign = "center";
-        jogDialContext.textBaseline = "middle";
-        for (let ring = 0; ring < stepLabels.length; ring++) {
-          const labelRadius = radius * (inner[ring] + inner[ring + 1]) / 2;
-          jogDialContext.fillText(
-            stepLabels[ring],
-            cx + Math.cos(labelAngle) * labelRadius,
-            cy + Math.sin(labelAngle) * labelRadius,
-          );
-        }
-
-        if (hoveredDialSelection) {
-          const ring = xyJogStepValues.indexOf(hoveredDialSelection.step);
-          if (ring !== -1) {
-            const sector = hoveredDialSelection.sector;
-            const center = sector * Math.PI / 4;
-            const start = center - Math.PI / 8 + 0.012;
-            const end = center + Math.PI / 8 - 0.012;
-            jogDialContext.beginPath();
-            jogDialContext.arc(cx, cy, radius * inner[ring + 1], start, end);
-            jogDialContext.arc(cx, cy, radius * inner[ring], end, start, true);
-            jogDialContext.closePath();
-            jogDialContext.fillStyle = "rgba(255, 255, 255, .24)";
-            jogDialContext.fill();
-            jogDialContext.strokeStyle = "rgba(255, 255, 255, .9)";
-            jogDialContext.lineWidth = 2;
-            jogDialContext.stroke();
-          }
-        }
-
-        jogDialContext.beginPath();
-        jogDialContext.arc(cx, cy, radius * 0.14, 0, Math.PI * 2);
-        jogDialContext.fillStyle = "#202629";
-        jogDialContext.fill();
-        jogDialContext.strokeStyle = "#101416";
-        jogDialContext.lineWidth = 2;
-        jogDialContext.stroke();
-        jogDialContext.beginPath();
-        jogDialContext.moveTo(cx - 5, cy);
-        jogDialContext.lineTo(cx + 5, cy);
-        jogDialContext.moveTo(cx, cy - 5);
-        jogDialContext.lineTo(cx, cy + 5);
-        jogDialContext.strokeStyle = "#879398";
-        jogDialContext.lineWidth = 1.5;
-        jogDialContext.stroke();
+        renderJogDialCanvas({
+          canvas: jogDialCanvas,
+          context: jogDialContext,
+          mode: jogMotionMode,
+          stepValues: xyJogStepValues,
+          hoveredSelection: hoveredDialSelection,
+        });
       }
 
       let continuousDialPointerId = null;
