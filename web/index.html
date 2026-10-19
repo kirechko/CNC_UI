@@ -2409,6 +2409,7 @@
       import { logRangeLabel, parseLocalDate } from "./js/log-calendar-utils.js";
       import { renderLogCalendarGrid } from "./js/log-calendar.js";
       import { initSpindleControls } from "./js/spindle-control.js";
+      import { dialDirectionAt, dialSelectionAt } from "./js/jog-dial-hit-test.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -4795,37 +4796,6 @@
       jogDialMode.addEventListener("click", () => selectJogMode("dial"));
       selectJogMode("dial");
 
-      function dialSelectionAt(x, y, width, height) {
-        const radius = Math.min(width, height) * 0.46;
-        const dx = x - width / 2;
-        const dy = y - height / 2;
-        const distance = Math.hypot(dx, dy) / radius;
-        let step;
-
-        if (distance < 0.15 || distance > 1) return null;
-        if (distance < 0.3625) step = xyJogStepValues[0];
-        else if (distance < 0.575) step = xyJogStepValues[1];
-        else if (distance < 0.7875) step = xyJogStepValues[2];
-        else step = xyJogStepValues[3];
-
-        let angle = Math.atan2(dy, dx);
-        if (angle < 0) angle += Math.PI * 2;
-        const sector = Math.floor(angle / (Math.PI / 4) + 0.5) % 8;
-        return { sector, step };
-      }
-
-      function dialDirectionAt(x, y, width, height) {
-        const radius = Math.min(width, height) * 0.46;
-        const dx = x - width / 2;
-        const dy = y - height / 2;
-        const distance = Math.hypot(dx, dy) / radius;
-
-        if (distance < 0.15 || distance > 1) return null;
-
-        let angle = Math.atan2(dy, dx);
-        if (angle < 0) angle += Math.PI * 2;
-        return { sector: Math.floor(angle / (Math.PI / 4) + 0.5) % 8 };
-      }
 
       function drawJogDial() {
         const rect = jogDialCanvas.getBoundingClientRect();
