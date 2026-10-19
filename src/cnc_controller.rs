@@ -622,7 +622,7 @@ fn api_worker(
                     Command::HomeAll => api.home(None).await,
                     Command::Home(axis) => api.home(Some(axis)).await,
                     Command::Mdi(command) => api.mdi(&command).await,
-                    Command::ExecuteCommand(command, reply) => {
+                    Command::ExecuteCommand(_, reply) => {
                         let error = crate::cnc_api::ControllerError::new(
                             "internal",
                             "command dispatch invariant violated",
