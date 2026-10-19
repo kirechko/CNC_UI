@@ -2416,6 +2416,7 @@
       import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
       import { initCommandConsole } from "./js/command-console.js";
       import { initCameraControls } from "./js/camera-controls.js";
+      import { initOrientationCube } from "./js/orientation-cube.js";
       import {
         calculateSceneBounds,
         calculateTrajectoryBounds,
@@ -2532,7 +2533,6 @@
       const toolCanvas = document.querySelector("#tool-canvas");
       const toolContext = toolCanvas.getContext("2d");
       const orientationCube = document.querySelector("#orientation-cube");
-      const orientationContext = orientationCube.getContext("2d");
       const viewerStage = document.querySelector(".viewer-stage");
       const viewerEmpty = document.querySelector("#viewer-empty");
       const programName = document.querySelector("#program-name");
@@ -2653,67 +2653,14 @@
         drawHexPencil();
       }
 
+      const orientationCubeRenderer = initOrientationCube({
+        canvas: orientationCube,
+        camera,
+        onView: setView,
+      });
+
       function drawOrientationCube() {
-        const { width, height } = resizeCanvas(orientationCube, orientationContext);
-        orientationContext.clearRect(0, 0, width, height);
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const size = Math.min(width, height) * 0.24;
-        const vertices = [
-          [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-          [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
-        ];
-        const projected = vertices.map((vertex) => {
-          const point = rotatePoint(vertex, camera.yaw, camera.pitch);
-          return { x: centerX + point[0] * size, y: centerY - point[1] * size, depth: point[2] };
-        });
-        const faces = [
-          { vertices: [0, 1, 2, 3], color: "rgba(74, 83, 88, .8)", label: "Z−", axis: "Z" },
-          { vertices: [4, 5, 6, 7], color: "rgba(40, 126, 170, .78)", label: "Z+", axis: "Z" },
-          { vertices: [0, 1, 5, 4], color: "rgba(151, 74, 77, .82)", label: "Y−", axis: "Y" },
-          { vertices: [2, 3, 7, 6], color: "rgba(67, 139, 103, .82)", label: "Y+", axis: "Y" },
-          { vertices: [1, 2, 6, 5], color: "rgba(166, 83, 83, .82)", label: "X+", axis: "X" },
-          { vertices: [0, 3, 7, 4], color: "rgba(87, 132, 102, .82)", label: "X−", axis: "X" },
-        ].map((face) => ({
-          ...face,
-          depth: face.vertices.reduce((sum, index) => sum + projected[index].depth, 0) / 4,
-        })).sort((a, b) => a.depth - b.depth);
-
-        for (const face of faces) {
-          const points = face.vertices.map((index) => projected[index]);
-          orientationContext.beginPath();
-          orientationContext.moveTo(points[0].x, points[0].y);
-          points.slice(1).forEach((point) => orientationContext.lineTo(point.x, point.y));
-          orientationContext.closePath();
-          orientationContext.fillStyle = face.color;
-          orientationContext.fill();
-          orientationContext.strokeStyle = "rgba(206, 220, 225, .58)";
-          orientationContext.lineWidth = 1;
-          orientationContext.stroke();
-
-          const p0 = points[0];
-          const p1 = points[1];
-          const p3 = points[3];
-          const centerX = (p0.x + points[2].x) / 2;
-          const centerY = (p0.y + points[2].y) / 2;
-
-          orientationContext.save();
-          orientationContext.translate(centerX, centerY);
-          orientationContext.transform(
-            (p1.x - p0.x) / 2,
-            (p1.y - p0.y) / 2,
-            (p3.x - p0.x) / 2,
-            (p3.y - p0.y) / 2,
-            0,
-            0,
-          );
-          orientationContext.fillStyle = "#f0f4f5";
-          orientationContext.font = "bold 0.58px system-ui";
-          orientationContext.textAlign = "center";
-          orientationContext.textBaseline = "middle";
-          orientationContext.fillText(face.label, 0, 0);
-          orientationContext.restore();
-        }
+        orientationCubeRenderer.render();
       }
 
       function setView(axis, sign = 1) {
@@ -2732,55 +2679,6 @@
         drawToolpath();
       }
 
-      orientationCube.addEventListener("click", (event) => {
-        const rect = orientationCube.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-        const size = Math.min(rect.width, rect.height) * 0.24;
-        const vertices = [
-          [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
-          [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
-        ];
-        const projected = vertices.map((vertex) => {
-          const point = rotatePoint(vertex, camera.yaw, camera.pitch);
-          return [centerX + point[0] * size, centerY - point[1] * size, point[2]];
-        });
-        const faces = [
-          { vertices: [0, 1, 2, 3], axis: "Z", sign: -1 },
-          { vertices: [4, 5, 6, 7], axis: "Z", sign: 1 },
-          { vertices: [0, 1, 5, 4], axis: "Y", sign: -1 },
-          { vertices: [2, 3, 7, 6], axis: "Y", sign: 1 },
-          { vertices: [1, 2, 6, 5], axis: "X", sign: 1 },
-          { vertices: [0, 3, 7, 4], axis: "X", sign: -1 },
-        ].map((face) => ({
-          ...face,
-          depth: face.vertices.reduce((sum, index) => sum + projected[index][2], 0) / 4,
-        })).sort((a, b) => a.depth - b.depth);
-
-        const pointInFace = (points) => {
-          let inside = false;
-          for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-            const [xi, yi] = points[i];
-            const [xj, yj] = points[j];
-            const crossesRay = (yi > y) !== (yj > y);
-            if (crossesRay && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-              inside = !inside;
-            }
-          }
-          return inside;
-        };
-
-        // Draw order is back-to-front, so test faces front-to-back.
-        for (const face of faces.reverse()) {
-          const polygon = face.vertices.map((index) => projected[index]);
-          if (pointInFace(polygon)) {
-            setView(face.axis, face.sign);
-            return;
-          }
-        }
-      });
 
       initCameraControls({
         canvas: trajectoryCanvas,
