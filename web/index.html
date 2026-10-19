@@ -4386,8 +4386,7 @@
       function applyLogCalendarSelection() {
         logDateRange = { ...draftLogDateRange };
         logDatePickerButton.textContent = logRangeLabel(logDateRange);
-        messageLogOffset = 0;
-        refreshMessageLog();
+        messageLog.refresh();
       }
 
       logDatePickerButton.addEventListener("click", () => {
