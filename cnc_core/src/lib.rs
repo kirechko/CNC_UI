@@ -1,4 +1,4 @@
- //! Defines the shared CNC API types, status models, and controller interface.
+//! Defines the shared CNC API types, status models, and controller interface.
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -246,12 +246,7 @@ pub trait LinuxCncApi: Send + Sync {
     async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()>;
     async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()>;
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()>;
-    async fn jog_continuous(
-        &self,
-        axis: Axis,
-        direction: i8,
-        feed_rate: f64,
-    ) -> CncResult<()>;
+    async fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()>;
 
     async fn jog_continuous_xy(
         &self,
@@ -326,8 +321,7 @@ mod tests {
     #[test]
     fn position_deserialization_defaults_rotary_axes_for_older_payloads() {
         let position: Position =
-            serde_json::from_value(serde_json::json!({ "x": 1.0, "y": 2.0, "z": 3.0 }))
-                .unwrap();
+            serde_json::from_value(serde_json::json!({ "x": 1.0, "y": 2.0, "z": 3.0 })).unwrap();
 
         assert_eq!(position.a, 0.0);
         assert_eq!(position.b, 0.0);
