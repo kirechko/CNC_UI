@@ -88,7 +88,7 @@ impl CNCController {
                     match EmAdapter::connect(&socket_path) {
                         Ok(api) => match runtime.block_on(api.status()) {
                             Ok(initial_status) => {
-                                *worker_status.lock().unwrap() = from_api_status(initial_status);
+                                worker_status.lock().unwrap().machine = initial_status;
                                 api_worker(
                                     Arc::new(api),
                                     receiver,
