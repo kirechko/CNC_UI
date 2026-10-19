@@ -132,7 +132,9 @@ impl AppState {
         value: f64,
     ) -> Result<(), String> {
         if !value.is_finite() || value.abs() > 100_000.0 {
-            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000".into());
+            return Err(
+                "Целевая координата должна быть конечной и находиться в диапазоне ±100000".into(),
+            );
         }
 
         let system = parse_coordinate_system(key)?;
@@ -160,7 +162,9 @@ impl AppState {
         value: f64,
     ) -> Result<(), String> {
         if !value.is_finite() || value.abs() > 100_000.0 {
-            return Err("Целевая координата должна быть конечной и находиться в диапазоне ±100000".into());
+            return Err(
+                "Целевая координата должна быть конечной и находиться в диапазоне ±100000".into(),
+            );
         }
 
         let system = parse_coordinate_system(key)?;
@@ -251,15 +255,24 @@ impl AppState {
                                 .to_string(),
                             content,
                         });
-                        eprintln!("Loaded default G-code trajectory from {}", default_path.display());
+                        eprintln!(
+                            "Loaded default G-code trajectory from {}",
+                            default_path.display()
+                        );
                     }
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                eprintln!("Default G-code file {} not found; starting without a trajectory", default_path.display());
+                eprintln!(
+                    "Default G-code file {} not found; starting without a trajectory",
+                    default_path.display()
+                );
             }
             Err(error) => {
-                eprintln!("Could not read default G-code file {}: {error}", default_path.display());
+                eprintln!(
+                    "Could not read default G-code file {}: {error}",
+                    default_path.display()
+                );
             }
         }
 
@@ -300,7 +313,8 @@ pub(crate) fn load_program(
     validate_program(name, content)?;
 
     let directory = std::env::temp_dir().join("cnc-ui-programs");
-    fs::create_dir_all(&directory).map_err(|error| format!("Не удалось создать каталог программы: {error}"))?;
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Не удалось создать каталог программы: {error}"))?;
     let id = UPLOADED_PROGRAM_ID.fetch_add(1, Ordering::Relaxed);
     let path = directory.join(format!("program-{}-{id}.ngc", std::process::id()));
     fs::write(&path, content).map_err(|error| format!("Не удалось сохранить G-code: {error}"))?;
@@ -386,10 +400,12 @@ async fn set_spindle(
         request.enabled, request.direction, request.rpm
     );
 
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
 
     if !request.enabled {
         controller.stop_spindle();
@@ -405,7 +421,10 @@ async fn set_spindle(
 
     let status = controller.get_status_snapshot();
     if status.state == "DISCONNECTED" {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "Нет соединения со станком".into()));
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Нет соединения со станком".into(),
+        ));
     }
 
     let spindle = status
@@ -455,10 +474,12 @@ async fn jog_continuous(
         ));
     }
 
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     let axis = axis_letter(request.axis);
     controller.jog_axis_continuous(axis, request.direction);
     Ok(StatusCode::ACCEPTED)
@@ -467,10 +488,12 @@ async fn jog_continuous(
 async fn jog_cancel(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller.cancel_jog();
     Ok(StatusCode::ACCEPTED)
 }
@@ -479,19 +502,19 @@ async fn jog_continuous_xy(
     State(state): State<SharedController>,
     Json(request): Json<ContinuousXyJogRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    if ![-1, 0, 1].contains(&request.x_direction)
-        || ![-1, 0, 1].contains(&request.y_direction)
-    {
+    if ![-1, 0, 1].contains(&request.x_direction) || ![-1, 0, 1].contains(&request.y_direction) {
         return Err((
             StatusCode::BAD_REQUEST,
             "XY directions must be -1, 0, or 1".into(),
         ));
     }
 
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller.jog_xy_continuous(request.x_direction, request.y_direction);
     Ok(StatusCode::ACCEPTED)
 }
@@ -621,7 +644,11 @@ impl From<CNCStatus> for StatusResponse {
             machine_z: status.machine_z,
             machine_a: status.machine_a,
             machine_b: status.machine_b,
-            coordinate_system: status.active_coordinate_system.label().to_ascii_lowercase().replace('.', "_"),
+            coordinate_system: status
+                .active_coordinate_system
+                .label()
+                .to_ascii_lowercase()
+                .replace('.', "_"),
             configuration: status.machine_configuration,
             movement_speed: if status.jog_rate > 0.0 {
                 status.jog_rate
@@ -693,20 +720,24 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
 async fn get_status(
     State(state): State<SharedController>,
 ) -> Result<Json<StatusResponse>, (StatusCode, String)> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     Ok(Json(controller.get_status_snapshot().into()))
 }
 
 async fn get_program(
     State(state): State<SharedController>,
 ) -> Result<Json<Option<LoadedProgram>>, (StatusCode, String)> {
-    let program = state
-        .program
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "program lock poisoned".into()))?;
+    let program = state.program.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "program lock poisoned".into(),
+        )
+    })?;
     Ok(Json(program.clone()))
 }
 
@@ -738,40 +769,61 @@ async fn start_program(
 async fn pause_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller
         .program_pause()
         .map(|_| StatusCode::ACCEPTED)
-        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+        .map_err(|error| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("{}: {}", error.code, error.message),
+            )
+        })
 }
 
 async fn resume_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller
         .program_resume()
         .map(|_| StatusCode::ACCEPTED)
-        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+        .map_err(|error| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("{}: {}", error.code, error.message),
+            )
+        })
 }
 
 async fn abort_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller
         .program_abort()
         .map(|_| StatusCode::ACCEPTED)
-        .map_err(|error| (StatusCode::BAD_REQUEST, format!("{}: {}", error.code, error.message)))
+        .map_err(|error| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("{}: {}", error.code, error.message),
+            )
+        })
 }
 
 async fn jog_xy(
@@ -786,14 +838,17 @@ async fn jog_xy(
     {
         return Err((
             StatusCode::BAD_REQUEST,
-            "XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into(),
+            "XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm"
+                .into(),
         ));
     }
 
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller.jog_xy_step(request.x_direction, request.y_direction, request.distance);
     Ok(StatusCode::ACCEPTED)
 }
@@ -809,15 +864,18 @@ async fn jog(
     {
         return Err((
             StatusCode::BAD_REQUEST,
-            "direction must be -1 or 1; distance must be greater than 0 and at most 100000 mm".into(),
+            "direction must be -1 or 1; distance must be greater than 0 and at most 100000 mm"
+                .into(),
         ));
     }
 
     let axis = axis_letter(request.axis);
-    let controller = state
-        .controller
-        .lock()
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "controller lock poisoned".into()))?;
+    let controller = state.controller.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "controller lock poisoned".into(),
+        )
+    })?;
     controller.jog_axis_step(axis, request.direction, request.distance);
     Ok(StatusCode::ACCEPTED)
 }
@@ -959,12 +1017,11 @@ mod contract_tests {
         .unwrap();
         assert_eq!((jog.x_direction, jog.y_direction), (1, -1));
 
-        let continuous_jog: ContinuousXyJogRequest =
-            serde_json::from_value(serde_json::json!({
-                "xDirection": 1,
-                "yDirection": 0
-            }))
-            .unwrap();
+        let continuous_jog: ContinuousXyJogRequest = serde_json::from_value(serde_json::json!({
+            "xDirection": 1,
+            "yDirection": 0
+        }))
+        .unwrap();
         assert_eq!(
             (continuous_jog.x_direction, continuous_jog.y_direction),
             (1, 0)
@@ -979,9 +1036,12 @@ mod contract_tests {
         })
         .unwrap();
 
-        assert_eq!(value, serde_json::json!({
-            "name": "part.ngc",
-            "content": "G0 X1"
-        }));
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "name": "part.ngc",
+                "content": "G0 X1"
+            })
+        );
     }
 }
