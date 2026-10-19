@@ -3339,6 +3339,21 @@
       const machineCommandInput = document.querySelector("#machine-command-input");
       const machineCommandOutput = document.querySelector("#machine-command-output");
 
+      async function logMachineConsoleError(context, error) {
+        const message = `${context}: ${error instanceof Error ? error.message : String(error)}`;
+        try {
+          await invokeOrFetch(
+            "log_message",
+            { severity: "ошибка", source: "команды и G-code", message },
+            "/api/log",
+            "POST",
+          );
+        } catch (logError) {
+          console.warn("Не удалось записать ошибку панели команд в журнал:", logError);
+        }
+        return message;
+      }
+
       function showProgram(name, content) {
         loadedProgram = { name, content, segments: parseToolpath(content) };
         programEditor.value = content;
@@ -3347,7 +3362,9 @@
         camera.zoom = 1;
         camera.panX = 0;
         camera.panY = 0;
-        programName.textContent = `${name} · ${loadedProgram.segments.length} SEGMENTS`;
+        if (programName) {
+          programName.textContent = `${name} · ${loadedProgram.segments.length} SEGMENTS`;
+        }
         drawToolpath();
       }
 
@@ -3438,7 +3455,10 @@
           machineCommandOutput.textContent = `Загружена и запущена отредактированная программа ${program.name}.`;
           await refreshStatus();
         } catch (error) {
-          machineCommandOutput.textContent = `Ошибка запуска программы: ${error.message}`;
+          machineCommandOutput.textContent = await logMachineConsoleError(
+            "Ошибка запуска программы",
+            error,
+          );
         } finally {
           button.disabled = !machineConnected;
         }
@@ -3463,7 +3483,10 @@
           machineCommandInput.value = "";
           await refreshStatus();
         } catch (error) {
-          machineCommandOutput.textContent = `Ошибка команды: ${error.message}`;
+          machineCommandOutput.textContent = await logMachineConsoleError(
+            "Ошибка команды",
+            error,
+          );
         } finally {
           button.disabled = !machineConnected;
         }
@@ -4057,8 +4080,11 @@
           stockVisible = true;
           stockToggle.classList.add("active");
           stockToggle.setAttribute("aria-pressed", "true");
-          document.querySelector("#program-name").textContent =
-            `${loadedProgram?.name || "NO PROGRAM"} · STL: ${file.name}`;
+          const programNameLabel = document.querySelector("#program-name");
+          if (programNameLabel) {
+            programNameLabel.textContent =
+              `${loadedProgram?.name || "NO PROGRAM"} · STL: ${file.name}`;
+          }
           drawToolpath();
           document.querySelector("#message").textContent = `Заготовка STL загружена: ${file.name}`;
         } catch (error) {
