@@ -24,6 +24,28 @@ fn get_status(state: State<'_, AppState>) -> Result<StatusResponse, String> {
     Ok(response)
 }
 
+#[tauri::command]
+fn log_message(
+    state: State<'_, AppState>,
+    severity: String,
+    source: String,
+    message: String,
+) -> Result<(), String> {
+    let severity = severity.trim();
+    let source = source.trim();
+    let message = message.trim();
+
+    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity) {
+        return Err("Неизвестная критичность сообщения".into());
+    }
+    if source.is_empty() || source.len() > 128 || message.is_empty() || message.len() > 16_384 {
+        return Err("Некорректный источник или сообщение".into());
+    }
+
+    state.insert_log(severity, source, message);
+    Ok(())
+}
+
 #[derive(Serialize)]
 struct TauriLogPage {
     entries: Vec<LogEntry>,
@@ -324,6 +346,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .invoke_handler(tauri::generate_handler![
             get_status,
             get_log,
+            log_message,
             get_program,
             load_program,
             start_program,

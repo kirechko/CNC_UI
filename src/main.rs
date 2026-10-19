@@ -2,6 +2,7 @@
 use cnc_core as cnc_api;
 mod cnc_controller;
 mod config;
+mod message_log;
 mod tauri_app;
 mod web_server;
 

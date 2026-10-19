@@ -57,6 +57,7 @@ pub enum SpindleDirection {
     CCW,
 }
 
+#[derive(Debug)]
 enum Command {
     LoadProgram(PathBuf),
     ProgramRun,
@@ -181,6 +182,36 @@ impl CNCController {
     }
 
     fn enqueue(&self, command: Command) {
+        let description = match &command {
+            Command::LoadProgram(path) => format!("LoadProgram {}", path.display()),
+            Command::ProgramRun => "ProgramRun".into(),
+            Command::ProgramPause => "ProgramPause".into(),
+            Command::ProgramResume => "ProgramResume".into(),
+            Command::ProgramAbort => "ProgramAbort".into(),
+            Command::ResetAlarm => "ResetAlarm".into(),
+            Command::SelectCoordinateSystem(system) => {
+                format!("SelectCoordinateSystem {}", system.label())
+            }
+            Command::SetWorkZero(system) => format!("SetWorkZero {}", system.label()),
+            Command::SetAxisWorkZero(axis) => format!("SetAxisWorkZero {axis:?}"),
+            Command::HomeAll => "HomeAll".into(),
+            Command::Home(axis) => format!("Home {axis:?}"),
+            Command::Mdi(command) => format!("MDI: {command}"),
+            Command::Spindle(command) => format!(
+                "Spindle {:?} {:.0} RPM",
+                command.direction, command.rpm
+            ),
+            Command::JogIncrement(request) => format!("JogIncrement {request:?}"),
+            Command::JogContinuous(axis, direction, feed) => {
+                format!("JogContinuous {axis:?} direction={direction} feed={feed:.0}")
+            }
+            Command::JogContinuousXY(x, y, feed) => {
+                format!("JogContinuousXY x={x} y={y} feed={feed:.0}")
+            }
+            Command::JogCancel => "JogCancel".into(),
+        };
+        crate::message_log::record("информация", "команда UI", &description);
+
         if let Err(error) = self.commands.send(command) {
             eprintln!("[LinuxCncApi] worker unavailable: {error}");
         }
@@ -216,6 +247,7 @@ impl CNCController {
     }
 
     pub fn emergency_stop(&self) {
+        crate::message_log::record("авария", "команда UI", "Emergency stop");
         if let Err(error) = self.emergency_stop.send(()) {
             eprintln!("[LinuxCncApi] emergency-stop worker unavailable: {error}");
         }
