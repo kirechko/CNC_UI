@@ -313,7 +313,7 @@ impl CNCController {
     }
 
     pub fn execute_command(&self, command: &str) -> CncResult<String> {
-        if command.trim().is_empty() || command.contains(['\\n', '\\r']) {
+        if command.trim().is_empty() || command.contains('\n') || command.contains('\r') {
             return Err(crate::cnc_api::ControllerError::new(
                 "bad_command",
                 "Введите одну непустую команду без переводов строк",
@@ -622,6 +622,14 @@ fn api_worker(
                     Command::HomeAll => api.home(None).await,
                     Command::Home(axis) => api.home(Some(axis)).await,
                     Command::Mdi(command) => api.mdi(&command).await,
+                    Command::ExecuteCommand(command, reply) => {
+                        let error = crate::cnc_api::ControllerError::new(
+                            "internal",
+                            "command dispatch invariant violated",
+                        );
+                        let _ = reply.send(Err(error.clone()));
+                        Err(error)
+                    }
                     Command::Spindle(command) => {
                         eprintln!(
                             "[Backend/Worker] sending spindle command to API: direction={:?}, rpm={:.0}",

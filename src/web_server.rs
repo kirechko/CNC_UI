@@ -1037,7 +1037,11 @@ async fn post_machine_command(
     Json(request): Json<MachineCommandRequest>,
 ) -> Result<Json<MachineCommandResponse>, (StatusCode, String)> {
     let command = request.command.trim();
-    if command.is_empty() || command.len() > 4096 || command.contains(['\\n', '\\r']) {
+    if command.is_empty()
+        || command.len() > 4096
+        || command.contains('\n')
+        || command.contains('\r')
+    {
         return Err((
             StatusCode::BAD_REQUEST,
             "Введите одну непустую команду длиной не более 4096 символов".into(),
