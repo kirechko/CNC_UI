@@ -90,6 +90,7 @@ pub struct CNCController {
     z_jog_speed: Mutex<f64>,
     spindle_speed_setpoint: Mutex<f64>,
     command_cancel_requested: Arc<AtomicBool>,
+    motion_stop_requested: Arc<AtomicBool>,
 }
 
 #[allow(dead_code)]
@@ -104,6 +105,8 @@ impl CNCController {
         let (emergency_stop, emergency_receiver) = mpsc::channel();
         let command_cancel_requested = Arc::new(AtomicBool::new(false));
         let worker_command_cancel_requested = command_cancel_requested.clone();
+        let motion_stop_requested = Arc::new(AtomicBool::new(false));
+        let worker_motion_stop_requested = motion_stop_requested.clone();
 
         thread::Builder::new()
             .name("cnc-api-worker".into())
@@ -124,6 +127,7 @@ impl CNCController {
                                     emergency_receiver,
                                     worker_status.clone(),
                                     worker_command_cancel_requested,
+                                    worker_motion_stop_requested,
                                     &runtime,
                                 );
                                 return;
@@ -150,6 +154,7 @@ impl CNCController {
             z_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
             command_cancel_requested,
+            motion_stop_requested,
         })
     }
 
@@ -160,6 +165,8 @@ impl CNCController {
         let (emergency_stop, emergency_receiver) = mpsc::channel();
         let command_cancel_requested = Arc::new(AtomicBool::new(false));
         let worker_command_cancel_requested = command_cancel_requested.clone();
+        let motion_stop_requested = Arc::new(AtomicBool::new(false));
+        let worker_motion_stop_requested = motion_stop_requested.clone();
 
         thread::Builder::new()
             .name("cnc-api-worker".into())
@@ -184,6 +191,7 @@ impl CNCController {
                     emergency_receiver,
                     worker_status,
                     worker_command_cancel_requested,
+                    worker_motion_stop_requested,
                     &runtime,
                 );
             })
@@ -204,8 +212,13 @@ impl CNCController {
         self.command_cancel_requested.clone()
     }
 
+    pub fn motion_stop_handle(&self) -> Arc<AtomicBool> {
+        self.motion_stop_requested.clone()
+    }
+
     pub fn cancel_machine_command(&self) {
         self.command_cancel_requested.store(true, Ordering::Release);
+        self.motion_stop_requested.store(true, Ordering::Release);
     }
 
     fn enqueue(&self, command: Command) {
@@ -572,6 +585,7 @@ fn api_worker(
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<CNCStatus>>,
     command_cancel_requested: Arc<AtomicBool>,
+    motion_stop_requested: Arc<AtomicBool>,
     runtime: &tokio::runtime::Runtime,
 ) {
     let configuration = runtime.block_on(api.machine_configuration()).ok();
@@ -581,6 +595,26 @@ fn api_worker(
     let mut reached_spindle_target = None;
 
     loop {
+        if motion_stop_requested.swap(false, Ordering::AcqRel) {
+            match runtime.block_on(api.stop_motion()) {
+                Ok(()) => {
+                    crate::message_log::record(
+                        "информация",
+                        "команда UI",
+                        "Остановлено текущее движение станка",
+                    );
+                }
+                Err(error) => {
+                    crate::message_log::record(
+                        "ошибка",
+                        "CNC/адаптер",
+                        &format!("Не удалось остановить движение: {}: {}", error.code, error.message),
+                    );
+                    set_ui_alert(&shared_status, &error.code, &error.message);
+                }
+            }
+        }
+
         // E-Stop проверяется раньше обычной очереди.
         match emergency_receiver.try_recv() {
             Ok(()) => {

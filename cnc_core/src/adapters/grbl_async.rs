@@ -1269,6 +1269,21 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_realtime(&mut session, 0x85).await
     }
 
+    async fn stop_motion(&self) -> CncResult<()> {
+        let mut session = self.session.lock().await;
+        let jog_active = session.continuous_jog.is_some() || session.jog_chunk_active;
+        session.continuous_jog = None;
+        session.jog_chunk_active = false;
+
+        if jog_active {
+            Self::send_realtime(&mut session, 0x85).await
+        } else {
+            // GRBL feed hold останавливает обычное движение контролируемо,
+            // не сбрасывая соединение и не выполняя аппаратный E-Stop.
+            Self::send_realtime(&mut session, b'!').await
+        }
+    }
+
     async fn execute_command(
         &self,
         command: &str,
