@@ -1081,10 +1081,39 @@
         tab-size: 2;
       }
 
-      .machine-console input {
-        min-height: 34px;
+      .machine-command-input-wrap {
+        position: relative;
+        min-width: 0;
         flex: 1;
+      }
+
+      .machine-console input {
+        width: 100%;
+        min-height: 34px;
         padding: 0 9px;
+      }
+
+      .machine-command-input-wrap.searching input {
+        padding-left: 132px;
+      }
+
+      .command-search-indicator {
+        position: absolute;
+        top: 50%;
+        left: 8px;
+        display: none;
+        max-width: 116px;
+        overflow: hidden;
+        color: #f1aa58;
+        font: 10px var(--font-mono);
+        text-overflow: ellipsis;
+        transform: translateY(-50%);
+        white-space: nowrap;
+        pointer-events: none;
+      }
+
+      .machine-command-input-wrap.searching .command-search-indicator {
+        display: block;
       }
 
       .machine-console input:focus,
@@ -2173,7 +2202,10 @@
           <div class="panel-body machine-console">
             <button class="tab-button active editor-open-button" id="open-program-editor" type="button">Редактор</button>
             <form class="machine-console-command" id="machine-command-form">
-              <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Команда станка, например G0 X0 или $$" aria-label="Команда станка">
+              <div class="machine-command-input-wrap" id="machine-command-input-wrap">
+                <span class="command-search-indicator" id="command-search-indicator" aria-hidden="true"></span>
+                <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Команда станка, например G0 X0 или $$" aria-label="Команда станка">
+              </div>
               <button type="submit" id="machine-command-run" title="Выполнить команду (Enter)" aria-label="Выполнить команду">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 12h13"></path>
@@ -3511,6 +3543,7 @@
       let commandHistoryCursor = 0;
       let commandHistoryDraft = "";
       let lastCommandSearch = "";
+      let reverseSearch = null;
 
       async function logMachineConsoleEvent(severity, message) {
         try {
@@ -3751,11 +3784,95 @@
         machineCommandInput.focus();
       });
 
+      const commandInputWrap = document.querySelector("#machine-command-input-wrap");
+      const commandSearchIndicator = document.querySelector("#command-search-indicator");
+
+      function renderReverseSearch(matchFrom = commandHistory.length - 1) {
+        if (!reverseSearch) return;
+
+        const query = reverseSearch.query;
+        lastCommandSearch = query;
+        commandSearchIndicator.textContent = `(reverse-i-search)\`${query}':`;
+        commandHistoryMatchIndex = findCommandHistoryMatch(query, matchFrom);
+
+        if (commandHistoryMatchIndex < 0) {
+          machineCommandInput.value = query;
+          machineCommandInput.setSelectionRange(query.length, query.length);
+          return;
+        }
+
+        const match = commandHistory[commandHistoryMatchIndex];
+        machineCommandInput.value = match;
+        const matchStart = match.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+        machineCommandInput.setSelectionRange(
+          matchStart,
+          matchStart + query.length,
+        );
+      }
+
+      function finishReverseSearch(accept) {
+        if (!reverseSearch) return;
+
+        const search = reverseSearch;
+        reverseSearch = null;
+        commandInputWrap.classList.remove("searching");
+        commandSearchIndicator.textContent = "";
+
+        if (accept && commandHistoryMatchIndex >= 0) {
+          machineCommandInput.value = commandHistory[commandHistoryMatchIndex];
+          commandHistoryCursor = commandHistoryMatchIndex;
+          commandHistoryDraft = "";
+        } else {
+          machineCommandInput.value = search.draft;
+          commandHistoryCursor = commandHistory.length;
+          commandHistoryDraft = search.draft;
+        }
+
+        const end = machineCommandInput.value.length;
+        machineCommandInput.setSelectionRange(end, end);
+      }
+
       machineCommandInput.addEventListener("keydown", (event) => {
         if (event.ctrlKey && event.key.toLowerCase() === "r") {
           event.preventDefault();
-          searchCommandHistory();
-        } else if (event.key === "ArrowUp") {
+          if (!reverseSearch) {
+            reverseSearch = { query: "", draft: machineCommandInput.value };
+            commandInputWrap.classList.add("searching");
+            renderReverseSearch();
+          } else {
+            const nextStart = commandHistoryMatchIndex >= 0
+              ? commandHistoryMatchIndex - 1
+              : commandHistory.length - 1;
+            renderReverseSearch(nextStart);
+          }
+          return;
+        }
+
+        if (reverseSearch) {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            finishReverseSearch(false);
+          } else if (event.key === "Enter" || event.key === "Tab") {
+            event.preventDefault();
+            finishReverseSearch(true);
+          } else if (event.key === "Backspace") {
+            event.preventDefault();
+            reverseSearch.query = reverseSearch.query.slice(0, -1);
+            renderReverseSearch();
+          } else if (
+            event.key.length === 1 &&
+            !event.ctrlKey &&
+            !event.altKey &&
+            !event.metaKey
+          ) {
+            event.preventDefault();
+            reverseSearch.query += event.key;
+            renderReverseSearch();
+          }
+          return;
+        }
+
+        if (event.key === "ArrowUp") {
           event.preventDefault();
           moveCommandHistory(-1);
         } else if (event.key === "ArrowDown") {
