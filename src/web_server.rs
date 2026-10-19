@@ -117,9 +117,8 @@ impl AppState {
     pub(crate) fn record_status(&self, status: &CNCStatus) {
         let alert = status.ui_alert.as_ref().map(|(kind, message)| (kind, message));
         let key = format!(
-            "{}\u{1f}{}\u{1f}{}\u{1f}{}",
+            "{}\u{1f}{}\u{1f}{}",
             status.state,
-            status.message.as_deref().unwrap_or(""),
             alert.map_or("", |(kind, _)| kind.as_str()),
             alert.map_or("", |(_, message)| message.as_str()),
         );
@@ -138,14 +137,6 @@ impl AppState {
                 ("ALARM", _) => "авария",
                 (_, "axis_limit") => "предупреждение",
                 _ => "ошибка",
-            };
-            self.insert_log(severity, "контроллер", message);
-        }
-        if let Some(message) = status.message.as_deref().filter(|message| !message.is_empty()) {
-            let severity = if status.state == "ALARM" {
-                "авария"
-            } else {
-                "информация"
             };
             self.insert_log(severity, "контроллер", message);
         }
