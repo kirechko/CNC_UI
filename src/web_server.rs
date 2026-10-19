@@ -145,7 +145,7 @@ impl AppState {
         drop(previous);
 
         if let Some((kind, message)) = alert {
-            let severity = match (status.state.as_str(), kind.as_str()) {
+            let severity = match (status_state(status), kind.as_str()) {
                 ("ALARM", _) => "авария",
                 (_, "axis_limit") => "предупреждение",
                 _ => "ошибка",
@@ -403,7 +403,7 @@ impl AppState {
             .controller
             .lock()
             .map_err(|_| "controller lock poisoned".to_string())?;
-        if controller.get_status_snapshot().state == "DISCONNECTED" {
+        if !controller.get_status_snapshot().machine.connected {
             return Err("Нет соединения со станком".into());
         }
 
@@ -438,8 +438,8 @@ impl AppState {
             return Err("Нет соединения со станком".into());
         }
 
-        let feed_rate = if status.feed_rate.is_finite() && status.feed_rate > 0.0 {
-            status.feed_rate
+        let feed_rate = if status.machine.feed_rate.is_finite() && status.machine.feed_rate > 0.0 {
+            status.machine.feed_rate
         } else {
             100.0
         };
@@ -801,7 +801,7 @@ async fn set_spindle(
             )
         })?;
     let minimum = spindle.min_rpm.unwrap_or(0.0);
-    let maximum = spindle.max_rpm.unwrap_or(status.spindle_max_speed);
+    let maximum = spindle.max_rpm.unwrap_or(status.machine.max_spindle_rpm);
 
     if maximum <= 0.0 || request.rpm < minimum || request.rpm > maximum {
         return Err((
@@ -1010,11 +1010,6 @@ impl From<ControllerSnapshot> for StatusResponse {
                 InterpreterState::Paused => "PAUSED",
                 InterpreterState::Waiting => "WAITING",
             }
-        };
-        let mode = match machine.task_mode {
-            TaskMode::Manual => "MANUAL",
-            TaskMode::Mdi => "MDI",
-            TaskMode::Auto => "AUTO",
         };
 
         Self {
