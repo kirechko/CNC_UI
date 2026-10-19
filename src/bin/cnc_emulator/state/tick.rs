@@ -215,6 +215,11 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     let line = emulator.program[index].clone();
     match emulator.execute_gcode(&line) {
         Ok(()) => {
+            crate::message_log::record(
+                "информация",
+                "эмулятор/выполнение программы",
+                &format!("Строка {}: {}", index + 1, line),
+            );
             emulator.status.current_line += 1;
             if emulator.status.current_line as usize >= emulator.program.len()
                 && emulator.active_move.is_none()
@@ -224,6 +229,11 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
             }
         }
         Err(error) => {
+            crate::message_log::record(
+                "ошибка",
+                "эмулятор/выполнение программы",
+                &format!("Строка {}: {}: {}", index + 1, error.code, error.message),
+            );
             emulator.status.interpreter_state = InterpreterState::Idle;
             emulator.status.message = Some(format!("{}: {}", error.code, error.message));
         }

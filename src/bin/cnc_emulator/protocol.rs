@@ -85,6 +85,13 @@ pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
             },
             Err(error) => Err(error),
         };
+        if let Err(error) = &result {
+            crate::message_log::record(
+                "ошибка",
+                "эмулятор/протокол",
+                &format!("{}: {}", error.code, error.message),
+            );
+        }
 
         if let Err(error) = write_response(&mut writer, result) {
             eprintln!("Socket write error: {error}");

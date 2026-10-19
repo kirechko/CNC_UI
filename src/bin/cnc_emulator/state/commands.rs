@@ -24,6 +24,9 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
             .unwrap_or_default()
             .as_secs();
 
+        let log_source = "эмулятор/API";
+        let log_message = format!("{} {}", request.method, logged_args);
+        crate::message_log::record("информация", log_source, &log_message);
         eprintln!("[API {timestamp}] {} {}", request.method, logged_args);
     }
 

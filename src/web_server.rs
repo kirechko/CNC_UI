@@ -151,7 +151,7 @@ impl AppState {
         }
     }
 
-    fn insert_log(&self, severity: &str, source: &str, message: &str) {
+    pub(crate) fn insert_log(&self, severity: &str, source: &str, message: &str) {
         let timestamp_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -521,6 +521,13 @@ impl AppState {
 
         Ok(state)
     }
+}
+
+#[derive(Deserialize)]
+struct LogMessageRequest {
+    severity: String,
+    source: String,
+    message: String,
 }
 
 #[derive(Deserialize)]
@@ -995,6 +1002,25 @@ async fn get_log(
         .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))
 }
 
+async fn post_log_message(
+    State(state): State<SharedController>,
+    Json(request): Json<LogMessageRequest>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let severity = request.severity.trim();
+    let source = request.source.trim();
+    let message = request.message.trim();
+
+    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity) {
+        return Err((StatusCode::BAD_REQUEST, "Неизвестная критичность".into()));
+    }
+    if source.is_empty() || source.len() > 128 || message.is_empty() || message.len() > 16_384 {
+        return Err((StatusCode::BAD_REQUEST, "Некорректный источник или сообщение".into()));
+    }
+
+    state.insert_log(severity, source, message);
+    Ok(StatusCode::CREATED)
+}
+
 async fn get_program(
     State(state): State<SharedController>,
 ) -> Result<Json<Option<LoadedProgram>>, (StatusCode, String)> {
@@ -1155,7 +1181,7 @@ pub async fn run() -> io::Result<()> {
         ServeDir::new(WEB_ROOT).fallback(ServeFile::new(format!("{WEB_ROOT}/index.html")));
     let app = Router::new()
         .route("/api/status", get(get_status))
-        .route("/api/log", get(get_log))
+        .route("/api/log", get(get_log).post(post_log_message))
         .route("/api/program", get(get_program).post(post_program))
         .route("/api/program/run", post(start_program))
         .route("/api/program/pause", post(pause_program))
