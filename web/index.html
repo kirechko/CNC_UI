@@ -2403,6 +2403,7 @@
       import { parseObj } from "./js/obj.js";
       import { parseStl, parseThreeJsJson } from "./js/stock.js";
       import { initSidebarTabs } from "./js/sidebar.js";
+      import { renderLatestLogLine } from "./js/message-log.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -4349,23 +4350,6 @@
         if (!jogDialPanel.hidden) drawJogDial();
       });
 
-      function formatLogTimestamp(timestamp) {
-        return new Date(timestamp).toLocaleString();
-      }
-
-      function renderLatestLogLine(element, entry, emptyText) {
-        if (!entry) {
-          element.textContent = emptyText;
-          return;
-        }
-        element.replaceChildren();
-        const metadata = document.createElement("span");
-        metadata.className = "message-meta";
-        metadata.textContent =
-          `${formatLogTimestamp(entry.timestamp_ms)} · ${entry.severity} · ${entry.source} · `;
-        element.append(metadata, document.createTextNode(entry.message));
-        element.title = `${metadata.textContent}${entry.message}`;
-      }
 
       const logCalendar = document.querySelector("#log-calendar");
       const logCalendarGrid = document.querySelector("#log-calendar-grid");
