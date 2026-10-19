@@ -461,11 +461,13 @@ impl AppState {
                  ) ORDER BY id ASC",
             )
             .map_err(|error| error.to_string())?;
-        statement
+        let rows = statement
             .query_map([], |row| row.get(0))
-            .map_err(|error| error.to_string())?
+            .map_err(|error| error.to_string())?;
+        let commands = rows
             .collect::<Result<Vec<String>, _>>()
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        Ok(commands)
     }
 
     pub(crate) fn execute_command(&self, command: &str) -> Result<String, String> {
