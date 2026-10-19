@@ -3884,6 +3884,10 @@
         }
       });
 
+      machineCommandInput.addEventListener("blur", () => {
+        if (reverseSearch) finishReverseSearch(true);
+      });
+
       machineCommandInput.addEventListener("input", () => {
         if (commandHistoryCursor === commandHistory.length) {
           commandHistoryDraft = machineCommandInput.value;
@@ -3892,6 +3896,7 @@
 
       document.querySelector("#machine-command-form").addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (reverseSearch) finishReverseSearch(true);
         const command = machineCommandInput.value.trim();
         if (!command) return;
 
