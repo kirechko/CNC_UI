@@ -1,10 +1,9 @@
- //! Initializes GTK, applies the application theme, and starts the CNC control UI.
+//! Initializes GTK, applies the application theme, and starts the CNC control UI.
 use cnc_core as cnc_api;
 mod cnc_controller;
 mod config;
-mod web_server;
 mod tauri_app;
-
+mod web_server;
 
 #[allow(dead_code)] // GTK theme retained while the UI migrates to Tauri.
 const DARK_THEME_CSS: &str = r#"

@@ -1,4 +1,4 @@
- //! Implements the emulator's API commands and request dispatch.
+//! Implements the emulator's API commands and request dispatch.
 use super::super::dynamics::{ActiveMove, Motion};
 use super::super::protocol::{api_error, Request, WireError};
 use super::Emulator;
@@ -281,10 +281,7 @@ pub(super) fn set_work_zero(emulator: &mut Emulator, args: Value) -> Result<Valu
     Ok(Value::Null)
 }
 
-pub(super) fn set_axis_work_zero(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn set_axis_work_zero(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     let axis: Axis = serde_json::from_value(args.get("axis").cloned().unwrap_or(Value::Null))
         .map_err(|error| api_error("bad_request", error.to_string()))?;
 
@@ -375,8 +372,7 @@ fn begin_jog_deceleration(emulator: &mut Emulator) {
         vector[super::axis_index(axis)] = f64::from(direction);
         Some((vector, emulator.config.axis_limits(axis).3))
     } else if let Some((x_direction, y_direction, _)) = emulator.continuous_jog_xy.take() {
-        let norm =
-            f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
+        let norm = f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
         let x_component = f64::from(x_direction) / norm;
         let y_component = f64::from(y_direction) / norm;
         let x_acceleration = emulator.config.axis_limits(Axis::X).3;
@@ -444,19 +440,10 @@ pub(super) fn jog_continuous(emulator: &mut Emulator, args: Value) -> Result<Val
     Ok(Value::Null)
 }
 
-pub(super) fn jog_continuous_xy(
-    emulator: &mut Emulator,
-    args: Value,
-) -> Result<Value, WireError> {
+pub(super) fn jog_continuous_xy(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     emulator.ensure_motion_allowed()?;
-    let x_direction = args
-        .get("x_direction")
-        .and_then(Value::as_i64)
-        .unwrap_or(0) as i8;
-    let y_direction = args
-        .get("y_direction")
-        .and_then(Value::as_i64)
-        .unwrap_or(0) as i8;
+    let x_direction = args.get("x_direction").and_then(Value::as_i64).unwrap_or(0) as i8;
+    let y_direction = args.get("y_direction").and_then(Value::as_i64).unwrap_or(0) as i8;
     let feed = args.get("feed_rate").and_then(Value::as_f64).unwrap_or(0.0);
 
     if ![-1, 0, 1].contains(&x_direction)
@@ -471,24 +458,21 @@ pub(super) fn jog_continuous_xy(
         begin_jog_deceleration(emulator);
     } else {
         if emulator.active_move.is_some() || emulator.status.homing {
-            return Err(api_error("motion_busy", "another movement is already active"));
+            return Err(api_error(
+                "motion_busy",
+                "another movement is already active",
+            ));
         }
 
         let norm = f64::from(x_direction * x_direction + y_direction * y_direction).sqrt();
         let mut max_feed = feed;
         if x_direction != 0 {
-            max_feed = max_feed.min(
-                emulator.config.axis_limits(Axis::X).2
-                    * norm
-                    / f64::from(x_direction.abs()),
-            );
+            max_feed = max_feed
+                .min(emulator.config.axis_limits(Axis::X).2 * norm / f64::from(x_direction.abs()));
         }
         if y_direction != 0 {
-            max_feed = max_feed.min(
-                emulator.config.axis_limits(Axis::Y).2
-                    * norm
-                    / f64::from(y_direction.abs()),
-            );
+            max_feed = max_feed
+                .min(emulator.config.axis_limits(Axis::Y).2 * norm / f64::from(y_direction.abs()));
         }
 
         emulator.jog_stop = None;

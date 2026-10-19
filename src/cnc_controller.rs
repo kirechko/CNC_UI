@@ -1,8 +1,7 @@
- //! Queues UI commands on a worker thread and maintains a cached controller status.
+//! Queues UI commands on a worker thread and maintains a cached controller status.
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi,
-    MachineConfiguration, MachineStatus, SpindleCommand,
-    SpindleDirection as ApiSpindleDirection,
+    Axis, CncResult, CoordinateSystem, CoordinateSystemOffset, LinuxCncApi, MachineConfiguration,
+    MachineStatus, SpindleCommand, SpindleDirection as ApiSpindleDirection,
 };
 use cnc_core::adapters::emulator::EmAdapter;
 use std::path::{Path, PathBuf};
@@ -109,21 +108,21 @@ impl CNCController {
                 loop {
                     match EmAdapter::connect(&socket_path) {
                         Ok(api) => match runtime.block_on(api.status()) {
-                        Ok(initial_status) => {
-                            *worker_status.lock().unwrap() = from_api_status(initial_status);
-                            api_worker(
-                                Arc::new(api),
-                                receiver,
-                                emergency_receiver,
-                                worker_status.clone(),
-                                &runtime,
-                            );
-                            return;
-                        }
-                        Err(error) => {
-                            set_ui_alert(&worker_status, &error.code, &error.message);
-                            thread::sleep(Duration::from_secs(1));
-                        }
+                            Ok(initial_status) => {
+                                *worker_status.lock().unwrap() = from_api_status(initial_status);
+                                api_worker(
+                                    Arc::new(api),
+                                    receiver,
+                                    emergency_receiver,
+                                    worker_status.clone(),
+                                    &runtime,
+                                );
+                                return;
+                            }
+                            Err(error) => {
+                                set_ui_alert(&worker_status, &error.code, &error.message);
+                                thread::sleep(Duration::from_secs(1));
+                            }
                         },
                         Err(error) => {
                             set_ui_alert(&worker_status, &error.code, &error.message);
@@ -347,9 +346,7 @@ impl CNCController {
 
         let feed_rate = match axis {
             Axis::Z => *self.z_jog_speed.lock().unwrap(),
-            Axis::X | Axis::Y | Axis::A | Axis::B => {
-                *self.xy_jog_speed.lock().unwrap()
-            }
+            Axis::X | Axis::Y | Axis::A | Axis::B => *self.xy_jog_speed.lock().unwrap(),
         };
 
         self.enqueue(Command::JogIncrement(crate::cnc_api::JogRequest {
@@ -385,17 +382,13 @@ impl CNCController {
 
         let feed_rate = match axis {
             Axis::Z => *self.z_jog_speed.lock().unwrap(),
-            Axis::X | Axis::Y | Axis::A | Axis::B => {
-                *self.xy_jog_speed.lock().unwrap()
-            }
+            Axis::X | Axis::Y | Axis::A | Axis::B => *self.xy_jog_speed.lock().unwrap(),
         };
         self.enqueue(Command::JogContinuous(axis, direction, feed_rate));
     }
 
     pub fn jog_xy_continuous(&self, x_direction: i8, y_direction: i8) {
-        if ![-1, 0, 1].contains(&x_direction)
-            || ![-1, 0, 1].contains(&y_direction)
-        {
+        if ![-1, 0, 1].contains(&x_direction) || ![-1, 0, 1].contains(&y_direction) {
             eprintln!("[UI] Invalid continuous XY jog direction");
             return;
         }
