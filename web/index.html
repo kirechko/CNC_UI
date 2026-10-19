@@ -1242,7 +1242,7 @@
 
       .message-log-filters {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
         gap: 8px;
         padding: 12px 16px;
         border-bottom: 1px solid var(--border);
@@ -1281,6 +1281,19 @@
         background: #202629;
         color: var(--muted);
       }
+
+      .message-log-table th button {
+        min-height: 24px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+      }
+
+      .message-log-table th button:hover { color: #e7ecee; }
+      .message-log-table th button::after { color: var(--accent-bright); }
 
       .message-log-table td:last-child { overflow-wrap: anywhere; }
       .message-log-table .critical { color: var(--red); }
@@ -1806,18 +1819,19 @@
           </select>
           <input id="log-source" type="search" placeholder="Источник" aria-label="Фильтр источника">
           <input id="log-search" type="search" placeholder="Текст сообщения" aria-label="Поиск по тексту">
-          <select id="log-sort" aria-label="Сортировка журнала">
-            <option value="timestamp">По времени</option>
-            <option value="severity">По критичности</option>
-            <option value="source">По источнику</option>
-            <option value="message">По сообщению</option>
-          </select>
+          <input id="log-time-from" type="datetime-local" aria-label="Начало периода">
+          <input id="log-time-to" type="datetime-local" aria-label="Конец периода">
           <button type="submit">Применить</button>
         </form>
         <div class="message-log-table-wrap">
           <table class="message-log-table">
             <thead>
-              <tr><th>Время</th><th>Критичность</th><th>Источник</th><th>Сообщение</th></tr>
+              <tr>
+                <th scope="col" data-log-sort="timestamp"><button type="button" aria-label="Сортировать по времени">Время</button></th>
+                <th scope="col" data-log-sort="severity"><button type="button" aria-label="Сортировать по критичности">Критичность</button></th>
+                <th scope="col" data-log-sort="source"><button type="button" aria-label="Сортировать по источнику">Источник</button></th>
+                <th scope="col" data-log-sort="message"><button type="button" aria-label="Сортировать по сообщению">Сообщение</button></th>
+              </tr>
             </thead>
             <tbody id="message-log-rows"></tbody>
           </table>
@@ -1902,6 +1916,7 @@
       const messageLogCount = document.querySelector("#message-log-count");
       const messageLogPageSize = 100;
       let messageLogOffset = 0;
+      let messageLogSort = { column: null, direction: 0 };
       const connectionChip = document.querySelector(".connection-chip");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
@@ -3704,17 +3719,25 @@
 
       async function requestLogPage(offset = messageLogOffset) {
         const params = new URLSearchParams({
-          sort: document.querySelector("#log-sort").value,
-          descending: "true",
+          descending: String(messageLogSort.direction !== 1),
           limit: String(messageLogPageSize),
           offset: String(offset),
         });
+        if (messageLogSort.column && messageLogSort.direction !== 0) {
+          params.set("sort", messageLogSort.column);
+        }
         const severity = document.querySelector("#log-severity").value;
         const source = document.querySelector("#log-source").value.trim();
         const search = document.querySelector("#log-search").value.trim();
+        const timeFrom = document.querySelector("#log-time-from").value;
+        const timeTo = document.querySelector("#log-time-to").value;
+        const timeFromMs = timeFrom ? new Date(timeFrom).getTime() : null;
+        const timeToMs = timeTo ? new Date(timeTo).getTime() : null;
         if (severity) params.set("severity", severity);
         if (source) params.set("source", source);
         if (search) params.set("search", search);
+        if (timeFromMs !== null) params.set("time_from_ms", String(timeFromMs));
+        if (timeToMs !== null) params.set("time_to_ms", String(timeToMs));
 
         const invoke = window.__TAURI__?.core?.invoke;
         return invoke
@@ -3722,8 +3745,12 @@
               severity: severity || null,
               source: source || null,
               search: search || null,
-              sort: document.querySelector("#log-sort").value,
-              descending: true,
+              sort: messageLogSort.column && messageLogSort.direction !== 0
+                ? messageLogSort.column
+                : null,
+              descending: messageLogSort.direction !== 1,
+              timeFromMs,
+              timeToMs,
               limit: messageLogPageSize,
               offset,
             })
@@ -3751,7 +3778,6 @@
             row.append(timestamp, severity, source, message);
             messageLogRows.append(row);
           }
-          messageLogOffset = Number(document.querySelector("#message-log-offset")?.value) || messageLogOffset;
           messageLogCount.textContent =
             `${page.total} сообщений · ${page.total ? messageLogOffset + 1 : 0}–${Math.min(messageLogOffset + page.entries.length, page.total)}`;
           document.querySelector("#message-log-prev").disabled = messageLogOffset <= 0;
@@ -3770,8 +3796,47 @@
       document.querySelector("#close-message-log").addEventListener("click", () => messageLogDialog.close());
       document.querySelector("#message-log-filters").addEventListener("submit", (event) => {
         event.preventDefault();
+        const timeFrom = document.querySelector("#log-time-from").value;
+        const timeTo = document.querySelector("#log-time-to").value;
+        if (timeFrom && timeTo && new Date(timeFrom) > new Date(timeTo)) {
+          messageLogCount.textContent = "Начало периода должно быть раньше окончания.";
+          return;
+        }
         messageLogOffset = 0;
         refreshMessageLog();
+      });
+
+      document.querySelectorAll("[data-log-sort]").forEach((header) => {
+        const button = header.querySelector("button");
+        button.addEventListener("click", () => {
+          const column = header.dataset.logSort;
+          if (messageLogSort.column !== column) {
+            messageLogSort = { column, direction: 1 };
+          } else if (messageLogSort.direction === 0) {
+            messageLogSort.direction = 1;
+          } else if (messageLogSort.direction === 1) {
+            messageLogSort.direction = -1;
+          } else {
+            messageLogSort = { column: null, direction: 0 };
+          }
+
+          document.querySelectorAll("[data-log-sort]").forEach((item) => {
+            const active = item.dataset.logSort === messageLogSort.column;
+            const ariaSort = !active || messageLogSort.direction === 0
+              ? "none"
+              : messageLogSort.direction === 1
+                ? "ascending"
+                : "descending";
+            item.setAttribute("aria-sort", ariaSort);
+            const label = item.querySelector("button").textContent.replace(/[ ▲▼]$/, "");
+            item.querySelector("button").textContent = active && messageLogSort.direction !== 0
+              ? `${label} ${messageLogSort.direction === 1 ? "▲" : "▼"}`
+              : label;
+          });
+
+          messageLogOffset = 0;
+          refreshMessageLog();
+        });
       });
       document.querySelector("#message-log-prev").addEventListener("click", () => {
         messageLogOffset = Math.max(0, messageLogOffset - messageLogPageSize);
