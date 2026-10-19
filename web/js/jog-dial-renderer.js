@@ -1,3 +1,5 @@
+import { resizeCanvas } from "./canvas-utils.js";
+
 export function renderJogDial({
   canvas,
   context,
@@ -5,20 +7,8 @@ export function renderJogDial({
   stepValues,
   hoveredSelection,
 }) {
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-
-  const ratio = window.devicePixelRatio || 1;
-  const width = Math.round(rect.width * ratio);
-  const height = Math.round(rect.height * ratio);
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-  const w = rect.width;
-  const h = rect.height;
+  const { width: w, height: h } = resizeCanvas(canvas, context);
+  if (!w || !h) return;
   const cx = w / 2;
   const cy = h / 2;
   const radius = Math.min(w, h) * 0.46;
