@@ -3833,7 +3833,7 @@
       }
 
       machineCommandInput.addEventListener("keydown", (event) => {
-        if (event.ctrlKey && ["r", "k", "к"].includes(event.key.toLowerCase())) {
+        if (event.ctrlKey && ["r", "к"].includes(event.key.toLowerCase())) {
           event.preventDefault();
           if (!reverseSearch) {
             reverseSearch = { query: "", draft: machineCommandInput.value };
