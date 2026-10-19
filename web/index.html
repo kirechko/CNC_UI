@@ -1242,10 +1242,121 @@
 
       .message-log-filters {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(190px, 1.4fr) auto;
         gap: 8px;
         padding: 12px 16px;
         border-bottom: 1px solid var(--border);
+      }
+
+      .log-date-picker { position: relative; min-width: 0; }
+
+      .log-date-picker-button {
+        width: 100%;
+        min-height: 34px;
+        overflow: hidden;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font-size: 11px;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .log-calendar {
+        position: absolute;
+        z-index: 5;
+        top: calc(100% + 6px);
+        right: 0;
+        width: 280px;
+        padding: 10px;
+        border: 1px solid #3b484d;
+        border-radius: 8px;
+        background: #202629;
+        box-shadow: 0 12px 36px rgb(0 0 0 / 45%);
+      }
+
+      .log-calendar[hidden] { display: none; }
+
+      .log-calendar-heading,
+      .log-calendar-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .log-calendar-heading { margin-bottom: 8px; }
+      .log-calendar-month { font-size: 12px; font-weight: 700; }
+
+      .log-calendar-heading button,
+      .log-calendar-footer button {
+        min-height: 28px;
+        padding: 0 8px;
+        color: #c8d1d4;
+        font-size: 10px;
+      }
+
+      .log-calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 2px;
+        user-select: none;
+        touch-action: none;
+      }
+
+      .log-calendar-weekday,
+      .log-calendar-day {
+        display: grid;
+        min-width: 0;
+        min-height: 30px;
+        place-items: center;
+        border-radius: 5px;
+        font-size: 10px;
+      }
+
+      .log-calendar-weekday { color: var(--muted); font-weight: 700; }
+
+      .log-calendar-day {
+        padding: 0;
+        border-color: transparent;
+        background: transparent;
+        color: #d8e0e2;
+      }
+
+      .log-calendar-day.outside-month { color: #687479; }
+      .log-calendar-day:hover:not(:disabled) { background: #303b40; }
+      .log-calendar-day.in-range { border-radius: 0; background: #1b4356; }
+      .log-calendar-day.range-start,
+      .log-calendar-day.range-end {
+        border-color: #42a4d4;
+        border-radius: 5px;
+        background: #287eaa;
+        color: #fff;
+      }
+
+      .log-calendar-footer {
+        margin-top: 9px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+
+      .log-calendar-range {
+        overflow: hidden;
+        flex: 1;
+        color: var(--muted);
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 700px) {
+        .message-log-filters {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .log-date-picker { grid-column: 1 / -1; }
       }
 
       .message-log-filters select,
@@ -1819,8 +1930,28 @@
           </select>
           <input id="log-source" type="search" placeholder="Источник" aria-label="Фильтр источника">
           <input id="log-search" type="search" placeholder="Текст сообщения" aria-label="Поиск по тексту">
-          <input id="log-time-from" type="datetime-local" aria-label="Начало периода">
-          <input id="log-time-to" type="datetime-local" aria-label="Конец периода">
+          <div class="log-date-picker">
+            <button
+              class="log-date-picker-button"
+              id="log-date-picker-button"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+            >Любая дата</button>
+            <div class="log-calendar" id="log-calendar" role="dialog" aria-label="Выбор периода журнала" hidden>
+              <div class="log-calendar-heading">
+                <button type="button" id="log-calendar-prev" aria-label="Предыдущий месяц">‹</button>
+                <span class="log-calendar-month" id="log-calendar-month"></span>
+                <button type="button" id="log-calendar-next" aria-label="Следующий месяц">›</button>
+              </div>
+              <div class="log-calendar-grid" id="log-calendar-grid"></div>
+              <div class="log-calendar-footer">
+                <span class="log-calendar-range" id="log-calendar-range">Выберите день или протяните по диапазону</span>
+                <button type="button" id="log-calendar-clear">Очистить</button>
+                <button type="button" id="log-calendar-done">Готово</button>
+              </div>
+            </div>
+          </div>
           <button type="submit">Применить</button>
         </form>
         <div class="message-log-table-wrap">
@@ -1917,6 +2048,10 @@
       const messageLogPageSize = 100;
       let messageLogOffset = 0;
       let messageLogSort = { column: null, direction: 0 };
+      let logDateRange = { start: null, end: null };
+      let draftLogDateRange = { start: null, end: null };
+      let logCalendarMonth = new Date();
+      let draggingLogCalendar = false;
       const connectionChip = document.querySelector(".connection-chip");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
@@ -3717,6 +3852,180 @@
         element.title = `${metadata.textContent}${entry.message}`;
       }
 
+      const logCalendar = document.querySelector("#log-calendar");
+      const logCalendarGrid = document.querySelector("#log-calendar-grid");
+      const logCalendarMonthLabel = document.querySelector("#log-calendar-month");
+      const logCalendarRangeLabel = document.querySelector("#log-calendar-range");
+      const logDatePickerButton = document.querySelector("#log-date-picker-button");
+
+      function localDateKey(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function parseLocalDate(key) {
+        if (!key) return null;
+        const [year, month, day] = key.split("-").map(Number);
+        return new Date(year, month - 1, day);
+      }
+
+      function formatLocalDate(key) {
+        return parseLocalDate(key)?.toLocaleDateString() || "";
+      }
+
+      function logRangeLabel(range) {
+        if (!range.start) return "Любая дата";
+        if (!range.end || range.start === range.end) return formatLocalDate(range.start);
+        return `${formatLocalDate(range.start)} — ${formatLocalDate(range.end)}`;
+      }
+
+      function updateLogCalendarRangeLabel() {
+        logCalendarRangeLabel.textContent = draftLogDateRange.start
+          ? logRangeLabel(draftLogDateRange)
+          : "Выберите день или протяните по диапазону";
+      }
+
+      function renderLogCalendar() {
+        const year = logCalendarMonth.getFullYear();
+        const month = logCalendarMonth.getMonth();
+        logCalendarMonthLabel.textContent = logCalendarMonth.toLocaleDateString("ru-RU", {
+          month: "long",
+          year: "numeric",
+        });
+
+        const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+        logCalendarGrid.replaceChildren();
+        for (const weekday of weekdays) {
+          const label = document.createElement("span");
+          label.className = "log-calendar-weekday";
+          label.textContent = weekday;
+          logCalendarGrid.append(label);
+        }
+
+        const firstDay = new Date(year, month, 1);
+        const offset = (firstDay.getDay() + 6) % 7;
+        const gridStart = new Date(year, month, 1 - offset);
+        for (let index = 0; index < 42; index++) {
+          const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
+          const key = localDateKey(date);
+          const day = document.createElement("button");
+          day.type = "button";
+          day.className = "log-calendar-day";
+          day.dataset.date = key;
+          day.textContent = String(date.getDate());
+          day.setAttribute("aria-label", date.toLocaleDateString("ru-RU", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }));
+
+          if (date.getMonth() !== month) day.classList.add("outside-month");
+          const start = draftLogDateRange.start;
+          const end = draftLogDateRange.end || start;
+          if (start && end && key >= start && key <= end) day.classList.add("in-range");
+          if (key === start) day.classList.add("range-start");
+          if (key === draftLogDateRange.end) day.classList.add("range-end");
+          if (key === localDateKey(new Date())) day.setAttribute("aria-current", "date");
+          logCalendarGrid.append(day);
+        }
+
+        updateLogCalendarRangeLabel();
+      }
+
+      function startLogCalendarSelection(key) {
+        draftLogDateRange = { start: key, end: key };
+        draggingLogCalendar = true;
+        renderLogCalendar();
+      }
+
+      function extendLogCalendarSelection(key) {
+        if (!draggingLogCalendar || !draftLogDateRange.start) return;
+        const anchor = draftLogDateRange.start;
+        draftLogDateRange = anchor <= key
+          ? { start: anchor, end: key }
+          : { start: key, end: anchor };
+        renderLogCalendar();
+      }
+
+      logDatePickerButton.addEventListener("click", () => {
+        const opening = logCalendar.hidden;
+        logCalendar.hidden = !opening;
+        logDatePickerButton.setAttribute("aria-expanded", String(opening));
+        if (opening) {
+          draftLogDateRange = { ...logDateRange };
+          logCalendarMonth = parseLocalDate(draftLogDateRange.start) || new Date();
+          logCalendarMonth.setDate(1);
+          renderLogCalendar();
+        }
+      });
+
+      document.querySelector("#log-calendar-prev").addEventListener("click", () => {
+        logCalendarMonth = new Date(logCalendarMonth.getFullYear(), logCalendarMonth.getMonth() - 1, 1);
+        renderLogCalendar();
+      });
+
+      document.querySelector("#log-calendar-next").addEventListener("click", () => {
+        logCalendarMonth = new Date(logCalendarMonth.getFullYear(), logCalendarMonth.getMonth() + 1, 1);
+        renderLogCalendar();
+      });
+
+      logCalendarGrid.addEventListener("pointerdown", (event) => {
+        const day = event.target.closest("[data-date]");
+        if (!day) return;
+        event.preventDefault();
+        startLogCalendarSelection(day.dataset.date);
+      });
+
+      logCalendarGrid.addEventListener("pointerover", (event) => {
+        const day = event.target.closest("[data-date]");
+        if (day) extendLogCalendarSelection(day.dataset.date);
+      });
+
+      document.addEventListener("pointerup", () => {
+        draggingLogCalendar = false;
+      });
+
+      logCalendarGrid.addEventListener("click", (event) => {
+        const day = event.target.closest("[data-date]");
+        if (!day || event.detail !== 0) return;
+        const key = day.dataset.date;
+        if (!draftLogDateRange.start || draftLogDateRange.end) {
+          draftLogDateRange = { start: key, end: null };
+        } else {
+          const anchor = draftLogDateRange.start;
+          draftLogDateRange = anchor <= key
+            ? { start: anchor, end: key }
+            : { start: key, end: anchor };
+        }
+        renderLogCalendar();
+      });
+
+      document.querySelector("#log-calendar-clear").addEventListener("click", () => {
+        draftLogDateRange = { start: null, end: null };
+        logDateRange = { ...draftLogDateRange };
+        logDatePickerButton.textContent = logRangeLabel(logDateRange);
+        messageLogOffset = 0;
+        renderLogCalendar();
+        refreshMessageLog();
+      });
+
+      document.querySelector("#log-calendar-done").addEventListener("click", () => {
+        logDateRange = { ...draftLogDateRange };
+        logDatePickerButton.textContent = logRangeLabel(logDateRange);
+        logCalendar.hidden = true;
+        logDatePickerButton.setAttribute("aria-expanded", "false");
+      });
+
+      document.addEventListener("pointerdown", (event) => {
+        if (!event.target.closest(".log-date-picker")) {
+          logCalendar.hidden = true;
+          logDatePickerButton.setAttribute("aria-expanded", "false");
+        }
+      });
+
       async function requestLogPage(offset = messageLogOffset) {
         const params = new URLSearchParams({
           descending: String(messageLogSort.direction !== 1),
@@ -3729,10 +4038,14 @@
         const severity = document.querySelector("#log-severity").value;
         const source = document.querySelector("#log-source").value.trim();
         const search = document.querySelector("#log-search").value.trim();
-        const timeFrom = document.querySelector("#log-time-from").value;
-        const timeTo = document.querySelector("#log-time-to").value;
-        const timeFromMs = timeFrom ? new Date(timeFrom).getTime() : null;
-        const timeToMs = timeTo ? new Date(timeTo).getTime() : null;
+        const startDate = parseLocalDate(logDateRange.start);
+        const endDate = parseLocalDate(logDateRange.end || logDateRange.start);
+        const timeFromMs = startDate
+          ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime()
+          : null;
+        const timeToMs = endDate
+          ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1).getTime() - 1
+          : null;
         if (severity) params.set("severity", severity);
         if (source) params.set("source", source);
         if (search) params.set("search", search);
@@ -3796,12 +4109,6 @@
       document.querySelector("#close-message-log").addEventListener("click", () => messageLogDialog.close());
       document.querySelector("#message-log-filters").addEventListener("submit", (event) => {
         event.preventDefault();
-        const timeFrom = document.querySelector("#log-time-from").value;
-        const timeTo = document.querySelector("#log-time-to").value;
-        if (timeFrom && timeTo && new Date(timeFrom) > new Date(timeTo)) {
-          messageLogCount.textContent = "Начало периода должно быть раньше окончания.";
-          return;
-        }
         messageLogOffset = 0;
         refreshMessageLog();
       });
