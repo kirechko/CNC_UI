@@ -211,6 +211,15 @@
         grid-template-rows: minmax(0, 1fr);
       }
 
+      .jog-panel {
+        height: 360px;
+      }
+
+      .jog-panel > .panel-body {
+        height: calc(100% - 43px);
+        overflow-y: auto;
+      }
+
       .right-column {
         grid-template-rows: minmax(0, 1fr) auto;
       }
@@ -1930,7 +1939,7 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel jog-panel">
           <div class="panel-heading">
             <span class="panel-title">JOG</span>
             <div class="jog-mode-switch" role="group" aria-label="Вид управления">
@@ -5241,9 +5250,24 @@
         }
       }
 
+      async function cancelMachineCommand() {
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (invoke) {
+          await invoke("cancel_machine_command");
+          return;
+        }
+
+        const response = await fetch("/api/command/cancel", { method: "POST" });
+        if (!response.ok) {
+          throw new Error((await response.text()) || `HTTP ${response.status}`);
+        }
+      }
+
       async function stopAllJog() {
         await stopContinuousJog();
-        await cancelJog();
+        const results = await Promise.allSettled([cancelJog(), cancelMachineCommand()]);
+        const failure = results.find((result) => result.status === "rejected");
+        if (failure) throw failure.reason;
         feedback.textContent = "Jog остановлен";
         feedback.className = "panel-caption";
         await refreshStatus();

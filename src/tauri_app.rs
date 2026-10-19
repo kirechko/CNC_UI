@@ -25,6 +25,11 @@ fn get_status(state: State<'_, AppState>) -> Result<StatusResponse, String> {
 }
 
 #[tauri::command]
+fn cancel_machine_command(state: State<'_, AppState>) {
+    state.cancel_machine_command();
+}
+
+#[tauri::command]
 fn get_command_history(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     state.command_history()
 }
@@ -373,6 +378,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             get_status,
             get_log,
             get_command_history,
+            cancel_machine_command,
             log_message,
             execute_machine_command,
             get_program,
