@@ -268,6 +268,13 @@ pub trait LinuxCncApi: Send + Sync {
         ))
     }
 
+    /// Выполнить команду контроллера и вернуть текстовый ответ, если он доступен.
+    /// Может поддерживать G-code и команды, специфичные для адаптера.
+    async fn execute_command(&self, command: &str) -> CncResult<String> {
+        self.mdi(command).await?;
+        Ok("Команда принята контроллером.".into())
+    }
+
     async fn mdi(&self, command: &str) -> CncResult<()>;
     async fn load_program(&self, path: &Path) -> CncResult<()>;
     async fn program_run(&self, start_line: u32) -> CncResult<()>;
