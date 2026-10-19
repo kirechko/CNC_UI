@@ -1,4 +1,4 @@
-function finalizeStockMesh(triangles) {
+export function finalizeStockMesh(triangles) {
   if (!triangles.length || triangles.length > 1_000_000) {
     throw new Error("Модель должна содержать от 1 до 1 000 000 треугольников.");
   }
