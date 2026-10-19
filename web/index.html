@@ -2404,6 +2404,7 @@
       import { initSidebarTabs } from "./js/sidebar.js";
       import { initStockLoader } from "./js/stock-loader.js";
       import { initPositionControls } from "./js/position-controls.js";
+      import { createPositionReadoutUpdater } from "./js/position-readouts.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
       import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
@@ -2786,17 +2787,7 @@
         updatePositionDisplay();
       });
 
-      function updatePositionReadouts(status) {
-        for (const row of axisRowsContainer.querySelectorAll(".axis-row")) {
-          const axis = row.dataset.axis.toLowerCase();
-          const workValue = Number(status[axis]);
-          const machineValue = Number(status[`machine_${axis}`]);
-          row.querySelector(".axis-value.work").textContent =
-            Number.isFinite(workValue) ? workValue.toFixed(3) : "—";
-          row.querySelector(".axis-value.machine").textContent =
-            Number.isFinite(machineValue) ? machineValue.toFixed(3) : "—";
-        }
-      }
+      const updatePositionReadouts = createPositionReadoutUpdater(axisRowsContainer);
 
 
 
