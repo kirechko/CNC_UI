@@ -2411,6 +2411,7 @@
       import { initLogCalendar } from "./js/log-calendar-control.js";
       import { initSpindleControls } from "./js/spindle-control.js";
       import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
+      import { initJogDialInteraction } from "./js/jog-dial-interaction.js";
       import { initJogKeyboard } from "./js/jog-keyboard.js";
       import { initJogApi } from "./js/jog-api.js";
       import { initJogModeControls } from "./js/jog-mode.js";
@@ -3372,8 +3373,6 @@
         });
       }
 
-      let continuousDialPointerId = null;
-
       function setContinuousDialDirection(selection) {
         const moves = dialMoves(selection);
         const xDirection = moves?.find(([axis]) => axis === "X")?.[1] || 0;
@@ -3401,58 +3400,6 @@
         });
       }
 
-      function updateJogDialHover(event) {
-        const rect = jogDialCanvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-        const selection = jogMotionMode === "continuous"
-          ? dialDirectionAt(x, y, rect.width, rect.height)
-          : dialSelectionAt(x, y, rect.width, rect.height);
-
-        if (jogMotionMode === "continuous" && continuousDialPointerId === event.pointerId) {
-          setContinuousDialDirection(selection);
-        }
-
-        if (
-          selection?.sector !== hoveredDialSelection?.sector ||
-          selection?.step !== hoveredDialSelection?.step
-        ) {
-          hoveredDialSelection = selection;
-          const direction = ["+X", "+X / −Y", "−Y", "−X / −Y", "−X", "−X / +Y", "+Y", "+X / +Y"][selection?.sector];
-          jogDialCanvas.title = selection
-            ? jogMotionMode === "continuous"
-              ? `${direction}: удерживайте кнопку мыши для непрерывного перемещения; перемещайте указатель для смены направления`
-              : `${direction}: нажмите для перемещения на ${formatJogStep(selection.step)} mm`
-            : jogMotionMode === "continuous"
-              ? "Непрерывный XY Jog: удерживайте кнопку на секторе; центр диска — без движения"
-              : `Пошаговый XY Jog: нажмите сектор; кольца задают шаг ${xyJogStepValues.map(formatJogStep).join(" / ")} mm`;
-
-          if (jogDialHint) {
-            jogDialHint.textContent = selection
-              ? jogMotionMode === "continuous"
-                ? `${direction} · удерживайте для перемещения`
-                : `${direction} · ${selection.step} mm`
-              : jogMotionMode === "continuous"
-                ? "Удерживайте кнопку и перемещайте указатель по диску"
-                : `Наведите на сектор: кольца задают шаг ${xyJogStepValues.map(formatJogStep).join(" / ")} mm`;
-          }
-          drawJogDial();
-        }
-      }
-
-      jogDialCanvas.addEventListener("pointermove", updateJogDialHover);
-      jogDialCanvas.addEventListener("pointerleave", () => {
-        hoveredDialSelection = null;
-        jogDialCanvas.title = jogMotionMode === "continuous"
-          ? "Непрерывный XY Jog: удерживайте кнопку мыши на секторе; перемещайте указатель по диску для изменения направления"
-          : "Пошаговый XY Jog: выберите направление на диске, кольцо задаёт расстояние перемещения";
-        if (jogDialHint) {
-          jogDialHint.textContent = jogMotionMode === "continuous"
-            ? "Удерживайте кнопку и перемещайте указатель по диску"
-            : "Наведите на сектор: кольца задают шаг 0.1 / 1 / 10 / 100 mm";
-        }
-        drawJogDial();
-      });
 
 
       async function jogDialSelection(selection) {
@@ -3477,47 +3424,21 @@
       }
 
 
-      jogDialCanvas.addEventListener("pointerdown", (event) => {
-        if (jogMotionMode !== "continuous" || !machineConnected) return;
-        const rect = jogDialCanvas.getBoundingClientRect();
-        const selection = dialDirectionAt(
-          event.clientX - rect.left,
-          event.clientY - rect.top,
-          rect.width,
-          rect.height,
-        );
-        if (!selection) return;
 
-        event.preventDefault();
-        continuousDialPointerId = event.pointerId;
-        jogDialCanvas.setPointerCapture(event.pointerId);
-        setContinuousDialDirection(selection);
-      });
-      function endContinuousDialJog() {
-        continuousDialPointerId = null;
-        if (jogMotionMode === "continuous") stopContinuousJog();
-      }
-
-      jogDialCanvas.addEventListener("pointerup", endContinuousDialJog);
-      jogDialCanvas.addEventListener("pointercancel", endContinuousDialJog);
-      jogDialCanvas.addEventListener("lostpointercapture", endContinuousDialJog);
-
-      jogDialCanvas.addEventListener("click", (event) => {
-        if (jogMotionMode === "continuous") return;
-        const rect = jogDialCanvas.getBoundingClientRect();
-        const selection = dialSelectionAt(
-          event.clientX - rect.left,
-          event.clientY - rect.top,
-          rect.width,
-          rect.height,
-        );
-        jogDialSelection(selection);
-      });
-
-      jogDialCanvas.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        if (hoveredDialSelection) jogDialSelection(hoveredDialSelection);
+      initJogDialInteraction({
+        canvas: jogDialCanvas,
+        getMode: () => jogMotionMode,
+        getConnected: () => machineConnected,
+        getStepValues: () => xyJogStepValues,
+        getHoveredSelection: () => hoveredDialSelection,
+        onHover(selection) {
+          hoveredDialSelection = selection;
+          drawJogDial();
+        },
+        onContinuousSelection: setContinuousDialDirection,
+        onIncrementalSelection: jogDialSelection,
+        stopContinuousJog,
+        hint: jogDialHint,
       });
 
       document.querySelectorAll("[data-dial-axis]").forEach((button) => {
