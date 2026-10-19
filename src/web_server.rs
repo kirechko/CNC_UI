@@ -42,20 +42,20 @@ pub(crate) struct LatestLogMessages {
 }
 
 #[derive(Deserialize)]
-struct LogQuery {
-    severity: Option<String>,
-    source: Option<String>,
-    search: Option<String>,
-    sort: Option<String>,
-    descending: Option<bool>,
-    limit: Option<usize>,
-    offset: Option<usize>,
+pub(crate) struct LogQuery {
+    pub(crate) severity: Option<String>,
+    pub(crate) source: Option<String>,
+    pub(crate) search: Option<String>,
+    pub(crate) sort: Option<String>,
+    pub(crate) descending: Option<bool>,
+    pub(crate) limit: Option<usize>,
+    pub(crate) offset: Option<usize>,
 }
 
 #[derive(Serialize)]
-struct LogPage {
-    entries: Vec<LogEntry>,
-    total: i64,
+pub(crate) struct LogPage {
+    pub(crate) entries: Vec<LogEntry>,
+    pub(crate) total: i64,
 }
 
 #[derive(Clone, Serialize)]
@@ -120,8 +120,8 @@ impl AppState {
             "{}\u{1f}{}\u{1f}{}\u{1f}{}",
             status.state,
             status.message.as_deref().unwrap_or(""),
-            alert.map(|(kind, _)| kind).unwrap_or(""),
-            alert.map(|(_, message)| message).unwrap_or(""),
+            alert.map_or("", |(kind, _)| kind.as_str()),
+            alert.map_or("", |(_, message)| message.as_str()),
         );
 
         let Ok(mut previous) = self.last_logged_status.lock() else {
@@ -207,7 +207,7 @@ impl AppState {
         Ok(LatestLogMessages { critical, other })
     }
 
-    fn query_log(&self, query: &LogQuery) -> Result<LogPage, String> {
+    pub(crate) fn query_log(&self, query: &LogQuery) -> Result<LogPage, String> {
         let connection = self
             .log
             .lock()
@@ -854,8 +854,8 @@ pub(crate) struct StatusResponse {
     total_lines: u32,
     message: Option<String>,
     error: Option<String>,
-    latest_critical: Option<LogEntry>,
-    latest_other: Option<LogEntry>,
+    pub(crate) latest_critical: Option<LogEntry>,
+    pub(crate) latest_other: Option<LogEntry>,
 }
 
 impl From<CNCStatus> for StatusResponse {
