@@ -1242,7 +1242,7 @@
 
       .message-log-filters {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(190px, 1.4fr) auto;
+        grid-template-columns: 25fr 18fr 20fr 37fr;
         gap: 8px;
         padding: 12px 16px;
         border-bottom: 1px solid var(--border);
@@ -1354,9 +1354,8 @@
 
       @media (max-width: 700px) {
         .message-log-filters {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: 25fr 18fr 20fr 37fr;
         }
-        .log-date-picker { grid-column: 1 / -1; }
       }
 
       .message-log-filters select,
@@ -1374,6 +1373,7 @@
 
       .message-log-table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
         font-size: 11px;
       }
@@ -1862,9 +1862,8 @@
             </div>
           </div>
           <div class="viewer-footer">
-            <span id="program-name">NO PROGRAM · mm</span>
             <div class="viewer-message-summary" aria-live="polite">
-              <div class="viewer-message-line critical" id="latest-critical-message">Аварийных сообщений нет</div>
+              <div class="viewer-message-line critical" id="latest-critical-message">—</div>
               <div class="viewer-message-line" id="latest-other-message">Сообщений нет</div>
             </div>
             <button class="message-log-button" id="open-message-log" type="button">Журнал</button>
@@ -1921,16 +1920,16 @@
           <button type="button" id="close-message-log" aria-label="Закрыть журнал">Закрыть</button>
         </div>
         <form class="message-log-filters" id="message-log-filters">
-          <select id="log-severity" aria-label="Фильтр критичности">
+          <select id="log-severity" aria-label="Фильтр критичности" style="grid-column: 2">
             <option value="">Все критичности</option>
             <option value="авария">Авария</option>
             <option value="ошибка">Ошибка</option>
             <option value="предупреждение">Предупреждение</option>
             <option value="информация">Информация</option>
           </select>
-          <input id="log-source" type="search" placeholder="Источник" aria-label="Фильтр источника">
-          <input id="log-search" type="search" placeholder="Текст сообщения" aria-label="Поиск по тексту">
-          <div class="log-date-picker">
+          <input id="log-source" type="search" placeholder="Источник" aria-label="Фильтр источника" style="grid-column: 3">
+          <input id="log-search" type="search" placeholder="Текст сообщения" aria-label="Поиск по тексту" style="grid-column: 4">
+          <div class="log-date-picker" style="grid-column: 1">
             <button
               class="log-date-picker-button"
               id="log-date-picker-button"
@@ -1952,10 +1951,15 @@
               </div>
             </div>
           </div>
-          <button type="submit">Применить</button>
         </form>
         <div class="message-log-table-wrap">
           <table class="message-log-table">
+            <colgroup>
+              <col style="width: 25%">
+              <col style="width: 18%">
+              <col style="width: 20%">
+              <col style="width: 37%">
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col" data-log-sort="timestamp"><button type="button" aria-label="Сортировать по времени">Время</button></th>
@@ -4017,6 +4021,8 @@
         logDatePickerButton.textContent = logRangeLabel(logDateRange);
         logCalendar.hidden = true;
         logDatePickerButton.setAttribute("aria-expanded", "false");
+        messageLogOffset = 0;
+        refreshMessageLog();
       });
 
       document.addEventListener("pointerdown", (event) => {
@@ -4112,6 +4118,15 @@
         messageLogOffset = 0;
         refreshMessageLog();
       });
+
+      for (const control of document.querySelectorAll(
+        "#log-severity, #log-source, #log-search",
+      )) {
+        control.addEventListener(control.tagName === "SELECT" ? "change" : "input", () => {
+          messageLogOffset = 0;
+          refreshMessageLog();
+        });
+      }
 
       document.querySelectorAll("[data-log-sort]").forEach((header) => {
         const button = header.querySelector("button");
@@ -4237,7 +4252,7 @@
           renderLatestLogLine(
             latestCriticalMessage,
             status.latest_critical,
-            "Аварийных сообщений нет",
+            "—",
           );
           renderLatestLogLine(
             latestOtherMessage,
