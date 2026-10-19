@@ -1183,7 +1183,122 @@
         font-size: 9px;
       }
 
-      .viewer-legend { display: flex; gap: 12px; }
+      .viewer-message-summary {
+        display: grid;
+        min-width: 0;
+        flex: 1;
+        gap: 3px;
+        padding: 4px 0;
+      }
+
+      .viewer-message-line {
+        overflow: hidden;
+        color: #a9b4b7;
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .viewer-message-line.critical { color: var(--red); }
+      .viewer-message-line .message-meta { color: var(--muted); }
+
+      .message-log-button {
+        min-height: 27px;
+        flex: 0 0 auto;
+        padding: 0 8px;
+        color: #aeb9bc;
+        font-size: 10px;
+      }
+
+      .message-log-dialog {
+        width: min(900px, calc(100vw - 28px));
+        max-height: min(760px, calc(100vh - 28px));
+        padding: 0;
+        border: 1px solid #3b484d;
+        border-radius: 10px;
+        background: #202629;
+        color: #e7ecee;
+        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+      }
+
+      .message-log-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+      .message-log-content {
+        display: grid;
+        max-height: inherit;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+      }
+
+      .message-log-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .message-log-heading h2 { margin: 0; font-size: 15px; }
+
+      .message-log-filters {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+        gap: 8px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .message-log-filters select,
+      .message-log-filters input {
+        min-width: 0;
+        min-height: 34px;
+        padding: 0 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+      }
+
+      .message-log-table-wrap { overflow: auto; min-height: 200px; }
+
+      .message-log-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+      }
+
+      .message-log-table th,
+      .message-log-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid rgb(48 57 61 / 65%);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .message-log-table th {
+        position: sticky;
+        top: 0;
+        background: #202629;
+        color: var(--muted);
+      }
+
+      .message-log-table td:last-child { overflow-wrap: anywhere; }
+      .message-log-table .critical { color: var(--red); }
+      .message-log-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 16px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .message-log-footer button {
+        min-height: 30px;
+        padding: 0 9px;
+      }
+
       .legend-item { display: flex; align-items: center; gap: 5px; }
       .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
       .legend-dot.rapid { background: #99a8ae; }
@@ -1624,11 +1739,11 @@
           </div>
           <div class="viewer-footer">
             <span id="program-name">NO PROGRAM · mm</span>
-            <div class="viewer-legend" aria-label="Цвета траектории">
-              <span class="legend-item"><i class="legend-dot rapid"></i>Rapid</span>
-              <span class="legend-item"><i class="legend-dot linear"></i>Linear</span>
-              <span class="legend-item"><i class="legend-dot arc"></i>Arc</span>
+            <div class="viewer-message-summary" aria-live="polite">
+              <div class="viewer-message-line critical" id="latest-critical-message">Аварийных сообщений нет</div>
+              <div class="viewer-message-line" id="latest-other-message">Сообщений нет</div>
             </div>
+            <button class="message-log-button" id="open-message-log" type="button">Журнал</button>
           </div>
         </section>
 
@@ -1685,6 +1800,48 @@
       </form>
     </dialog>
 
+    <dialog class="message-log-dialog" id="message-log-dialog">
+      <section class="message-log-content" aria-labelledby="message-log-title">
+        <div class="message-log-heading">
+          <h2 id="message-log-title">Журнал сообщений</h2>
+          <button type="button" id="close-message-log" aria-label="Закрыть журнал">Закрыть</button>
+        </div>
+        <form class="message-log-filters" id="message-log-filters">
+          <select id="log-severity" aria-label="Фильтр критичности">
+            <option value="">Все критичности</option>
+            <option value="авария">Авария</option>
+            <option value="ошибка">Ошибка</option>
+            <option value="предупреждение">Предупреждение</option>
+            <option value="информация">Информация</option>
+          </select>
+          <input id="log-source" type="search" placeholder="Источник" aria-label="Фильтр источника">
+          <input id="log-search" type="search" placeholder="Текст сообщения" aria-label="Поиск по тексту">
+          <select id="log-sort" aria-label="Сортировка журнала">
+            <option value="timestamp">По времени</option>
+            <option value="severity">По критичности</option>
+            <option value="source">По источнику</option>
+            <option value="message">По сообщению</option>
+          </select>
+          <button type="submit">Применить</button>
+        </form>
+        <div class="message-log-table-wrap">
+          <table class="message-log-table">
+            <thead>
+              <tr><th>Время</th><th>Критичность</th><th>Источник</th><th>Сообщение</th></tr>
+            </thead>
+            <tbody id="message-log-rows"></tbody>
+          </table>
+        </div>
+        <div class="message-log-footer">
+          <span id="message-log-count">Загрузка…</span>
+          <div>
+            <button type="button" id="message-log-prev">Назад</button>
+            <button type="button" id="message-log-next">Далее</button>
+          </div>
+        </div>
+      </section>
+    </dialog>
+
     <dialog class="position-dialog" id="position-dialog">
       <form class="position-dialog-content" method="dialog">
         <h2 id="position-dialog-title">Позиция оси</h2>
@@ -1700,6 +1857,13 @@
 
     <script>
       const connection = document.querySelector("#connection");
+      const latestCriticalMessage = document.querySelector("#latest-critical-message");
+      const latestOtherMessage = document.querySelector("#latest-other-message");
+      const messageLogDialog = document.querySelector("#message-log-dialog");
+      const messageLogRows = document.querySelector("#message-log-rows");
+      const messageLogCount = document.querySelector("#message-log-count");
+      const messageLogPageSize = 100;
+      let messageLogOffset = 0;
       const connectionChip = document.querySelector(".connection-chip");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
@@ -3480,6 +3644,104 @@
         if (!jogDialPanel.hidden) drawJogDial();
       });
 
+      function formatLogTimestamp(timestamp) {
+        return new Date(timestamp).toLocaleString();
+      }
+
+      function renderLatestLogLine(element, entry, emptyText) {
+        if (!entry) {
+          element.textContent = emptyText;
+          return;
+        }
+        element.replaceChildren();
+        const metadata = document.createElement("span");
+        metadata.className = "message-meta";
+        metadata.textContent =
+          `${formatLogTimestamp(entry.timestamp_ms)} · ${entry.severity} · ${entry.source} · `;
+        element.append(metadata, document.createTextNode(entry.message));
+        element.title = `${metadata.textContent}${entry.message}`;
+      }
+
+      async function requestLogPage(offset = messageLogOffset) {
+        const params = new URLSearchParams({
+          sort: document.querySelector("#log-sort").value,
+          descending: "true",
+          limit: String(messageLogPageSize),
+          offset: String(offset),
+        });
+        const severity = document.querySelector("#log-severity").value;
+        const source = document.querySelector("#log-source").value.trim();
+        const search = document.querySelector("#log-search").value.trim();
+        if (severity) params.set("severity", severity);
+        if (source) params.set("source", source);
+        if (search) params.set("search", search);
+
+        const invoke = window.__TAURI__?.core?.invoke;
+        return invoke
+          ? invoke("get_log", {
+              severity: severity || null,
+              source: source || null,
+              search: search || null,
+              sort: document.querySelector("#log-sort").value,
+              descending: true,
+              limit: messageLogPageSize,
+              offset,
+            })
+          : fetch(`/api/log?${params}`, { cache: "no-store" }).then(async (response) => {
+              if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+              return response.json();
+            });
+      }
+
+      async function refreshMessageLog() {
+        try {
+          const page = await requestLogPage();
+          messageLogRows.replaceChildren();
+          for (const entry of page.entries) {
+            const row = document.createElement("tr");
+            const timestamp = document.createElement("td");
+            timestamp.textContent = formatLogTimestamp(entry.timestamp_ms);
+            const severity = document.createElement("td");
+            severity.textContent = entry.severity;
+            severity.className = entry.severity === "авария" ? "critical" : "";
+            const source = document.createElement("td");
+            source.textContent = entry.source;
+            const message = document.createElement("td");
+            message.textContent = entry.message;
+            row.append(timestamp, severity, source, message);
+            messageLogRows.append(row);
+          }
+          messageLogOffset = Number(document.querySelector("#message-log-offset")?.value) || messageLogOffset;
+          messageLogCount.textContent =
+            `${page.total} сообщений · ${page.total ? messageLogOffset + 1 : 0}–${Math.min(messageLogOffset + page.entries.length, page.total)}`;
+          document.querySelector("#message-log-prev").disabled = messageLogOffset <= 0;
+          document.querySelector("#message-log-next").disabled =
+            messageLogOffset + page.entries.length >= page.total;
+        } catch (error) {
+          messageLogCount.textContent = `Не удалось загрузить журнал: ${error.message}`;
+        }
+      }
+
+      document.querySelector("#open-message-log").addEventListener("click", () => {
+        messageLogOffset = 0;
+        messageLogDialog.showModal();
+        refreshMessageLog();
+      });
+      document.querySelector("#close-message-log").addEventListener("click", () => messageLogDialog.close());
+      document.querySelector("#message-log-filters").addEventListener("submit", (event) => {
+        event.preventDefault();
+        messageLogOffset = 0;
+        refreshMessageLog();
+      });
+      document.querySelector("#message-log-prev").addEventListener("click", () => {
+        messageLogOffset = Math.max(0, messageLogOffset - messageLogPageSize);
+        refreshMessageLog();
+      });
+      document.querySelector("#message-log-next").addEventListener("click", () => {
+        messageLogOffset += messageLogPageSize;
+        refreshMessageLog();
+      });
+
       async function requestStatus() {
         const invoke = window.__TAURI__?.core?.invoke;
         if (invoke) return invoke("get_status");
@@ -3560,6 +3822,17 @@
           document.querySelector("#spindle-actual-rpm").textContent =
             `${Number(status.spindle_rpm || 0).toFixed(0)} RPM · ${spindleDirection}`;
 
+          renderLatestLogLine(
+            latestCriticalMessage,
+            status.latest_critical,
+            "Аварийных сообщений нет",
+          );
+          renderLatestLogLine(
+            latestOtherMessage,
+            status.latest_other,
+            "Сообщений нет",
+          );
+          if (messageLogDialog.open) refreshMessageLog();
           updatePositionReadouts(status);
 
           document.querySelector("#message").textContent =
