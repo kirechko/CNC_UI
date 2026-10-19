@@ -2404,6 +2404,7 @@
       import { parseStl, parseThreeJsJson } from "./js/stock.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { renderLatestLogLine } from "./js/message-log.js";
+      import { initJobControls } from "./js/job-control.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2525,6 +2526,11 @@
       let stockVisible = true;
       let machineState = "DISCONNECTED";
       let renderedAxisSignature = null;
+      const jobControls = initJobControls({
+        getProgram: () => loadedProgram,
+        getMachineState: () => machineState,
+        refreshStatus,
+      });
 
       const trajectoryCanvas = document.querySelector("#trajectory-canvas");
       const trajectoryContext = trajectoryCanvas.getContext("2d");
@@ -3940,34 +3946,7 @@
       });
 
 
-      async function sendJobCommand(command) {
-        const invoke = window.__TAURI__?.core?.invoke;
-        if (invoke) {
-          return invoke(command);
-        }
 
-        const endpoint = {
-          start_program: "run",
-          pause_program: "pause",
-          resume_program: "resume",
-          abort_program: "abort",
-        }[command];
-
-        if (!endpoint) throw new Error(`Неизвестная команда: ${command}`);
-
-        const response = await fetch(`/api/program/${endpoint}`, {
-          method: "POST",
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          throw new Error((await response.text()) || `HTTP ${response.status}`);
-        }
-      }
-
-      const jobRunButton = document.querySelector("#job-run");
-      const jobPauseButton = document.querySelector("#job-pause");
-      const jobAbortButton = document.querySelector("#job-abort");
-      const jobCaption = document.querySelector("#job-caption");
       const jobNote = document.querySelector("#job-note");
       const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
       const spindleCwButton = document.querySelector("#spindle-cw");
@@ -3984,41 +3963,6 @@
       let spindleMinimumRpm = 0;
       let spindleMaximumRpm = 0;
 
-      jobRunButton.addEventListener("click", async () => {
-        jobRunButton.disabled = true;
-        jobNote.textContent = "";
-        try {
-          await sendJobCommand(machineState === "PAUSED" ? "resume_program" : "start_program");
-          jobNote.textContent = machineState === "PAUSED"
-            ? "Отправлена команда продолжения программы."
-            : "Отправлена команда запуска программы.";
-          await refreshStatus();
-        } catch (error) {
-          jobNote.textContent = `Ошибка управления программой: ${error.message}`;
-        }
-      });
-
-      jobPauseButton.addEventListener("click", async () => {
-        jobPauseButton.disabled = true;
-        try {
-          await sendJobCommand("pause_program");
-          jobNote.textContent = "Отправлена команда паузы.";
-          await refreshStatus();
-        } catch (error) {
-          jobNote.textContent = `Ошибка паузы: ${error.message}`;
-        }
-      });
-
-      jobAbortButton.addEventListener("click", async () => {
-        jobAbortButton.disabled = true;
-        try {
-          await sendJobCommand("abort_program");
-          jobNote.textContent = "Отправлена команда остановки программы.";
-          await refreshStatus();
-        } catch (error) {
-          jobNote.textContent = `Ошибка остановки: ${error.message}`;
-        }
-      });
 
       function syncSpindleSpeed(value) {
         const rpm = Math.max(
@@ -4239,29 +4183,6 @@
           spindleUiDirection !== "stopped";
       }
 
-      function updateJobControls(status) {
-        const hasProgram = Boolean(loadedProgram);
-        const running = status.state === "READING";
-        const paused = status.state === "PAUSED";
-        const canControl = Boolean(status.connected) && hasProgram;
-
-        jobRunButton.disabled = !canControl || (running && !paused);
-        jobRunButton.title = paused ? "Продолжить программу" : "Запустить программу";
-        jobRunButton.setAttribute(
-          "aria-label",
-          paused ? "Продолжить программу" : "Запустить программу",
-        );
-        jobPauseButton.disabled = !canControl || !running;
-        jobAbortButton.disabled = !canControl || (!running && !paused);
-
-        if (!hasProgram) {
-          jobCaption.textContent = "Нет загруженной программы";
-        } else if (running || paused) {
-          jobCaption.textContent = `${paused ? "Пауза" : "Выполняется"} · ${status.current_line}/${status.total_lines}`;
-        } else {
-          jobCaption.textContent = `Программа загружена · ${status.total_lines} строк`;
-        }
-      }
 
       const stockFileInput = document.querySelector("#stock-file");
       const stockToggle = document.querySelector("#stock-toggle");
@@ -4796,7 +4717,7 @@
           );
           if (stateClass) state.classList.add(stateClass);
           setJogEnabled(machineConnected);
-          updateJobControls(status);
+          jobControls.update(status);
           updateSpindleControls(status);
           renderConfiguredAxes(status.configuration);
           updatePositionDisplay();
