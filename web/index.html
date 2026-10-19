@@ -1877,7 +1877,9 @@
           [latestStatus.message, latestStatus.error].filter(Boolean).includes(message)
         ) return;
 
-        const severity = /^ошибка\b|^error\b/i.test(message) ? "ошибка" : "информация";
+        const severity = /^(ошибка|не удалось|error|failed|failure)\b/i.test(message)
+          ? "ошибка"
+          : "информация";
         const invoke = window.__TAURI__?.core?.invoke;
         try {
           if (invoke) {
@@ -3004,6 +3006,8 @@
 
       function showProgram(name, content) {
         loadedProgram = { name, content, segments: parseToolpath(content) };
+        document.querySelector("#job-note").textContent =
+          `G-code загружен: ${name} · ${loadedProgram.segments.length} сегментов.`;
         camera.zoom = 1;
         camera.panX = 0;
         camera.panY = 0;
