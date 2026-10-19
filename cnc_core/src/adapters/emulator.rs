@@ -210,6 +210,11 @@ impl LinuxCncApi for EmAdapter {
         self.unit("jog_cancel", json!({})).await
     }
 
+    async fn execute_command(&self, command: &str) -> CncResult<String> {
+        self.unit("mdi", json!({ "command": command })).await?;
+        Ok("Команда принята эмулятором.".into())
+    }
+
     async fn mdi(&self, command: &str) -> CncResult<()> {
         self.unit("mdi", json!({ "command": command })).await
     }

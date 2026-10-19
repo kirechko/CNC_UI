@@ -25,6 +25,19 @@ fn get_status(state: State<'_, AppState>) -> Result<StatusResponse, String> {
 }
 
 #[tauri::command]
+fn execute_machine_command(
+    state: State<'_, AppState>,
+    command: String,
+) -> Result<String, String> {
+    let command = command.trim();
+    if command.is_empty() || command.len() > 4096 || command.contains(['\\n', '\\r']) {
+        return Err("Введите одну непустую команду длиной не более 4096 символов".into());
+    }
+
+    state.execute_command(command)
+}
+
+#[tauri::command]
 fn log_message(
     state: State<'_, AppState>,
     severity: String,
@@ -351,6 +364,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             get_status,
             get_log,
             log_message,
+            execute_machine_command,
             get_program,
             load_program,
             start_program,

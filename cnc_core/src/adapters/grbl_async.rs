@@ -1238,6 +1238,25 @@ impl LinuxCncApi for GrblAdapter {
         Self::send_realtime(&mut session, 0x85).await
     }
 
+    async fn execute_command(&self, command: &str) -> CncResult<String> {
+        let mut session = self.session.lock().await;
+        Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
+
+        if command.trim() == "$$" {
+            let mut settings = Self::query_settings(&mut session).await?.into_iter().collect::<Vec<_>>();
+            settings.sort_unstable_by_key(|(number, _)| *number);
+            return Ok(settings
+                .into_iter()
+                .map(|(number, value)| format!("${number}={value}"))
+                .collect::<Vec<_>>()
+                .join("\\n"));
+        }
+
+        Self::send_command(&mut session, command).await?;
+        Ok("Команда принята контроллером.".into())
+    }
+
     async fn mdi(&self, command: &str) -> CncResult<()> {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
