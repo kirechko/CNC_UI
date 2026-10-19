@@ -1134,6 +1134,51 @@
         height: 17px;
       }
 
+      .command-history-dialog {
+        width: min(480px, calc(100vw - 32px));
+        padding: 0;
+        border: 1px solid #3b484d;
+        border-radius: 10px;
+        background: #202629;
+        color: #e7ecee;
+        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+      }
+
+      .command-history-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+      .command-history-content {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+      }
+
+      .command-history-content h2 { margin: 0; font-size: 15px; }
+
+      .command-history-content input {
+        min-height: 36px;
+        padding: 0 9px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: 12px var(--font-mono);
+      }
+
+      .command-history-result {
+        min-height: 38px;
+        overflow-wrap: anywhere;
+        color: var(--muted);
+        font: 11px/1.5 var(--font-mono);
+      }
+
+      .command-history-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .command-history-actions button { min-height: 32px; padding: 0 10px; }
+
       .program-editor-dialog {
         width: min(1100px, calc(100vw - 32px));
         height: min(900px, calc(100vh - 32px));
@@ -2145,6 +2190,18 @@
         </div>
       </aside>
     </main>
+
+    <dialog class="command-history-dialog" id="command-history-dialog">
+      <form class="command-history-content" id="command-history-form">
+        <h2>Поиск в истории команд</h2>
+        <input id="command-history-search" type="search" autocomplete="off" placeholder="Введите часть команды">
+        <div class="command-history-result" id="command-history-result" aria-live="polite">Введите текст для поиска.</div>
+        <div class="command-history-actions">
+          <button type="button" id="command-history-cancel">Отмена</button>
+          <button type="submit" id="command-history-use" disabled>Подставить команду</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog class="program-editor-dialog" id="program-editor-dialog">
       <section class="program-editor-content" aria-labelledby="program-editor-title">
@@ -3623,33 +3680,76 @@
         );
       }
 
-      function searchCommandHistory() {
-        const query = window.prompt("Поиск команды в истории:", lastCommandSearch);
-        if (query === null || !query.trim()) return;
+      const commandHistoryDialog = document.querySelector("#command-history-dialog");
+      const commandHistorySearch = document.querySelector("#command-history-search");
+      const commandHistoryResult = document.querySelector("#command-history-result");
+      const commandHistoryUseButton = document.querySelector("#command-history-use");
+      let commandHistoryMatchIndex = -1;
 
-        lastCommandSearch = query.trim();
-        const start = commandHistoryCursor > 0
-          ? commandHistoryCursor - 1
-          : commandHistory.length - 1;
-        for (let offset = 0; offset < commandHistory.length; offset++) {
-          const index = (start - offset + commandHistory.length) % commandHistory.length;
-          if (commandHistory[index].toLocaleLowerCase().includes(lastCommandSearch.toLocaleLowerCase())) {
-            commandHistoryCursor = index;
-            commandHistoryDraft = "";
-            machineCommandInput.value = commandHistory[index];
-            machineCommandInput.setSelectionRange(
-              machineCommandInput.value.length,
-              machineCommandInput.value.length,
-            );
-            return;
+      function findCommandHistoryMatch(query, startIndex = commandHistory.length - 1) {
+        const normalizedQuery = query.trim().toLocaleLowerCase();
+        if (!normalizedQuery) return -1;
+
+        for (let index = Math.min(startIndex, commandHistory.length - 1); index >= 0; index--) {
+          if (commandHistory[index].toLocaleLowerCase().includes(normalizedQuery)) {
+            return index;
           }
         }
-
-        void logMachineConsoleEvent(
-          "информация",
-          `Поиск в истории команд не дал результатов: ${lastCommandSearch}`,
-        );
+        return -1;
       }
+
+      function updateCommandHistorySearch(startIndex = commandHistory.length - 1) {
+        lastCommandSearch = commandHistorySearch.value;
+        commandHistoryMatchIndex = findCommandHistoryMatch(lastCommandSearch, startIndex);
+        commandHistoryUseButton.disabled = commandHistoryMatchIndex < 0;
+        commandHistoryResult.textContent = commandHistoryMatchIndex >= 0
+          ? `${commandHistory.length - commandHistoryMatchIndex} из ${commandHistory.length}: ${commandHistory[commandHistoryMatchIndex]}`
+          : lastCommandSearch.trim()
+            ? "Совпадений не найдено."
+            : "Введите текст для поиска.";
+      }
+
+      function searchCommandHistory() {
+        commandHistorySearch.value = lastCommandSearch;
+        updateCommandHistorySearch();
+        commandHistoryDialog.showModal();
+        commandHistorySearch.focus();
+        commandHistorySearch.select();
+      }
+
+      commandHistorySearch.addEventListener("input", () => updateCommandHistorySearch());
+
+      commandHistorySearch.addEventListener("keydown", (event) => {
+        if (event.ctrlKey && event.key.toLowerCase() === "r") {
+          event.preventDefault();
+          event.stopPropagation();
+          if (commandHistoryMatchIndex >= 0) {
+            updateCommandHistorySearch(commandHistoryMatchIndex - 1);
+          } else {
+            updateCommandHistorySearch();
+          }
+        }
+      });
+
+      document.querySelector("#command-history-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (commandHistoryMatchIndex < 0) return;
+
+        commandHistoryCursor = commandHistoryMatchIndex;
+        commandHistoryDraft = "";
+        machineCommandInput.value = commandHistory[commandHistoryMatchIndex];
+        machineCommandInput.setSelectionRange(
+          machineCommandInput.value.length,
+          machineCommandInput.value.length,
+        );
+        commandHistoryDialog.close();
+        machineCommandInput.focus();
+      });
+
+      document.querySelector("#command-history-cancel").addEventListener("click", () => {
+        commandHistoryDialog.close();
+        machineCommandInput.focus();
+      });
 
       machineCommandInput.addEventListener("keydown", (event) => {
         if (event.ctrlKey && event.key.toLowerCase() === "r") {
