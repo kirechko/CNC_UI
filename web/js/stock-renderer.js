@@ -1,4 +1,4 @@
-function rotateStockPoint([x, y, z], angleA, angleB) {
+export function rotateStockPoint([x, y, z], angleA, angleB) {
   // A вращает заготовку вокруг X, B — вокруг Y; углы состояния заданы в градусах.
   const cosA = Math.cos(angleA);
   const sinA = Math.sin(angleA);
