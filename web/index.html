@@ -2427,6 +2427,11 @@
       import { initToolAnimation } from "./js/tool-animation.js";
       import { calculateToolpathProgress } from "./js/toolpath-progress.js";
       import { drawTrajectorySegments } from "./js/trajectory-renderer.js";
+      import {
+        formatJogStep,
+        isValidJogStepValues,
+        loadJogStepValues,
+      } from "./js/jog-step-settings.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2503,27 +2508,6 @@
       let xyJogStepValues = [0.1, 1, 10, 100];
       let zJogStepValues = [0.1, 1, 10, 100];
 
-      function isValidJogStepValues(values) {
-        return (
-          Array.isArray(values) &&
-          values.length === 4 &&
-          values.every((value, index) =>
-            Number.isFinite(value) &&
-            value > 0 &&
-            value <= 100000 &&
-            (index === 0 || value > values[index - 1]),
-          )
-        );
-      }
-
-      function loadJogStepValues(key, fallback) {
-        try {
-          const values = JSON.parse(localStorage.getItem(key));
-          return isValidJogStepValues(values) ? values : fallback;
-        } catch {
-          return fallback;
-        }
-      }
 
       const legacyJogStepValues = loadJogStepValues(
         "cnc-ui-jog-steps",
@@ -3555,9 +3539,6 @@
         },
       });
 
-      function formatJogStep(value) {
-        return String(value);
-      }
 
       function updateJogStepControls() {
         const updateDistanceSelect = (select, steps) => {
