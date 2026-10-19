@@ -2400,6 +2400,7 @@
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
+      import { initUiMessageLogger } from "./js/ui-message-logger.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { initStockLoader } from "./js/stock-loader.js";
       import { initPositionControls } from "./js/position-controls.js";
@@ -2427,54 +2428,13 @@
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
-      const uiMessageElements = [
-        [document.querySelector("#message"), "интерфейс"],
-        [document.querySelector("#job-note"), "управление программой"],
-      ];
-      const lastLoggedUiMessages = new WeakMap(
-        uiMessageElements.map(([element]) => [element, element.textContent.trim()]),
-      );
-
-      async function recordUiMessage(element, source) {
-        const message = element.textContent.trim();
-        if (!message || lastLoggedUiMessages.get(element) === message) return;
-        lastLoggedUiMessages.set(element, message);
-
-        if (
-          source === "интерфейс" &&
-          latestStatus &&
-          [latestStatus.message, latestStatus.error].filter(Boolean).includes(message)
-        ) return;
-
-        const severity = /^(ошибка|не удалось|error|failed|failure)\b/i.test(message)
-          ? "ошибка"
-          : "информация";
-        const invoke = window.__TAURI__?.core?.invoke;
-        try {
-          if (invoke) {
-            await invoke("log_message", { severity, source, message });
-          } else {
-            const response = await fetch("/api/log", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              cache: "no-store",
-              body: JSON.stringify({ severity, source, message }),
-            });
-            if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
-          }
-        } catch (error) {
-          console.warn("Не удалось записать сообщение интерфейса в журнал:", error);
-        }
-      }
-
-      for (const [element, source] of uiMessageElements) {
-        if (!element) continue;
-        new MutationObserver(() => recordUiMessage(element, source)).observe(element, {
-          childList: true,
-          characterData: true,
-          subtree: true,
-        });
-      }
+      initUiMessageLogger({
+        elements: [
+          [document.querySelector("#message"), "интерфейс"],
+          [document.querySelector("#job-note"), "управление программой"],
+        ],
+        getStatus: () => latestStatus,
+      });
       const latestOtherMessage = document.querySelector("#latest-other-message");
       const messageLog = initMessageLog({ getDateRange: () => logCalendar.getRange() });
       const logCalendar = initLogCalendar({
