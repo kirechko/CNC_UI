@@ -1,4 +1,4 @@
- //! Serves newline-delimited JSON requests over the emulator's Unix socket.
+//! Serves newline-delimited JSON requests over the emulator's Unix socket.
 use super::state::Emulator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

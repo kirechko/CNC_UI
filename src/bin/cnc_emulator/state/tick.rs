@@ -1,4 +1,4 @@
- //! Advances simulated spindle, motion, homing, jogging, and program execution.
+//! Advances simulated spindle, motion, homing, jogging, and program execution.
 use super::super::dynamics::{ActiveMove, Motion};
 use super::Emulator;
 use crate::cnc_api::*;
@@ -44,7 +44,11 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     if movement_may_advance {
         if let Some(mut movement) = emulator.active_move.take() {
             let (position, done) = movement.tick(dt);
-            let speed = if done { 0.0 } else { movement.velocity_mm_min() };
+            let speed = if done {
+                0.0
+            } else {
+                movement.velocity_mm_min()
+            };
             emulator.set_position(position);
 
             if emulator.jog_move_active || emulator.active_move_is_rapid {
@@ -153,10 +157,8 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
         let mut position = emulator.position_array();
         let (x_min, x_max, _, _) = emulator.config.axis_limits(Axis::X);
         let (y_min, y_max, _, _) = emulator.config.axis_limits(Axis::Y);
-        position[0] = (position[0] + x_component * emulator.jog_velocity * dt)
-            .clamp(x_min, x_max);
-        position[1] = (position[1] + y_component * emulator.jog_velocity * dt)
-            .clamp(y_min, y_max);
+        position[0] = (position[0] + x_component * emulator.jog_velocity * dt).clamp(x_min, x_max);
+        position[1] = (position[1] + y_component * emulator.jog_velocity * dt).clamp(y_min, y_max);
         emulator.set_position(position);
     } else if let Some((axis, direction, feed)) = emulator.continuous_jog {
         let (minimum, maximum, max_velocity, acceleration) = emulator.config.axis_limits(axis);

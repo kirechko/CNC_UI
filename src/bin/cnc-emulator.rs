@@ -1,4 +1,4 @@
- //! Starts the CNC emulator, loads configuration, and accepts client connections.
+//! Starts the CNC emulator, loads configuration, and accepts client connections.
 use cnc_core as cnc_api;
 #[path = "cnc_emulator/config.rs"]
 mod config;
