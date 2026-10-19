@@ -2408,6 +2408,7 @@
       import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
       import { logRangeLabel, parseLocalDate } from "./js/log-calendar-utils.js";
       import { renderLogCalendarGrid } from "./js/log-calendar.js";
+      import { initSpindleControls } from "./js/spindle-control.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -3876,240 +3877,9 @@
 
 
       const jobNote = document.querySelector("#job-note");
-      const spindleSpeedSlider = document.querySelector("#spindle-speed-slider");
-      const spindleCwButton = document.querySelector("#spindle-cw");
-      const spindleCcwButton = document.querySelector("#spindle-ccw");
-      let spindleUiDirection = "stopped";
-      let pendingSpindleDirection = null;
-      let spindleCommandError = null;
-      const spindleStepButton = document.querySelector("#spindle-step");
-      const spindleSpeedOptions = document.querySelector("#spindle-speed-options");
-      const spindleSpeedPresetsContainer = document.querySelector("#spindle-speed-presets");
-      const spindleManualSpeedInput = document.querySelector("#spindle-manual-speed");
-      const spindleManualSpeedApply = document.querySelector("#spindle-manual-speed-apply");
-      let spindleIsRunning = false;
-      let spindleMinimumRpm = 0;
-      let spindleMaximumRpm = 0;
+      const spindleControls = initSpindleControls({ refreshStatus });
 
 
-      function syncSpindleSpeed(value) {
-        const rpm = Math.max(
-          spindleMinimumRpm,
-          Math.min(spindleMaximumRpm, Math.round(Number(value) || spindleMinimumRpm)),
-        );
-        spindleSpeedSlider.value = String(rpm);
-        spindleStepButton.textContent = String(rpm);
-      }
-
-      spindleSpeedSlider.addEventListener("input", () => syncSpindleSpeed(spindleSpeedSlider.value));
-
-      function spindleSpeedPresets() {
-        const minimum = spindleMinimumRpm;
-        const maximum = spindleMaximumRpm;
-        const rounding = maximum <= 9000 ? 100 : 1000;
-        const values = [minimum];
-
-        for (let index = 1; index <= 4; index++) {
-          const evenlySpaced = minimum + (maximum - minimum) * index / 5;
-          values.push(Math.round(evenlySpaced / rounding) * rounding);
-        }
-
-        values.push(maximum);
-        return [...new Set(values.map((value) =>
-          Math.max(minimum, Math.min(maximum, value)),
-        ))].sort((a, b) => a - b);
-      }
-
-      function closeSpindleSpeedOptions() {
-        spindleSpeedOptions.hidden = true;
-        spindleStepButton.setAttribute("aria-expanded", "false");
-      }
-
-      function openSpindleSpeedOptions() {
-        spindleSpeedPresetsContainer.replaceChildren();
-        spindleManualSpeedInput.min = String(spindleMinimumRpm);
-        spindleManualSpeedInput.max = String(spindleMaximumRpm);
-        spindleManualSpeedInput.value = spindleSpeedSlider.value;
-        spindleManualSpeedInput.setCustomValidity("");
-
-        for (const rpm of spindleSpeedPresets()) {
-          const option = document.createElement("button");
-          option.className = "spindle-speed-option";
-          option.type = "button";
-          option.role = "option";
-          option.textContent = rpm.toFixed(0);
-          option.setAttribute(
-            "aria-selected",
-            String(rpm === Number(spindleSpeedSlider.value)),
-          );
-          option.addEventListener("click", () => {
-            syncSpindleSpeed(rpm);
-            closeSpindleSpeedOptions();
-          });
-          spindleSpeedPresetsContainer.append(option);
-        }
-
-        spindleSpeedOptions.hidden = false;
-        spindleStepButton.setAttribute("aria-expanded", "true");
-      }
-
-      spindleStepButton.addEventListener("click", () => {
-        if (spindleSpeedOptions.hidden) {
-          openSpindleSpeedOptions();
-        } else {
-          closeSpindleSpeedOptions();
-        }
-      });
-
-      function applyManualSpindleSpeed() {
-        const rawValue = spindleManualSpeedInput.value.trim();
-        const rpm = Number(rawValue);
-
-        if (
-          !rawValue ||
-          !Number.isFinite(rpm) ||
-          rpm < spindleMinimumRpm ||
-          rpm > spindleMaximumRpm
-        ) {
-          spindleManualSpeedInput.setCustomValidity(
-            `Введите скорость от ${spindleMinimumRpm.toFixed(0)} до ${spindleMaximumRpm.toFixed(0)} RPM.`,
-          );
-          spindleManualSpeedInput.reportValidity();
-          return;
-        }
-
-        spindleManualSpeedInput.setCustomValidity("");
-        syncSpindleSpeed(rpm);
-        closeSpindleSpeedOptions();
-      }
-
-      spindleManualSpeedApply.addEventListener("click", applyManualSpindleSpeed);
-      spindleManualSpeedInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          applyManualSpindleSpeed();
-        }
-      });
-      spindleManualSpeedInput.addEventListener("input", () => {
-        spindleManualSpeedInput.setCustomValidity("");
-      });
-
-      document.addEventListener("pointerdown", (event) => {
-        if (!event.target.closest(".spindle-speed-picker")) {
-          closeSpindleSpeedOptions();
-        }
-      });
-
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && !spindleSpeedOptions.hidden) {
-          closeSpindleSpeedOptions();
-          spindleStepButton.focus();
-        }
-      });
-
-      async function commandSpindle(direction) {
-        const requestedDirection = direction.toLowerCase();
-        const nextDirection = spindleUiDirection === requestedDirection
-          ? "stopped"
-          : requestedDirection;
-        const enabled = nextDirection !== "stopped";
-        const rpm = Number(spindleSpeedSlider.value);
-
-        pendingSpindleDirection = nextDirection;
-        spindleUiDirection = nextDirection;
-        updateSpindleButtons();
-
-        try {
-          await invokeOrFetch(
-            "set_spindle",
-            { rpm, enabled, direction },
-            "/api/spindle",
-            "POST",
-          );
-          spindleCommandError = null;
-          await refreshStatus();
-        } catch (error) {
-          pendingSpindleDirection = null;
-          spindleCommandError = `Ошибка шпинделя: ${error.message}`;
-          await refreshStatus();
-        }
-      }
-
-      spindleCwButton.addEventListener("click", () => commandSpindle("CW"));
-      spindleCcwButton.addEventListener("click", () => commandSpindle("CCW"));
-
-      function updateSpindleButtons() {
-        const cwActive = spindleUiDirection === "cw";
-        const ccwActive = spindleUiDirection === "ccw";
-        const stopIcon = '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"></rect>';
-        const cwIcon = '<path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path><path d="M4 4v5h5"></path>';
-        const ccwIcon = '<path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path><path d="M20 4v5h-5"></path>';
-
-        const cwIconState = cwActive ? "stop" : "cw";
-        const ccwIconState = ccwActive ? "stop" : "ccw";
-
-        spindleCwButton.classList.toggle("active-cw", cwActive);
-        spindleCcwButton.classList.toggle("active-ccw", ccwActive);
-        // Не пересоздаём SVG при каждом обновлении телеметрии: замена элемента
-        // во время pointerdown может отменить браузерное событие click.
-        if (spindleCwButton.dataset.iconState !== cwIconState) {
-          spindleCwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${cwActive ? stopIcon : cwIcon}</svg>`;
-          spindleCwButton.dataset.iconState = cwIconState;
-        }
-        if (spindleCcwButton.dataset.iconState !== ccwIconState) {
-          spindleCcwButton.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ccwActive ? stopIcon : ccwIcon}</svg>`;
-          spindleCcwButton.dataset.iconState = ccwIconState;
-        }
-
-        spindleCwButton.setAttribute("aria-label", cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке");
-        spindleCcwButton.setAttribute("aria-label", ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки");
-        spindleCwButton.title = cwActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке";
-        spindleCcwButton.title = ccwActive ? "Остановить шпиндель" : "Запустить шпиндель против часовой стрелки";
-        // Кнопки остаются доступными при кратковременной потере статуса.
-        // Backend вернёт ошибку, если запуск сейчас невозможен.
-      }
-
-      function updateSpindleControls(status) {
-        spindleIsRunning = Boolean(status.spindle_enabled);
-        spindleMinimumRpm = Math.max(0, Number(status.spindle_min_rpm) || 0);
-        spindleMaximumRpm = Math.max(0, Number(status.spindle_max_rpm) || 0);
-
-        spindleSpeedSlider.min = String(spindleMinimumRpm);
-        spindleSpeedSlider.max = String(spindleMaximumRpm);
-        spindleSpeedSlider.step = "any";
-        const reportedSetpoint = Number(status.spindle_commanded_rpm);
-        const currentSetpoint = Number(spindleSpeedSlider.value);
-        const nextSetpoint = spindleIsRunning && Number.isFinite(reportedSetpoint) && reportedSetpoint > 0
-          ? reportedSetpoint
-          : Number.isFinite(currentSetpoint) && currentSetpoint >= spindleMinimumRpm
-            ? Math.min(currentSetpoint, spindleMaximumRpm)
-            : spindleMinimumRpm;
-        spindleSpeedSlider.value = String(nextSetpoint);
-        spindleStepButton.textContent = String(nextSetpoint);
-
-        const reportedDirection = status.spindle_direction || "stopped";
-        const actualRpm = Number(status.spindle_rpm) || 0;
-
-        if (pendingSpindleDirection === "stopped" && (!spindleIsRunning || actualRpm <= 0.01)) {
-          pendingSpindleDirection = null;
-        } else if (
-          pendingSpindleDirection &&
-          pendingSpindleDirection !== "stopped" &&
-          reportedDirection === pendingSpindleDirection.toLowerCase() &&
-          spindleIsRunning
-        ) {
-          pendingSpindleDirection = null;
-        }
-
-        spindleUiDirection = pendingSpindleDirection ||
-          (spindleIsRunning ? reportedDirection : "stopped");
-        updateSpindleButtons();
-        spindleSpeedSlider.disabled =
-          !status.connected ||
-          spindleMaximumRpm <= 0 ||
-          spindleIsRunning ||
-          spindleUiDirection !== "stopped";
-      }
 
 
       const stockFileInput = document.querySelector("#stock-file");
@@ -4428,7 +4198,7 @@
           if (stateClass) state.classList.add(stateClass);
           setJogEnabled(machineConnected);
           jobControls.update(status);
-          updateSpindleControls(status);
+          spindleControls.update(status);
           renderConfiguredAxes(status.configuration);
           updatePositionDisplay();
           coordinateSystem.value = status.coordinate_system || "g54";
@@ -4458,7 +4228,7 @@
           updatePositionReadouts(status);
 
           document.querySelector("#message").textContent =
-            status.error || spindleCommandError || status.message || "Контроллер готов.";
+            status.error || spindleControls.commandError || status.message || "Контроллер готов.";
           toolPosition[0] = Number(status.x) || 0;
           toolPosition[1] = Number(status.y) || 0;
           toolPosition[2] = Number(status.z) || 0;
