@@ -2411,6 +2411,7 @@
       import { initSpindleControls } from "./js/spindle-control.js";
       import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
       import { initCommandConsole } from "./js/command-console.js";
+      import { initCameraControls } from "./js/camera-controls.js";
 
       const connection = document.querySelector("#connection");
       const latestCriticalMessage = document.querySelector("#latest-critical-message");
@@ -2544,7 +2545,6 @@
       let lastToolFrameTime = null;
       let toolAnimationFrame = null;
       let currentProgramLine = 0;
-      let dragState = null;
 
 
       function drawToolpath() {
@@ -3220,59 +3220,11 @@
         }
       });
 
-      trajectoryCanvas.addEventListener("pointerdown", (event) => {
-        const mode = event.button === 0
-          ? "orbit"
-          : event.button === 1 || event.button === 2
-            ? "pan"
-            : null;
-        if (!mode) return;
-
-        event.preventDefault();
-        trajectoryCanvas.setPointerCapture(event.pointerId);
-        trajectoryCanvas.classList.add("dragging");
-        dragState = {
-          mode,
-          x: event.clientX,
-          y: event.clientY,
-          yaw: camera.yaw,
-          pitch: camera.pitch,
-          panX: camera.panX,
-          panY: camera.panY,
-        };
+      initCameraControls({
+        canvas: trajectoryCanvas,
+        camera,
+        render: drawToolpath,
       });
-
-      trajectoryCanvas.addEventListener("pointermove", (event) => {
-        if (!dragState) return;
-        const dx = event.clientX - dragState.x;
-        const dy = event.clientY - dragState.y;
-
-        if (dragState.mode === "orbit") {
-          camera.yaw = dragState.yaw + dx * 0.01;
-          camera.pitch = Math.max(
-            -Math.PI / 2 + 0.01,
-            Math.min(Math.PI / 2 - 0.01, dragState.pitch + dy * 0.01),
-          );
-        } else {
-          camera.panX = dragState.panX + dx;
-          camera.panY = dragState.panY + dy;
-        }
-
-        drawToolpath();
-      });
-
-      function endCameraDrag() {
-        dragState = null;
-        trajectoryCanvas.classList.remove("dragging");
-      }
-      trajectoryCanvas.addEventListener("pointerup", endCameraDrag);
-      trajectoryCanvas.addEventListener("pointercancel", endCameraDrag);
-      trajectoryCanvas.addEventListener("contextmenu", (event) => event.preventDefault());
-      trajectoryCanvas.addEventListener("wheel", (event) => {
-        event.preventDefault();
-        camera.zoom = Math.max(0.25, Math.min(8, camera.zoom * Math.exp(-event.deltaY * 0.001)));
-        drawToolpath();
-      }, { passive: false });
 
       const programEditor = document.querySelector("#program-editor");
 
