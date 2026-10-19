@@ -2400,11 +2400,10 @@
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
-      import { parseObj } from "./js/obj.js";
-      import { finalizeStockMesh, parseStl, parseThreeJsJson } from "./js/stock.js";
       import { drawStockBox, drawStockMesh } from "./js/stock-renderer.js";
       import { drawTool } from "./js/tool-renderer.js";
       import { initSidebarTabs } from "./js/sidebar.js";
+      import { initStockLoader } from "./js/stock-loader.js";
       import { initPositionControls } from "./js/position-controls.js";
       import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
       import { initJobControls } from "./js/job-control.js";
@@ -3029,37 +3028,29 @@
         drawToolpath();
       });
 
-      document.querySelector("#load-stock").addEventListener("click", () => stockFileInput.click());
-      stockFileInput.addEventListener("change", async () => {
-        const file = stockFileInput.files?.[0];
-        if (!file) return;
-
-        try {
-          const extension = file.name.split(".").pop()?.toLowerCase();
-          if (extension === "stl") {
-            loadedStockMesh = parseStl(await file.arrayBuffer());
-          } else if (extension === "obj") {
-            loadedStockMesh = finalizeStockMesh(parseObj(await file.text()));
-          } else if (extension === "json") {
-            loadedStockMesh = parseThreeJsJson(await file.text());
-          } else {
-            throw new Error("Поддерживаются форматы STL, OBJ и Three.js JSON.");
-          }
+      initStockLoader({
+        input: stockFileInput,
+        loadButton: document.querySelector("#load-stock"),
+        onLoad(mesh, file) {
+          loadedStockMesh = mesh;
           stockVisible = true;
           stockToggle.classList.add("active");
           stockToggle.setAttribute("aria-pressed", "true");
+
           const programNameLabel = document.querySelector("#program-name");
           if (programNameLabel) {
             programNameLabel.textContent =
-              `${loadedProgram?.name || "NO PROGRAM"} · STL: ${file.name}`;
+              `${loadedProgram?.name || "NO PROGRAM"} · ${file.name}`;
           }
+
           drawToolpath();
-          document.querySelector("#message").textContent = `Заготовка STL загружена: ${file.name}`;
-        } catch (error) {
-          document.querySelector("#message").textContent = `Ошибка загрузки STL: ${error.message}`;
-        } finally {
-          stockFileInput.value = "";
-        }
+          document.querySelector("#message").textContent =
+            `Заготовка загружена: ${file.name}`;
+        },
+        onError(error) {
+          document.querySelector("#message").textContent =
+            `Ошибка загрузки заготовки: ${error.message}`;
+        },
       });
 
       document.querySelector("#load-program").addEventListener("click", () => fileInput.click());
