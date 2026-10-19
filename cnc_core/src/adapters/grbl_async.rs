@@ -59,6 +59,15 @@ pub struct GrblAdapter {
     session: Mutex<Session>,
 }
 
+async fn wait_for_command_cancellation(cancellation: Arc<AtomicBool>) {
+    loop {
+        if cancellation.load(Ordering::Acquire) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
 impl GrblAdapter {
     pub fn connect(port_name: &str, baud_rate: u32) -> CncResult<Self> {
         let port = tokio_serial::new(port_name, baud_rate)
