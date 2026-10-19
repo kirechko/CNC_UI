@@ -13,6 +13,42 @@ export function rotateStockPoint([x, y, z], angleA, angleB) {
   ];
 }
 
+export function drawStockBox(context, project, bounds, angleA, angleB) {
+  const vertices = [
+    [bounds.min[0], bounds.min[1], bounds.min[2]],
+    [bounds.max[0], bounds.min[1], bounds.min[2]],
+    [bounds.max[0], bounds.max[1], bounds.min[2]],
+    [bounds.min[0], bounds.max[1], bounds.min[2]],
+    [bounds.min[0], bounds.min[1], bounds.max[2]],
+    [bounds.max[0], bounds.min[1], bounds.max[2]],
+    [bounds.max[0], bounds.max[1], bounds.max[2]],
+    [bounds.min[0], bounds.max[1], bounds.max[2]],
+  ].map((point) => project(rotateStockPoint(point, angleA, angleB)));
+  const faces = [
+    [0, 1, 2, 3],
+    [4, 5, 6, 7],
+    [0, 1, 5, 4],
+    [1, 2, 6, 5],
+    [2, 3, 7, 6],
+    [3, 0, 4, 7],
+  ].map((indices) => ({
+    points: indices.map((index) => vertices[index]),
+    depth: indices.reduce((sum, index) => sum + vertices[index].depth, 0) / 4,
+  })).sort((a, b) => a.depth - b.depth);
+
+  for (const face of faces) {
+    context.beginPath();
+    context.moveTo(face.points[0].x, face.points[0].y);
+    face.points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+    context.closePath();
+    context.fillStyle = "rgba(66, 164, 212, .12)";
+    context.fill();
+    context.strokeStyle = "rgba(150, 216, 242, .17)";
+    context.lineWidth = 1;
+    context.stroke();
+  }
+}
+
 export function drawStockMesh(context, project, mesh, angleA, angleB) {
   const faces = mesh.triangles.map((triangle) => {
     const points = triangle.map((point) =>
