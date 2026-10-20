@@ -1476,6 +1476,21 @@
 
       .message-log-dialog::backdrop { background: rgb(0 0 0 / 65%); }
 
+      .message-log-copy-test-dialog {
+        width: min(420px, calc(100vw - 32px));
+        min-height: 240px;
+        padding: 12px;
+        border: 1px solid #3b484d;
+        border-radius: 10px;
+        background: #202629;
+        color: #e7ecee;
+        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+      }
+
+      .message-log-copy-test-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+      .message-log-copy-test-dialog button { float: right; }
+
       .message-log-content {
         position: relative;
         display: grid;
@@ -2433,6 +2448,10 @@
           <textarea id="message-log-copy-fallback-text" readonly aria-label="Текст журнала для копирования вручную"></textarea>
         </div>
       </section>
+    </dialog>
+
+    <dialog class="message-log-copy-test-dialog" id="message-log-copy-test-dialog" aria-label="Пустой диалог проверки">
+      <button type="button" id="message-log-copy-test-close" aria-label="Закрыть">Закрыть</button>
     </dialog>
 
     <dialog class="position-dialog" id="position-dialog">
