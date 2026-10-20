@@ -1417,6 +1417,7 @@ pub async fn run() -> io::Result<()> {
 #[cfg(test)]
 mod contract_tests {
     use super::*;
+    use crate::cnc_api::TaskMode;
 
     fn sample_status() -> ControllerSnapshot {
         ControllerSnapshot {
