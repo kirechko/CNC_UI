@@ -480,6 +480,10 @@
 
       .position-dialog::backdrop { background: rgb(0 0 0 / 65%); }
 
+      #message-log-empty-dialog {
+        min-height: 240px;
+      }
+
       .position-dialog-content {
         display: grid;
         gap: 14px;
@@ -2368,7 +2372,11 @@
         </div>
         <div class="message-log-footer">
           <span id="message-log-count">Загрузка…</span>
-          <button type="button" id="message-log-empty-dialog-open">Открыть пустой диалог</button>
+          <button
+            type="button"
+            id="message-log-empty-dialog-open"
+            onclick="document.getElementById('message-log-empty-dialog').showModal()"
+          >Открыть пустой диалог</button>
           <label>
             На странице
             <select class="message-log-page-size" id="message-log-page-size" aria-label="Количество записей на странице">
@@ -2390,7 +2398,11 @@
 
     <dialog class="position-dialog" id="message-log-empty-dialog" aria-label="Пустой диалог">
       <div class="position-dialog-content">
-        <button type="button" id="message-log-empty-dialog-close">Закрыть</button>
+        <button
+          type="button"
+          id="message-log-empty-dialog-close"
+          onclick="document.getElementById('message-log-empty-dialog').close()"
+        >Закрыть</button>
       </div>
     </dialog>
 
