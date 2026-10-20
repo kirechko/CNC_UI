@@ -44,6 +44,8 @@ export function initPositionAxisView({
   let display = { work: true, machine: true };
   let renderedAxisSignature = null;
   const workField = document.querySelector("#machine-work-field");
+  const controllerSettings = document.querySelector("#machine-controller-settings");
+  const controllerSettingsList = document.querySelector("#machine-controller-settings-list");
 
   function updateDisplay() {
     const mode = display.work && display.machine
@@ -72,21 +74,64 @@ export function initPositionAxisView({
     const axes = [...new Map(
       configuredAxes.map((item) => [String(item.axis).toUpperCase(), item]),
     ).values()].slice(0, 6);
-    const signature = JSON.stringify(
-      axes.map((item) => [String(item.axis).toUpperCase(), item.max_travel]),
-    );
+    const settings = configuration?.settings &&
+      typeof configuration.settings === "object"
+      ? configuration.settings
+      : {};
+    const signature = JSON.stringify({
+      axes: axes.map((item) => [
+        String(item.axis).toUpperCase(),
+        item.max_travel,
+        item.max_velocity,
+        item.acceleration,
+        item.steps_per_unit,
+      ]),
+      settings,
+    });
 
     if (workField) {
-      const ranges = axes.map((item) => {
+      const axisDetails = axes.map((item) => {
         const axis = String(item.axis).toUpperCase();
+        const angular = ["A", "B", "C"].includes(axis);
+        const units = angular ? "°" : "mm";
+        const speedUnits = angular ? "°/min" : "mm/min";
         const travel = Number(item.max_travel);
-        if (!Number.isFinite(travel) || travel <= 0) return `${axis}: —`;
-        const units = ["A", "B", "C"].includes(axis) ? "°" : "mm";
-        return `${axis}: ${travel.toFixed(3)} ${units}`;
+        const velocity = Number(item.max_velocity);
+        const acceleration = Number(item.acceleration);
+        const steps = Number(item.steps_per_unit);
+        const details = [];
+
+        if (Number.isFinite(travel) && travel > 0) {
+          details.push(`ход ${travel.toFixed(3)} ${units}`);
+        }
+        if (Number.isFinite(velocity) && velocity > 0) {
+          details.push(`макс. скорость ${velocity.toFixed(3)} ${speedUnits}`);
+        }
+        if (Number.isFinite(acceleration) && acceleration > 0) {
+          details.push(`ускорение ${acceleration.toFixed(3)} ${units}/с²`);
+        }
+        if (Number.isFinite(steps) && steps > 0) {
+          details.push(`${steps.toFixed(3)} шаг/ед.`);
+        }
+
+        return details.length ? `${axis}: ${details.join(", ")}` : `${axis}: параметры не заданы`;
       });
-      workField.textContent = ranges.length
-        ? `Максимальный ход · ${ranges.join(" · ")}`
-        : "Рабочее поле: конфигурация осей недоступна.";
+
+      workField.textContent = axisDetails.length
+        ? axisDetails.join(" · ")
+        : "Конфигурация осей недоступна.";
+    }
+
+    if (controllerSettings && controllerSettingsList) {
+      const entries = Object.entries(settings)
+        .map(([number, value]) => [Number(number), Number(value)])
+        .filter(([number, value]) => Number.isInteger(number) && Number.isFinite(value))
+        .sort(([left], [right]) => left - right);
+
+      controllerSettings.hidden = entries.length === 0;
+      controllerSettingsList.textContent = entries
+        .map(([number, value]) => `$${number}=${value}`)
+        .join(" · ");
     }
 
     if (signature === renderedAxisSignature) return;

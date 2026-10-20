@@ -1,5 +1,6 @@
 //! Defines the shared CNC API types, status models, and controller interface.
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 
 pub mod adapters;
@@ -121,8 +122,14 @@ pub enum AxisUnits {
 pub struct AxisConfiguration {
     pub axis: MachineAxis,
     pub units: AxisUnits,
-    /// Максимальный ход оси; `None`, если адаптер не смог прочитать значение.
+    /// Максимальный ход оси в миллиметрах или градусах.
     pub max_travel: Option<f64>,
+    /// Максимальная скорость оси в единицах/мин.
+    pub max_velocity: Option<f64>,
+    /// Ускорение оси в единицах/с².
+    pub acceleration: Option<f64>,
+    /// Шаги двигателя на единицу оси.
+    pub steps_per_unit: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -137,6 +144,9 @@ pub struct SpindleConfiguration {
 pub struct MachineConfiguration {
     pub axes: Vec<AxisConfiguration>,
     pub spindle: SpindleConfiguration,
+    /// Числовые настройки контроллера, например параметры FluidNC из `$$`.
+    /// Ключи — номера настроек без символа `$`.
+    pub settings: HashMap<u16, f64>,
 }
 
 impl MachineConfiguration {

@@ -53,11 +53,17 @@ impl EmulatorConfig {
             axis,
             units: AxisUnits::Linear,
             max_travel: Some(limits.max_mm - limits.min_mm),
+            max_velocity: Some(limits.max_velocity_mm_min),
+            acceleration: Some(limits.acceleration_mm_s2),
+            steps_per_unit: None,
         };
         let angular = |axis, limits: &AngularAxisLimits| AxisConfiguration {
             axis,
             units: AxisUnits::Angular,
             max_travel: Some(limits.max_degrees - limits.min_degrees),
+            max_velocity: Some(limits.max_velocity_degrees_min),
+            acceleration: Some(limits.acceleration_degrees_s2),
+            steps_per_unit: None,
         };
 
         let mut axes = vec![
@@ -80,6 +86,7 @@ impl EmulatorConfig {
                 min_rpm: Some(self.spindle.min_rpm),
                 max_rpm: Some(self.spindle.max_rpm),
             },
+            settings: Default::default(),
         }
     }
 
