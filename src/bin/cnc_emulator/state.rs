@@ -1,4 +1,4 @@
- //! Stores emulator state and delegates commands, coordinates, and ticking to submodules.
+//! Stores emulator state and delegates commands, coordinates, and ticking to submodules.
 use super::dynamics::{ActiveMove, Motion};
 use super::protocol::{api_error, Request, WireError};
 use serde_json::Value;
@@ -140,7 +140,11 @@ impl Emulator {
             let index = axis_index(axis);
             let (minimum, maximum, _, _) = self.config.axis_limits(axis);
             if target[index] < minimum - 1e-8 || target[index] > maximum + 1e-8 {
-                let units = if matches!(axis, Axis::A | Axis::B) { "°" } else { "mm" };
+                let units = if matches!(axis, Axis::A | Axis::B) {
+                    "°"
+                } else {
+                    "mm"
+                };
                 return Err(api_error(
                     "soft_limit",
                     format!(
