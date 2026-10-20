@@ -1,0 +1,14 @@
+# Проверка FluidNC через WebSocket:
+backend: fluid_nc_web_socket
+fluidnc:
+  # Укажите точный адрес WebSocket из DevTools браузера:
+  # Network → WS → выберите соединение с FluidNC.
+  # Например, если соединение WebUI идёт на ws://192.168.0.10/:
+  websocket_url: "ws://192.168.0.10/"
+
+  # Эти параметры используются только при backend: fluid_nc_rs232.
+  serial_port: "/dev/serial/by-id/REPLACE_WITH_CONTROLLER_ID"
+  baud_rate: 115200
+
+# Для проверки через RS232 замените backend выше на:
+# backend: fluid_nc_rs232
