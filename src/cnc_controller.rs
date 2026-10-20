@@ -10,7 +10,9 @@ use std::sync::{
     mpsc, Arc, Mutex,
 };
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+const STATUS_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone)]
 pub struct ControllerSnapshot {
@@ -569,6 +571,7 @@ fn api_worker(
     let mut last_adapter_message = None;
     let mut spindle_was_active = false;
     let mut reached_spindle_target = None;
+    let mut next_status_poll = Instant::now();
 
     loop {
         if motion_stop_requested.swap(false, Ordering::AcqRel) {
@@ -715,6 +718,14 @@ fn api_worker(
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => return,
         }
+
+        // Status polling at the worker's 10 ms command cadence floods FluidNC's
+        // WebSocket with realtime '?' queries. Limit polling to 10 Hz instead.
+        let now = Instant::now();
+        if now < next_status_poll {
+            continue;
+        }
+        next_status_poll = now + STATUS_POLL_INTERVAL;
 
         match runtime.block_on(api.status()) {
             Ok(status) => {
