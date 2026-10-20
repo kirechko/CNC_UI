@@ -140,6 +140,14 @@ export function initMessageLog({ getDateRange }) {
     refresh();
   });
 
+  const emptyDialog = document.querySelector("#message-log-empty-dialog");
+  document.querySelector("#message-log-empty-dialog-open").addEventListener("click", () => {
+    emptyDialog.showModal();
+  });
+  document.querySelector("#message-log-empty-dialog-close").addEventListener("click", () => {
+    emptyDialog.close();
+  });
+
   document.querySelector("#close-message-log").addEventListener("click", () => dialog.close());
 
   document.querySelector("#message-log-filters").addEventListener("submit", (event) => {
