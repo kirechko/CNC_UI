@@ -329,7 +329,7 @@ impl FluidNcWebSocketAdapter {
                 _ => None,
             })
             .or(session.work_offset)
-            .unwrap_or([0.0; 5]);
+            .unwrap_or([0.0; 6]);
         let machine = machine_position
             .or_else(|| {
                 work_position.map(|work| std::array::from_fn(|axis| work[axis] + offset[axis]))
