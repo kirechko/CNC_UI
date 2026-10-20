@@ -2508,8 +2508,9 @@
         console.error("Ошибка JavaScript интерфейса:", event.error || event.message);
         const connection = document.querySelector("#connection");
         if (connection) {
-          connection.textContent = "Ошибка интерфейса";
-          connection.title = event.message || "Ошибка загрузки JavaScript";
+          const details = event.message || "Ошибка загрузки JavaScript";
+          connection.textContent = `Ошибка интерфейса: ${details}`;
+          connection.title = details;
         }
       });
 
@@ -2517,8 +2518,9 @@
         console.error("Необработанная ошибка интерфейса:", event.reason);
         const connection = document.querySelector("#connection");
         if (connection) {
-          connection.textContent = "Ошибка интерфейса";
-          connection.title = String(event.reason?.message || event.reason);
+          const details = String(event.reason?.message || event.reason);
+          connection.textContent = `Ошибка интерфейса: ${details}`;
+          connection.title = details;
         }
       });
     </script>
