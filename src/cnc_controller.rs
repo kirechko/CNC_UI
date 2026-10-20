@@ -252,7 +252,7 @@ impl CNCController {
 
         if let Err(error) = self.commands.send(command) {
             crate::message_log::record("ошибка", "команда UI", &format!("Команда не отправлена: {error}"));
-            eprintln!("[LinuxCncApi] worker unavailable: {error}");
+            eprintln!("[CncApi] worker unavailable: {error}");
         }
     }
 
@@ -597,7 +597,7 @@ fn api_worker(
                 // Отбросить команды, накопившиеся до аварийной остановки.
                 while receiver.try_recv().is_ok() {}
                 if let Err(error) = runtime.block_on(api.estop()) {
-                    eprintln!("[LinuxCncApi] E-Stop failed: {error:?}");
+                    eprintln!("[CncApi] E-Stop failed: {error:?}");
                     set_ui_alert(&shared_status, &error.code, &error.message);
                 }
                 continue;
@@ -641,7 +641,7 @@ fn api_worker(
                 if emergency_receiver.try_recv().is_ok() {
                     while receiver.try_recv().is_ok() {}
                     if let Err(error) = runtime.block_on(api.estop()) {
-                        eprintln!("[LinuxCncApi] E-Stop failed: {error:?}");
+                        eprintln!("[CncApi] E-Stop failed: {error:?}");
                         set_ui_alert(&shared_status, &error.code, &error.message);
                     }
                     continue;
@@ -702,7 +702,7 @@ fn api_worker(
                         shared_status.lock().unwrap().ui_alert = None;
                     }
                     Err(error) => {
-                        eprintln!("[LinuxCncApi] {}: {}", error.code, error.message);
+                        eprintln!("[CncApi] {}: {}", error.code, error.message);
                         crate::message_log::record(
                             "ошибка",
                             "CNC/адаптер",
@@ -793,7 +793,7 @@ fn api_worker(
                 }
             }
             Err(error) => {
-                eprintln!("[LinuxCncApi] status {}: {}", error.code, error.message);
+                eprintln!("[CncApi] status {}: {}", error.code, error.message);
                 record_adapter_message(
                     &mut last_adapter_message,
                     "ошибка",
