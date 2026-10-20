@@ -24,23 +24,29 @@ function formatLogTimestamp(timestamp) {
 }
 
 async function copyTextToClipboard(text) {
-  if (navigator.clipboard?.writeText) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
       return;
     } catch {
-      // Попробуем совместимый резервный способ, если браузер запретил Clipboard API.
+      // Если Clipboard API недоступен или запрещён, пробуем резервный способ.
     }
   }
 
+  const activeElement = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.setAttribute("readonly", "");
   Object.assign(textarea.style, {
     position: "fixed",
     top: "0",
-    left: "-10000px",
-    opacity: "0",
+    left: "0",
+    width: "1px",
+    height: "1px",
+    padding: "0",
+    border: "0",
+    opacity: "0.01",
+    fontSize: "16px",
   });
   document.body.append(textarea);
 
@@ -53,6 +59,7 @@ async function copyTextToClipboard(text) {
     }
   } finally {
     textarea.remove();
+    if (activeElement instanceof HTMLElement) activeElement.focus();
   }
 }
 
