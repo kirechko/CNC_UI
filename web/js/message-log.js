@@ -23,6 +23,39 @@ function formatLogTimestamp(timestamp) {
   return new Date(timestamp).toLocaleString();
 }
 
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Попробуем совместимый резервный способ, если браузер запретил Clipboard API.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  Object.assign(textarea.style, {
+    position: "fixed",
+    top: "0",
+    left: "-10000px",
+    opacity: "0",
+  });
+  document.body.append(textarea);
+
+  try {
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    if (!document.execCommand("copy")) {
+      throw new Error("Браузер не разрешил копирование в буфер обмена");
+    }
+  } finally {
+    textarea.remove();
+  }
+}
+
 export function initMessageLog({ getDateRange }) {
   const dialog = document.querySelector("#message-log-dialog");
   const rows = document.querySelector("#message-log-rows");
@@ -200,26 +233,7 @@ export function initMessageLog({ getDateRange }) {
     ].join("\n");
 
     try {
-      if (navigator.clipboard?.writeText && window.isSecureContext) {
-        await navigator.clipboard.writeText(content);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = content;
-        textarea.setAttribute("readonly", "");
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.append(textarea);
-        textarea.select();
-
-        try {
-          if (!document.execCommand("copy")) {
-            throw new Error("Браузер не разрешил копирование в буфер обмена");
-          }
-        } finally {
-          textarea.remove();
-        }
-      }
-
+      await copyTextToClipboard(content);
       copyPageButton.textContent = "Скопировано";
       window.setTimeout(() => {
         copyPageButton.textContent = "Скопировать страницу";
