@@ -741,7 +741,12 @@ fn api_worker(
                     } else {
                         "информация"
                     };
-                    record_adapter_message(&mut last_adapter_message, severity, message);
+
+                    // Обычные ответы статуса (например, "FluidNC Idle") приходят
+                    // при каждом опросе и не являются событиями журнала.
+                    if severity != "информация" {
+                        record_adapter_message(&mut last_adapter_message, severity, message);
+                    }
                 } else {
                     last_adapter_message = None;
                 }
