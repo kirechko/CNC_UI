@@ -104,7 +104,18 @@ impl FluidNcWebSocketAdapter {
         session.continuous_jog = None;
     }
 
+    fn trace_frame(direction: &str, opcode: &str, payload: &[u8]) {
+        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
+            eprintln!(
+                "[FluidNC WS] {direction} {opcode} len={} payload={:?}",
+                payload.len(),
+                String::from_utf8_lossy(payload),
+            );
+        }
+    }
+
     async fn send_text(session: &mut Session, text: &str) -> CncResult<()> {
+        Self::trace_frame("send", "text", text.as_bytes());
         let result = match session.socket.as_mut() {
             Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Text(text.to_owned())))
                 .await
@@ -123,6 +134,7 @@ impl FluidNcWebSocketAdapter {
     }
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
+        Self::trace_frame("send", "binary", &[byte]);
         let result = match session.socket.as_mut() {
             Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Binary(vec![byte])))
                 .await
@@ -184,12 +196,16 @@ impl FluidNcWebSocketAdapter {
 
             match message {
                 Message::Text(text) => {
+                    Self::trace_frame("recv", "text", text.as_bytes());
                     let text = text.as_str();
                     if !text.starts_with("currentID:") && !text.starts_with("CURRENT_ID:") {
                         session.rx_buffer.extend_from_slice(text.as_bytes());
                     }
                 }
-                Message::Binary(bytes) => session.rx_buffer.extend_from_slice(&bytes),
+                Message::Binary(bytes) => {
+                    Self::trace_frame("recv", "binary", &bytes);
+                    session.rx_buffer.extend_from_slice(&bytes);
+                }
                 Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => {
                     session.socket = None;
