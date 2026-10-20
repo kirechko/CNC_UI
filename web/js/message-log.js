@@ -200,7 +200,26 @@ export function initMessageLog({ getDateRange }) {
     ].join("\n");
 
     try {
-      await navigator.clipboard.writeText(content);
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = content;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.append(textarea);
+        textarea.select();
+
+        try {
+          if (!document.execCommand("copy")) {
+            throw new Error("Браузер не разрешил копирование в буфер обмена");
+          }
+        } finally {
+          textarea.remove();
+        }
+      }
+
       copyPageButton.textContent = "Скопировано";
       window.setTimeout(() => {
         copyPageButton.textContent = "Скопировать страницу";
