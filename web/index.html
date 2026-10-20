@@ -366,6 +366,26 @@
         line-height: 1.5;
       }
 
+      .machine-controller-settings {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .machine-controller-settings summary {
+        width: fit-content;
+        cursor: pointer;
+      }
+
+      .machine-controller-settings-list {
+        max-height: 120px;
+        overflow: auto;
+        margin-top: 4px;
+        color: #aeb9bc;
+        font: 10px/1.5 var(--font-mono);
+        overflow-wrap: anywhere;
+      }
+
       .axis-label {
         font-size: 13px;
         font-weight: 800;
@@ -1976,8 +1996,12 @@
               <div id="axis-rows"></div>
             </div>
             <div class="machine-work-field" id="machine-work-field" aria-live="polite">
-              Рабочее поле: запрос конфигурации…
+              Конфигурация осей: запрос…
             </div>
+            <details class="machine-controller-settings" id="machine-controller-settings" hidden>
+              <summary>Настройки контроллера ($$)</summary>
+              <div class="machine-controller-settings-list" id="machine-controller-settings-list"></div>
+            </details>
             <div class="position-actions">
               <button id="zero-all" type="button" title="Установить рабочий ноль всех осей в выбранной системе координат">
                 <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">

@@ -1070,19 +1070,29 @@ impl CncApi for GrblAdapter {
                     axis: MachineAxis::X,
                     units: AxisUnits::Linear,
                     max_travel: travel(130),
+                    max_velocity: travel(110),
+                    acceleration: travel(120),
+                    steps_per_unit: travel(100),
                 },
                 AxisConfiguration {
                     axis: MachineAxis::Y,
                     units: AxisUnits::Linear,
                     max_travel: travel(131),
+                    max_velocity: travel(111),
+                    acceleration: travel(121),
+                    steps_per_unit: travel(101),
                 },
                 AxisConfiguration {
                     axis: MachineAxis::Z,
                     units: AxisUnits::Linear,
                     max_travel: travel(132),
+                    max_velocity: travel(112),
+                    acceleration: travel(122),
+                    steps_per_unit: travel(102),
                 },
             ],
             spindle: SpindleConfiguration { min_rpm, max_rpm },
+            settings,
         })
     }
 

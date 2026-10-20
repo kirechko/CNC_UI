@@ -660,6 +660,18 @@ impl CncApi for FluidNcWebSocketAdapter {
                     .get(&(130 + index as u16))
                     .copied()
                     .filter(|value| *value > 0.0),
+                max_velocity: settings
+                    .get(&(110 + index as u16))
+                    .copied()
+                    .filter(|value| *value > 0.0),
+                acceleration: settings
+                    .get(&(120 + index as u16))
+                    .copied()
+                    .filter(|value| *value > 0.0),
+                steps_per_unit: settings
+                    .get(&(100 + index as u16))
+                    .copied()
+                    .filter(|value| *value > 0.0),
             })
             .collect();
 
@@ -673,6 +685,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         Ok(MachineConfiguration {
             axes,
             spindle: SpindleConfiguration { min_rpm, max_rpm },
+            settings,
         })
     }
 
