@@ -24,6 +24,7 @@ fn debug_status() -> MachineStatus {
             z: 0.0,
             a: 0.0,
             b: 0.0,
+            c: 0.0,
         },
         active_coordinate_system: CoordinateSystem::G54,
         coordinate_systems: Vec::new(),

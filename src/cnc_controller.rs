@@ -821,6 +821,7 @@ fn initial_disconnected_status() -> ControllerSnapshot {
                 z: 0.0,
                 a: 0.0,
                 b: 0.0,
+                c: 0.0,
             },
             work_offset: crate::cnc_api::Position {
                 x: 0.0,
@@ -828,6 +829,7 @@ fn initial_disconnected_status() -> ControllerSnapshot {
                 z: 0.0,
                 a: 0.0,
                 b: 0.0,
+                c: 0.0,
             },
             active_coordinate_system: CoordinateSystem::G54,
             coordinate_systems: Vec::new(),
