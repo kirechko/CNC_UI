@@ -2501,6 +2501,28 @@
       </form>
     </dialog>
 
+    <script>
+      // Показываем ошибки инициализации модульного UI вместо вечного
+      // состояния «Подключение…».
+      window.addEventListener("error", (event) => {
+        console.error("Ошибка JavaScript интерфейса:", event.error || event.message);
+        const connection = document.querySelector("#connection");
+        if (connection) {
+          connection.textContent = "Ошибка интерфейса";
+          connection.title = event.message || "Ошибка загрузки JavaScript";
+        }
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        console.error("Необработанная ошибка интерфейса:", event.reason);
+        const connection = document.querySelector("#connection");
+        if (connection) {
+          connection.textContent = "Ошибка интерфейса";
+          connection.title = String(event.reason?.message || event.reason);
+        }
+      });
+    </script>
+
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
       import { estimateToolpathTime, parseToolpath } from "./js/gcode.js";
