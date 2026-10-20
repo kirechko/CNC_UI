@@ -554,7 +554,7 @@ fn record_adapter_message(last_message: &mut Option<String>, severity: &str, mes
 }
 
 fn api_worker(
-    api: Arc<dyn LinuxCncApi>,
+    api: Arc<dyn CncApi>,
     receiver: mpsc::Receiver<Command>,
     emergency_receiver: mpsc::Receiver<()>,
     shared_status: Arc<Mutex<ControllerSnapshot>>,
