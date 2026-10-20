@@ -28,6 +28,7 @@ export function initMessageLog({ getDateRange }) {
   const rows = document.querySelector("#message-log-rows");
   const count = document.querySelector("#message-log-count");
   const pageSizeSelect = document.querySelector("#message-log-page-size");
+  const copyPageButton = document.querySelector("#message-log-copy-page");
   let pageSize = Number(pageSizeSelect.value) || 100;
   let offset = 0;
   let sort = { column: null, direction: 0 };
@@ -123,6 +124,7 @@ export function initMessageLog({ getDateRange }) {
       document.querySelector("#message-log-prev").disabled = offset <= 0;
       document.querySelector("#message-log-next").disabled =
         offset + page.entries.length >= page.total;
+      copyPageButton.disabled = page.entries.length === 0;
     } catch (error) {
       count.textContent = `Не удалось загрузить журнал: ${error.message}`;
     }
@@ -183,6 +185,29 @@ export function initMessageLog({ getDateRange }) {
 
       resetAndRefresh();
     });
+  });
+
+  copyPageButton.addEventListener("click", async () => {
+    const pageRows = [...rows.querySelectorAll("tr")];
+    if (!pageRows.length) return;
+
+    const header = ["Время", "Критичность", "Источник", "Сообщение"].join("\t");
+    const content = [
+      header,
+      ...pageRows.map((row) =>
+        [...row.cells].map((cell) => cell.textContent.trim()).join("\t"),
+      ),
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(content);
+      copyPageButton.textContent = "Скопировано";
+      window.setTimeout(() => {
+        copyPageButton.textContent = "Скопировать страницу";
+      }, 1500);
+    } catch (error) {
+      count.textContent = `Не удалось скопировать страницу: ${error.message}`;
+    }
   });
 
   pageSizeSelect.addEventListener("change", (event) => {
