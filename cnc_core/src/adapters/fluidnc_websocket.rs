@@ -283,8 +283,18 @@ impl FluidNcWebSocketAdapter {
             )),
         };
 
-        if result.as_ref().is_err_and(|error| error.code != "timeout") {
-            Self::invalidate_connection(session);
+        if let Err(error) = &result {
+            if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
+                eprintln!(
+                    "[FluidNC WS] status query failed: {}: {}; buffered={:?}",
+                    error.code,
+                    error.message,
+                    String::from_utf8_lossy(&session.rx_buffer),
+                );
+            }
+            if error.code != "timeout" {
+                Self::invalidate_connection(session);
+            }
         }
         result
     }
