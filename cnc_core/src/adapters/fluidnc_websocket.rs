@@ -115,9 +115,12 @@ impl FluidNcWebSocketAdapter {
     }
 
     async fn send_text(session: &mut Session, text: &str) -> CncResult<()> {
-        Self::trace_frame("send", "text", text.as_bytes());
+        // FluidNC завершает G-code-команду переводом строки. Например, кадр
+        // WebUI "$G" длиной 3 байта содержит "$G\n".
+        let payload = format!("{}\n", text.trim_end_matches(['\r', '\n']));
+        Self::trace_frame("send", "text", payload.as_bytes());
         let result = match session.socket.as_mut() {
-            Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Text(text.to_owned())))
+            Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Text(payload)))
                 .await
                 .map_err(|_| ControllerError::new("timeout", "timed out sending command to FluidNC"))?
                 .map_err(|error| ControllerError::new("io", error.to_string())),
