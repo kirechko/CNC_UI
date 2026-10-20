@@ -95,6 +95,7 @@ impl Emulator {
                 z: 0.0,
                 a: 0.0,
                 b: 0.0,
+                c: 0.0,
             });
 
         match axis {
@@ -130,6 +131,7 @@ impl Emulator {
                 Axis::Z => "Z",
                 Axis::A => "A",
                 Axis::B => "B",
+                Axis::C => "C",
             }
         ));
         Ok(())

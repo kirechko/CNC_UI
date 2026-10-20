@@ -134,6 +134,7 @@ impl Emulator {
             z: p[2],
             a: p[3],
             b: p[4],
+            c: 0.0,
         };
     }
 
