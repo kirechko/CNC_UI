@@ -230,13 +230,10 @@ export function initMessageLog({ getDateRange }) {
     });
   });
 
-  const copyTestDialog = document.querySelector("#message-log-copy-test-dialog");
   copyPageButton.addEventListener("click", () => {
-    copyTestDialog.showModal();
-  });
-
-  document.querySelector("#message-log-copy-test-close").addEventListener("click", () => {
-    copyTestDialog.close();
+    copyFallback.hidden = false;
+    copyFallbackText.value = "";
+    copyFallbackText.focus();
   });
 
   document.querySelector("#message-log-copy-fallback-close").addEventListener("click", () => {
