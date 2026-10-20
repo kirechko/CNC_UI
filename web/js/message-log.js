@@ -230,37 +230,13 @@ export function initMessageLog({ getDateRange }) {
     });
   });
 
-  copyPageButton.addEventListener("click", async () => {
-    const pageRows = [...rows.querySelectorAll("tr")];
-    if (!pageRows.length) {
-      count.textContent = "На текущей странице нет сообщений для копирования.";
-      return;
-    }
+  const copyTestDialog = document.querySelector("#message-log-copy-test-dialog");
+  copyPageButton.addEventListener("click", () => {
+    copyTestDialog.showModal();
+  });
 
-    const header = ["Время", "Критичность", "Источник", "Сообщение"].join("\t");
-    const content = [
-      header,
-      ...pageRows.map((row) =>
-        [...row.cells].map((cell) => cell.textContent.trim()).join("\t"),
-      ),
-    ].join("\n");
-
-    try {
-      await copyTextToClipboard(content);
-      copyFallback.hidden = true;
-      count.textContent = `Скопировано записей: ${pageRows.length}.`;
-      copyPageButton.textContent = "Скопировано";
-      window.setTimeout(() => {
-        copyPageButton.textContent = "Скопировать страницу";
-      }, 1500);
-    } catch (error) {
-      copyFallbackText.value = content;
-      copyFallback.hidden = false;
-      copyFallbackText.focus();
-      copyFallbackText.select();
-      count.textContent =
-        `Автокопирование не удалось (${error.message}). Текст выделен для ручного копирования.`;
-    }
+  document.querySelector("#message-log-copy-test-close").addEventListener("click", () => {
+    copyTestDialog.close();
   });
 
   document.querySelector("#message-log-copy-fallback-close").addEventListener("click", () => {
