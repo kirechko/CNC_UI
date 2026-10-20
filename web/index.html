@@ -1473,6 +1473,15 @@
         padding: 4px 0;
       }
 
+      .toolpath-time {
+        color: #b9c3c6;
+        font: 10px var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .toolpath-time[hidden] { display: none; }
+
       .viewer-message-line {
         overflow: hidden;
         color: #a9b4b7;
@@ -2271,6 +2280,7 @@
           </div>
           <div class="viewer-footer">
             <div class="viewer-message-summary" aria-live="polite">
+              <div class="toolpath-time" id="toolpath-time" hidden title="Осталось / всего, оценка по подачам G-code">—</div>
               <div class="viewer-message-line critical" id="latest-critical-message">—</div>
               <div class="viewer-message-line" id="latest-other-message">Сообщений нет</div>
             </div>
@@ -2493,7 +2503,7 @@
 
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
-      import { parseToolpath } from "./js/gcode.js";
+      import { estimateToolpathTime, parseToolpath } from "./js/gcode.js";
       import { initUiMessageLogger } from "./js/ui-message-logger.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { initStockLoader } from "./js/stock-loader.js";
@@ -2699,8 +2709,32 @@
         return message;
       }
 
+      function updateToolpathTime(status = latestStatus) {
+        const element = document.querySelector("#toolpath-time");
+        if (!element) return;
+
+        if (!loadedProgram?.segments?.length) {
+          element.hidden = true;
+          return;
+        }
+
+        const estimate = estimateToolpathTime(
+          loadedProgram.segments,
+          status?.configuration,
+          status?.state === "READING" || status?.state === "RUNNING"
+            ? status.current_line
+            : status?.state === "IDLE" && status.current_line >= status.total_lines
+              ? status.current_line
+              : 0,
+          status ? [status.x, status.y, status.z].map(Number) : null,
+        );
+        element.textContent = estimate.label;
+        element.hidden = false;
+      }
+
       function showProgram(name, content) {
         loadedProgram = { name, content, segments: parseToolpath(content) };
+        updateToolpathTime();
         setProgramEditorBaseline(content);
         document.querySelector("#job-note").textContent =
           `G-code загружен: ${name} · ${loadedProgram.segments.length} сегментов.`;
@@ -2868,6 +2902,7 @@
           machineState = status.state || "DISCONNECTED";
           currentProgramLine = Number(status.current_line) || 0;
           connection.textContent = machineConnected ? "Подключено" : "Нет связи";
+          updateToolpathTime(status);
           connectionDot.classList.toggle("online", machineConnected);
           connectionDot.classList.toggle("offline", !machineConnected);
           connectionChip.classList.toggle("connection-online", machineConnected);
