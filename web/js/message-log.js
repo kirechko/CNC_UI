@@ -24,15 +24,6 @@ function formatLogTimestamp(timestamp) {
 }
 
 async function copyTextToClipboard(text) {
-  if (window.isSecureContext && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Если Clipboard API недоступен или запрещён, пробуем резервный способ.
-    }
-  }
-
   const activeElement = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
@@ -50,17 +41,27 @@ async function copyTextToClipboard(text) {
   });
   document.body.append(textarea);
 
+  let legacyCopySucceeded = false;
   try {
     textarea.focus();
     textarea.select();
     textarea.setSelectionRange(0, textarea.value.length);
-    if (!document.execCommand("copy")) {
-      throw new Error("Браузер не разрешил копирование в буфер обмена");
-    }
+    // Выполняем синхронно в обработчике клика, пока браузер ещё разрешает
+    // копирование в рамках пользовательского действия.
+    legacyCopySucceeded = document.execCommand("copy");
   } finally {
     textarea.remove();
     if (activeElement instanceof HTMLElement) activeElement.focus();
   }
+
+  if (legacyCopySucceeded) return;
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  throw new Error("Браузер не разрешил доступ к буферу обмена");
 }
 
 export function initMessageLog({ getDateRange }) {
@@ -229,7 +230,10 @@ export function initMessageLog({ getDateRange }) {
 
   copyPageButton.addEventListener("click", async () => {
     const pageRows = [...rows.querySelectorAll("tr")];
-    if (!pageRows.length) return;
+    if (!pageRows.length) {
+      count.textContent = "На текущей странице нет сообщений для копирования.";
+      return;
+    }
 
     const header = ["Время", "Критичность", "Источник", "Сообщение"].join("\t");
     const content = [
