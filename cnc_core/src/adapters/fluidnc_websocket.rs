@@ -114,6 +114,20 @@ impl FluidNcWebSocketAdapter {
         }
     }
 
+    fn trace_binary_response(payload: &[u8]) {
+        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_none() {
+            return;
+        }
+
+        for line in payload.split(|byte| *byte == b'\n') {
+            let line = line.strip_suffix(b"\r").unwrap_or(line);
+            if line.is_empty() || (line.starts_with(b"<") && line.ends_with(b">")) {
+                continue;
+            }
+            Self::trace_frame("recv", "binary", line);
+        }
+    }
+
     async fn send_text(session: &mut Session, text: &str) -> CncResult<()> {
         // FluidNC завершает G-code-команду переводом строки. Например, кадр
         // WebUI "$G" длиной 3 байта содержит "$G\n".
@@ -137,7 +151,9 @@ impl FluidNcWebSocketAdapter {
     }
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
-        Self::trace_frame("send", "binary", &[byte]);
+        if byte != b'?' {
+            Self::trace_frame("send", "binary", &[byte]);
+        }
         let result = match session.socket.as_mut() {
             Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Binary(vec![byte])))
                 .await
@@ -206,7 +222,7 @@ impl FluidNcWebSocketAdapter {
                     }
                 }
                 Message::Binary(bytes) => {
-                    Self::trace_frame("recv", "binary", &bytes);
+                    Self::trace_binary_response(&bytes);
                     session.rx_buffer.extend_from_slice(&bytes);
                 }
                 Message::Ping(_) | Message::Pong(_) => {}
