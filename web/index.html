@@ -1480,6 +1480,48 @@
 
       .message-log-dialog::backdrop { background: rgb(0 0 0 / 65%); }
 
+      .message-log-text-dialog {
+        width: min(800px, calc(100vw - 28px));
+        height: min(600px, calc(100vh - 28px));
+        padding: 0;
+        border: 1px solid #3b484d;
+        border-radius: 10px;
+        background: #202629;
+        color: #e7ecee;
+        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+      }
+
+      .message-log-text-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+      .message-log-text-content {
+        display: grid;
+        height: 100%;
+        min-height: 0;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .message-log-text-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .message-log-text-heading h2 { margin: 0; font-size: 15px; }
+
+      .message-log-text-content textarea {
+        width: 100%;
+        min-height: 0;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #151a1d;
+        color: #e7ecee;
+        font: 11px/1.5 var(--font-mono);
+        resize: none;
+      }
 
       .message-log-content {
         position: relative;
@@ -2392,6 +2434,15 @@
       </section>
     </dialog>
 
+    <dialog class="message-log-text-dialog" id="message-log-text-dialog" aria-labelledby="message-log-text-title">
+      <section class="message-log-text-content">
+        <div class="message-log-text-heading">
+          <h2 id="message-log-text-title">Текущая страница журнала</h2>
+          <button type="button" id="message-log-text-close">Закрыть</button>
+        </div>
+        <textarea id="message-log-text" readonly aria-label="Текст текущей страницы журнала"></textarea>
+      </section>
+    </dialog>
 
     <dialog class="position-dialog" id="position-dialog">
       <form class="position-dialog-content" method="dialog">
