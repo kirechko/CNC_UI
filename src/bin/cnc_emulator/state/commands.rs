@@ -251,7 +251,7 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     emulator.active_move_is_homing = false;
     emulator.status.homing = false;
     if emergency_stop {
-        emulator.status.homed = [false; 5];
+        emulator.status.homed = [false; 6];
     }
     emulator.status.message = Some(
         if emergency_stop {

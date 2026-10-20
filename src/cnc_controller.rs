@@ -500,7 +500,7 @@ impl CNCController {
 
         let feed_rate = match axis {
             Axis::Z => *self.z_jog_speed.lock().unwrap(),
-            Axis::X | Axis::Y | Axis::A | Axis::B => *self.xy_jog_speed.lock().unwrap(),
+            Axis::X | Axis::Y | Axis::A | Axis::B | Axis::C => *self.xy_jog_speed.lock().unwrap(),
         };
         self.enqueue(Command::JogContinuous(axis, direction, feed_rate));
     }

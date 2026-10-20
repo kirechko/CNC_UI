@@ -110,6 +110,7 @@ pub(super) fn handle_g10_l2(
             z: 0.0,
             a: 0.0,
             b: 0.0,
+            c: 0.0,
         });
 
     if let Some(x) = x_word {
