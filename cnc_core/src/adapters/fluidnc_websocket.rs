@@ -44,7 +44,9 @@ struct Session {
     spindle_command: SpindleCommand,
     program: Vec<String>,
     program_name: Option<String>,
+    /// Следующая строка для отправки; отдельная строка остаётся активной до Idle.
     current_line: u32,
+    active_program_line: Option<u32>,
     program_streaming: bool,
     continuous_jog: Option<ContinuousJog>,
 }
@@ -79,6 +81,7 @@ impl FluidNcWebSocketAdapter {
                 program: Vec::new(),
                 program_name: None,
                 current_line: 0,
+                active_program_line: None,
                 program_streaming: false,
                 continuous_jog: None,
             }),
@@ -526,23 +529,27 @@ impl FluidNcWebSocketAdapter {
     }
 
     async fn send_next_program_line(session: &mut Session) -> CncResult<()> {
-        if !session.program_streaming {
+        if !session.program_streaming || session.active_program_line.is_some() {
             return Ok(());
         }
+
         let index = session.current_line as usize;
         if index >= session.program.len() {
             session.program_streaming = false;
             return Ok(());
         }
+
         let line = session.program[index].clone();
         if let Err(error) = Self::send_command(session, &line).await {
             session.program_streaming = false;
+            session.active_program_line = None;
             return Err(error);
         }
-        session.current_line += 1;
-        if session.current_line as usize >= session.program.len() {
-            session.program_streaming = false;
-        }
+
+        // ACK подтверждает приём G-code, а не завершение движения. Не переключаем
+        // viewer на следующую траекторию до Idle-статуса после выполнения строки.
+        session.active_program_line = Some(index as u32);
+        session.current_line = (index + 1) as u32;
         Ok(())
     }
 
@@ -570,7 +577,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         let mut session = self.session.lock().await;
         self.ensure_connected(&mut session).await?;
         let response = Self::query_status(&mut session).await?;
-        let status = Self::parse_status(&session, &response)?;
+        let mut status = Self::parse_status(&session, &response)?;
         if let Some(count) = Self::reported_axis_count(&response) {
             session.reported_axis_count = count;
         }
@@ -581,10 +588,29 @@ impl CncApi for FluidNcWebSocketAdapter {
             .is_some_and(|state| state.eq_ignore_ascii_case("Idle"));
 
         if idle && session.program_streaming {
-            Self::send_next_program_line(&mut session).await?;
+            // Только Idle означает, что активная строка завершила движение.
+            if session.active_program_line.take().is_some()
+                && session.current_line as usize >= session.program.len()
+            {
+                session.program_streaming = false;
+            }
+
+            if session.program_streaming {
+                Self::send_next_program_line(&mut session).await?;
+            }
         } else if idle {
             if let Some(jog) = session.continuous_jog {
                 Self::send_jog_chunk(&mut session, jog).await?;
+            }
+        }
+
+        status.current_line = session
+            .active_program_line
+            .map_or(session.current_line, |line| line + 1);
+        if session.active_program_line.is_some() {
+            status.task_mode = TaskMode::Auto;
+            if status.interpreter_state == InterpreterState::Idle {
+                status.interpreter_state = InterpreterState::Reading;
             }
         }
 
@@ -823,6 +849,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.program = lines;
         session.program_name = Some(name);
         session.current_line = 0;
+        session.active_program_line = None;
         session.program_streaming = false;
         Ok(())
     }
@@ -851,6 +878,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         }
 
         session.current_line = start_line;
+        session.active_program_line = None;
         session.program_streaming = true;
         Self::send_next_program_line(&mut session).await
     }
