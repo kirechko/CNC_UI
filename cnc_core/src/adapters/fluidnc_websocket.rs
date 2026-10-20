@@ -95,24 +95,47 @@ impl FluidNcWebSocketAdapter {
         Ok(())
     }
 
+    fn invalidate_connection(session: &mut Session) {
+        session.socket = None;
+        session.rx_buffer.clear();
+        session.program_streaming = false;
+        session.continuous_jog = None;
+    }
+
     async fn send_text(session: &mut Session, text: &str) -> CncResult<()> {
-        session
-            .socket
-            .as_mut()
-            .ok_or_else(|| ControllerError::new("connection", "FluidNC WebSocket is disconnected"))?
-            .send(Message::Text(text.to_owned()))
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))
+        let result = match session.socket.as_mut() {
+            Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Text(text.to_owned())))
+                .await
+                .map_err(|_| ControllerError::new("timeout", "timed out sending command to FluidNC"))?
+                .map_err(|error| ControllerError::new("io", error.to_string())),
+            None => Err(ControllerError::new(
+                "connection",
+                "FluidNC WebSocket is disconnected",
+            )),
+        };
+
+        if result.is_err() {
+            Self::invalidate_connection(session);
+        }
+        result
     }
 
     async fn send_realtime(session: &mut Session, byte: u8) -> CncResult<()> {
-        session
-            .socket
-            .as_mut()
-            .ok_or_else(|| ControllerError::new("connection", "FluidNC WebSocket is disconnected"))?
-            .send(Message::Binary(vec![byte]))
-            .await
-            .map_err(|error| ControllerError::new("io", error.to_string()))
+        let result = match session.socket.as_mut() {
+            Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Binary(vec![byte])))
+                .await
+                .map_err(|_| ControllerError::new("timeout", "timed out sending realtime command to FluidNC"))?
+                .map_err(|error| ControllerError::new("io", error.to_string())),
+            None => Err(ControllerError::new(
+                "connection",
+                "FluidNC WebSocket is disconnected",
+            )),
+        };
+
+        if result.is_err() {
+            Self::invalidate_connection(session);
+        }
+        result
     }
 
     fn extract_line(buffer: &mut Vec<u8>) -> CncResult<Option<String>> {
@@ -187,7 +210,7 @@ impl FluidNcWebSocketAdapter {
         }
 
         Self::send_text(session, command.trim()).await?;
-        match timeout(RESPONSE_TIMEOUT, async {
+        let result = match timeout(RESPONSE_TIMEOUT, async {
             loop {
                 let line = Self::read_line(session, RESPONSE_TIMEOUT).await?;
                 if line == "ok" {
@@ -215,12 +238,17 @@ impl FluidNcWebSocketAdapter {
                 "timeout",
                 "timed out waiting for FluidNC command acknowledgement",
             )),
+        };
+
+        if result.as_ref().is_err_and(|error| error.code != "gcode_error" && error.code != "alarm") {
+            Self::invalidate_connection(session);
         }
+        result
     }
 
     async fn query_status(session: &mut Session) -> CncResult<String> {
         Self::send_realtime(session, b'?').await?;
-        match timeout(STATUS_TIMEOUT, async {
+        let result = match timeout(STATUS_TIMEOUT, async {
             loop {
                 let line = Self::read_line(session, STATUS_TIMEOUT).await?;
                 if line.starts_with('<') && line.ends_with('>') {
@@ -235,7 +263,12 @@ impl FluidNcWebSocketAdapter {
                 "timeout",
                 "timed out waiting for FluidNC status",
             )),
+        };
+
+        if result.as_ref().is_err_and(|error| error.code != "timeout") {
+            Self::invalidate_connection(session);
         }
+        result
     }
 
     fn parse_axes(value: &str) -> Option<[f64; 5]> {
