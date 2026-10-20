@@ -1,4 +1,4 @@
-const SUPPORTED_AXES = new Set(["X", "Y", "Z", "A", "B"]);
+const SUPPORTED_AXES = new Set(["X", "Y", "Z", "A", "B", "C"]);
 
 function createAxisRow(axis) {
   const lowerAxis = axis.toLowerCase();

@@ -15,7 +15,7 @@ export function initPositionControls({ getStatus, refreshStatus }) {
     editingAxis = axis;
     const option = coordinateSystem.options[coordinateSystem.selectedIndex];
     const status = getStatus();
-    const angular = ["A", "B"].includes(axis);
+    const angular = ["A", "B", "C"].includes(axis);
 
     document.querySelector("#position-dialog-title").textContent =
       `Ось ${axis} · ${option.text}`;

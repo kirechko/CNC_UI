@@ -152,6 +152,8 @@ pub struct Position {
     pub a: f64,
     #[serde(default)]
     pub b: f64,
+    #[serde(default)]
+    pub c: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -190,7 +192,7 @@ pub struct MachineStatus {
     pub current_line: u32,
     pub total_lines: u32,
     pub message: Option<String>,
-    pub homed: [bool; 5],
+    pub homed: [bool; 6],
     pub homing: bool,
 }
 

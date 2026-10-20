@@ -36,7 +36,8 @@ struct ContinuousJog {
 struct Session {
     socket: Option<FluidNcSocket>,
     rx_buffer: Vec<u8>,
-    work_offset: Option<[f64; 5]>,
+    work_offset: Option<[f64; 6]>,
+    reported_axis_count: usize,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
     program: Vec<String>,
@@ -67,6 +68,7 @@ impl FluidNcWebSocketAdapter {
                 socket: None,
                 rx_buffer: Vec::new(),
                 work_offset: None,
+                reported_axis_count: 3,
                 active_coordinate_system: CoordinateSystem::G54,
                 spindle_command: SpindleCommand {
                     direction: SpindleDirection::Stopped,
@@ -271,8 +273,8 @@ impl FluidNcWebSocketAdapter {
         result
     }
 
-    fn parse_axes(value: &str) -> Option<[f64; 5]> {
-        let mut axes = [0.0_f64; 5];
+    fn parse_axes(value: &str) -> Option<[f64; 6]> {
+        let mut axes = [0.0_f64; 6];
         let mut count = 0;
 
         for component in value.split(',') {
@@ -297,9 +299,9 @@ impl FluidNcWebSocketAdapter {
 
         let mut fields = body.split('|');
         let state = fields.next().unwrap_or("Unknown");
-        let mut machine_position: Option<[f64; 5]> = None;
-        let mut work_position: Option<[f64; 5]> = None;
-        let mut work_offset: Option<[f64; 5]> = None;
+        let mut machine_position: Option<[f64; 6]> = None;
+        let mut work_position: Option<[f64; 6]> = None;
+        let mut work_offset: Option<[f64; 6]> = None;
         let mut feed_rate = 0.0;
         let mut spindle_rpm = 0.0;
 
@@ -351,8 +353,14 @@ impl FluidNcWebSocketAdapter {
             } else {
                 InterpreterState::Idle
             },
-            position: Position { x: machine[0], y: machine[1], z: machine[2], a: machine[3], b: machine[4] },
-            work_offset: Position { x: offset[0], y: offset[1], z: offset[2], a: offset[3], b: offset[4] },
+            position: Position {
+                x: machine[0], y: machine[1], z: machine[2],
+                a: machine[3], b: machine[4], c: machine[5],
+            },
+            work_offset: Position {
+                x: offset[0], y: offset[1], z: offset[2],
+                a: offset[3], b: offset[4], c: offset[5],
+            },
             active_coordinate_system: session.active_coordinate_system,
             coordinate_systems: Vec::new(),
             feed_rate: if jogging { 0.0 } else { feed_rate },
@@ -377,7 +385,7 @@ impl FluidNcWebSocketAdapter {
             current_line: session.current_line,
             total_lines: session.program.len() as u32,
             message: Some(format!("FluidNC {state}")),
-            homed: [false; 5],
+            homed: [false; 6],
             homing: lower_state == "home",
         })
     }
@@ -459,6 +467,16 @@ impl CncApi for FluidNcWebSocketAdapter {
         self.ensure_connected(&mut session).await?;
         let response = Self::query_status(&mut session).await?;
         let status = Self::parse_status(&session, &response)?;
+        if let Some(axis_field) = response
+            .split('|')
+            .find(|field| field.starts_with("MPos:") || field.starts_with("WPos:"))
+        {
+            let count = axis_field
+                .split_once(':')
+                .map(|(_, values)| values.split(',').count())
+                .unwrap_or(3);
+            session.reported_axis_count = count.clamp(3, 6);
+        }
 
         let idle = response
             .strip_prefix('<')
@@ -482,18 +500,33 @@ impl CncApi for FluidNcWebSocketAdapter {
                 status.work_offset.z,
                 status.work_offset.a,
                 status.work_offset.b,
+                status.work_offset.c,
             ]);
         }
         Ok(status)
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
+        let session = self.session.lock().await;
+        let axes = [
+            (MachineAxis::X, AxisUnits::Linear),
+            (MachineAxis::Y, AxisUnits::Linear),
+            (MachineAxis::Z, AxisUnits::Linear),
+            (MachineAxis::A, AxisUnits::Angular),
+            (MachineAxis::B, AxisUnits::Angular),
+            (MachineAxis::C, AxisUnits::Angular),
+        ]
+        .into_iter()
+        .take(session.reported_axis_count)
+        .map(|(axis, units)| AxisConfiguration {
+            axis,
+            units,
+            max_travel: None,
+        })
+        .collect();
+
         Ok(MachineConfiguration {
-            axes: vec![
-                AxisConfiguration { axis: MachineAxis::X, units: AxisUnits::Linear, max_travel: None },
-                AxisConfiguration { axis: MachineAxis::Y, units: AxisUnits::Linear, max_travel: None },
-                AxisConfiguration { axis: MachineAxis::Z, units: AxisUnits::Linear, max_travel: None },
-            ],
+            axes,
             spindle: SpindleConfiguration { min_rpm: None, max_rpm: None },
         })
     }

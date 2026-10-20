@@ -16,6 +16,7 @@ fn debug_status() -> MachineStatus {
             z: 0.0,
             a: 0.0,
             b: 0.0,
+            c: 0.0,
         },
         work_offset: Position {
             x: 0.0,
@@ -42,7 +43,7 @@ fn debug_status() -> MachineStatus {
         current_line: 0,
         total_lines: 0,
         message: Some("Debug adapter: no backend logic".into()),
-        homed: [false; 5],
+        homed: [false; 6],
         homing: false,
     }
 }
