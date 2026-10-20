@@ -15,7 +15,7 @@ use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::cnc_api::{
-    Axis, CncApi, InterpreterState, MachineConfiguration, TaskMode, TaskState,
+    Axis, CncApi, InterpreterState, MachineConfiguration, TaskState,
 };
 use crate::cnc_controller::{CNCController, ControllerSnapshot};
 
