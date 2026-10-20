@@ -18,6 +18,7 @@ use tokio_tungstenite::{
 };
 
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_RESPONSE_LINE: usize = 4096;
 const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
@@ -247,9 +248,9 @@ impl FluidNcWebSocketAdapter {
         }
 
         Self::send_text(session, command.trim()).await?;
-        let result = match timeout(RESPONSE_TIMEOUT, async {
+        let result = match timeout(COMMAND_TIMEOUT, async {
             loop {
-                let line = Self::read_line(session, RESPONSE_TIMEOUT).await?;
+                let line = Self::read_line(session, COMMAND_TIMEOUT).await?;
                 if line == "ok" {
                     if let Some(system) = Self::coordinate_system_select(command) {
                         session.active_coordinate_system = system;
