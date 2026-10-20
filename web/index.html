@@ -359,6 +359,13 @@
         border-top: 0;
       }
 
+      .machine-work-field {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.5;
+      }
+
       .axis-label {
         font-size: 13px;
         font-weight: 800;
@@ -1967,6 +1974,9 @@
           <div class="panel-body">
             <div id="position-axes">
               <div id="axis-rows"></div>
+            </div>
+            <div class="machine-work-field" id="machine-work-field" aria-live="polite">
+              Рабочее поле: запрос конфигурации…
             </div>
             <div class="position-actions">
               <button id="zero-all" type="button" title="Установить рабочий ноль всех осей в выбранной системе координат">

@@ -5,6 +5,7 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use std::{
+    collections::HashMap,
     path::Path,
     time::Duration,
 };
@@ -319,6 +320,62 @@ impl FluidNcWebSocketAdapter {
         result
     }
 
+    async fn query_settings(session: &mut Session) -> CncResult<HashMap<u16, f64>> {
+        Self::send_text(session, "$$").await?;
+
+        let result = match timeout(COMMAND_TIMEOUT, async {
+            let mut settings = HashMap::new();
+            loop {
+                let line = Self::read_line(session, COMMAND_TIMEOUT).await?;
+
+                if line == "ok" {
+                    return Ok(settings);
+                }
+                if let Some(error) = line.strip_prefix("error:") {
+                    return Err(ControllerError::new("settings", error));
+                }
+                if line.starts_with("ALARM:") {
+                    return Err(ControllerError::new("alarm", line));
+                }
+
+                let Some((number, value)) = line
+                    .strip_prefix('$')
+                    .and_then(|setting| setting.split_once('='))
+                else {
+                    continue;
+                };
+                let (Ok(number), Ok(value)) = (number.parse::<u16>(), value.parse::<f64>()) else {
+                    continue;
+                };
+                if value.is_finite() {
+                    settings.insert(number, value);
+                }
+            }
+        })
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => Err(ControllerError::new(
+                "timeout",
+                "timed out waiting for FluidNC settings",
+            )),
+        };
+
+        if result.as_ref().is_err_and(|error| error.code != "settings" && error.code != "alarm") {
+            Self::invalidate_connection(session);
+        }
+        result
+    }
+
+    fn reported_axis_count(response: &str) -> Option<usize> {
+        response
+            .split('|')
+            .find(|field| field.starts_with("MPos:") || field.starts_with("WPos:"))
+            .and_then(|field| field.split_once(':'))
+            .map(|(_, values)| values.split(',').count())
+            .filter(|count| (3..=6).contains(count))
+    }
+
     fn parse_axes(value: &str) -> Option<[f64; 6]> {
         let mut axes = [0.0_f64; 6];
         let mut count = 0;
@@ -514,15 +571,8 @@ impl CncApi for FluidNcWebSocketAdapter {
         self.ensure_connected(&mut session).await?;
         let response = Self::query_status(&mut session).await?;
         let status = Self::parse_status(&session, &response)?;
-        if let Some(axis_field) = response
-            .split('|')
-            .find(|field| field.starts_with("MPos:") || field.starts_with("WPos:"))
-        {
-            let count = axis_field
-                .split_once(':')
-                .map(|(_, values)| values.split(',').count())
-                .unwrap_or(3);
-            session.reported_axis_count = count.clamp(3, 6);
+        if let Some(count) = Self::reported_axis_count(&response) {
+            session.reported_axis_count = count;
         }
 
         let idle = response
@@ -554,27 +604,49 @@ impl CncApi for FluidNcWebSocketAdapter {
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
-        let session = self.session.lock().await;
-        let axes = [
+        let mut session = self.session.lock().await;
+        self.ensure_connected(&mut session).await?;
+
+        let status = Self::query_status(&mut session).await?;
+        if let Some(count) = Self::reported_axis_count(&status) {
+            session.reported_axis_count = count;
+        }
+
+        // FluidNC exposes GRBL-compatible travel and spindle limits through $$:
+        // $130-$135 are the maximum travels for X/Y/Z/A/B/C, $30/$31 spindle RPM.
+        let settings = Self::query_settings(&mut session).await?;
+        let axis_definitions = [
             (MachineAxis::X, AxisUnits::Linear),
             (MachineAxis::Y, AxisUnits::Linear),
             (MachineAxis::Z, AxisUnits::Linear),
             (MachineAxis::A, AxisUnits::Angular),
             (MachineAxis::B, AxisUnits::Angular),
             (MachineAxis::C, AxisUnits::Angular),
-        ]
-        .into_iter()
-        .take(session.reported_axis_count)
-        .map(|(axis, units)| AxisConfiguration {
-            axis,
-            units,
-            max_travel: None,
-        })
-        .collect();
+        ];
+        let axes = axis_definitions
+            .into_iter()
+            .enumerate()
+            .take(session.reported_axis_count)
+            .map(|(index, (axis, units))| AxisConfiguration {
+                axis,
+                units,
+                max_travel: settings
+                    .get(&(130 + index as u16))
+                    .copied()
+                    .filter(|value| *value > 0.0),
+            })
+            .collect();
+
+        let min_rpm = settings.get(&31).copied().filter(|value| *value >= 0.0);
+        let max_rpm = settings
+            .get(&30)
+            .copied()
+            .filter(|value| *value > 0.0)
+            .filter(|maximum| min_rpm.is_none_or(|minimum| minimum <= *maximum));
 
         Ok(MachineConfiguration {
             axes,
-            spindle: SpindleConfiguration { min_rpm: None, max_rpm: None },
+            spindle: SpindleConfiguration { min_rpm, max_rpm },
         })
     }
 
@@ -831,5 +903,30 @@ impl CncApi for FluidNcWebSocketAdapter {
 
     async fn clear_error(&self) -> CncResult<()> {
         self.power_on().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_axis_count_from_fluidnc_status_fields() {
+        assert_eq!(
+            FluidNcWebSocketAdapter::reported_axis_count(
+                "<Idle|MPos:1,2,3,4,5,6|FS:0,0>"
+            ),
+            Some(6)
+        );
+        assert_eq!(
+            FluidNcWebSocketAdapter::reported_axis_count(
+                "<Idle|WPos:1,2,3|FS:0,0>"
+            ),
+            Some(3)
+        );
+        assert_eq!(
+            FluidNcWebSocketAdapter::reported_axis_count("<Idle|FS:0,0>"),
+            None
+        );
     }
 }

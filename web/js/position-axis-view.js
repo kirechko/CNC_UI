@@ -43,6 +43,7 @@ export function initPositionAxisView({
 }) {
   let display = { work: true, machine: true };
   let renderedAxisSignature = null;
+  const workField = document.querySelector("#machine-work-field");
 
   function updateDisplay() {
     const mode = display.work && display.machine
@@ -64,18 +65,37 @@ export function initPositionAxisView({
 
   function render(configuration) {
     const configuredAxes = Array.isArray(configuration?.axes)
-      ? configuration.axes.map((item) => String(item.axis).toUpperCase())
-      : ["X", "Y", "Z", "A", "B"];
-    const axes = [...new Set(configuredAxes)]
-      .filter((axis) => SUPPORTED_AXES.has(axis))
-      .slice(0, 6);
-    const signature = axes.join(",");
+      ? configuration.axes.filter((item) =>
+          SUPPORTED_AXES.has(String(item.axis).toUpperCase()),
+        )
+      : ["X", "Y", "Z", "A", "B"].map((axis) => ({ axis, max_travel: null }));
+    const axes = [...new Map(
+      configuredAxes.map((item) => [String(item.axis).toUpperCase(), item]),
+    ).values()].slice(0, 6);
+    const signature = JSON.stringify(
+      axes.map((item) => [String(item.axis).toUpperCase(), item.max_travel]),
+    );
+
+    if (workField) {
+      const ranges = axes.map((item) => {
+        const axis = String(item.axis).toUpperCase();
+        const travel = Number(item.max_travel);
+        if (!Number.isFinite(travel) || travel <= 0) return `${axis}: —`;
+        const units = ["A", "B", "C"].includes(axis) ? "°" : "mm";
+        return `${axis}: ${travel.toFixed(3)} ${units}`;
+      });
+      workField.textContent = ranges.length
+        ? `Максимальный ход · ${ranges.join(" · ")}`
+        : "Рабочее поле: конфигурация осей недоступна.";
+    }
+
     if (signature === renderedAxisSignature) return;
 
     renderedAxisSignature = signature;
     container.replaceChildren();
 
-    for (const axis of axes) {
+    for (const item of axes) {
+      const axis = String(item.axis).toUpperCase();
       const row = createAxisRow(axis);
       container.append(row);
 
