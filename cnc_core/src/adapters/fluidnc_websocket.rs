@@ -272,7 +272,7 @@ impl FluidNcWebSocketAdapter {
     }
 
     fn parse_axes(value: &str) -> Option<[f64; 5]> {
-        let mut axes = [0.0; 5];
+        let mut axes = [0.0_f64; 5];
         let mut count = 0;
 
         for component in value.split(',') {
