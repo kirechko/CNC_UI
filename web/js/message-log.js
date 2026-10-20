@@ -70,6 +70,8 @@ export function initMessageLog({ getDateRange }) {
   const count = document.querySelector("#message-log-count");
   const pageSizeSelect = document.querySelector("#message-log-page-size");
   const copyPageButton = document.querySelector("#message-log-copy-page");
+  const copyFallback = document.querySelector("#message-log-copy-fallback");
+  const copyFallbackText = document.querySelector("#message-log-copy-fallback-text");
   let pageSize = Number(pageSizeSelect.value) || 100;
   let offset = 0;
   let sort = { column: null, direction: 0 };
@@ -245,21 +247,25 @@ export function initMessageLog({ getDateRange }) {
 
     try {
       await copyTextToClipboard(content);
+      copyFallback.hidden = true;
+      count.textContent = `Скопировано записей: ${pageRows.length}.`;
       copyPageButton.textContent = "Скопировано";
       window.setTimeout(() => {
         copyPageButton.textContent = "Скопировать страницу";
       }, 1500);
     } catch (error) {
-      // В небезопасном HTTP-контексте браузер может запретить оба Clipboard API.
-      // Показываем содержимое в стандартном поле, откуда его можно скопировать вручную.
-      const manualCopy = window.prompt(
-        `Автоматическое копирование недоступно: ${error.message}\nСкопируйте текст из поля ниже:`,
-        content,
-      );
-      count.textContent = manualCopy === null
-        ? "Копирование отменено."
-        : "Текст журнала показан для ручного копирования (Ctrl+A, Ctrl+C).";
+      copyFallbackText.value = content;
+      copyFallback.hidden = false;
+      copyFallbackText.focus();
+      copyFallbackText.select();
+      count.textContent =
+        `Автокопирование не удалось (${error.message}). Текст выделен для ручного копирования.`;
     }
+  });
+
+  document.querySelector("#message-log-copy-fallback-close").addEventListener("click", () => {
+    copyFallback.hidden = true;
+    copyPageButton.focus();
   });
 
   pageSizeSelect.addEventListener("change", (event) => {
