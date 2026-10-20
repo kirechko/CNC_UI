@@ -36,7 +36,7 @@ struct ContinuousJog {
 struct Session {
     socket: Option<FluidNcSocket>,
     rx_buffer: Vec<u8>,
-    work_offset: Option<[f64; 3]>,
+    work_offset: Option<[f64; 5]>,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
     program: Vec<String>,
@@ -158,7 +158,12 @@ impl FluidNcWebSocketAdapter {
                 .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
             match message {
-                Message::Text(text) => session.rx_buffer.extend_from_slice(text.as_bytes()),
+                Message::Text(text) => {
+                    let text = text.as_str();
+                    if !text.starts_with("currentID:") && !text.starts_with("CURRENT_ID:") {
+                        session.rx_buffer.extend_from_slice(text.as_bytes());
+                    }
+                }
                 Message::Binary(bytes) => session.rx_buffer.extend_from_slice(&bytes),
                 Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => {
@@ -233,17 +238,22 @@ impl FluidNcWebSocketAdapter {
         }
     }
 
-    fn parse_triplet(value: &str) -> Option<[f64; 3]> {
-        let mut values = value.split(',').map(str::parse::<f64>);
-        let position = [
-            values.next()?.ok()?,
-            values.next()?.ok()?,
-            values.next()?.ok()?,
-        ];
-        if values.next().is_some() || position.iter().any(|value| !value.is_finite()) {
-            return None;
+    fn parse_axes(value: &str) -> Option<[f64; 5]> {
+        let mut axes = [0.0; 5];
+        let mut count = 0;
+
+        for component in value.split(',') {
+            if count == axes.len() {
+                return None;
+            }
+            axes[count] = component.parse().ok()?;
+            if !axes[count].is_finite() {
+                return None;
+            }
+            count += 1;
         }
-        Some(position)
+
+        (count >= 3).then_some(axes)
     }
 
     fn parse_status(session: &Session, response: &str) -> CncResult<MachineStatus> {
@@ -254,19 +264,19 @@ impl FluidNcWebSocketAdapter {
 
         let mut fields = body.split('|');
         let state = fields.next().unwrap_or("Unknown");
-        let mut machine_position = None;
-        let mut work_position = None;
-        let mut work_offset = None;
+        let mut machine_position: Option<[f64; 5]> = None;
+        let mut work_position: Option<[f64; 5]> = None;
+        let mut work_offset: Option<[f64; 5]> = None;
         let mut feed_rate = 0.0;
         let mut spindle_rpm = 0.0;
 
         for field in fields {
             if let Some(value) = field.strip_prefix("MPos:") {
-                machine_position = Self::parse_triplet(value);
+                machine_position = Self::parse_axes(value);
             } else if let Some(value) = field.strip_prefix("WPos:") {
-                work_position = Self::parse_triplet(value);
+                work_position = Self::parse_axes(value);
             } else if let Some(value) = field.strip_prefix("WCO:") {
-                work_offset = Self::parse_triplet(value);
+                work_offset = Self::parse_axes(value);
             } else if let Some(value) = field.strip_prefix("FS:") {
                 let mut values = value.split(',');
                 feed_rate = values.next().and_then(|item| item.parse().ok()).unwrap_or(0.0);
@@ -278,17 +288,17 @@ impl FluidNcWebSocketAdapter {
 
         let offset = work_offset
             .or_else(|| match (machine_position, work_position) {
-                (Some(machine), Some(work)) => Some([
-                    machine[0] - work[0],
-                    machine[1] - work[1],
-                    machine[2] - work[2],
-                ]),
+                (Some(machine), Some(work)) => {
+                    Some(std::array::from_fn(|axis| machine[axis] - work[axis]))
+                }
                 _ => None,
             })
             .or(session.work_offset)
-            .unwrap_or([0.0; 3]);
+            .unwrap_or([0.0; 5]);
         let machine = machine_position
-            .or_else(|| work_position.map(|work| [work[0] + offset[0], work[1] + offset[1], work[2] + offset[2]]))
+            .or_else(|| {
+                work_position.map(|work| std::array::from_fn(|axis| work[axis] + offset[axis]))
+            })
             .ok_or_else(|| ControllerError::new("protocol", "FluidNC status contains no valid position"))?;
 
         let lower_state = state.to_ascii_lowercase();
@@ -308,8 +318,8 @@ impl FluidNcWebSocketAdapter {
             } else {
                 InterpreterState::Idle
             },
-            position: Position { x: machine[0], y: machine[1], z: machine[2], a: 0.0, b: 0.0 },
-            work_offset: Position { x: offset[0], y: offset[1], z: offset[2], a: 0.0, b: 0.0 },
+            position: Position { x: machine[0], y: machine[1], z: machine[2], a: machine[3], b: machine[4] },
+            work_offset: Position { x: offset[0], y: offset[1], z: offset[2], a: offset[3], b: offset[4] },
             active_coordinate_system: session.active_coordinate_system,
             coordinate_systems: Vec::new(),
             feed_rate: if jogging { 0.0 } else { feed_rate },
@@ -437,6 +447,8 @@ impl CncApi for FluidNcWebSocketAdapter {
                 status.work_offset.x,
                 status.work_offset.y,
                 status.work_offset.z,
+                status.work_offset.a,
+                status.work_offset.b,
             ]);
         }
         Ok(status)
