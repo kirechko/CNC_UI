@@ -698,6 +698,7 @@ impl GrblAdapter {
                 z: machine[2],
                 a: 0.0,
                 b: 0.0,
+                c: 0.0,
             },
             work_offset: Position {
                 x: offset[0],
@@ -705,6 +706,7 @@ impl GrblAdapter {
                 z: offset[2],
                 a: 0.0,
                 b: 0.0,
+                c: 0.0,
             },
             active_coordinate_system,
             coordinate_systems: Vec::new(),
@@ -730,7 +732,7 @@ impl GrblAdapter {
             current_line,
             total_lines,
             message: Some(format!("GRBL {state}")),
-            homed: [false; 5],
+            homed: [false; 6],
             homing,
         })
     }
@@ -799,7 +801,7 @@ impl GrblAdapter {
     fn ensure_supported_axis(axis: Axis) -> CncResult<()> {
         match axis {
             Axis::X | Axis::Y | Axis::Z => Ok(()),
-            Axis::A | Axis::B => Err(ControllerError::new(
+            Axis::A | Axis::B | Axis::C => Err(ControllerError::new(
                 "unsupported_axis",
                 format!("GRBL 1.1 does not support the {axis:?} rotary axis"),
             )),

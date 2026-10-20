@@ -18,6 +18,7 @@ impl Emulator {
                 z: 0.0,
                 a: 0.0,
                 b: 0.0,
+                c: 0.0,
             });
 
         self.status.active_coordinate_system = system;
@@ -102,6 +103,7 @@ impl Emulator {
             Axis::Z => offset.z = machine_position.z,
             Axis::A => offset.a = machine_position.a,
             Axis::B => offset.b = machine_position.b,
+            Axis::C => offset.c = machine_position.c,
         }
 
         if let Some(entry) = self

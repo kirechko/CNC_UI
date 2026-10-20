@@ -135,6 +135,7 @@ impl EmulatorConfig {
                     limits.acceleration_degrees_s2,
                 )
             }),
+            Axis::C => (0.0, 0.0, 0.0, 0.0),
         }
     }
 

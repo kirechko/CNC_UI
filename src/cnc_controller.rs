@@ -441,6 +441,7 @@ impl CNCController {
             'Z' => Axis::Z,
             'A' => Axis::A,
             'B' => Axis::B,
+            'C' => Axis::C,
             _ => {
                 eprintln!("[UI] Unsupported jog axis: {axis}");
                 return;
@@ -454,7 +455,7 @@ impl CNCController {
 
         let feed_rate = match axis {
             Axis::Z => *self.z_jog_speed.lock().unwrap(),
-            Axis::X | Axis::Y | Axis::A | Axis::B => *self.xy_jog_speed.lock().unwrap(),
+            Axis::X | Axis::Y | Axis::A | Axis::B | Axis::C => *self.xy_jog_speed.lock().unwrap(),
         };
 
         crate::message_log::record(
@@ -485,6 +486,7 @@ impl CNCController {
             'Z' => Axis::Z,
             'A' => Axis::A,
             'B' => Axis::B,
+            'C' => Axis::C,
             _ => {
                 eprintln!("[UI] Unsupported continuous jog axis: {axis}");
                 return;
@@ -845,7 +847,7 @@ fn initial_disconnected_status() -> ControllerSnapshot {
             current_line: 0,
             total_lines: 0,
             message: Some("Waiting for CNC emulator connection".into()),
-            homed: [false; 5],
+            homed: [false; 6],
             homing: false,
         },
         machine_configuration: None,

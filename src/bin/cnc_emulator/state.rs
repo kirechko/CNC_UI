@@ -85,7 +85,7 @@ impl Emulator {
                 current_line: 0,
                 total_lines: 0,
                 message: Some("Virtual controller ready".into()),
-                homed: [false; 5],
+                homed: [false; 6],
                 homing: false,
                 max_spindle_rpm: config.spindle.max_rpm,
                 mist_coolant_on: false,
@@ -194,5 +194,6 @@ pub(super) fn axis_index(axis: Axis) -> usize {
         Axis::Z => 2,
         Axis::A => 3,
         Axis::B => 4,
+        Axis::C => 5,
     }
 }
