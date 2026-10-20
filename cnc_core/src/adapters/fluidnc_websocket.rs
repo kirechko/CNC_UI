@@ -604,7 +604,16 @@ impl CncApi for FluidNcWebSocketAdapter {
     async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()> {
         let mut session = self.session.lock().await;
         self.ensure_connected(&mut session).await?;
-        let command = format!("G10 L2 P{} X0 Y0 Z0", Self::coordinate_number(system));
+        let axes = ['X', 'Y', 'Z', 'A', 'B', 'C']
+            .into_iter()
+            .take(session.reported_axis_count)
+            .map(|axis| format!("{axis}0"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let command = format!(
+            "G10 L20 P{} {axes}",
+            Self::coordinate_number(system)
+        );
         Self::send_command(&mut session, &command).await?;
         session.work_offset = None;
         Ok(())
