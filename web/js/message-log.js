@@ -23,55 +23,12 @@ function formatLogTimestamp(timestamp) {
   return new Date(timestamp).toLocaleString();
 }
 
-async function copyTextToClipboard(text) {
-  const activeElement = document.activeElement;
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  Object.assign(textarea.style, {
-    position: "fixed",
-    top: "0",
-    left: "0",
-    width: "1px",
-    height: "1px",
-    padding: "0",
-    border: "0",
-    opacity: "0.01",
-    fontSize: "16px",
-  });
-  document.body.append(textarea);
-
-  let legacyCopySucceeded = false;
-  try {
-    textarea.focus();
-    textarea.select();
-    textarea.setSelectionRange(0, textarea.value.length);
-    // Выполняем синхронно в обработчике клика, пока браузер ещё разрешает
-    // копирование в рамках пользовательского действия.
-    legacyCopySucceeded = document.execCommand("copy");
-  } finally {
-    textarea.remove();
-    if (activeElement instanceof HTMLElement) activeElement.focus();
-  }
-
-  if (legacyCopySucceeded) return;
-
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  throw new Error("Браузер не разрешил доступ к буферу обмена");
-}
 
 export function initMessageLog({ getDateRange }) {
   const dialog = document.querySelector("#message-log-dialog");
   const rows = document.querySelector("#message-log-rows");
   const count = document.querySelector("#message-log-count");
   const pageSizeSelect = document.querySelector("#message-log-page-size");
-  const copyPageButton = document.querySelector("#message-log-copy-page");
-  const copyFallback = document.querySelector("#message-log-copy-fallback");
-  const copyFallbackText = document.querySelector("#message-log-copy-fallback-text");
   let pageSize = Number(pageSizeSelect.value) || 100;
   let offset = 0;
   let sort = { column: null, direction: 0 };
@@ -167,7 +124,6 @@ export function initMessageLog({ getDateRange }) {
       document.querySelector("#message-log-prev").disabled = offset <= 0;
       document.querySelector("#message-log-next").disabled =
         offset + page.entries.length >= page.total;
-      copyPageButton.disabled = page.entries.length === 0;
     } catch (error) {
       count.textContent = `Не удалось загрузить журнал: ${error.message}`;
     }
@@ -230,43 +186,6 @@ export function initMessageLog({ getDateRange }) {
     });
   });
 
-  copyPageButton.addEventListener("click", async () => {
-    const pageRows = [...rows.querySelectorAll("tr")];
-    if (pageRows.length === 0) {
-      count.textContent = "На текущей странице нет сообщений для копирования.";
-      return;
-    }
-
-    const header = ["Время", "Критичность", "Источник", "Сообщение"];
-    const content = [
-      header,
-      ...pageRows.map((row) =>
-        [...row.cells].map((cell) => cell.textContent.trim()),
-      ),
-    ]
-      .map((cells) =>
-        cells.map((cell) => `"${cell.replaceAll('"', '""')}"`).join("\t"),
-      )
-      .join("\n");
-
-    try {
-      await copyTextToClipboard(content);
-      copyFallback.hidden = true;
-      count.textContent = `Скопировано записей: ${pageRows.length}.`;
-    } catch (error) {
-      copyFallbackText.value = content;
-      copyFallback.hidden = false;
-      copyFallbackText.focus();
-      copyFallbackText.select();
-      count.textContent =
-        `Автокопирование не удалось (${error.message}). Текст страницы выделен для ручного копирования.`;
-    }
-  });
-
-  document.querySelector("#message-log-copy-fallback-close").addEventListener("click", () => {
-    copyFallback.hidden = true;
-    copyPageButton.focus();
-  });
 
   pageSizeSelect.addEventListener("change", (event) => {
     pageSize = Number(event.currentTarget.value) || 100;
