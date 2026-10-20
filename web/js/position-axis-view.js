@@ -68,7 +68,7 @@ export function initPositionAxisView({
       : ["X", "Y", "Z", "A", "B"];
     const axes = [...new Set(configuredAxes)]
       .filter((axis) => SUPPORTED_AXES.has(axis))
-      .slice(0, 5);
+      .slice(0, 6);
     const signature = axes.join(",");
     if (signature === renderedAxisSignature) return;
 
