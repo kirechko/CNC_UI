@@ -2528,7 +2528,11 @@
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
-      import { estimateToolpathTime, formatDuration } from "./js/toolpath-time.js";
+      import {
+        estimateToolpathTime,
+        formatDuration,
+        formatRemainingDuration,
+      } from "./js/toolpath-time.js";
       import { initUiMessageLogger } from "./js/ui-message-logger.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { initStockLoader } from "./js/stock-loader.js";
@@ -2747,7 +2751,7 @@
           : 0;
         const remaining = Math.max(0, toolpathRemainingAnchor - elapsed);
         element.textContent =
-          `${formatDuration(remaining)}/${formatDuration(toolpathTotalSeconds)}`;
+          `${formatRemainingDuration(remaining)}/${formatDuration(toolpathTotalSeconds)}`;
         element.hidden = false;
       }
 
@@ -2784,14 +2788,14 @@
         ) {
           const elapsed = Math.max(0, (now - toolpathTimeAnchorAt) / 1000);
           const predicted = Math.max(0, toolpathRemainingAnchor - elapsed);
-          // Плавно корректируем оценку по редким обновлениям координат, чтобы
-          // телеметрические скачки не дёргали индикатор времени.
-          const correctionLimit = Math.max(0.1, elapsed * 0.5);
-          const correction = Math.max(
-            -correctionLimit,
-            Math.min(correctionLimit, estimate.remainingSeconds - predicted),
+          // Сглаживаем изменение оценки положения по времени, а не по величине
+          // скачка телеметрии. Это уменьшает дрожание на дугах и при смене строки.
+          const smoothingTimeSeconds = 4;
+          const alpha = 1 - Math.exp(-elapsed / smoothingTimeSeconds);
+          remaining = Math.max(
+            0,
+            predicted + (estimate.remainingSeconds - predicted) * alpha,
           );
-          remaining = Math.max(0, predicted + correction);
         }
 
         toolpathRemainingAnchor = remaining;

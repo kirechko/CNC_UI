@@ -50,6 +50,13 @@ export function formatDuration(seconds) {
     .join(":");
 }
 
+export function formatRemainingDuration(seconds) {
+  const tenths = Math.max(0, Math.ceil(seconds * 10));
+  const wholeSeconds = Math.floor(tenths / 10);
+  const fraction = tenths % 10;
+  return `${formatDuration(wholeSeconds)}.${fraction}`;
+}
+
 export function estimateToolpathTime(
   segments,
   configuration,
