@@ -1,4 +1,4 @@
- //! Provides a consistent emulator configuration for G-code unit tests.
+//! Provides a consistent emulator configuration for G-code unit tests.
 use super::super::config::{AxesConfig, AxisLimits, EmulatorConfig, SpindleConfig};
 use super::super::state::Emulator;
 use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};

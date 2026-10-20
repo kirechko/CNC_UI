@@ -1,4 +1,4 @@
- //! Manages active work-coordinate systems and persists their offsets.
+//! Manages active work-coordinate systems and persists their offsets.
 use super::super::protocol::{api_error, WireError};
 use super::Emulator;
 use crate::cnc_api::*;

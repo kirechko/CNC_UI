@@ -1,7 +1,6 @@
- //! Loads and validates axis and spindle limits from the emulator configuration.
+//! Loads and validates axis and spindle limits from the emulator configuration.
 use crate::cnc_api::{
-    Axis, AxisConfiguration, AxisUnits, MachineAxis, MachineConfiguration,
-    SpindleConfiguration,
+    Axis, AxisConfiguration, AxisUnits, MachineAxis, MachineConfiguration, SpindleConfiguration,
 };
 use serde::Deserialize;
 use std::fs;
@@ -112,24 +111,30 @@ impl EmulatorConfig {
                 self.axes.y.max_velocity_mm_min,
                 self.axes.y.acceleration_mm_s2,
             ),
-            Axis::Z => self.axes.z.as_ref().map_or((0.0, 0.0, 0.0, 0.0), |limits| (
-                limits.min_mm,
-                limits.max_mm,
-                limits.max_velocity_mm_min,
-                limits.acceleration_mm_s2,
-            )),
-            Axis::A => self.axes.a.as_ref().map_or((0.0, 0.0, 0.0, 0.0), |limits| (
-                limits.min_degrees,
-                limits.max_degrees,
-                limits.max_velocity_degrees_min,
-                limits.acceleration_degrees_s2,
-            )),
-            Axis::B => self.axes.b.as_ref().map_or((0.0, 0.0, 0.0, 0.0), |limits| (
-                limits.min_degrees,
-                limits.max_degrees,
-                limits.max_velocity_degrees_min,
-                limits.acceleration_degrees_s2,
-            )),
+            Axis::Z => self.axes.z.as_ref().map_or((0.0, 0.0, 0.0, 0.0), |limits| {
+                (
+                    limits.min_mm,
+                    limits.max_mm,
+                    limits.max_velocity_mm_min,
+                    limits.acceleration_mm_s2,
+                )
+            }),
+            Axis::A => self.axes.a.as_ref().map_or((0.0, 0.0, 0.0, 0.0), |limits| {
+                (
+                    limits.min_degrees,
+                    limits.max_degrees,
+                    limits.max_velocity_degrees_min,
+                    limits.acceleration_degrees_s2,
+                )
+            }),
+            Axis::B => self.axes.b.as_ref().map_or((0.0, 0.0, 0.0, 0.0), |limits| {
+                (
+                    limits.min_degrees,
+                    limits.max_degrees,
+                    limits.max_velocity_degrees_min,
+                    limits.acceleration_degrees_s2,
+                )
+            }),
         }
     }
 
@@ -151,24 +156,39 @@ impl EmulatorConfig {
             }
         }
         for (name, axis) in [
-            ("Z", self.axes.z.as_ref().map(|limits| (
-                limits.min_mm,
-                limits.max_mm,
-                limits.max_velocity_mm_min,
-                limits.acceleration_mm_s2,
-            ))),
-            ("A", self.axes.a.as_ref().map(|limits| (
-                limits.min_degrees,
-                limits.max_degrees,
-                limits.max_velocity_degrees_min,
-                limits.acceleration_degrees_s2,
-            ))),
-            ("B", self.axes.b.as_ref().map(|limits| (
-                limits.min_degrees,
-                limits.max_degrees,
-                limits.max_velocity_degrees_min,
-                limits.acceleration_degrees_s2,
-            ))),
+            (
+                "Z",
+                self.axes.z.as_ref().map(|limits| {
+                    (
+                        limits.min_mm,
+                        limits.max_mm,
+                        limits.max_velocity_mm_min,
+                        limits.acceleration_mm_s2,
+                    )
+                }),
+            ),
+            (
+                "A",
+                self.axes.a.as_ref().map(|limits| {
+                    (
+                        limits.min_degrees,
+                        limits.max_degrees,
+                        limits.max_velocity_degrees_min,
+                        limits.acceleration_degrees_s2,
+                    )
+                }),
+            ),
+            (
+                "B",
+                self.axes.b.as_ref().map(|limits| {
+                    (
+                        limits.min_degrees,
+                        limits.max_degrees,
+                        limits.max_velocity_degrees_min,
+                        limits.acceleration_degrees_s2,
+                    )
+                }),
+            ),
         ] {
             if let Some((minimum, maximum, velocity, acceleration)) = axis {
                 if !minimum.is_finite()
