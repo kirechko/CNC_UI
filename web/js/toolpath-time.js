@@ -39,7 +39,7 @@ function segmentDuration(segment, configuration) {
   return (length / speed) * 60;
 }
 
-function formatDuration(seconds) {
+export function formatDuration(seconds) {
   const total = Math.max(0, Math.ceil(seconds));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);

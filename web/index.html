@@ -2528,7 +2528,7 @@
     <script type="module">
       import { invokeOrFetch } from "./js/api.js";
       import { parseToolpath } from "./js/gcode.js";
-      import { estimateToolpathTime } from "./js/toolpath-time.js";
+      import { estimateToolpathTime, formatDuration } from "./js/toolpath-time.js";
       import { initUiMessageLogger } from "./js/ui-message-logger.js";
       import { initSidebarTabs } from "./js/sidebar.js";
       import { initStockLoader } from "./js/stock-loader.js";
@@ -2610,6 +2610,10 @@
         sendDialJog,
       } = initJogApi({ isConnected: () => machineConnected });
       let loadedProgram = null;
+      let toolpathRemainingAnchor = null;
+      let toolpathTimeAnchorAt = 0;
+      let toolpathTotalSeconds = 0;
+      let toolpathClockRunning = false;
       let loadedStockMesh = null;
       let stockVisible = true;
       let machineState = "DISCONNECTED";
@@ -2734,11 +2738,26 @@
         return message;
       }
 
+      function renderToolpathTime() {
+        const element = document.querySelector("#toolpath-time");
+        if (!element || toolpathRemainingAnchor === null) return;
+
+        const elapsed = toolpathClockRunning
+          ? Math.max(0, (performance.now() - toolpathTimeAnchorAt) / 1000)
+          : 0;
+        const remaining = Math.max(0, toolpathRemainingAnchor - elapsed);
+        element.textContent =
+          `${formatDuration(remaining)}/${formatDuration(toolpathTotalSeconds)}`;
+        element.hidden = false;
+      }
+
       function updateToolpathTime(status = latestStatus) {
         const element = document.querySelector("#toolpath-time");
         if (!element) return;
 
         if (!loadedProgram?.segments?.length) {
+          toolpathRemainingAnchor = null;
+          toolpathClockRunning = false;
           element.hidden = true;
           return;
         }
@@ -2753,8 +2772,33 @@
               : 0,
           status ? [status.x, status.y, status.z].map(Number) : null,
         );
-        element.textContent = estimate.label;
-        element.hidden = false;
+        const now = performance.now();
+        const isRunning =
+          status?.state === "READING" || status?.state === "RUNNING";
+        let remaining = estimate.remainingSeconds;
+
+        if (
+          isRunning &&
+          toolpathClockRunning &&
+          toolpathRemainingAnchor !== null
+        ) {
+          const elapsed = Math.max(0, (now - toolpathTimeAnchorAt) / 1000);
+          const predicted = Math.max(0, toolpathRemainingAnchor - elapsed);
+          // Плавно корректируем оценку по редким обновлениям координат, чтобы
+          // телеметрические скачки не дёргали индикатор времени.
+          const correctionLimit = Math.max(0.1, elapsed * 0.5);
+          const correction = Math.max(
+            -correctionLimit,
+            Math.min(correctionLimit, estimate.remainingSeconds - predicted),
+          );
+          remaining = Math.max(0, predicted + correction);
+        }
+
+        toolpathRemainingAnchor = remaining;
+        toolpathTimeAnchorAt = now;
+        toolpathTotalSeconds = estimate.totalSeconds;
+        toolpathClockRunning = isRunning;
+        renderToolpathTime();
       }
 
       function showProgram(name, content) {
@@ -3487,6 +3531,7 @@
       programLoader.loadDefault();
       refreshStatus();
       window.setInterval(refreshStatus, 50);
+      window.setInterval(renderToolpathTime, 250);
     </script>
   </body>
 </html>
