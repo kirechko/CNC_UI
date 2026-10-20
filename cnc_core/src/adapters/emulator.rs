@@ -134,7 +134,7 @@ impl EmAdapter {
 }
 
 #[async_trait::async_trait]
-impl LinuxCncApi for EmAdapter {
+impl CncApi for EmAdapter {
     async fn status(&self) -> CncResult<MachineStatus> {
         let value = self.call("status", json!({})).await?;
         serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))

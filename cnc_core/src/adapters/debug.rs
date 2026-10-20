@@ -58,7 +58,7 @@ macro_rules! debug_adapter {
         }
 
         #[async_trait::async_trait]
-        impl LinuxCncApi for $adapter {
+        impl CncApi for $adapter {
             async fn status(&self) -> CncResult<MachineStatus> {
                 Ok(debug_status())
             }
