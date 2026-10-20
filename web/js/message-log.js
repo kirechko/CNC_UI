@@ -230,10 +230,37 @@ export function initMessageLog({ getDateRange }) {
     });
   });
 
-  copyPageButton.addEventListener("click", () => {
-    copyFallback.hidden = false;
-    copyFallbackText.value = "";
-    copyFallbackText.focus();
+  copyPageButton.addEventListener("click", async () => {
+    const pageRows = [...rows.querySelectorAll("tr")];
+    if (pageRows.length === 0) {
+      count.textContent = "На текущей странице нет сообщений для копирования.";
+      return;
+    }
+
+    const header = ["Время", "Критичность", "Источник", "Сообщение"];
+    const content = [
+      header,
+      ...pageRows.map((row) =>
+        [...row.cells].map((cell) => cell.textContent.trim()),
+      ),
+    ]
+      .map((cells) =>
+        cells.map((cell) => `"${cell.replaceAll('"', '""')}"`).join("\t"),
+      )
+      .join("\n");
+
+    try {
+      await copyTextToClipboard(content);
+      copyFallback.hidden = true;
+      count.textContent = `Скопировано записей: ${pageRows.length}.`;
+    } catch (error) {
+      copyFallbackText.value = content;
+      copyFallback.hidden = false;
+      copyFallbackText.focus();
+      copyFallbackText.select();
+      count.textContent =
+        `Автокопирование не удалось (${error.message}). Текст страницы выделен для ручного копирования.`;
+    }
   });
 
   document.querySelector("#message-log-copy-fallback-close").addEventListener("click", () => {
