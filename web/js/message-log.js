@@ -140,26 +140,31 @@ export function initMessageLog({ getDateRange }) {
     refresh();
   });
 
-  document.querySelector("#message-log-copy-page").addEventListener("click", async () => {
+  const textDialog = document.querySelector("#message-log-text-dialog");
+  const textOutput = document.querySelector("#message-log-text");
+
+  document.querySelector("#message-log-copy-page").addEventListener("click", () => {
     const pageRows = [...rows.querySelectorAll("tr")];
-    if (pageRows.length === 0) {
-      count.textContent = "На текущей странице нет сообщений для копирования.";
-      return;
-    }
-
-    const content = [
+    const lines = [
       ["Время", "Критичность", "Источник", "Сообщение"],
-      ...pageRows.map((row) => [...row.cells].map((cell) => cell.textContent.trim())),
-    ]
-      .map((cells) => cells.map((cell) => `"${cell.replaceAll('"', '""')}"`).join("\\t"))
-      .join("\\n");
+      ...pageRows.map((row) =>
+        [...row.cells].map((cell) => cell.textContent.trim().replace(/[\t\r\n]+/g, " ")),
+      ),
+    ];
 
-    try {
-      await navigator.clipboard.writeText(content);
-      count.textContent = `Скопировано записей: ${pageRows.length}.`;
-    } catch (error) {
-      count.textContent = `Не удалось скопировать страницу: ${error.message}`;
+    textOutput.value = lines.map((cells) => cells.join("\t")).join("\n");
+    textDialog.showModal();
+    textOutput.focus();
+    textOutput.select();
+
+    if (pageRows.length === 0) {
+      textOutput.value = "На текущей странице нет сообщений.";
+      count.textContent = "На текущей странице нет сообщений.";
     }
+  });
+
+  document.querySelector("#message-log-text-close").addEventListener("click", () => {
+    textDialog.close();
   });
 
   document.querySelector("#close-message-log").addEventListener("click", () => dialog.close());
