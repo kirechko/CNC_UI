@@ -1,6 +1,6 @@
 use crate::{
     Axis, AxisConfiguration, AxisUnits, CncResult, ControllerError, CoordinateSystem,
-    InterpreterState, JogRequest, LinuxCncApi, MachineAxis, MachineConfiguration, MachineStatus,
+    InterpreterState, JogRequest, CncApi, MachineAxis, MachineConfiguration, MachineStatus,
     Position, SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode,
     TaskState,
 };
