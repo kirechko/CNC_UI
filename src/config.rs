@@ -46,8 +46,7 @@ impl AppConfig {
             }
         };
 
-        serde_yaml_ng::from_str(&content)
-            .map_err(|error| format!("некорректный YAML: {error}"))
+        serde_yaml_ng::from_str(&content).map_err(|error| format!("некорректный YAML: {error}"))
     }
 }
 
