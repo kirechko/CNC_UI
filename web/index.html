@@ -1476,20 +1476,6 @@
 
       .message-log-dialog::backdrop { background: rgb(0 0 0 / 65%); }
 
-      .message-log-copy-test-dialog {
-        width: min(420px, calc(100vw - 32px));
-        min-height: 240px;
-        padding: 12px;
-        border: 1px solid #3b484d;
-        border-radius: 10px;
-        background: #202629;
-        color: #e7ecee;
-        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
-      }
-
-      .message-log-copy-test-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-
-      .message-log-copy-test-dialog button { float: right; }
 
       .message-log-content {
         position: relative;
@@ -1499,47 +1485,6 @@
         grid-template-rows: auto auto minmax(0, 1fr) auto;
       }
 
-      .message-log-copy-fallback {
-        position: absolute;
-        z-index: 3;
-        inset: 70px 16px 60px;
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-        gap: 8px;
-        padding: 12px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: #202629;
-        box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
-      }
-
-      .message-log-copy-fallback[hidden] { display: none; }
-
-      .message-log-copy-fallback-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        color: #c8d1d4;
-        font-size: 11px;
-      }
-
-      .message-log-copy-fallback-heading button {
-        min-height: 28px;
-        padding: 0 8px;
-      }
-
-      .message-log-copy-fallback textarea {
-        width: 100%;
-        min-height: 0;
-        padding: 8px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 11px/1.5 var(--font-mono);
-        resize: none;
-      }
 
       .message-log-heading {
         display: flex;
@@ -2423,7 +2368,6 @@
         </div>
         <div class="message-log-footer">
           <span id="message-log-count">Загрузка…</span>
-          <button type="button" id="message-log-copy-page">Скопировать страницу</button>
           <label>
             На странице
             <select class="message-log-page-size" id="message-log-page-size" aria-label="Количество записей на странице">
@@ -2440,19 +2384,9 @@
             <button type="button" id="message-log-next">Далее</button>
           </div>
         </div>
-        <div class="message-log-copy-fallback" id="message-log-copy-fallback" hidden>
-          <div class="message-log-copy-fallback-heading">
-            <span>Автоматическое копирование недоступно. Выделите текст и нажмите Ctrl+C.</span>
-            <button type="button" id="message-log-copy-fallback-close">Закрыть</button>
-          </div>
-          <textarea id="message-log-copy-fallback-text" readonly aria-label="Текст журнала для копирования вручную"></textarea>
-        </div>
       </section>
     </dialog>
 
-    <dialog class="message-log-copy-test-dialog" id="message-log-copy-test-dialog" aria-label="Пустой диалог проверки">
-      <button type="button" id="message-log-copy-test-close" aria-label="Закрыть">Закрыть</button>
-    </dialog>
 
     <dialog class="position-dialog" id="position-dialog">
       <form class="position-dialog-content" method="dialog">
