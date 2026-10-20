@@ -229,8 +229,17 @@ export function initCommandConsole({ logEvent, logError, refreshStatus, isConnec
         "POST",
       );
       input.value = "";
-      const result = output
-        ? `Команда выполнена: ${command}. Ответ: ${output}`
+      // G0X-22 — команда быстрого перемещения; фактическое движение зависит
+      // от текущего режима координат контроллера (G90/G91). Если backend
+      // возвращает объект, шаблонная строка показывает "[object Object]",
+      // поэтому сериализуем такой ответ в JSON для журнала.
+      const formattedOutput = output == null
+        ? ""
+        : typeof output === "string"
+          ? output
+          : JSON.stringify(output);
+      const result = formattedOutput
+        ? `Команда выполнена: ${command}. Ответ: ${formattedOutput}`
         : `Команда выполнена: ${command}.`;
       await logEvent("информация", result);
       await refreshStatus();
