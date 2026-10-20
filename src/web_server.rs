@@ -1112,6 +1112,19 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
         crate::config::Backend::FluidNc => {
             Arc::new(cnc_core::adapters::debug::FluidNcAdapter::new())
         }
+        crate::config::Backend::FluidNcRs232 => Arc::new(
+            cnc_core::adapters::FluidNcRs232Adapter::connect(
+                &config.fluidnc.serial_port,
+                config.fluidnc.baud_rate,
+            )
+            .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
+        ),
+        crate::config::Backend::FluidNcWebSocket => Arc::new(
+            cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect(
+                config.fluidnc.websocket_url.clone(),
+            )
+            .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
+        ),
     };
 
     CNCController::connect_with_api(api)

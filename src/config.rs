@@ -10,6 +10,8 @@ pub enum Backend {
     LinuxCnc,
     Grbl,
     FluidNc,
+    FluidNcRs232,
+    FluidNcWebSocket,
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,12 +100,18 @@ impl Default for GrblSettings {
 #[serde(default)]
 pub struct FluidNcSettings {
     pub base_url: String,
+    pub serial_port: String,
+    pub baud_rate: u32,
+    pub websocket_url: String,
 }
 
 impl Default for FluidNcSettings {
     fn default() -> Self {
         Self {
             base_url: "http://192.168.0.10".into(),
+            serial_port: "/dev/serial/by-id/REPLACE_WITH_CONTROLLER_ID".into(),
+            baud_rate: 115_200,
+            websocket_url: "ws://192.168.0.10:81/".into(),
         }
     }
 }
