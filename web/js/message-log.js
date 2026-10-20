@@ -246,7 +246,15 @@ export function initMessageLog({ getDateRange }) {
         copyPageButton.textContent = "Скопировать страницу";
       }, 1500);
     } catch (error) {
-      count.textContent = `Не удалось скопировать страницу: ${error.message}`;
+      // В небезопасном HTTP-контексте браузер может запретить оба Clipboard API.
+      // Показываем содержимое в стандартном поле, откуда его можно скопировать вручную.
+      const manualCopy = window.prompt(
+        `Автоматическое копирование недоступно: ${error.message}\nСкопируйте текст из поля ниже:`,
+        content,
+      );
+      count.textContent = manualCopy === null
+        ? "Копирование отменено."
+        : "Текст журнала показан для ручного копирования (Ctrl+A, Ctrl+C).";
     }
   });
 
