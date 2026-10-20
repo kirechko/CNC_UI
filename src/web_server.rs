@@ -15,7 +15,7 @@ use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::cnc_api::{
-    Axis, InterpreterState, LinuxCncApi, MachineConfiguration, TaskMode, TaskState,
+    Axis, CncApi, InterpreterState, MachineConfiguration, TaskMode, TaskState,
 };
 use crate::cnc_controller::{CNCController, ControllerSnapshot};
 
@@ -1089,7 +1089,7 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
     let config = crate::config::AppConfig::load(&config_path)
         .map_err(|error| startup_error(format!("configuration error: {error}")))?;
 
-    let api: Arc<dyn LinuxCncApi> = match config.backend {
+    let api: Arc<dyn CncApi> = match config.backend {
         crate::config::Backend::Emulator => {
             let socket_path = std::env::var_os("CNC_EMULATOR_SOCKET")
                 .map(PathBuf::from)

@@ -1,6 +1,6 @@
 //! Queues UI commands on a worker thread and maintains a cached controller status.
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, LinuxCncApi, MachineConfiguration,
+    Axis, CncResult, CoordinateSystem, CncApi, MachineConfiguration,
     MachineStatus, SpindleCommand, SpindleDirection as ApiSpindleDirection,
 };
 use cnc_core::adapters::emulator::EmAdapter;
@@ -126,7 +126,7 @@ impl CNCController {
         })
     }
 
-    pub fn connect_with_api(api: Arc<dyn LinuxCncApi>) -> CncResult<Self> {
+    pub fn connect_with_api(api: Arc<dyn CncApi>) -> CncResult<Self> {
         let status = Arc::new(Mutex::new(initial_disconnected_status()));
         let worker_status = status.clone();
         let (commands, receiver) = mpsc::channel();

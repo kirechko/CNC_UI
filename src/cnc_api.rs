@@ -230,7 +230,7 @@ pub type CncResult<T> = Result<T, ControllerError>;
 /// Реализация может быть клиентом отдельного эмулятора или адаптером
 /// к настоящему LinuxCNC. Методы отправляют команды; состояние UI получает
 /// через `status()`.
-pub trait LinuxCncApi: Send + Sync {
+pub trait CncApi: Send + Sync {
     /// Последний снимок состояния. Клиент обновляет его в фоне или по запросу.
     fn status(&self) -> CncResult<MachineStatus>;
 

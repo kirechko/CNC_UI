@@ -228,7 +228,7 @@ pub struct SpindleCommand {
 pub type CncResult<T> = Result<T, ControllerError>;
 
 #[async_trait::async_trait]
-pub trait LinuxCncApi: Send + Sync {
+pub trait CncApi: Send + Sync {
     async fn status(&self) -> CncResult<MachineStatus>;
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
@@ -305,7 +305,7 @@ mod tests {
     use super::*;
     use std::path::Path;
 
-    fn assert_core_adapter<T: LinuxCncApi>() {}
+    fn assert_core_adapter<T: CncApi>() {}
 
     #[test]
     fn migrated_adapters_implement_the_core_api() {

@@ -994,7 +994,7 @@ impl GrblAdapter {
 }
 
 #[async_trait::async_trait]
-impl LinuxCncApi for GrblAdapter {
+impl CncApi for GrblAdapter {
     async fn status(&self) -> CncResult<MachineStatus> {
         let mut session = self.session.lock().await;
         let response = Self::query_status(&mut session).await?;
