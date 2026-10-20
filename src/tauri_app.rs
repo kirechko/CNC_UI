@@ -232,6 +232,7 @@ fn jog_continuous(state: State<'_, AppState>, axis: Axis, direction: i8) -> Resu
         Axis::Z => 'Z',
         Axis::A => 'A',
         Axis::B => 'B',
+        Axis::C => 'C',
     };
 
     let controller = state
@@ -361,6 +362,7 @@ fn jog(state: State<'_, AppState>, axis: Axis, direction: i8, distance: f64) -> 
         Axis::Z => 'Z',
         Axis::A => 'A',
         Axis::B => 'B',
+        Axis::C => 'C',
     };
 
     let controller = state

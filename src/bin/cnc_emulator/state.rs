@@ -60,6 +60,7 @@ impl Emulator {
                     z: 0.0,
                     a: 0.0,
                     b: 0.0,
+                    c: 0.0,
                 },
                 work_offset: offsets
                     .iter()
@@ -71,6 +72,7 @@ impl Emulator {
                         z: 0.0,
                         a: 0.0,
                         b: 0.0,
+                        c: 0.0,
                     }),
                 active_coordinate_system: CoordinateSystem::G54,
                 coordinate_systems: offsets,

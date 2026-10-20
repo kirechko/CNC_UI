@@ -335,6 +335,7 @@ fn axis_letter(axis: Axis) -> char {
         Axis::Z => 'Z',
         Axis::A => 'A',
         Axis::B => 'B',
+        Axis::C => 'C',
     }
 }
 
@@ -1430,6 +1431,7 @@ mod contract_tests {
                     z: 13.0,
                     a: 14.0,
                     b: 15.0,
+                    c: 16.0,
                 },
                 work_offset: crate::cnc_api::Position {
                     x: 10.0,
@@ -1437,6 +1439,7 @@ mod contract_tests {
                     z: 10.0,
                     a: 10.0,
                     b: 10.0,
+                    c: 10.0,
                 },
                 active_coordinate_system: crate::cnc_api::CoordinateSystem::G59_1,
                 coordinate_systems: Vec::new(),

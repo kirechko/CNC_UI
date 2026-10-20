@@ -411,6 +411,7 @@ impl FluidNcWebSocketAdapter {
             Axis::Z => 'Z',
             Axis::A => 'A',
             Axis::B => 'B',
+            Axis::C => 'C',
         }
     }
 

@@ -832,6 +832,7 @@ impl GrblAdapter {
             Axis::Z => 'Z',
             Axis::A => 'A',
             Axis::B => 'B',
+            Axis::C => 'C',
         }
     }
 

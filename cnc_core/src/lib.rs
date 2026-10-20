@@ -11,6 +11,7 @@ pub enum Axis {
     Z,
     A,
     B,
+    C,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,6 +108,7 @@ pub enum MachineAxis {
     Z,
     A,
     B,
+    C,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
