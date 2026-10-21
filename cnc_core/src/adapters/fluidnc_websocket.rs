@@ -43,8 +43,6 @@ struct Session {
     /// Строка отправлена, но ещё не завершена контроллером.
     active_program_line: Option<u32>,
     program_line_acknowledged: bool,
-    program_motion_started: bool,
-    active_program_line_is_motion: bool,
     program_error: Option<String>,
     program_streaming: bool,
     continuous_jog: Option<ContinuousJog>,
@@ -82,8 +80,6 @@ impl FluidNcWebSocketAdapter {
                 current_line: 0,
                 active_program_line: None,
                 program_line_acknowledged: false,
-                program_motion_started: false,
-                active_program_line_is_motion: false,
                 program_error: None,
                 program_streaming: false,
                 continuous_jog: None,
@@ -388,39 +384,6 @@ impl FluidNcWebSocketAdapter {
         result
     }
 
-    fn is_motion_program_line(line: &str) -> bool {
-        let bytes = line.as_bytes();
-        let mut index = 0;
-        let mut in_parenthesis_comment = false;
-
-        while index < bytes.len() {
-            match bytes[index] {
-                b'(' => in_parenthesis_comment = true,
-                b')' => in_parenthesis_comment = false,
-                b';' if !in_parenthesis_comment => break,
-                b'G' | b'g' if !in_parenthesis_comment => {
-                    let start = index + 1;
-                    let mut end = start;
-                    while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'.') {
-                        end += 1;
-                    }
-                    if end > start
-                        && line[start..end]
-                            .parse::<f64>()
-                            .is_ok_and(|code| (0.0..=3.0).contains(&code))
-                    {
-                        return true;
-                    }
-                    index = end;
-                    continue;
-                }
-                _ => {}
-            }
-            index += 1;
-        }
-
-        false
-    }
 
     fn is_arc_program_line(line: &str) -> bool {
         let bytes = line.as_bytes();
@@ -662,8 +625,6 @@ impl FluidNcWebSocketAdapter {
         // читать и отдавать браузеру промежуточные статусы позиции.
         session.active_program_line = Some(index as u32);
         session.program_line_acknowledged = false;
-        session.program_motion_started = false;
-        session.active_program_line_is_motion = Self::is_motion_program_line(&line);
         session.current_line = (index + 1) as u32;
         Ok(())
     }
@@ -736,18 +697,13 @@ impl CncApi for FluidNcWebSocketAdapter {
         let running = machine_state.eq_ignore_ascii_case("Run")
             || machine_state.eq_ignore_ascii_case("Jog");
 
-        if running && session.active_program_line.is_some() {
-            session.program_motion_started = true;
-        }
-
         if idle && session.program_streaming {
-            let line_finished = session.program_line_acknowledged
-                && (!session.active_program_line_is_motion || session.program_motion_started);
+            // ACK means the line was accepted; Idle means queued motion has finished.
+            // Requiring an observed Run state can deadlock on short moves between polls.
+            let line_finished = session.program_line_acknowledged;
             if line_finished {
                 session.active_program_line = None;
                 session.program_line_acknowledged = false;
-                session.program_motion_started = false;
-                session.active_program_line_is_motion = false;
 
                 if session.current_line as usize >= session.program.len() {
                     session.program_streaming = false;
@@ -1052,8 +1008,6 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.current_line = 0;
         session.active_program_line = None;
         session.program_line_acknowledged = false;
-        session.program_motion_started = false;
-        session.active_program_line_is_motion = false;
         session.program_error = None;
         session.program_streaming = false;
         Ok(())
@@ -1085,8 +1039,6 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.current_line = start_line;
         session.active_program_line = None;
         session.program_line_acknowledged = false;
-        session.program_motion_started = false;
-        session.active_program_line_is_motion = false;
         session.program_error = None;
         session.program_streaming = true;
         Self::send_next_program_line(&mut session).await
@@ -1112,8 +1064,6 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.current_line = 0;
         session.active_program_line = None;
         session.program_line_acknowledged = false;
-        session.program_motion_started = false;
-        session.active_program_line_is_motion = false;
         // FluidNC сообщает ALARM:3 (Abort Cycle) после Ctrl-X. Это ожидаемый
         // ответ на Stop, но контроллер всё равно может остаться в состоянии
         // Alarm; не следует подавлять его или считать, что $X уже выполнен.
