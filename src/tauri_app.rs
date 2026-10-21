@@ -35,10 +35,7 @@ fn get_command_history(state: State<'_, AppState>) -> Result<Vec<String>, String
 }
 
 #[tauri::command]
-fn execute_machine_command(
-    state: State<'_, AppState>,
-    command: String,
-) -> Result<String, String> {
+fn execute_machine_command(state: State<'_, AppState>, command: String) -> Result<String, String> {
     let command = command.trim();
     if command.is_empty()
         || command.len() > 4096
@@ -62,7 +59,8 @@ fn log_message(
     let source = source.trim();
     let message = message.trim();
 
-    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity) {
+    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity)
+    {
         return Err("Неизвестная критичность сообщения".into());
     }
     if source.is_empty() || source.len() > 128 || message.is_empty() || message.len() > 16_384 {

@@ -1,4 +1,4 @@
- //! Validates motion targets and creates linear or circular emulator moves.
+//! Validates motion targets and creates linear or circular emulator moves.
 use super::super::dynamics::ActiveMove;
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
