@@ -107,8 +107,10 @@ export function initSceneViewer({
           toolPosition[2] - lastPosition[2],
         )
       : Infinity;
+    // Не продвигаем прогресс при повторной отрисовке того же статуса:
+    // иначе небольшой фиксированный допуск накапливает ложное движение.
     const maxAdvance = Number.isFinite(displacement)
-      ? displacement * 1.5 + 0.5
+      ? displacement * 1.5
       : Infinity;
     const activeProgress = calculateToolpathProgress(
       segments,
