@@ -5,7 +5,7 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::Path,
     sync::OnceLock,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -18,6 +18,7 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 const MAX_RESPONSE_LINE: usize = 4096;
 const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
+const PROGRAM_WINDOW_SIZE: usize = 8;
 const JOG_CHUNK_MM: f64 = 10.0;
 
 type FluidNcSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -41,9 +42,10 @@ struct Session {
     program_name: Option<String>,
     /// Следующая строка для отправки.
     current_line: u32,
-    /// Строка отправлена, но ещё не завершена контроллером.
+    /// Самая ранняя отправленная строка, для которой ещё не получен ACK.
     active_program_line: Option<u32>,
-    program_line_acknowledged: bool,
+    /// Номера отправленных строк в порядке ожидаемых ACK.
+    program_acknowledgements: VecDeque<u32>,
     program_error: Option<String>,
     program_streaming: bool,
     continuous_jog: Option<ContinuousJog>,
@@ -80,7 +82,7 @@ impl FluidNcWebSocketAdapter {
                 program_name: None,
                 current_line: 0,
                 active_program_line: None,
-                program_line_acknowledged: false,
+                program_acknowledgements: VecDeque::new(),
                 program_error: None,
                 program_streaming: false,
                 continuous_jog: None,
@@ -106,6 +108,8 @@ impl FluidNcWebSocketAdapter {
         session.socket = None;
         session.rx_buffer.clear();
         session.program_streaming = false;
+        session.active_program_line = None;
+        session.program_acknowledgements.clear();
         session.continuous_jog = None;
     }
 
@@ -297,15 +301,10 @@ impl FluidNcWebSocketAdapter {
                 }
                 Self::record_program_response(session, &line);
 
-                // ACK подтверждает приём строки, поэтому следующую можно
-                // отправить сразу, не ожидая завершения status()-опроса.
-                if session.program_streaming
-                    && session.program_line_acknowledged
-                    && (session.current_line as usize) < session.program.len()
-                {
-                    session.active_program_line = None;
-                    session.program_line_acknowledged = false;
-                    Self::send_next_program_line(session).await?;
+                // Поддерживаем очередь команд заполненной, пока контроллер
+                // подтверждает строки и в программе остаются команды.
+                if session.program_streaming {
+                    Self::fill_program_window(session).await?;
                 }
             }
         })
@@ -603,44 +602,55 @@ impl FluidNcWebSocketAdapter {
     }
 
     async fn send_next_program_line(session: &mut Session) -> CncResult<()> {
-        if !session.program_streaming || session.active_program_line.is_some() {
+        if !session.program_streaming
+            || session.program_acknowledgements.len() >= PROGRAM_WINDOW_SIZE
+        {
             return Ok(());
         }
 
         let index = session.current_line as usize;
         if index >= session.program.len() {
-            session.program_streaming = false;
             return Ok(());
         }
 
         let line = session.program[index].clone();
         if let Err(error) = Self::send_text(session, &line).await {
             session.program_streaming = false;
+            session.active_program_line = None;
+            session.program_acknowledgements.clear();
             session.program_error = Some(format!("{}: {}", error.code, error.message));
             return Err(error);
         }
         Self::trace_program_event("sent", index as u32 + 1, &format!("command={line:?}"));
 
-        // Не ждём ACK здесь: пока контроллер выполняет движение, status() продолжает
-        // читать и отдавать браузеру промежуточные статусы позиции.
-        session.active_program_line = Some(index as u32);
-        session.program_line_acknowledged = false;
+        session.program_acknowledgements.push_back(index as u32);
+        session.active_program_line = session.program_acknowledgements.front().copied();
         session.current_line = (index + 1) as u32;
         Ok(())
     }
 
+    async fn fill_program_window(session: &mut Session) -> CncResult<()> {
+        while session.program_streaming
+            && session.program_acknowledgements.len() < PROGRAM_WINDOW_SIZE
+            && (session.current_line as usize) < session.program.len()
+        {
+            Self::send_next_program_line(session).await?;
+        }
+        Ok(())
+    }
+
     fn record_program_response(session: &mut Session, line: &str) {
-        if session.active_program_line.is_none() {
+        if session.program_acknowledgements.is_empty() {
             return;
         }
 
         if line == "ok" {
-            if let Some(program_line) = session.active_program_line {
+            if let Some(program_line) = session.program_acknowledgements.pop_front() {
                 Self::trace_program_event("ack", program_line + 1, "response=ok");
             }
-            session.program_line_acknowledged = true;
+            session.active_program_line = session.program_acknowledgements.front().copied();
         } else if let Some(error) = line.strip_prefix("error:") {
-            if let Some(program_line) = session.active_program_line {
+            if let Some(program_line) = session.program_acknowledgements.front() {
                 Self::trace_program_event(
                     "rejected",
                     program_line + 1,
@@ -651,10 +661,12 @@ impl FluidNcWebSocketAdapter {
                 Some(format!("FluidNC отклонил строку программы: error:{error}"));
             session.program_streaming = false;
             session.active_program_line = None;
+            session.program_acknowledgements.clear();
         } else if line.starts_with("ALARM:") {
             session.program_error = Some(format!("FluidNC сообщил аварию: {line}"));
             session.program_streaming = false;
             session.active_program_line = None;
+            session.program_acknowledgements.clear();
         }
     }
 
@@ -695,20 +707,12 @@ impl CncApi for FluidNcWebSocketAdapter {
             .unwrap_or_default();
         let idle = machine_state.eq_ignore_ascii_case("Idle");
 
-        if session.program_streaming && session.program_line_acknowledged {
-            if session.current_line as usize >= session.program.len() {
-                // Для последней строки ждём завершения движения, но промежуточные
-                // строки отправляем сразу после ACK, пока контроллер их планирует.
-                if idle {
-                    session.active_program_line = None;
-                    session.program_line_acknowledged = false;
-                    session.program_streaming = false;
-                }
-            } else {
-                session.active_program_line = None;
-                session.program_line_acknowledged = false;
-                Self::send_next_program_line(&mut session).await?;
-            }
+        if session.program_streaming
+            && idle
+            && session.current_line as usize >= session.program.len()
+            && session.program_acknowledgements.is_empty()
+        {
+            session.program_streaming = false;
         } else if idle && !session.program_streaming {
             if let Some(jog) = session.continuous_jog {
                 Self::send_jog_chunk(&mut session, jog).await?;
@@ -1005,7 +1009,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.program_name = Some(name);
         session.current_line = 0;
         session.active_program_line = None;
-        session.program_line_acknowledged = false;
+        session.program_acknowledgements.clear();
         session.program_error = None;
         session.program_streaming = false;
         Ok(())
@@ -1036,10 +1040,10 @@ impl CncApi for FluidNcWebSocketAdapter {
 
         session.current_line = start_line;
         session.active_program_line = None;
-        session.program_line_acknowledged = false;
+        session.program_acknowledgements.clear();
         session.program_error = None;
         session.program_streaming = true;
-        Self::send_next_program_line(&mut session).await
+        Self::fill_program_window(&mut session).await
     }
 
     async fn program_pause(&self) -> CncResult<()> {
@@ -1061,7 +1065,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.continuous_jog = None;
         session.current_line = 0;
         session.active_program_line = None;
-        session.program_line_acknowledged = false;
+        session.program_acknowledgements.clear();
         // FluidNC сообщает ALARM:3 (Abort Cycle) после Ctrl-X. Это ожидаемый
         // ответ на Stop, но контроллер всё равно может остаться в состоянии
         // Alarm; не следует подавлять его или считать, что $X уже выполнен.
