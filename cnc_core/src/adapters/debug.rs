@@ -1,5 +1,5 @@
 use crate::{
-    Axis, CncResult, CoordinateSystem, InterpreterState, JogRequest, CncApi, MachineStatus,
+    Axis, CncApi, CncResult, CoordinateSystem, InterpreterState, JogRequest, MachineStatus,
     Position, SpindleCommand, SpindleDirection, SpindleStatus, TaskMode, TaskState,
 };
 use std::path::Path;

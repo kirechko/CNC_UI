@@ -4,19 +4,9 @@ use crate::{
     SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode, TaskState,
 };
 use futures_util::{SinkExt, StreamExt};
-use std::{
-    collections::HashMap,
-    path::Path,
-    time::Duration,
-};
-use tokio::{
-    net::TcpStream,
-    sync::Mutex,
-    time::timeout,
-};
-use tokio_tungstenite::{
-    connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream,
-};
+use std::{collections::HashMap, path::Path, time::Duration};
+use tokio::{net::TcpStream, sync::Mutex, time::timeout};
+use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
@@ -141,7 +131,9 @@ impl FluidNcWebSocketAdapter {
         let result = match session.socket.as_mut() {
             Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Text(payload)))
                 .await
-                .map_err(|_| ControllerError::new("timeout", "timed out sending command to FluidNC"))?
+                .map_err(|_| {
+                    ControllerError::new("timeout", "timed out sending command to FluidNC")
+                })?
                 .map_err(|error| ControllerError::new("io", error.to_string())),
             None => Err(ControllerError::new(
                 "connection",
@@ -162,7 +154,9 @@ impl FluidNcWebSocketAdapter {
         let result = match session.socket.as_mut() {
             Some(socket) => timeout(RESPONSE_TIMEOUT, socket.send(Message::Binary(vec![byte])))
                 .await
-                .map_err(|_| ControllerError::new("timeout", "timed out sending realtime command to FluidNC"))?
+                .map_err(|_| {
+                    ControllerError::new("timeout", "timed out sending realtime command to FluidNC")
+                })?
                 .map_err(|error| ControllerError::new("io", error.to_string())),
             None => Err(ControllerError::new(
                 "connection",
@@ -208,13 +202,14 @@ impl FluidNcWebSocketAdapter {
                 return Ok(line);
             }
 
-            let socket = session
-                .socket
-                .as_mut()
-                .ok_or_else(|| ControllerError::new("connection", "FluidNC WebSocket is disconnected"))?;
+            let socket = session.socket.as_mut().ok_or_else(|| {
+                ControllerError::new("connection", "FluidNC WebSocket is disconnected")
+            })?;
             let message = timeout(duration, socket.next())
                 .await
-                .map_err(|_| ControllerError::new("timeout", "timed out waiting for FluidNC response"))?
+                .map_err(|_| {
+                    ControllerError::new("timeout", "timed out waiting for FluidNC response")
+                })?
                 .ok_or_else(|| ControllerError::new("disconnected", "FluidNC WebSocket closed"))?
                 .map_err(|error| ControllerError::new("io", error.to_string()))?;
 
@@ -233,7 +228,10 @@ impl FluidNcWebSocketAdapter {
                 Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => {
                     session.socket = None;
-                    return Err(ControllerError::new("disconnected", "FluidNC WebSocket closed"));
+                    return Err(ControllerError::new(
+                        "disconnected",
+                        "FluidNC WebSocket closed",
+                    ));
                 }
                 _ => {}
             }
@@ -282,7 +280,10 @@ impl FluidNcWebSocketAdapter {
             )),
         };
 
-        if result.as_ref().is_err_and(|error| error.code != "gcode_error" && error.code != "alarm") {
+        if result
+            .as_ref()
+            .is_err_and(|error| error.code != "gcode_error" && error.code != "alarm")
+        {
             Self::invalidate_connection(session);
         }
         result
@@ -364,7 +365,10 @@ impl FluidNcWebSocketAdapter {
             )),
         };
 
-        if result.as_ref().is_err_and(|error| error.code != "settings" && error.code != "alarm") {
+        if result
+            .as_ref()
+            .is_err_and(|error| error.code != "settings" && error.code != "alarm")
+        {
             Self::invalidate_connection(session);
         }
         result
@@ -420,8 +424,14 @@ impl FluidNcWebSocketAdapter {
                 work_offset = Self::parse_axes(value);
             } else if let Some(value) = field.strip_prefix("FS:") {
                 let mut values = value.split(',');
-                feed_rate = values.next().and_then(|item| item.parse().ok()).unwrap_or(0.0);
-                spindle_rpm = values.next().and_then(|item| item.parse().ok()).unwrap_or(0.0);
+                feed_rate = values
+                    .next()
+                    .and_then(|item| item.parse().ok())
+                    .unwrap_or(0.0);
+                spindle_rpm = values
+                    .next()
+                    .and_then(|item| item.parse().ok())
+                    .unwrap_or(0.0);
             } else if let Some(value) = field.strip_prefix("F:") {
                 feed_rate = value.parse().unwrap_or(0.0);
             }
@@ -440,7 +450,9 @@ impl FluidNcWebSocketAdapter {
             .or_else(|| {
                 work_position.map(|work| std::array::from_fn(|axis| work[axis] + offset[axis]))
             })
-            .ok_or_else(|| ControllerError::new("protocol", "FluidNC status contains no valid position"))?;
+            .ok_or_else(|| {
+                ControllerError::new("protocol", "FluidNC status contains no valid position")
+            })?;
 
         let lower_state = state.to_ascii_lowercase();
         let alarm = lower_state.starts_with("alarm");
@@ -450,8 +462,16 @@ impl FluidNcWebSocketAdapter {
 
         Ok(MachineStatus {
             connected: true,
-            task_mode: if running { TaskMode::Auto } else { TaskMode::Manual },
-            task_state: if alarm { TaskState::Estop } else { TaskState::On },
+            task_mode: if running {
+                TaskMode::Auto
+            } else {
+                TaskMode::Manual
+            },
+            task_state: if alarm {
+                TaskState::Estop
+            } else {
+                TaskState::On
+            },
             interpreter_state: if running {
                 InterpreterState::Reading
             } else if paused {
@@ -460,12 +480,20 @@ impl FluidNcWebSocketAdapter {
                 InterpreterState::Idle
             },
             position: Position {
-                x: machine[0], y: machine[1], z: machine[2],
-                a: machine[3], b: machine[4], c: machine[5],
+                x: machine[0],
+                y: machine[1],
+                z: machine[2],
+                a: machine[3],
+                b: machine[4],
+                c: machine[5],
             },
             work_offset: Position {
-                x: offset[0], y: offset[1], z: offset[2],
-                a: offset[3], b: offset[4], c: offset[5],
+                x: offset[0],
+                y: offset[1],
+                z: offset[2],
+                a: offset[3],
+                b: offset[4],
+                c: offset[5],
             },
             active_coordinate_system: session.active_coordinate_system,
             coordinate_systems: Vec::new(),
@@ -523,9 +551,11 @@ impl FluidNcWebSocketAdapter {
 
     fn coordinate_system_select(command: &str) -> Option<CoordinateSystem> {
         let command = command.to_ascii_uppercase();
-        CoordinateSystem::ALL
-            .into_iter()
-            .find(|system| command.split_whitespace().any(|word| word == system.label()))
+        CoordinateSystem::ALL.into_iter().find(|system| {
+            command
+                .split_whitespace()
+                .any(|word| word == system.label())
+        })
     }
 
     async fn send_next_program_line(session: &mut Session) -> CncResult<()> {
@@ -738,10 +768,7 @@ impl CncApi for FluidNcWebSocketAdapter {
             .map(|axis| format!("{axis}0"))
             .collect::<Vec<_>>()
             .join(" ");
-        let command = format!(
-            "G10 L20 P{} {axes}",
-            Self::coordinate_number(system)
-        );
+        let command = format!("G10 L20 P{} {axes}", Self::coordinate_number(system));
         Self::send_command(&mut session, &command).await?;
         session.work_offset = None;
         Ok(())
@@ -765,11 +792,17 @@ impl CncApi for FluidNcWebSocketAdapter {
             || !request.distance.is_finite()
             || request.distance <= 0.0
         {
-            return Err(ControllerError::new("bad_jog", "invalid FluidNC jog request"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "invalid FluidNC jog request",
+            ));
         }
         let feed_rate = request.feed_rate.unwrap_or(100.0);
         if !feed_rate.is_finite() || feed_rate <= 0.0 {
-            return Err(ControllerError::new("bad_jog", "jog feed rate must be positive"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog feed rate must be positive",
+            ));
         }
 
         let mut session = self.session.lock().await;
@@ -784,23 +817,39 @@ impl CncApi for FluidNcWebSocketAdapter {
 
     async fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()> {
         if ![-1, 0, 1].contains(&direction) {
-            return Err(ControllerError::new("bad_jog", "invalid continuous jog direction"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "invalid continuous jog direction",
+            ));
         }
         if direction == 0 {
             return self.cancel_jog().await;
         }
         if !feed_rate.is_finite() || feed_rate <= 0.0 {
-            return Err(ControllerError::new("bad_jog", "jog feed rate must be positive"));
+            return Err(ControllerError::new(
+                "bad_jog",
+                "jog feed rate must be positive",
+            ));
         }
 
-        let jog = ContinuousJog { x: direction, y: 0, axis: Some(axis), feed_rate };
+        let jog = ContinuousJog {
+            x: direction,
+            y: 0,
+            axis: Some(axis),
+            feed_rate,
+        };
         let mut session = self.session.lock().await;
         self.ensure_connected(&mut session).await?;
         session.continuous_jog = Some(jog);
         Self::send_jog_chunk(&mut session, jog).await
     }
 
-    async fn jog_continuous_xy(&self, x_direction: i8, y_direction: i8, feed_rate: f64) -> CncResult<()> {
+    async fn jog_continuous_xy(
+        &self,
+        x_direction: i8,
+        y_direction: i8,
+        feed_rate: f64,
+    ) -> CncResult<()> {
         if ![-1, 0, 1].contains(&x_direction)
             || ![-1, 0, 1].contains(&y_direction)
             || !feed_rate.is_finite()
@@ -812,7 +861,12 @@ impl CncApi for FluidNcWebSocketAdapter {
             return self.cancel_jog().await;
         }
 
-        let jog = ContinuousJog { x: x_direction, y: y_direction, axis: None, feed_rate };
+        let jog = ContinuousJog {
+            x: x_direction,
+            y: y_direction,
+            axis: None,
+            feed_rate,
+        };
         let mut session = self.session.lock().await;
         self.ensure_connected(&mut session).await?;
         session.continuous_jog = Some(jog);
@@ -856,7 +910,11 @@ impl CncApi for FluidNcWebSocketAdapter {
             .filter(|line| !line.is_empty())
             .map(str::to_owned)
             .collect::<Vec<_>>();
-        let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("program.nc").to_owned();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("program.nc")
+            .to_owned();
 
         let mut session = self.session.lock().await;
         session.program = lines;
@@ -919,17 +977,26 @@ impl CncApi for FluidNcWebSocketAdapter {
 
     async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()> {
         if !command.rpm.is_finite() || command.rpm < 0.0 {
-            return Err(ControllerError::new("bad_spindle", "spindle RPM must be finite and non-negative"));
+            return Err(ControllerError::new(
+                "bad_spindle",
+                "spindle RPM must be finite and non-negative",
+            ));
         }
 
         let (gcode, normalized) = match command.direction {
             SpindleDirection::Stopped | _ if command.rpm == 0.0 => (
                 "M5".to_owned(),
-                SpindleCommand { direction: SpindleDirection::Stopped, rpm: 0.0 },
+                SpindleCommand {
+                    direction: SpindleDirection::Stopped,
+                    rpm: 0.0,
+                },
             ),
             SpindleDirection::Stopped => (
                 "M5".to_owned(),
-                SpindleCommand { direction: SpindleDirection::Stopped, rpm: 0.0 },
+                SpindleCommand {
+                    direction: SpindleDirection::Stopped,
+                    rpm: 0.0,
+                },
             ),
             SpindleDirection::Clockwise => (format!("M3 S{}", command.rpm), command),
             SpindleDirection::CounterClockwise => (format!("M4 S{}", command.rpm), command),
@@ -954,15 +1021,11 @@ mod tests {
     #[test]
     fn reads_axis_count_from_fluidnc_status_fields() {
         assert_eq!(
-            FluidNcWebSocketAdapter::reported_axis_count(
-                "<Idle|MPos:1,2,3,4,5,6|FS:0,0>"
-            ),
+            FluidNcWebSocketAdapter::reported_axis_count("<Idle|MPos:1,2,3,4,5,6|FS:0,0>"),
             Some(6)
         );
         assert_eq!(
-            FluidNcWebSocketAdapter::reported_axis_count(
-                "<Idle|WPos:1,2,3|FS:0,0>"
-            ),
+            FluidNcWebSocketAdapter::reported_axis_count("<Idle|WPos:1,2,3|FS:0,0>"),
             Some(3)
         );
         assert_eq!(
