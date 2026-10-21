@@ -7,7 +7,7 @@ use futures_util::{SinkExt, StreamExt};
 use std::{
     collections::HashMap,
     path::Path,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
@@ -43,7 +43,6 @@ struct Session {
     active_program_line: Option<u32>,
     program_streaming: bool,
     continuous_jog: Option<ContinuousJog>,
-    last_arc_trace: Option<Instant>,
 }
 
 pub struct FluidNcWebSocketAdapter {
@@ -79,7 +78,6 @@ impl FluidNcWebSocketAdapter {
                 active_program_line: None,
                 program_streaming: false,
                 continuous_jog: None,
-                last_arc_trace: None,
             }),
         })
     }
@@ -656,15 +654,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         });
         if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
             if let Some(line) = active_arc_line {
-                let should_trace = session
-                    .last_arc_trace
-                    .is_none_or(|last| last.elapsed() >= Duration::from_millis(500));
-                if should_trace {
-                    eprintln!("[FluidNC ARC] line={} status={response}", line + 1);
-                    session.last_arc_trace = Some(Instant::now());
-                }
-            } else {
-                session.last_arc_trace = None;
+                eprintln!("[FluidNC ARC] line={} status={response}", line + 1);
             }
         }
 
