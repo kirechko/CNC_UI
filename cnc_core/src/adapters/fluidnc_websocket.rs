@@ -715,24 +715,22 @@ impl CncApi for FluidNcWebSocketAdapter {
             .and_then(|value| value.split('|').next())
             .unwrap_or_default();
         let idle = machine_state.eq_ignore_ascii_case("Idle");
-        let running =
-            machine_state.eq_ignore_ascii_case("Run") || machine_state.eq_ignore_ascii_case("Jog");
 
-        if idle && session.program_streaming {
-            // ACK means the line was accepted; Idle means queued motion has finished.
-            // Requiring an observed Run state can deadlock on short moves between polls.
-            let line_finished = session.program_line_acknowledged;
-            if line_finished {
+        if session.program_streaming && session.program_line_acknowledged {
+            if session.current_line as usize >= session.program.len() {
+                // Для последней строки ждём завершения движения, но промежуточные
+                // строки отправляем сразу после ACK, пока контроллер их планирует.
+                if idle {
+                    session.active_program_line = None;
+                    session.program_line_acknowledged = false;
+                    session.program_streaming = false;
+                }
+            } else {
                 session.active_program_line = None;
                 session.program_line_acknowledged = false;
-
-                if session.current_line as usize >= session.program.len() {
-                    session.program_streaming = false;
-                } else {
-                    Self::send_next_program_line(&mut session).await?;
-                }
+                Self::send_next_program_line(&mut session).await?;
             }
-        } else if idle {
+        } else if idle && !session.program_streaming {
             if let Some(jog) = session.continuous_jog {
                 Self::send_jog_chunk(&mut session, jog).await?;
             }
