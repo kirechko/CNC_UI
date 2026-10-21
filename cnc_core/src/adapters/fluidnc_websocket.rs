@@ -127,9 +127,7 @@ impl FluidNcWebSocketAdapter {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        eprintln!(
-            "[FluidNC PROGRAM] t={timestamp_ms} event={event} line={line} {detail}"
-        );
+        eprintln!("[FluidNC PROGRAM] t={timestamp_ms} event={event} line={line} {detail}");
     }
 
     fn trace_binary_response(payload: &[u8]) {
@@ -666,7 +664,11 @@ impl FluidNcWebSocketAdapter {
             session.program_line_acknowledged = true;
         } else if let Some(error) = line.strip_prefix("error:") {
             if let Some(program_line) = session.active_program_line {
-                Self::trace_program_event("rejected", program_line + 1, &format!("response={line:?}"));
+                Self::trace_program_event(
+                    "rejected",
+                    program_line + 1,
+                    &format!("response={line:?}"),
+                );
             }
             session.program_error =
                 Some(format!("FluidNC отклонил строку программы: error:{error}"));
