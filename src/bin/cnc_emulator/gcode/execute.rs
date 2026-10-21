@@ -68,7 +68,16 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
         .any(|(letter, value)| *letter == 'G' && (*value - 10.0).abs() < 1e-6)
     {
         coordinates::handle_g10_l2(
-            emulator, l_word, p_word, x_word, y_word, z_word, a_word, b_word,
+            emulator,
+            coordinates::G10Words {
+                l: l_word,
+                p: p_word,
+                x: x_word,
+                y: y_word,
+                z: z_word,
+                a: a_word,
+                b: b_word,
+            },
         )?;
         return Ok(());
     }
@@ -90,7 +99,17 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
 
     if let Some(code) = motion_code {
         motion::execute_motion(
-            emulator, code, x_word, y_word, z_word, a_word, b_word, i_word, j_word,
+            emulator,
+            motion::MotionWords {
+                code,
+                x: x_word,
+                y: y_word,
+                z: z_word,
+                a: a_word,
+                b: b_word,
+                i: i_word,
+                j: j_word,
+            },
         )?;
     } else if x_word.is_some()
         || y_word.is_some()

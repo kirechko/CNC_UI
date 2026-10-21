@@ -77,6 +77,7 @@ struct TauriLogPage {
     total: i64,
 }
 
+#[allow(clippy::too_many_arguments)] // Сохраняем плоскую структуру аргументов Tauri-команды.
 #[tauri::command]
 fn get_log(
     state: State<'_, AppState>,
@@ -209,7 +210,7 @@ fn set_spindle(
 
     let direction = match direction.as_str() {
         "CW" => UiSpindleDirection::CW,
-        "CCW" => UiSpindleDirection::CCW,
+        "CCW" => UiSpindleDirection::Ccw,
         _ => return Err("Направление шпинделя должно быть CW или CCW".into()),
     };
 

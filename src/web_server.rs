@@ -1084,7 +1084,7 @@ fn status_state(status: &ControllerSnapshot) -> &'static str {
 }
 
 fn startup_error(message: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, message.into())
+    io::Error::other(message.into())
 }
 
 pub(crate) fn create_controller() -> io::Result<CNCController> {

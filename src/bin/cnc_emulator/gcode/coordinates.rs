@@ -72,14 +72,18 @@ pub(super) fn handle_g_word(emulator: &mut Emulator, value: f64) -> Result<GWord
 
 pub(super) fn handle_g10_l2(
     emulator: &mut Emulator,
-    l_word: Option<f64>,
-    p_word: Option<f64>,
-    x_word: Option<f64>,
-    y_word: Option<f64>,
-    z_word: Option<f64>,
-    a_word: Option<f64>,
-    b_word: Option<f64>,
+    words: G10Words,
 ) -> Result<(), WireError> {
+    let G10Words {
+        l: l_word,
+        p: p_word,
+        x: x_word,
+        y: y_word,
+        z: z_word,
+        a: a_word,
+        b: b_word,
+    } = words;
+
     if l_word.map(|value| value as i32) != Some(2) {
         return Err(api_error("unsupported_gcode", "only G10 L2 is supported"));
     }
