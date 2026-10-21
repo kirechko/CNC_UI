@@ -1023,6 +1023,9 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.program_streaming = false;
         session.continuous_jog = None;
         session.current_line = 0;
+        // FluidNC сообщает ALARM:3 (Abort Cycle) после Ctrl-X. Это ожидаемый
+        // ответ на Stop, но контроллер всё равно может остаться в состоянии
+        // Alarm; не следует подавлять его или считать, что $X уже выполнен.
         Self::send_realtime(&mut session, 0x18).await
     }
 
