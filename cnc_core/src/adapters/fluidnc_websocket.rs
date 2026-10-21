@@ -108,41 +108,15 @@ impl FluidNcWebSocketAdapter {
         session.continuous_jog = None;
     }
 
-    fn trace_frame(direction: &str, opcode: &str, payload: &[u8]) {
+    fn trace_frame(_direction: &str, _opcode: &str, _payload: &[u8]) {}
+
+    fn trace_program_event(event: &str, line: u32, _detail: &str) {
         if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
-            eprintln!(
-                "[FluidNC WS] {direction} {opcode} len={} payload={:?}",
-                payload.len(),
-                String::from_utf8_lossy(payload),
-            );
+            eprintln!("[FluidNC] line={line} {event}");
         }
     }
 
-    fn trace_program_event(event: &str, line: u32, detail: &str) {
-        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_none() {
-            return;
-        }
-
-        let timestamp_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        eprintln!("[FluidNC PROGRAM] t={timestamp_ms} event={event} line={line} {detail}");
-    }
-
-    fn trace_binary_response(payload: &[u8]) {
-        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_none() {
-            return;
-        }
-
-        for line in payload.split(|byte| *byte == b'\n') {
-            let line = line.strip_suffix(b"\r").unwrap_or(line);
-            if line.is_empty() {
-                continue;
-            }
-            Self::trace_frame("recv", "binary", line);
-        }
-    }
+    fn trace_binary_response(_payload: &[u8]) {}
 
     async fn send_text(session: &mut Session, text: &str) -> CncResult<()> {
         // FluidNC завершает G-code-команду переводом строки. Например, кадр
@@ -706,17 +680,6 @@ impl CncApi for FluidNcWebSocketAdapter {
         self.ensure_connected(&mut session).await?;
         let response = Self::query_status(&mut session).await?;
 
-        let active_arc_line = session.active_program_line.filter(|line| {
-            session
-                .program
-                .get(*line as usize)
-                .is_some_and(|program_line| Self::is_arc_program_line(program_line))
-        });
-        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
-            if let Some(line) = active_arc_line {
-                eprintln!("[FluidNC ARC] line={} status={response}", line + 1);
-            }
-        }
 
         let mut status = Self::parse_status(&session, &response)?;
         if let Some(count) = Self::reported_axis_count(&response) {
