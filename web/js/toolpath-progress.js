@@ -30,8 +30,11 @@ export function calculateToolpathProgress(
     const segmentEnd = segmentStart + length;
     const lineDistance = cumulativeByLine.get(segment.programLine) || 0;
 
+    // При первой привязке не ищем ближайшую точку на всей уже подтверждённой
+    // очереди: ACK может опережать фактическое положение станка.
     if (
       segment.programLine <= line &&
+      (previousProgress || segment.programLine === line) &&
       segmentEnd >= minimumPathDistance &&
       segmentStart <= maximumPathDistance
     ) {
