@@ -9,6 +9,16 @@ pub(super) enum GWordAction {
     Dwell,
 }
 
+pub(super) struct G10Words {
+    pub(super) l: Option<f64>,
+    pub(super) p: Option<f64>,
+    pub(super) x: Option<f64>,
+    pub(super) y: Option<f64>,
+    pub(super) z: Option<f64>,
+    pub(super) a: Option<f64>,
+    pub(super) b: Option<f64>,
+}
+
 pub(super) fn handle_g_word(emulator: &mut Emulator, value: f64) -> Result<GWordAction, WireError> {
     if (value - 59.1).abs() < 1e-6 {
         emulator.select_coordinate_system_from_gcode(CoordinateSystem::G59_1);
