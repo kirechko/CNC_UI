@@ -158,6 +158,11 @@ impl AppState {
     }
 
     pub(crate) fn insert_log(&self, severity: &str, source: &str, message: &str) {
+        if !matches!(severity, "авария" | "ошибка" | "предупреждение") {
+            return;
+        }
+
+        let message: String = message.chars().take(2048).collect();
         let timestamp_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -171,6 +176,15 @@ impl AppState {
                 params![timestamp_ms, severity, source, message],
             ) {
                 eprintln!("Could not write message log: {error}");
+                return;
+            }
+
+            if let Err(error) = connection.execute(
+                "DELETE FROM messages
+                 WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT 10000)",
+                [],
+            ) {
+                eprintln!("Could not prune message log: {error}");
             }
         }
     }
@@ -759,10 +773,6 @@ async fn set_spindle(
     State(state): State<SharedController>,
     Json(request): Json<SpindleRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    eprintln!(
-        "[Backend/HTTP] set_spindle received: enabled={}, direction={}, rpm={}",
-        request.enabled, request.direction, request.rpm
-    );
 
     let controller = state.controller.lock().map_err(|_| {
         (

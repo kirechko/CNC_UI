@@ -171,9 +171,6 @@ fn set_spindle(
     enabled: bool,
     direction: String,
 ) -> Result<(), String> {
-    eprintln!(
-        "[Backend/Tauri] set_spindle received: enabled={enabled}, direction={direction}, rpm={rpm}"
-    );
 
     let controller = state
         .controller
