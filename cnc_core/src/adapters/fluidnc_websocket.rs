@@ -120,7 +120,7 @@ impl FluidNcWebSocketAdapter {
 
         for line in payload.split(|byte| *byte == b'\n') {
             let line = line.strip_suffix(b"\r").unwrap_or(line);
-            if line.is_empty() || (line.starts_with(b"<") && line.ends_with(b">")) {
+            if line.is_empty() {
                 continue;
             }
             Self::trace_frame("recv", "binary", line);
