@@ -2669,26 +2669,28 @@
       }
 
       function traceArcPosition(status) {
-        const line = Number(status?.current_line) || 0;
-        const activeArcSegments = loadedProgram?.segments?.filter(
-          (segment) =>
-            segment.programLine === line &&
-            (segment.type === "arc-cw" || segment.type === "arc-ccw"),
-        ) || [];
+        const segments = loadedProgram?.segments || [];
+        const arcLines = [...new Set(
+          segments
+            .filter((segment) => segment.type === "arc-cw" || segment.type === "arc-ccw")
+            .map((segment) => segment.programLine),
+        )].sort((a, b) => a - b);
+        const running = status?.state === "READING" || status?.state === "RUNNING";
 
-        if (activeArcSegments.length === 0) {
+        if (!running || arcLines.length === 0) {
           lastArcDiagnosticLine = null;
           lastArcDiagnosticAt = 0;
           return;
         }
 
         const now = performance.now();
-        const lineChanged = line !== lastArcDiagnosticLine;
-        if (!lineChanged && now - lastArcDiagnosticAt < 1000) return;
+        const line = Number(status.current_line) || 0;
+        if (now - lastArcDiagnosticAt < 1000) return;
 
-        console.info("[ARC DIAG] browser position sample", {
+        console.info("[ARC DIAG] browser status during arc program", {
           line,
-          motion: activeArcSegments[0].type,
+          arcLineMatch: arcLines.includes(line),
+          arcLines,
           state: status.state,
           statusPosition: {
             x: status.x,
