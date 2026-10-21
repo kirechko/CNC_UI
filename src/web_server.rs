@@ -1154,6 +1154,14 @@ async fn get_status(
         response.latest_critical = latest.critical;
         response.latest_other = latest.other;
     }
+    if std::env::var_os("CNC_UI_HTTP_STATUS_TRACE").is_some()
+        && matches!(response.state.as_str(), "READING" | "RUNNING")
+    {
+        match serde_json::to_string(&response) {
+            Ok(payload) => eprintln!("[HTTP STATUS] {payload}"),
+            Err(error) => eprintln!("[HTTP STATUS] serialization failed: {error}"),
+        }
+    }
     Ok(Json(response))
 }
 
