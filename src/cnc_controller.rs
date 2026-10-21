@@ -343,10 +343,7 @@ impl CNCController {
         self.command_cancel_requested
             .store(false, Ordering::Release);
         let (reply_sender, reply_receiver) = mpsc::channel();
-        self.enqueue(Command::Execute(
-            command.trim().to_string(),
-            reply_sender,
-        ));
+        self.enqueue(Command::Execute(command.trim().to_string(), reply_sender));
 
         reply_receiver
             .recv_timeout(Duration::from_secs(5))
