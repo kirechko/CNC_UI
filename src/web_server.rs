@@ -813,7 +813,7 @@ async fn set_spindle(
 
     let direction = match request.direction.as_str() {
         "CW" => crate::cnc_controller::SpindleDirection::CW,
-        "CCW" => crate::cnc_controller::SpindleDirection::CCW,
+        "CCW" => crate::cnc_controller::SpindleDirection::Ccw,
         _ => {
             return Err((
                 StatusCode::BAD_REQUEST,

@@ -373,7 +373,7 @@ impl CNCController {
         let spindle_direction = match snapshot.machine.spindle.direction {
             ApiSpindleDirection::Stopped => SpindleDirection::Off,
             ApiSpindleDirection::Clockwise => SpindleDirection::CW,
-            ApiSpindleDirection::CounterClockwise => SpindleDirection::CCW,
+            ApiSpindleDirection::CounterClockwise => SpindleDirection::Ccw,
         };
         if snapshot.machine.spindle.enabled && spindle_direction == direction {
             return;
