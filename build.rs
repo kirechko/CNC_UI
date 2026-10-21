@@ -23,7 +23,7 @@ fn append_png_chunk(png: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
 fn create_tauri_icon(path: &Path) -> std::io::Result<()> {
     let mut raw = Vec::with_capacity(32 * 129);
     for _ in 0..32 {
-        raw.push(0); // PNG filter: None
+        raw.extend_from_slice(&[0]); // PNG filter: None
         for _ in 0..32 {
             raw.extend_from_slice(&[40, 126, 170, 255]);
         }
