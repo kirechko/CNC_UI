@@ -4,11 +4,7 @@ use crate::{
     SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode, TaskState,
 };
 use futures_util::{SinkExt, StreamExt};
-use std::{
-    collections::HashMap,
-    path::Path,
-    time::Duration,
-};
+use std::{collections::HashMap, path::Path, time::Duration};
 use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
@@ -384,7 +380,6 @@ impl FluidNcWebSocketAdapter {
         result
     }
 
-
     fn is_arc_program_line(line: &str) -> bool {
         let bytes = line.as_bytes();
         let mut index = 0;
@@ -637,7 +632,8 @@ impl FluidNcWebSocketAdapter {
         if line == "ok" {
             session.program_line_acknowledged = true;
         } else if let Some(error) = line.strip_prefix("error:") {
-            session.program_error = Some(format!("FluidNC отклонил строку программы: error:{error}"));
+            session.program_error =
+                Some(format!("FluidNC отклонил строку программы: error:{error}"));
             session.program_streaming = false;
             session.active_program_line = None;
         } else if line.starts_with("ALARM:") {
@@ -694,8 +690,8 @@ impl CncApi for FluidNcWebSocketAdapter {
             .and_then(|value| value.split('|').next())
             .unwrap_or_default();
         let idle = machine_state.eq_ignore_ascii_case("Idle");
-        let running = machine_state.eq_ignore_ascii_case("Run")
-            || machine_state.eq_ignore_ascii_case("Jog");
+        let running =
+            machine_state.eq_ignore_ascii_case("Run") || machine_state.eq_ignore_ascii_case("Jog");
 
         if idle && session.program_streaming {
             // ACK means the line was accepted; Idle means queued motion has finished.
