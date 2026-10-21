@@ -38,9 +38,14 @@ struct Session {
     spindle_command: SpindleCommand,
     program: Vec<String>,
     program_name: Option<String>,
-    /// Следующая строка для отправки; отдельная строка остаётся активной до Idle.
+    /// Следующая строка для отправки.
     current_line: u32,
+    /// Строка отправлена, но ещё не завершена контроллером.
     active_program_line: Option<u32>,
+    program_line_acknowledged: bool,
+    program_motion_started: bool,
+    active_program_line_is_motion: bool,
+    program_error: Option<String>,
     program_streaming: bool,
     continuous_jog: Option<ContinuousJog>,
 }
@@ -76,6 +81,10 @@ impl FluidNcWebSocketAdapter {
                 program_name: None,
                 current_line: 0,
                 active_program_line: None,
+                program_line_acknowledged: false,
+                program_motion_started: false,
+                active_program_line_is_motion: false,
+                program_error: None,
                 program_streaming: false,
                 continuous_jog: None,
             }),
@@ -301,6 +310,7 @@ impl FluidNcWebSocketAdapter {
                 if line.starts_with('<') && line.ends_with('>') {
                     return Ok(line);
                 }
+                Self::record_program_response(session, &line);
             }
         })
         .await
@@ -376,6 +386,40 @@ impl FluidNcWebSocketAdapter {
             Self::invalidate_connection(session);
         }
         result
+    }
+
+    fn is_motion_program_line(line: &str) -> bool {
+        let bytes = line.as_bytes();
+        let mut index = 0;
+        let mut in_parenthesis_comment = false;
+
+        while index < bytes.len() {
+            match bytes[index] {
+                b'(' => in_parenthesis_comment = true,
+                b')' => in_parenthesis_comment = false,
+                b';' if !in_parenthesis_comment => break,
+                b'G' | b'g' if !in_parenthesis_comment => {
+                    let start = index + 1;
+                    let mut end = start;
+                    while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'.') {
+                        end += 1;
+                    }
+                    if end > start
+                        && line[start..end]
+                            .parse::<f64>()
+                            .is_ok_and(|code| (0.0..=3.0).contains(&code))
+                    {
+                        return true;
+                    }
+                    index = end;
+                    continue;
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+
+        false
     }
 
     fn is_arc_program_line(line: &str) -> bool {
@@ -608,17 +652,38 @@ impl FluidNcWebSocketAdapter {
         }
 
         let line = session.program[index].clone();
-        if let Err(error) = Self::send_command(session, &line).await {
+        if let Err(error) = Self::send_text(session, &line).await {
             session.program_streaming = false;
-            session.active_program_line = None;
+            session.program_error = Some(format!("{}: {}", error.code, error.message));
             return Err(error);
         }
 
-        // ACK подтверждает приём G-code, а не завершение движения. Не переключаем
-        // viewer на следующую траекторию до Idle-статуса после выполнения строки.
+        // Не ждём ACK здесь: пока контроллер выполняет движение, status() продолжает
+        // читать и отдавать браузеру промежуточные статусы позиции.
         session.active_program_line = Some(index as u32);
+        session.program_line_acknowledged = false;
+        session.program_motion_started = false;
+        session.active_program_line_is_motion = Self::is_motion_program_line(&line);
         session.current_line = (index + 1) as u32;
         Ok(())
+    }
+
+    fn record_program_response(session: &mut Session, line: &str) {
+        if session.active_program_line.is_none() {
+            return;
+        }
+
+        if line == "ok" {
+            session.program_line_acknowledged = true;
+        } else if let Some(error) = line.strip_prefix("error:") {
+            session.program_error = Some(format!("FluidNC отклонил строку программы: error:{error}"));
+            session.program_streaming = false;
+            session.active_program_line = None;
+        } else if line.starts_with("ALARM:") {
+            session.program_error = Some(format!("FluidNC сообщил аварию: {line}"));
+            session.program_streaming = false;
+            session.active_program_line = None;
+        }
     }
 
     async fn send_jog_chunk(session: &mut Session, jog: ContinuousJog) -> CncResult<()> {
@@ -663,21 +728,32 @@ impl CncApi for FluidNcWebSocketAdapter {
             session.reported_axis_count = count;
         }
 
-        let idle = response
+        let machine_state = response
             .strip_prefix('<')
             .and_then(|value| value.split('|').next())
-            .is_some_and(|state| state.eq_ignore_ascii_case("Idle"));
+            .unwrap_or_default();
+        let idle = machine_state.eq_ignore_ascii_case("Idle");
+        let running = machine_state.eq_ignore_ascii_case("Run")
+            || machine_state.eq_ignore_ascii_case("Jog");
+
+        if running && session.active_program_line.is_some() {
+            session.program_motion_started = true;
+        }
 
         if idle && session.program_streaming {
-            // Только Idle означает, что активная строка завершила движение.
-            if session.active_program_line.take().is_some()
-                && session.current_line as usize >= session.program.len()
-            {
-                session.program_streaming = false;
-            }
+            let line_finished = session.program_line_acknowledged
+                && (!session.active_program_line_is_motion || session.program_motion_started);
+            if line_finished {
+                session.active_program_line = None;
+                session.program_line_acknowledged = false;
+                session.program_motion_started = false;
+                session.active_program_line_is_motion = false;
 
-            if session.program_streaming {
-                Self::send_next_program_line(&mut session).await?;
+                if session.current_line as usize >= session.program.len() {
+                    session.program_streaming = false;
+                } else {
+                    Self::send_next_program_line(&mut session).await?;
+                }
             }
         } else if idle {
             if let Some(jog) = session.continuous_jog {
@@ -685,6 +761,9 @@ impl CncApi for FluidNcWebSocketAdapter {
             }
         }
 
+        if let Some(error) = session.program_error.take() {
+            status.message = Some(error);
+        }
         status.current_line = session
             .active_program_line
             .map_or(session.current_line, |line| line + 1);
@@ -972,6 +1051,10 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.program_name = Some(name);
         session.current_line = 0;
         session.active_program_line = None;
+        session.program_line_acknowledged = false;
+        session.program_motion_started = false;
+        session.active_program_line_is_motion = false;
+        session.program_error = None;
         session.program_streaming = false;
         Ok(())
     }
@@ -1001,6 +1084,10 @@ impl CncApi for FluidNcWebSocketAdapter {
 
         session.current_line = start_line;
         session.active_program_line = None;
+        session.program_line_acknowledged = false;
+        session.program_motion_started = false;
+        session.active_program_line_is_motion = false;
+        session.program_error = None;
         session.program_streaming = true;
         Self::send_next_program_line(&mut session).await
     }
@@ -1023,6 +1110,10 @@ impl CncApi for FluidNcWebSocketAdapter {
         session.program_streaming = false;
         session.continuous_jog = None;
         session.current_line = 0;
+        session.active_program_line = None;
+        session.program_line_acknowledged = false;
+        session.program_motion_started = false;
+        session.active_program_line_is_motion = false;
         // FluidNC сообщает ALARM:3 (Abort Cycle) после Ctrl-X. Это ожидаемый
         // ответ на Stop, но контроллер всё равно может остаться в состоянии
         // Alarm; не следует подавлять его или считать, что $X уже выполнен.
