@@ -31,18 +31,24 @@ export function drawTrajectorySegments({
   activeProgress,
   project,
 }) {
+  let pathDistance = 0;
   let activeLineDistance = 0;
 
   for (const segment of segments) {
     const delta = segment.to.map((value, axis) => value - segment.from[axis]);
     const length = Math.sqrt(delta.reduce((sum, value) => sum + value * value, 0));
 
-    if (segment.programLine < currentProgramLine) {
+    if (Number.isFinite(activeProgress?.pathDistance)) {
+      const completedLength = Math.max(
+        0,
+        Math.min(length, activeProgress.pathDistance - pathDistance),
+      );
+      const splitRatio = length > 1e-9 ? completedLength / length : 0;
+      drawSegmentPart(context, project, segment, 0, splitRatio, 0.22);
+      drawSegmentPart(context, project, segment, splitRatio, 1, 1);
+    } else if (segment.programLine < currentProgramLine) {
       drawSegmentPart(context, project, segment, 0, 1, 0.22);
-    } else if (
-      activeProgress &&
-      segment.programLine === activeProgress.line
-    ) {
+    } else if (activeProgress && segment.programLine === activeProgress.line) {
       const completedLength = Math.max(
         0,
         Math.min(length, activeProgress.distance - activeLineDistance),
@@ -54,6 +60,8 @@ export function drawTrajectorySegments({
     } else {
       drawSegmentPart(context, project, segment, 0, 1, 1);
     }
+
+    pathDistance += length;
   }
 
   context.setLineDash([]);

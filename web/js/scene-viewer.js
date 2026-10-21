@@ -27,6 +27,11 @@ export function initSceneViewer({
   getToolRotationPhase,
   renderOrientationCube,
 }) {
+  let trackedSegments = null;
+  let lastProgress = null;
+  let lastPosition = null;
+  let lastProgramLine = 0;
+
   function drawTool() {
     const camera = getCamera();
     const program = getProgram();
@@ -83,15 +88,50 @@ export function initSceneViewer({
       drawStock(trajectoryContext, project, stockBounds, angleA, angleB, stockMesh);
     }
 
+    const currentProgramLine = getCurrentProgramLine();
+    const toolPosition = getToolPosition();
+
+    if (
+      trackedSegments !== segments ||
+      currentProgramLine + 1 < lastProgramLine
+    ) {
+      trackedSegments = segments;
+      lastProgress = null;
+      lastPosition = null;
+    }
+
+    const displacement = lastPosition
+      ? Math.hypot(
+          toolPosition[0] - lastPosition[0],
+          toolPosition[1] - lastPosition[1],
+          toolPosition[2] - lastPosition[2],
+        )
+      : Infinity;
+    const maxAdvance = Number.isFinite(displacement)
+      ? displacement * 1.5 + 0.5
+      : Infinity;
     const activeProgress = calculateToolpathProgress(
       segments,
-      getCurrentProgramLine(),
-      getToolPosition(),
+      currentProgramLine,
+      toolPosition,
+      lastProgress,
+      maxAdvance,
     );
+
+    if (activeProgress) lastProgress = activeProgress;
+    if (
+      Array.isArray(toolPosition) &&
+      toolPosition.length >= 3 &&
+      toolPosition.slice(0, 3).every(Number.isFinite)
+    ) {
+      lastPosition = toolPosition.slice(0, 3);
+    }
+    lastProgramLine = currentProgramLine;
+
     drawTrajectorySegments({
       context: trajectoryContext,
       segments,
-      currentProgramLine: activeProgress?.line ?? getCurrentProgramLine(),
+      currentProgramLine: activeProgress?.line ?? currentProgramLine,
       activeProgress,
       project,
     });
