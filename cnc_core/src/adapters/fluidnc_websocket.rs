@@ -4,7 +4,11 @@ use crate::{
     SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode, TaskState,
 };
 use futures_util::{SinkExt, StreamExt};
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    path::Path,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
@@ -112,6 +116,20 @@ impl FluidNcWebSocketAdapter {
                 String::from_utf8_lossy(payload),
             );
         }
+    }
+
+    fn trace_program_event(event: &str, line: u32, detail: &str) {
+        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_none() {
+            return;
+        }
+
+        let timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        eprintln!(
+            "[FluidNC PROGRAM] t={timestamp_ms} event={event} line={line} {detail}"
+        );
     }
 
     fn trace_binary_response(payload: &[u8]) {
@@ -615,6 +633,7 @@ impl FluidNcWebSocketAdapter {
             session.program_error = Some(format!("{}: {}", error.code, error.message));
             return Err(error);
         }
+        Self::trace_program_event("sent", index as u32 + 1, &format!("command={line:?}"));
 
         // Не ждём ACK здесь: пока контроллер выполняет движение, status() продолжает
         // читать и отдавать браузеру промежуточные статусы позиции.
@@ -630,8 +649,14 @@ impl FluidNcWebSocketAdapter {
         }
 
         if line == "ok" {
+            if let Some(program_line) = session.active_program_line {
+                Self::trace_program_event("ack", program_line + 1, "response=ok");
+            }
             session.program_line_acknowledged = true;
         } else if let Some(error) = line.strip_prefix("error:") {
+            if let Some(program_line) = session.active_program_line {
+                Self::trace_program_event("rejected", program_line + 1, &format!("response={line:?}"));
+            }
             session.program_error =
                 Some(format!("FluidNC отклонил строку программы: error:{error}"));
             session.program_streaming = false;
