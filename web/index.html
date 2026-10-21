@@ -2685,10 +2685,10 @@
 
         const now = performance.now();
         const line = Number(status.current_line) || 0;
-        if (now - lastArcDiagnosticAt < 1000) return;
+        if (now - lastArcDiagnosticAt < 100) return;
 
         console.info(
-          `[ARC DIAG] X=${Number(status.x).toFixed(2)} Y=${Number(status.y).toFixed(2)}`,
+          `[ARC DIAG] t=${new Date().toISOString()} line=${line} X=${Number(status.x).toFixed(2)} Y=${Number(status.y).toFixed(2)}`,
         );
         lastArcDiagnosticLine = line;
         lastArcDiagnosticAt = now;
