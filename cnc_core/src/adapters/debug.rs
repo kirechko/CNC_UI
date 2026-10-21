@@ -59,6 +59,12 @@ macro_rules! debug_adapter {
             }
         }
 
+        impl Default for $adapter {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+
         #[async_trait::async_trait]
         impl CncApi for $adapter {
             async fn status(&self) -> CncResult<MachineStatus> {

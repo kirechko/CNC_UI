@@ -984,7 +984,7 @@ impl CncApi for FluidNcWebSocketAdapter {
         }
 
         let (gcode, normalized) = match command.direction {
-            SpindleDirection::Stopped | _ if command.rpm == 0.0 => (
+            _ if command.rpm == 0.0 => (
                 "M5".to_owned(),
                 SpindleCommand {
                     direction: SpindleDirection::Stopped,
