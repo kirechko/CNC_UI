@@ -2994,17 +2994,6 @@
           renderConfiguredAxes(status.configuration);
           positionAxisView.updateDisplay();
           coordinateSystem.value = status.coordinate_system || "g54";
-          const movementSpeed = Number(status.movement_speed) || 0;
-          const movementMode = status.movement_mode || "—";
-          document.querySelector("#movement-status").textContent =
-            `${movementMode} · ${movementSpeed.toFixed(0)} mm/min`;
-          const spindleDirection = ({
-            cw: "CW",
-            ccw: "CCW",
-            stopped: "OFF",
-          })[status.spindle_direction] || "—";
-          document.querySelector("#spindle-actual-rpm").textContent =
-            `${Number(status.spindle_rpm || 0).toFixed(0)} RPM · ${spindleDirection}`;
 
           renderLatestLogLine(
             latestCriticalMessage,
