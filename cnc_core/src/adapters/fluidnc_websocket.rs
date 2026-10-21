@@ -4,7 +4,11 @@ use crate::{
     SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode, TaskState,
 };
 use futures_util::{SinkExt, StreamExt};
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{
+    collections::HashMap,
+    path::Path,
+    time::{Duration, Instant},
+};
 use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
@@ -39,6 +43,7 @@ struct Session {
     active_program_line: Option<u32>,
     program_streaming: bool,
     continuous_jog: Option<ContinuousJog>,
+    last_arc_trace: Option<Instant>,
 }
 
 pub struct FluidNcWebSocketAdapter {
@@ -74,6 +79,7 @@ impl FluidNcWebSocketAdapter {
                 active_program_line: None,
                 program_streaming: false,
                 continuous_jog: None,
+                last_arc_trace: None,
             }),
         })
     }
@@ -374,6 +380,40 @@ impl FluidNcWebSocketAdapter {
         result
     }
 
+    fn is_arc_program_line(line: &str) -> bool {
+        let bytes = line.as_bytes();
+        let mut index = 0;
+        let mut in_parenthesis_comment = false;
+
+        while index < bytes.len() {
+            match bytes[index] {
+                b'(' => in_parenthesis_comment = true,
+                b')' => in_parenthesis_comment = false,
+                b';' if !in_parenthesis_comment => break,
+                b'G' | b'g' if !in_parenthesis_comment => {
+                    let start = index + 1;
+                    let mut end = start;
+                    while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'.') {
+                        end += 1;
+                    }
+                    if end > start
+                        && line[start..end]
+                            .parse::<f64>()
+                            .is_ok_and(|code| code == 2.0 || code == 3.0)
+                    {
+                        return true;
+                    }
+                    index = end;
+                    continue;
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+
+        false
+    }
+
     fn reported_axis_count(response: &str) -> Option<usize> {
         response
             .split('|')
@@ -607,6 +647,27 @@ impl CncApi for FluidNcWebSocketAdapter {
         let mut session = self.session.lock().await;
         self.ensure_connected(&mut session).await?;
         let response = Self::query_status(&mut session).await?;
+
+        let active_arc_line = session.active_program_line.filter(|line| {
+            session
+                .program
+                .get(*line as usize)
+                .is_some_and(|program_line| Self::is_arc_program_line(program_line))
+        });
+        if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
+            if let Some(line) = active_arc_line {
+                let should_trace = session
+                    .last_arc_trace
+                    .is_none_or(|last| last.elapsed() >= Duration::from_millis(500));
+                if should_trace {
+                    eprintln!("[FluidNC ARC] line={} status={response}", line + 1);
+                    session.last_arc_trace = Some(Instant::now());
+                }
+            } else {
+                session.last_arc_trace = None;
+            }
+        }
+
         let mut status = Self::parse_status(&session, &response)?;
         if let Some(count) = Self::reported_axis_count(&response) {
             session.reported_axis_count = count;
