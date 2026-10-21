@@ -328,7 +328,10 @@ pub(super) fn jog_increment(emulator: &mut Emulator, args: Value) -> Result<Valu
             .map_err(|error| api_error("bad_request", error.to_string()))?;
 
     if request.axis == Axis::C {
-        return Err(api_error("unsupported_axis", "the emulator does not configure a C axis"));
+        return Err(api_error(
+            "unsupported_axis",
+            "the emulator does not configure a C axis",
+        ));
     }
     if ![-1, 1].contains(&request.direction)
         || !request.distance.is_finite()
@@ -533,7 +536,10 @@ pub(super) fn home(emulator: &mut Emulator, args: Value) -> Result<Value, WireEr
         serde_json::from_value(args.get("axis").cloned().unwrap_or(Value::Null))
             .map_err(|error| api_error("bad_request", error.to_string()))?;
     if requested == Some(Axis::C) {
-        return Err(api_error("unsupported_axis", "the emulator does not configure a C axis"));
+        return Err(api_error(
+            "unsupported_axis",
+            "the emulator does not configure a C axis",
+        ));
     }
 
     emulator.homing_queue = match requested {
