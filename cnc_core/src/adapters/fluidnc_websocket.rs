@@ -7,7 +7,8 @@ use futures_util::{SinkExt, StreamExt};
 use std::{
     collections::HashMap,
     path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    sync::OnceLock,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
@@ -112,7 +113,9 @@ impl FluidNcWebSocketAdapter {
 
     fn trace_program_event(event: &str, line: u32, _detail: &str) {
         if std::env::var_os("CNC_UI_FLUIDNC_WS_TRACE").is_some() {
-            eprintln!("[FluidNC] line={line} {event}");
+            static TRACE_START: OnceLock<Instant> = OnceLock::new();
+            let elapsed_us = TRACE_START.get_or_init(Instant::now).elapsed().as_micros();
+            eprintln!("[FluidNC] +{elapsed_us}us line={line} {event}");
         }
     }
 
