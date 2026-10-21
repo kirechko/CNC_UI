@@ -28,9 +28,8 @@ pub(crate) fn record(severity: &str, source: &str, message: &str) {
 fn try_record(severity: &str, source: &str, message: &str) -> rusqlite::Result<()> {
     let path = database_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
-            rusqlite::Error::ToSqlConversionFailure(Box::new(error))
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|error| rusqlite::Error::ToSqlConversionFailure(Box::new(error)))?;
     }
 
     let connection = Connection::open(path)?;
