@@ -2688,7 +2688,7 @@
         if (now - lastArcDiagnosticAt < 100) return;
 
         console.info(
-          `[ARC DIAG] t=${new Date().toISOString()} line=${line} X=${Number(status.x).toFixed(2)} Y=${Number(status.y).toFixed(2)}`,
+          `[ARC DIAG] t=${new Date().toISOString()} line=${line} X=${Number(status.x).toFixed(2)} Y=${Number(status.y).toFixed(2)} Z=${Number(status.z).toFixed(2)}`,
         );
         lastArcDiagnosticLine = line;
         lastArcDiagnosticAt = now;
