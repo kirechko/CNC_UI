@@ -321,6 +321,17 @@ impl FluidNcWebSocketAdapter {
                     return Ok(line);
                 }
                 Self::record_program_response(session, &line);
+
+                // ACK подтверждает приём строки, поэтому следующую можно
+                // отправить сразу, не ожидая завершения status()-опроса.
+                if session.program_streaming
+                    && session.program_line_acknowledged
+                    && (session.current_line as usize) < session.program.len()
+                {
+                    session.active_program_line = None;
+                    session.program_line_acknowledged = false;
+                    Self::send_next_program_line(session).await?;
+                }
             }
         })
         .await

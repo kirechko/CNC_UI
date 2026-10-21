@@ -1,12 +1,21 @@
 export function calculateToolpathProgress(segments, line, position) {
-  if (!line) return null;
+  if (
+    !line ||
+    !Array.isArray(position) ||
+    position.length < 3 ||
+    position.slice(0, 3).some((value) => !Number.isFinite(value))
+  ) {
+    return null;
+  }
 
-  let cumulative = 0;
+  const cumulativeByLine = new Map();
   let closest = null;
 
   for (const segment of segments) {
-    if (segment.programLine !== line) continue;
+    if (segment.programLine > line) continue;
 
+    const segmentLine = segment.programLine;
+    const cumulative = cumulativeByLine.get(segmentLine) || 0;
     const delta = segment.to.map((value, axis) => value - segment.from[axis]);
     const lengthSquared = delta.reduce((sum, value) => sum + value * value, 0);
     const length = Math.sqrt(lengthSquared);
@@ -26,10 +35,14 @@ export function calculateToolpathProgress(segments, line, position) {
     );
 
     if (!closest || distanceSquared < closest.distanceSquared) {
-      closest = { distanceSquared, distance: cumulative + length * t };
+      closest = {
+        distanceSquared,
+        line: segmentLine,
+        distance: cumulative + length * t,
+      };
     }
-    cumulative += length;
+    cumulativeByLine.set(segmentLine, cumulative + length);
   }
 
-  return closest ? { line, distance: closest.distance } : null;
+  return closest ? { line: closest.line, distance: closest.distance } : null;
 }

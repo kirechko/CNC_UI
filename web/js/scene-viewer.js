@@ -91,7 +91,7 @@ export function initSceneViewer({
     drawTrajectorySegments({
       context: trajectoryContext,
       segments,
-      currentProgramLine: getCurrentProgramLine(),
+      currentProgramLine: activeProgress?.line ?? getCurrentProgramLine(),
       activeProgress,
       project,
     });
