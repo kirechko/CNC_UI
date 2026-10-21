@@ -6,30 +6,6 @@ use crate::cnc_api::*;
 use serde_json::Value;
 
 pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value, WireError> {
-    if request.method != "status" {
-        let mut logged_args = request.args.clone();
-
-        // Не засоряем терминал содержимым загружаемой программы.
-        if request.method == "load_program" {
-            if let Some(object) = logged_args.as_object_mut() {
-                if let Some(content) = object.remove("content") {
-                    let byte_count = content.as_str().map(str::len).unwrap_or(0);
-                    object.insert("content_bytes".into(), Value::from(byte_count as u64));
-                }
-            }
-        }
-
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let log_source = "эмулятор/API";
-        let log_message = format!("{} {}", request.method, logged_args);
-        crate::message_log::record("информация", log_source, &log_message);
-        eprintln!("[API {timestamp}] {} {}", request.method, logged_args);
-    }
-
     let args = request.args;
     match request.method.as_str() {
         "status" => Ok(serde_json::to_value(&emulator.status)

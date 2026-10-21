@@ -20,7 +20,7 @@ fn database_path() -> PathBuf {
 }
 
 pub(crate) fn record(severity: &str, source: &str, message: &str) {
-    if severity == "информация" {
+    if !matches!(severity, "авария" | "ошибка" | "предупреждение") {
         return;
     }
 
@@ -56,10 +56,16 @@ fn try_record(severity: &str, source: &str, message: &str) -> rusqlite::Result<(
         .unwrap_or_default()
         .as_millis()
         .min(i64::MAX as u128) as i64;
+    let message: String = message.chars().take(2048).collect();
     connection.execute(
         "INSERT INTO messages (timestamp_ms, severity, source, message)
          VALUES (?1, ?2, ?3, ?4)",
         params![timestamp_ms, severity, source, message],
+    )?;
+    connection.execute(
+        "DELETE FROM messages
+         WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT 10000)",
+        [],
     )?;
     Ok(())
 }

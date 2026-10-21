@@ -22,9 +22,14 @@ export function initUiMessageLogger({ elements, getStatus }) {
         return;
       }
 
-      const severity = /^(ошибка|не удалось|error|failed|failure)\b/i.test(message)
-        ? "ошибка"
-        : "информация";
+      const severity = /^(авария|alarm|emergency stop)\b/i.test(message)
+        ? "авария"
+        : /^(ошибка|не удалось|error|failed|failure)\b/i.test(message)
+          ? "ошибка"
+          : /^(предупреждение|warning)\b/i.test(message)
+            ? "предупреждение"
+            : "информация";
+      if (severity === "информация") return;
 
       try {
         await invokeOrFetch(
