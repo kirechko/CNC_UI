@@ -2687,21 +2687,9 @@
         const line = Number(status.current_line) || 0;
         if (now - lastArcDiagnosticAt < 1000) return;
 
-        console.info("[ARC DIAG] browser status during arc program", {
-          line,
-          arcLineMatch: arcLines.includes(line),
-          arcLines,
-          state: status.state,
-          statusPosition: {
-            x: status.x,
-            y: status.y,
-            z: status.z,
-          },
-          toolPosition: [...toolPosition],
-          intervalMs: lastArcDiagnosticAt
-            ? Math.round(now - lastArcDiagnosticAt)
-            : null,
-        });
+        console.info(
+          `[ARC DIAG] X=${Number(status.x).toFixed(2)} Y=${Number(status.y).toFixed(2)}`,
+        );
         lastArcDiagnosticLine = line;
         lastArcDiagnosticAt = now;
       }
