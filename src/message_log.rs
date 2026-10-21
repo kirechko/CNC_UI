@@ -20,6 +20,10 @@ fn database_path() -> PathBuf {
 }
 
 pub(crate) fn record(severity: &str, source: &str, message: &str) {
+    if severity == "информация" {
+        return;
+    }
+
     if let Err(error) = try_record(severity, source, message) {
         eprintln!("Could not write message log: {error}");
     }
