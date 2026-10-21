@@ -1,4 +1,4 @@
- //! Calculates constrained moves and advances their simulated motion over time.
+//! Calculates constrained moves and advances their simulated motion over time.
 use crate::cnc_api::Axis;
 use crate::config::EmulatorConfig;
 use crate::protocol::{api_error, WireError};
@@ -21,7 +21,11 @@ impl Motion {
         config: &EmulatorConfig,
     ) -> Result<Option<Self>, WireError> {
         let delta = std::array::from_fn::<_, 5, _>(|index| target[index] - start[index]);
-        let distance = delta.iter().map(|component| component * component).sum::<f64>().sqrt();
+        let distance = delta
+            .iter()
+            .map(|component| component * component)
+            .sum::<f64>()
+            .sqrt();
         if distance < 1e-9 {
             return Ok(None);
         }
@@ -132,7 +136,11 @@ impl ActiveMove {
         }
 
         if !acceleration.is_finite() {
-            acceleration = config.axes.x.acceleration_mm_s2.min(config.axes.y.acceleration_mm_s2);
+            acceleration = config
+                .axes
+                .x
+                .acceleration_mm_s2
+                .min(config.axes.y.acceleration_mm_s2);
         }
 
         Ok(Self {

@@ -14,9 +14,7 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::cnc_api::{
-    Axis, CncApi, InterpreterState, MachineConfiguration, TaskState,
-};
+use crate::cnc_api::{Axis, CncApi, InterpreterState, MachineConfiguration, TaskState};
 use crate::cnc_controller::{CNCController, ControllerSnapshot};
 
 const DEFAULT_ADDRESS: &str = "0.0.0.0:8080";
@@ -90,17 +88,19 @@ impl AppState {
                             .map(|home| home.join(".local").join("state"))
                     })
                     .unwrap_or_else(std::env::temp_dir);
-                state_dir
-                    .join("linuxcnc-ui")
-                    .join("messages.sqlite3")
+                state_dir.join("linuxcnc-ui").join("messages.sqlite3")
             });
 
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
 
-        let connection = Connection::open(&path)
-            .map_err(|error| startup_error(format!("cannot open message log {}: {error}", path.display())))?;
+        let connection = Connection::open(&path).map_err(|error| {
+            startup_error(format!(
+                "cannot open message log {}: {error}",
+                path.display()
+            ))
+        })?;
         connection
             .execute_batch(
                 "PRAGMA journal_mode = WAL;
@@ -127,7 +127,10 @@ impl AppState {
     }
 
     pub(crate) fn record_status(&self, status: &ControllerSnapshot) {
-        let alert = status.ui_alert.as_ref().map(|(kind, message)| (kind, message));
+        let alert = status
+            .ui_alert
+            .as_ref()
+            .map(|(kind, message)| (kind, message));
         let key = format!(
             "{}\u{1f}{}\u{1f}{}",
             status_state(status),
@@ -279,14 +282,15 @@ impl AppState {
                     offset
                 ],
                 |row| {
-                Ok(LogEntry {
-                    id: row.get(0)?,
-                    timestamp_ms: row.get(1)?,
-                    severity: row.get(2)?,
-                    source: row.get(3)?,
-                    message: row.get(4)?,
-                })
-            })
+                    Ok(LogEntry {
+                        id: row.get(0)?,
+                        timestamp_ms: row.get(1)?,
+                        severity: row.get(2)?,
+                        source: row.get(3)?,
+                        message: row.get(4)?,
+                    })
+                },
+            )
             .map_err(|error| error.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?;
@@ -476,14 +480,10 @@ impl AppState {
     }
 
     pub(crate) fn cancel_machine_command(&self) {
-        self.command_cancel_requested.store(
-            true,
-            std::sync::atomic::Ordering::Release,
-        );
-        self.motion_stop_requested.store(
-            true,
-            std::sync::atomic::Ordering::Release,
-        );
+        self.command_cancel_requested
+            .store(true, std::sync::atomic::Ordering::Release);
+        self.motion_stop_requested
+            .store(true, std::sync::atomic::Ordering::Release);
     }
 
     pub(crate) fn execute_command(&self, command: &str) -> Result<String, String> {
@@ -1157,9 +1157,7 @@ async fn get_status(
     Ok(Json(response))
 }
 
-async fn cancel_machine_command(
-    State(state): State<SharedController>,
-) -> StatusCode {
+async fn cancel_machine_command(State(state): State<SharedController>) -> StatusCode {
     state.cancel_machine_command();
     StatusCode::ACCEPTED
 }
@@ -1213,11 +1211,15 @@ async fn post_log_message(
     let source = request.source.trim();
     let message = request.message.trim();
 
-    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity) {
+    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity)
+    {
         return Err((StatusCode::BAD_REQUEST, "Неизвестная критичность".into()));
     }
     if source.is_empty() || source.len() > 128 || message.is_empty() || message.len() > 16_384 {
-        return Err((StatusCode::BAD_REQUEST, "Некорректный источник или сообщение".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Некорректный источник или сообщение".into(),
+        ));
     }
 
     state.insert_log(severity, source, message);

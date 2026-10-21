@@ -1,4 +1,4 @@
- //! Dispatches parsed G-code words to the coordinate, motion, and accessory handlers.
+//! Dispatches parsed G-code words to the coordinate, motion, and accessory handlers.
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
 use super::accessories;

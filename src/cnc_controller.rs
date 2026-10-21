@@ -1,7 +1,7 @@
 //! Queues UI commands on a worker thread and maintains a cached controller status.
 use crate::cnc_api::{
-    Axis, CncResult, CoordinateSystem, CncApi, MachineConfiguration,
-    MachineStatus, SpindleCommand, SpindleDirection as ApiSpindleDirection,
+    Axis, CncApi, CncResult, CoordinateSystem, MachineConfiguration, MachineStatus, SpindleCommand,
+    SpindleDirection as ApiSpindleDirection,
 };
 use cnc_core::adapters::emulator::EmAdapter;
 use std::path::{Path, PathBuf};
@@ -214,10 +214,16 @@ impl CNCController {
                     format!("Шпиндель: команда остановки, задано {:.0} RPM", command.rpm)
                 }
                 ApiSpindleDirection::Clockwise => {
-                    format!("Шпиндель: включение по часовой стрелке, {:.0} RPM", command.rpm)
+                    format!(
+                        "Шпиндель: включение по часовой стрелке, {:.0} RPM",
+                        command.rpm
+                    )
                 }
                 ApiSpindleDirection::CounterClockwise => {
-                    format!("Шпиндель: включение против часовой стрелки, {:.0} RPM", command.rpm)
+                    format!(
+                        "Шпиндель: включение против часовой стрелки, {:.0} RPM",
+                        command.rpm
+                    )
                 }
             },
             Command::JogIncrement(request) => format!(
@@ -253,7 +259,11 @@ impl CNCController {
         crate::message_log::record("информация", source, &description);
 
         if let Err(error) = self.commands.send(command) {
-            crate::message_log::record("ошибка", "команда UI", &format!("Команда не отправлена: {error}"));
+            crate::message_log::record(
+                "ошибка",
+                "команда UI",
+                &format!("Команда не отправлена: {error}"),
+            );
             eprintln!("[CncApi] worker unavailable: {error}");
         }
     }
@@ -330,7 +340,8 @@ impl CNCController {
             ));
         }
 
-        self.command_cancel_requested.store(false, Ordering::Release);
+        self.command_cancel_requested
+            .store(false, Ordering::Release);
         let (reply_sender, reply_receiver) = mpsc::channel();
         self.enqueue(Command::ExecuteCommand(
             command.trim().to_string(),
@@ -587,7 +598,10 @@ fn api_worker(
                     crate::message_log::record(
                         "ошибка",
                         "CNC/адаптер",
-                        &format!("Не удалось остановить движение: {}: {}", error.code, error.message),
+                        &format!(
+                            "Не удалось остановить движение: {}: {}",
+                            error.code, error.message
+                        ),
                     );
                     set_ui_alert(&shared_status, &error.code, &error.message);
                 }
@@ -613,10 +627,9 @@ fn api_worker(
             Ok(command) => {
                 let command = match command {
                     Command::ExecuteCommand(command, reply) => {
-                        let result = runtime.block_on(api.execute_command(
-                            &command,
-                            command_cancel_requested.clone(),
-                        ));
+                        let result = runtime.block_on(
+                            api.execute_command(&command, command_cancel_requested.clone()),
+                        );
                         match &result {
                             Ok(output) => {
                                 crate::message_log::record(
@@ -774,9 +787,8 @@ fn api_worker(
                     reached_spindle_target = None;
                 }
 
-                let spindle_stopped = !spindle.enabled
-                    && spindle.actual_rpm <= 0.01
-                    && spindle.commanded_rpm <= 0.01;
+                let spindle_stopped =
+                    !spindle.enabled && spindle.actual_rpm <= 0.01 && spindle.commanded_rpm <= 0.01;
                 if spindle_was_active && spindle_stopped {
                     crate::message_log::record(
                         "информация",
