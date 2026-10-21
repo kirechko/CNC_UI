@@ -27,7 +27,7 @@ pub struct ControllerSnapshot {
 pub enum SpindleDirection {
     Off,
     CW,
-    CCW,
+    Ccw,
 }
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ enum Command {
     HomeAll,
     Home(Axis),
     Mdi(String),
-    ExecuteCommand(String, mpsc::Sender<CncResult<String>>),
+    Execute(String, mpsc::Sender<CncResult<String>>),
     Spindle(SpindleCommand),
     JogIncrement(crate::cnc_api::JogRequest),
     JogContinuous(Axis, i8, f64),
@@ -208,7 +208,7 @@ impl CNCController {
             Command::HomeAll => "HomeAll".into(),
             Command::Home(axis) => format!("Home {axis:?}"),
             Command::Mdi(command) => format!("MDI: {command}"),
-            Command::ExecuteCommand(command, _) => format!("Команда станка: {command}"),
+            Command::Execute(command, _) => format!("Команда станка: {command}"),
             Command::Spindle(command) => match command.direction {
                 ApiSpindleDirection::Stopped => {
                     format!("Шпиндель: команда остановки, задано {:.0} RPM", command.rpm)
@@ -343,7 +343,7 @@ impl CNCController {
         self.command_cancel_requested
             .store(false, Ordering::Release);
         let (reply_sender, reply_receiver) = mpsc::channel();
-        self.enqueue(Command::ExecuteCommand(
+        self.enqueue(Command::Execute(
             command.trim().to_string(),
             reply_sender,
         ));
@@ -390,7 +390,7 @@ impl CNCController {
 
         let direction = match direction {
             SpindleDirection::CW => ApiSpindleDirection::Clockwise,
-            SpindleDirection::CCW => ApiSpindleDirection::CounterClockwise,
+            SpindleDirection::Ccw => ApiSpindleDirection::CounterClockwise,
             SpindleDirection::Off => ApiSpindleDirection::Stopped,
         };
         self.enqueue(Command::Spindle(SpindleCommand { direction, rpm }));
@@ -626,7 +626,7 @@ fn api_worker(
         match receiver.recv_timeout(Duration::from_millis(10)) {
             Ok(command) => {
                 let command = match command {
-                    Command::ExecuteCommand(command, reply) => {
+                    Command::Execute(command, reply) => {
                         let result = runtime.block_on(
                             api.execute_command(&command, command_cancel_requested.clone()),
                         );
@@ -679,7 +679,7 @@ fn api_worker(
                     Command::HomeAll => api.home(None).await,
                     Command::Home(axis) => api.home(Some(axis)).await,
                     Command::Mdi(command) => api.mdi(&command).await,
-                    Command::ExecuteCommand(_, reply) => {
+                    Command::Execute(_, reply) => {
                         let error = crate::cnc_api::ControllerError::new(
                             "internal",
                             "command dispatch invariant violated",

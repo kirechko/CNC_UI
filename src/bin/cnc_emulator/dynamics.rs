@@ -74,6 +74,17 @@ struct ArcMotion {
     end_z: f64,
 }
 
+pub(super) struct ArcMoveParameters {
+    pub(super) start: [f64; 5],
+    pub(super) end: [f64; 5],
+    pub(super) center_x: f64,
+    pub(super) center_y: f64,
+    pub(super) radius: f64,
+    pub(super) start_angle: f64,
+    pub(super) sweep: f64,
+    pub(super) feed_mm_min: f64,
+}
+
 pub(super) struct ActiveMove {
     start: [f64; 5],
     target: [f64; 5],
@@ -100,16 +111,19 @@ impl ActiveMove {
     }
 
     pub(super) fn from_arc(
-        start: [f64; 5],
-        end: [f64; 5],
-        center_x: f64,
-        center_y: f64,
-        radius: f64,
-        start_angle: f64,
-        sweep: f64,
-        feed_mm_min: f64,
+        parameters: ArcMoveParameters,
         config: &EmulatorConfig,
     ) -> Result<Self, WireError> {
+        let ArcMoveParameters {
+            start,
+            end,
+            center_x,
+            center_y,
+            radius,
+            start_angle,
+            sweep,
+            feed_mm_min,
+        } = parameters;
         let planar_length = radius * sweep.abs();
         let dz = end[2] - start[2];
         let distance = (planar_length * planar_length + dz * dz).sqrt();

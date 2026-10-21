@@ -1,20 +1,34 @@
 //! Validates motion targets and creates linear or circular emulator moves.
-use super::super::dynamics::ActiveMove;
+use super::super::dynamics::{ActiveMove, ArcMoveParameters};
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
 use std::f64::consts::PI;
 
+pub(super) struct MotionWords {
+    pub(super) code: i32,
+    pub(super) x: Option<f64>,
+    pub(super) y: Option<f64>,
+    pub(super) z: Option<f64>,
+    pub(super) a: Option<f64>,
+    pub(super) b: Option<f64>,
+    pub(super) i: Option<f64>,
+    pub(super) j: Option<f64>,
+}
+
 pub(super) fn execute_motion(
     emulator: &mut Emulator,
-    code: i32,
-    x_word: Option<f64>,
-    y_word: Option<f64>,
-    z_word: Option<f64>,
-    a_word: Option<f64>,
-    b_word: Option<f64>,
-    i_word: Option<f64>,
-    j_word: Option<f64>,
+    words: MotionWords,
 ) -> Result<(), WireError> {
+    let MotionWords {
+        code,
+        x: x_word,
+        y: y_word,
+        z: z_word,
+        a: a_word,
+        b: b_word,
+        i: i_word,
+        j: j_word,
+    } = words;
     let current = emulator.position_array();
     let offset = [
         emulator.status.work_offset.x,
@@ -101,14 +115,16 @@ pub(super) fn execute_motion(
         }
 
         emulator.active_move = Some(ActiveMove::from_arc(
-            current,
-            target,
-            center_x,
-            center_y,
-            radius_start,
-            start_angle,
-            sweep,
-            emulator.status.feed_rate,
+            ArcMoveParameters {
+                start: current,
+                end: target,
+                center_x,
+                center_y,
+                radius: radius_start,
+                start_angle,
+                sweep,
+                feed_mm_min: emulator.status.feed_rate,
+            },
             &emulator.config,
         )?);
         emulator.active_move_is_rapid = false;
