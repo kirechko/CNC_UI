@@ -2630,6 +2630,8 @@
       let toolSpindleRpm = 0;
       let toolRotationPhase = 0;
       let currentProgramLine = 0;
+      let lastArcDiagnosticLine = null;
+      let lastArcDiagnosticAt = 0;
 
 
 
@@ -2664,6 +2666,42 @@
 
       function drawToolpath() {
         sceneViewer.draw();
+      }
+
+      function traceArcPosition(status) {
+        const line = Number(status?.current_line) || 0;
+        const activeArcSegments = loadedProgram?.segments?.filter(
+          (segment) =>
+            segment.programLine === line &&
+            (segment.type === "arc-cw" || segment.type === "arc-ccw"),
+        ) || [];
+
+        if (activeArcSegments.length === 0) {
+          lastArcDiagnosticLine = null;
+          lastArcDiagnosticAt = 0;
+          return;
+        }
+
+        const now = performance.now();
+        const lineChanged = line !== lastArcDiagnosticLine;
+        if (!lineChanged && now - lastArcDiagnosticAt < 1000) return;
+
+        console.info("[ARC DIAG] browser position sample", {
+          line,
+          motion: activeArcSegments[0].type,
+          state: status.state,
+          statusPosition: {
+            x: status.x,
+            y: status.y,
+            z: status.z,
+          },
+          toolPosition: [...toolPosition],
+          intervalMs: lastArcDiagnosticAt
+            ? Math.round(now - lastArcDiagnosticAt)
+            : null,
+        });
+        lastArcDiagnosticLine = line;
+        lastArcDiagnosticAt = now;
       }
 
       const toolAnimation = initToolAnimation({
@@ -3013,6 +3051,7 @@
           toolPosition[0] = Number(status.x) || 0;
           toolPosition[1] = Number(status.y) || 0;
           toolPosition[2] = Number(status.z) || 0;
+          traceArcPosition(status);
           toolSpindleRpm = Math.max(0, Number(status.spindle_rpm) || 0);
           toolAnimation.sync();
           drawToolpath();
