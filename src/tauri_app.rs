@@ -171,7 +171,6 @@ fn set_spindle(
     enabled: bool,
     direction: String,
 ) -> Result<(), String> {
-
     let controller = state
         .controller
         .lock()

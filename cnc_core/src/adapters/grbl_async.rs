@@ -1,8 +1,8 @@
 use crate::{
-    Axis, AxisConfiguration, AxisUnits, CncResult, ControllerError, CoordinateSystem,
-    InterpreterState, JogRequest, CncApi, MachineAxis, MachineConfiguration, MachineStatus,
-    Position, SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode,
-    TaskState,
+    discovery::{DiscoveredDevice, DiscoveryTransport},
+    Axis, AxisConfiguration, AxisUnits, CncApi, CncResult, ControllerError, CoordinateSystem,
+    InterpreterState, JogRequest, MachineAxis, MachineConfiguration, MachineStatus, Position,
+    SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode, TaskState,
 };
 use std::{
     collections::HashMap,
@@ -57,6 +57,7 @@ pub struct GrblAdapter {
     // Tokio mutex сериализует полные транзакции GRBL, включая ожидание I/O,
     // не блокируя поток runtime во время await.
     session: Mutex<Session>,
+    serial_endpoint: String,
 }
 
 async fn wait_for_command_cancellation(cancellation: Arc<AtomicBool>) {
@@ -73,8 +74,16 @@ impl GrblAdapter {
         let port = tokio_serial::new(port_name, baud_rate)
             .open_native_async()
             .map_err(|error| ControllerError::new("connect", error.to_string()))?;
+        let endpoint_path = std::fs::canonicalize(port_name)
+            .unwrap_or_else(|_| std::path::PathBuf::from(port_name));
+        let serial_endpoint = endpoint_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(port_name)
+            .to_string();
 
         Ok(Self {
+            serial_endpoint,
             session: Mutex::new(Session {
                 port,
                 program: Vec::new(),
@@ -153,7 +162,9 @@ impl GrblAdapter {
             let mut chunk = [0_u8; 256];
             let bytes_read = timeout(read_timeout, port.read(&mut chunk))
                 .await
-                .map_err(|_| ControllerError::new("timeout", "timed out waiting for GRBL response"))?
+                .map_err(|_| {
+                    ControllerError::new("timeout", "timed out waiting for GRBL response")
+                })?
                 .map_err(|error| ControllerError::new("io", error.to_string()))?;
             if bytes_read == 0 {
                 return Err(ControllerError::new(
@@ -998,6 +1009,21 @@ impl GrblAdapter {
 
 #[async_trait::async_trait]
 impl CncApi for GrblAdapter {
+    fn discovered_devices(&self) -> Vec<DiscoveredDevice> {
+        vec![DiscoveredDevice {
+            id: format!("grbl:serial:{}", self.serial_endpoint),
+            protocol: "GRBL".into(),
+            machine_name: None,
+            version: None,
+            transport: DiscoveryTransport::Serial,
+            endpoint: self.serial_endpoint.clone(),
+        }]
+    }
+
+    fn connected_device_id(&self) -> Option<String> {
+        Some(format!("grbl:serial:{}", self.serial_endpoint))
+    }
+
     async fn status(&self) -> CncResult<MachineStatus> {
         let mut session = self.session.lock().await;
         let response = Self::query_status(&mut session).await?;
@@ -1307,7 +1333,10 @@ impl CncApi for GrblAdapter {
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
 
         if cancellation.load(Ordering::Acquire) {
-            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+            return Err(ControllerError::new(
+                "command_cancelled",
+                "Команда отменена.",
+            ));
         }
 
         if command.trim() == "$$" {

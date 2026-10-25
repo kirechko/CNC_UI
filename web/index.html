@@ -13,7 +13,7 @@
         --font-size-sm: 12px;
         --font-size-md: 14px;
         --font-size-lg: 16px;
-        --font-size-coordinate: 22.5px;
+        --font-size-coordinate: 22px;
         font-family: var(--font-ui);
         background: #111416;
         color: #e7ecee;
@@ -100,7 +100,7 @@
         border-radius: 9px;
         background: #182b34;
         color: var(--accent-bright);
-        font-size: 17px;
+        font-size: 18px;
         font-weight: 800;
       }
 
@@ -138,6 +138,13 @@
         box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
       }
 
+      .connection-chip-button {
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .connection-chip-button:hover { filter: brightness(1.12); }
+
       .connection-chip.connection-online {
         border-color: rgb(100 201 154 / 35%);
         background: rgb(100 201 154 / 8%);
@@ -149,6 +156,34 @@
         background: rgb(235 116 116 / 8%);
         color: var(--red);
       }
+
+      .machines-dialog {
+        width: min(390px, calc(100vw - 32px));
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: #e7ecee;
+        box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+      }
+
+      .machines-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+      .machines-dialog-content { display: grid; gap: 14px; padding: 18px; }
+      .machines-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .machines-dialog-heading h2 { margin: 0; font-size: 16px; }
+      .machines-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+      .machines-dialog-actions button { display: grid; place-items: center; width: 34px; min-width: 34px; min-height: 32px; padding: 6px; }
+      .machines-dialog-actions button svg { width: 17px; height: 17px; }
+      #machines-refresh.searching svg { animation: machines-refresh-spin 1s linear infinite; }
+      @keyframes machines-refresh-spin { to { transform: rotate(360deg); } }
+      .machines-list { display: grid; gap: 7px; max-height: min(50vh, 360px); overflow-y: auto; }
+      .machine-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px; color: #b8c2c5; font: 12px var(--font-mono); }
+      .machine-entry.connected { border-color: rgb(100 201 154 / 55%); background: rgb(100 201 154 / 12%); color: var(--green); }
+      .machine-entry-details { display: grid; gap: 4px; min-width: 0; }
+      .machine-entry-endpoint { overflow-wrap: anywhere; }
+      .machine-entry-meta { color: var(--muted); font: 11px var(--font-ui); }
+      .machines-empty { margin: 0; color: var(--muted); font-size: 12px; }
+      .machines-dialog-close { min-width: 34px; min-height: 30px; }
 
       .header-state { min-width: 56px; }
 
@@ -269,7 +304,7 @@
         border: 1px solid var(--border);
         border-radius: 6px;
         background: #171c1f;
-        font-size: 11px;
+        font-size: 12px;
       }
 
       .position-panel-heading .section-heading {
@@ -285,7 +320,7 @@
         flex: 0 0 54px;
         min-height: 26px;
         padding: 0 3px;
-        font-size: 9px;
+        font-size: 10px;
       }
 
       .coordinate-select {
@@ -342,7 +377,7 @@
       .dro-header {
         margin: 1px 0 7px;
         color: var(--muted);
-        font-size: 9px;
+        font-size: 10px;
         font-weight: 650;
         letter-spacing: 0.09em;
         text-align: right;
@@ -387,7 +422,7 @@
       }
 
       .axis-label {
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 800;
       }
 
@@ -457,7 +492,7 @@
         gap: 6px;
         border-color: #b87333;
         color: #b9c3c6;
-        font-size: 17.5px;
+        font-size: 18px;
       }
 
       .position-actions button:hover:not(:disabled) {
@@ -491,7 +526,7 @@
       .position-meta strong {
         color: #d8e0e2;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 600;
       }
 
@@ -517,8 +552,8 @@
         padding: 18px;
       }
 
-      .position-dialog h2 { margin: 0; font-size: 15px; }
-      .position-dialog label { color: var(--muted); font-size: 11px; }
+      .position-dialog h2 { margin: 0; font-size: 16px; }
+      .position-dialog label { color: var(--muted); font-size: 12px; }
       .position-dialog input {
         min-height: 42px;
         padding: 0 10px;
@@ -535,7 +570,7 @@
         gap: 7px;
       }
 
-      .position-dialog-actions button { min-height: 38px; font-size: 11px; }
+      .position-dialog-actions button { min-height: 38px; font-size: 12px; }
       .position-dialog-actions .primary { border-color: #287eaa; background: #1d5f80; }
 
       .jog-mode-switch {
@@ -849,7 +884,7 @@
       .jog-button.z:hover:not(:disabled) { border-color: #4d9bc2; }
       .jog-button.center {
         color: var(--muted);
-        font-size: 9px;
+        font-size: 10px;
         letter-spacing: 0.04em;
       }
 
@@ -974,7 +1009,7 @@
         border-radius: 5px;
         background: #151a1d;
         color: #e7ecee;
-        font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
       }
 
       .spindle-manual-speed-control button {
@@ -990,7 +1025,7 @@
         border-color: transparent;
         background: transparent;
         color: #c8d1d4;
-        font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
         text-align: right;
       }
 
@@ -1081,7 +1116,7 @@
       }
 
       .spindle-toggle-value {
-        font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
         font-variant-numeric: tabular-nums;
       }
 
@@ -1121,7 +1156,7 @@
         border-radius: 6px;
         background: #151a1d;
         color: #e7ecee;
-        font: 11px var(--font-mono);
+        font: 12px var(--font-mono);
       }
 
       .machine-console textarea {
@@ -1233,7 +1268,7 @@
         padding: 16px;
       }
 
-      .command-history-content h2 { margin: 0; font-size: 15px; }
+      .command-history-content h2 { margin: 0; font-size: 16px; }
 
       .command-history-content input {
         min-height: 36px;
@@ -1249,7 +1284,7 @@
         min-height: 38px;
         overflow-wrap: anywhere;
         color: var(--muted);
-        font: 11px/1.5 var(--font-mono);
+        font: 12px/1.5 var(--font-mono);
       }
 
       .command-history-actions {
@@ -1290,7 +1325,7 @@
         border-bottom: 1px solid var(--border);
       }
 
-      .program-editor-heading h2 { margin: 0; font-size: 15px; }
+      .program-editor-heading h2 { margin: 0; font-size: 16px; }
 
       .program-editor-toolbar {
         display: flex;
@@ -1462,7 +1497,7 @@
         padding: 0 13px;
         border-top: 1px solid var(--border);
         color: var(--muted);
-        font-size: 9px;
+        font-size: 10px;
       }
 
       .viewer-message-summary {
@@ -1545,7 +1580,7 @@
         gap: 12px;
       }
 
-      .message-log-text-heading h2 { margin: 0; font-size: 15px; }
+      .message-log-text-heading h2 { margin: 0; font-size: 16px; }
 
       .message-log-text-content textarea {
         width: 100%;
@@ -1555,7 +1590,7 @@
         border-radius: 6px;
         background: #151a1d;
         color: #e7ecee;
-        font: 11px/1.5 var(--font-mono);
+        font: 12px/1.5 var(--font-mono);
         resize: none;
       }
 
@@ -1577,10 +1612,10 @@
         border-bottom: 1px solid var(--border);
       }
 
-      .message-log-heading h2 { margin: 0; font-size: 15px; }
+      .message-log-heading h2 { margin: 0; font-size: 16px; }
 
       .message-log-heading > button {
-        font-size: 15px;
+        font-size: 16px;
         font-weight: 700;
       }
 
@@ -1614,7 +1649,7 @@
         border-radius: 6px;
         background: #151a1d;
         color: #e7ecee;
-        font-size: 11px;
+        font-size: 12px;
         text-align: left;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -1761,7 +1796,7 @@
         background: #151a1d;
         color: #e7ecee;
         font-family: inherit;
-        font-size: 11px;
+        font-size: 12px;
       }
 
       .message-log-table-wrap { overflow: auto; min-height: 200px; }
@@ -1770,7 +1805,7 @@
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
-        font-size: 11px;
+        font-size: 12px;
       }
 
       .message-log-table th,
@@ -1861,7 +1896,7 @@
       .job-note {
         margin: 10px 0 0;
         color: var(--muted);
-        font-size: 9px;
+        font-size: 10px;
         line-height: 1.5;
       }
 
@@ -1897,7 +1932,7 @@
         text-align: center;
       }
 
-      .sidebar-empty strong { color: #c0c9cc; font-size: 11px; }
+      .sidebar-empty strong { color: #c0c9cc; font-size: 12px; }
       .sidebar-empty span { font-size: 10px; line-height: 1.55; }
 
       .right-column > .machine-console-panel {
@@ -1919,7 +1954,7 @@
         border-radius: 7px;
         background: rgb(113 83 27 / 12%);
         color: #dfc98e;
-        font-size: 9px;
+        font-size: 10px;
         line-height: 1.5;
       }
 
@@ -1956,7 +1991,7 @@
         .machine-chip { font-size: 10px; }
         .app-main { padding: 4px 4px 8px; }
         .panel-body { padding: 11px; }
-        .axis-value { font-size: 13px; }
+        .axis-value { font-size: 14px; }
       }
     </style>
   </head>
@@ -1971,13 +2006,33 @@
       </div>
 
       <div class="header-status">
-        <div class="machine-chip connection-chip">
+        <button class="machine-chip connection-chip connection-chip-button" id="connection-machines-button" type="button" aria-haspopup="dialog" aria-controls="machines-dialog" title="Показать обнаруженные станки">
           <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
           <span id="connection">Подключение…</span>
-        </div>
+        </button>
         <div class="machine-chip header-state" id="state">—</div>
       </div>
     </header>
+
+    <dialog class="machines-dialog" id="machines-dialog" aria-labelledby="machines-dialog-title">
+      <section class="machines-dialog-content">
+        <div class="machines-dialog-heading">
+          <h2 id="machines-dialog-title">Обнаруженные станки</h2>
+          <button class="machines-dialog-close" id="machines-dialog-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="machines-dialog-actions">
+          <button id="machines-refresh" type="button" title="Запустить новый поиск станков" aria-label="Запустить новый поиск станков">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 7v5h-5"></path>
+              <path d="M19 12a7 7 0 1 1-2-5"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="machines-list" id="machines-list" aria-live="polite">
+          <p class="machines-empty">Загрузка списка…</p>
+        </div>
+      </section>
+    </dialog>
 
     <main class="app-main">
       <aside class="left-column" aria-label="Управление станком">
@@ -2568,6 +2623,9 @@
         onChange: () => messageLog.refresh(),
       });
       const connectionChip = document.querySelector(".connection-chip");
+      const machinesDialog = document.querySelector("#machines-dialog");
+      const machinesList = document.querySelector("#machines-list");
+      const machinesRefreshButton = document.querySelector("#machines-refresh");
       const connectionDot = document.querySelector("#connection-dot");
       const state = document.querySelector("#state");
       const feedback = document.querySelector("#message");
@@ -2586,6 +2644,105 @@
       let xyJogStepValues = [0.1, 1, 10, 100];
       let zJogStepValues = [0.1, 1, 10, 100];
 
+
+      function renderDiscoveredMachines(payload) {
+        machinesList.replaceChildren();
+        const machines = Array.isArray(payload?.machines) ? payload.machines : [];
+        if (!machines.length) {
+          const empty = document.createElement("p");
+          empty.className = "machines-empty";
+          empty.textContent = "Станки пока не обнаружены.";
+          machinesList.append(empty);
+          return;
+        }
+        for (const machine of machines) {
+          const row = document.createElement("div");
+          row.className = `machine-entry${machine.connected ? " connected" : ""}`;
+          const details = document.createElement("div");
+          details.className = "machine-entry-details";
+          const endpoint = document.createElement("span");
+          endpoint.className = "machine-entry-endpoint";
+          endpoint.textContent = machine.address;
+          const system = document.createElement("span");
+          system.className = "machine-entry-meta";
+          const identity = [machine.protocol, machine.version].filter(Boolean).join(" ");
+          const machineName = String(machine.machine_name || "").trim();
+          const endpointName = String(machine.address || "").split(/[/:]/).filter(Boolean).pop();
+          const transportName = machine.transport === "serial"
+            ? (endpointName || "serial")
+            : machine.transport || "";
+          system.textContent = [machineName, identity, transportName].filter(Boolean).join(" · ") || "Контроллер не определён";
+          const label = document.createElement("span");
+          label.className = "machine-entry-meta";
+          label.textContent = machine.connected ? "Подключено" : "Обнаружен";
+          details.append(endpoint, system);
+          row.append(details, label);
+          machinesList.append(row);
+        }
+      }
+
+      async function loadDiscoveredMachines({ refresh = false } = {}) {
+        machinesRefreshButton.disabled = refresh;
+        if (refresh) machinesRefreshButton.classList.add("searching");
+        machinesList.replaceChildren();
+        const loading = document.createElement("p");
+        loading.className = "machines-empty";
+        loading.textContent = refresh ? "Выполняется новый поиск станков…" : "Загрузка списка…";
+        machinesList.append(loading);
+        try {
+          const response = await fetch("/api/discovered-machines", {
+            method: refresh ? "POST" : "GET",
+            cache: "no-store",
+          });
+          if (!response.ok) {
+            const details = await response.text();
+            throw new Error(details || `HTTP ${response.status}`);
+          }
+          if (!refresh) {
+            renderDiscoveredMachines(await response.json());
+            return;
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const events = buffer.split("\n\n");
+            buffer = events.pop() || "";
+            for (const rawEvent of events) {
+              const data = rawEvent.split("\n")
+                .filter((line) => line.startsWith("data:"))
+                .map((line) => line.slice(5).trim())
+                .join("\n");
+              if (data) renderDiscoveredMachines(JSON.parse(data));
+            }
+          }
+        } catch (error) {
+          machinesList.replaceChildren();
+          const message = document.createElement("p");
+          message.className = "machines-empty";
+          message.textContent = `Не удалось получить список: ${error.message}`;
+          machinesList.append(message);
+        } finally {
+          machinesRefreshButton.disabled = false;
+          machinesRefreshButton.classList.remove("searching");
+        }
+      }
+
+      async function openMachinesDialog() {
+        machinesDialog.showModal();
+        await loadDiscoveredMachines();
+      }
+
+      document.querySelector("#connection-machines-button").addEventListener("click", openMachinesDialog);
+      machinesRefreshButton.addEventListener("click", () => loadDiscoveredMachines({ refresh: true }));
+      document.querySelector("#machines-dialog-close").addEventListener("click", () => machinesDialog.close());
+      machinesDialog.addEventListener("click", (event) => {
+        if (event.target === machinesDialog) machinesDialog.close();
+      });
 
       const legacyJogStepValues = loadJogStepValues(
         "cnc-ui-jog-steps",

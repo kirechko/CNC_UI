@@ -1,11 +1,11 @@
 //! Starts the CNC emulator, loads configuration, and accepts client connections.
 use cnc_core as cnc_api;
-#[path = "../message_log.rs"]
-mod message_log;
 #[path = "cnc_emulator/config.rs"]
 mod config;
 #[path = "cnc_emulator/gcode.rs"]
 mod gcode;
+#[path = "../message_log.rs"]
+mod message_log;
 #[path = "cnc_emulator/state.rs"]
 mod state;
 use state::Emulator;

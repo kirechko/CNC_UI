@@ -1,4 +1,4 @@
- //! Parses letter-number words from a G-code line without changing machine state.
+//! Parses letter-number words from a G-code line without changing machine state.
 pub fn parse_words(line: &str) -> Vec<(char, f64)> {
     let chars: Vec<char> = line.chars().collect();
     let mut words = Vec::new();

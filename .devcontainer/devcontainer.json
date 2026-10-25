@@ -1,0 +1,40 @@
+{
+    "name": "CNC UI Dev Environment",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "runArgs": ["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"],
+    
+    // Монтируем SSH ключи для доступа к GitHub
+    "mounts": [
+        "source=${localEnv:HOME}/.ssh,target=/home/kirechko/.ssh,type=bind,consistency=cached"
+    ],
+    
+    // Пробрасываем порт для веб-интерфейса CNC UI
+    "forwardPorts": [8080],
+    "portsAttributes": {
+        "8080": {
+            "label": "CNC UI web interface",
+            "onAutoForward": "notify"
+        }
+    },
+    
+    // Устанавливаем расширения VS Code автоматически
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rooveterinaryinc.roo-cline",
+                "rust-lang.rust-analyzer",
+                "ms-python.python"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash"
+            }
+        }
+    },
+    
+    // Команды после создания контейнера
+    "postCreateCommand": "git config --global --add safe.directory /workspace && echo 'Container ready!'",
+    
+    "remoteUser": "kirechko"
+}

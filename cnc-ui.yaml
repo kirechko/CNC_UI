@@ -15,6 +15,13 @@ grbl:
   serial_port: /dev/serial/by-id/REPLACE_WITH_CONTROLLER_ID
   baud_rate: 115200
 
-# Пример адреса FluidNC (для будущей реализации адаптера).
+# Параметры FluidNC. Значения времени задаются в миллисекундах.
 fluidnc:
+  # Дополнительные IPv4-хосты или сети для автообнаружения: хост либо CIDR /24 или уже.
+  discovery_port: []
   base_url: http://192.168.0.10
+  websocket_rx_buffer_bytes: 128
+  websocket_max_line_len: 80
+  websocket_ack_timeout_ms: 2000
+  websocket_status_timeout_ms: 1000
+  websocket_connect_timeout_ms: 5000

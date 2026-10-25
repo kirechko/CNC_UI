@@ -1,10 +1,9 @@
-# Проверка FluidNC через WebSocket:
+# Проверка веб-интерфейса с платой ESP32 FluidNC на тестовой локальной сети.
+# Этот профиль не меняет cnc-ui.yaml и стандартный backend эмулятора.
 backend: fluid_nc_web_socket
 fluidnc:
-  # Укажите точный адрес WebSocket из DevTools браузера:
-  # Network → WS → выберите соединение с FluidNC.
-  # Например, если соединение WebUI идёт на ws://192.168.0.10/:
-  websocket_url: "ws://192.168.0.10/"
+  # Optional IPv4 hosts or CIDRs; CIDRs must be /24 or narrower.
+  discovery_port: []
 
   # Эти параметры используются только при backend: fluid_nc_rs232.
   serial_port: "/dev/serial/by-id/REPLACE_WITH_CONTROLLER_ID"

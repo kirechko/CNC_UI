@@ -6,7 +6,6 @@ mod message_log;
 mod tauri_app;
 mod web_server;
 
-
 fn main() {
     if std::env::args().any(|arg| arg == "--web") {
         let runtime = tokio::runtime::Builder::new_multi_thread()

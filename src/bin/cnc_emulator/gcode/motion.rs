@@ -15,10 +15,7 @@ pub(super) struct MotionWords {
     pub(super) j: Option<f64>,
 }
 
-pub(super) fn execute_motion(
-    emulator: &mut Emulator,
-    words: MotionWords,
-) -> Result<(), WireError> {
+pub(super) fn execute_motion(emulator: &mut Emulator, words: MotionWords) -> Result<(), WireError> {
     let MotionWords {
         code,
         x: x_word,

@@ -60,6 +60,25 @@ pub(crate) struct LogPage {
     pub(crate) total: i64,
 }
 
+#[derive(Serialize)]
+struct DiscoveredMachinesResponse {
+    machines: Vec<DiscoveredMachine>,
+    connected_address: Option<String>,
+}
+
+#[derive(Serialize)]
+struct DiscoveredMachine {
+    id: String,
+    protocol: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    machine_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    transport: String,
+    address: String,
+    connected: bool,
+}
+
 #[derive(Clone, Serialize)]
 pub(crate) struct LoadedProgram {
     pub(crate) name: String,
@@ -120,7 +139,13 @@ impl AppState {
                      command TEXT NOT NULL
                  );
                  CREATE INDEX IF NOT EXISTS command_history_id
-                     ON command_history(id DESC);",
+                     ON command_history(id DESC);
+                 CREATE TABLE IF NOT EXISTS discovered_machine_cache (
+                     endpoint TEXT PRIMARY KEY,
+                     last_seen_ms INTEGER NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS discovered_machine_cache_last_seen
+                     ON discovered_machine_cache(last_seen_ms DESC);",
             )
             .map_err(|error| startup_error(format!("cannot initialize message log: {error}")))?;
         Ok(connection)
@@ -187,6 +212,51 @@ impl AppState {
                 eprintln!("Could not prune message log: {error}");
             }
         }
+    }
+
+    fn cached_discovery_endpoints(&self) -> Result<Vec<String>, String> {
+        let connection = self
+            .log
+            .lock()
+            .map_err(|_| "message log lock poisoned".to_string())?;
+        let mut statement = connection
+            .prepare(
+                "SELECT endpoint FROM discovered_machine_cache ORDER BY last_seen_ms DESC LIMIT 10",
+            )
+            .map_err(|error| error.to_string())?;
+        let endpoints = statement
+            .query_map([], |row| row.get(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<String>, _>>()
+            .map_err(|error| error.to_string());
+        endpoints
+    }
+
+    fn cache_discovered_endpoint(&self, endpoint: &str) -> Result<(), String> {
+        let connection = self
+            .log
+            .lock()
+            .map_err(|_| "message log lock poisoned".to_string())?;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(i64::MAX as u128) as i64;
+        connection
+            .execute(
+                "INSERT INTO discovered_machine_cache (endpoint, last_seen_ms) VALUES (?1, ?2)
+                 ON CONFLICT(endpoint) DO UPDATE SET last_seen_ms = excluded.last_seen_ms",
+                params![endpoint, now_ms],
+            )
+            .map_err(|error| error.to_string())?;
+        connection
+            .execute(
+                "DELETE FROM discovered_machine_cache WHERE endpoint NOT IN
+                 (SELECT endpoint FROM discovered_machine_cache ORDER BY last_seen_ms DESC LIMIT 10)",
+                [],
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
     }
 
     pub(crate) fn latest_log_messages(&self) -> Result<LatestLogMessages, String> {
@@ -584,7 +654,29 @@ impl AppState {
 
 impl AppState {
     pub(crate) fn new() -> io::Result<Self> {
-        let controller = create_controller()?;
+        let cache_db = Self::open_log()?;
+        cache_db
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS discovered_machine_cache (
+                endpoint TEXT PRIMARY KEY,
+                last_seen_ms INTEGER NOT NULL
+            );",
+            )
+            .map_err(|error| {
+                startup_error(format!("cannot initialize discovery cache: {error}"))
+            })?;
+        let priority_targets = (|| -> Result<Vec<String>, rusqlite::Error> {
+            let mut statement = cache_db.prepare(
+                "SELECT endpoint FROM discovered_machine_cache ORDER BY last_seen_ms DESC LIMIT 10",
+            )?;
+            let endpoints = statement
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(endpoints)
+        })()
+        .unwrap_or_default();
+        drop(cache_db);
+        let controller = create_controller_with_priority(priority_targets)?;
         let command_cancel_requested = controller.command_cancellation_handle();
         let motion_stop_requested = controller.motion_stop_handle();
         let state = Self {
@@ -773,7 +865,6 @@ async fn set_spindle(
     State(state): State<SharedController>,
     Json(request): Json<SpindleRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-
     let controller = state.controller.lock().map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1097,7 +1188,7 @@ fn startup_error(message: impl Into<String>) -> io::Error {
     io::Error::other(message.into())
 }
 
-pub(crate) fn create_controller() -> io::Result<CNCController> {
+fn create_controller_with_priority(priority_targets: Vec<String>) -> io::Result<CNCController> {
     let config_path = std::env::var_os("CNC_UI_CONFIG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("cnc-ui.yaml"));
@@ -1134,12 +1225,30 @@ pub(crate) fn create_controller() -> io::Result<CNCController> {
             )
             .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
         ),
-        crate::config::Backend::FluidNcWebSocket => Arc::new(
-            cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect(
-                config.fluidnc.websocket_url.clone(),
+        crate::config::Backend::FluidNcWebSocket => {
+            let fluidnc_config = &config.fluidnc;
+            let adapter_config = cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketConfig {
+                discovery_port: fluidnc_config.discovery_port.clone(),
+                rx_buffer_bytes: fluidnc_config.websocket_rx_buffer_bytes,
+                max_line_len: fluidnc_config.websocket_max_line_len,
+                ack_timeout: std::time::Duration::from_millis(
+                    fluidnc_config.websocket_ack_timeout_ms,
+                ),
+                status_timeout: std::time::Duration::from_millis(
+                    fluidnc_config.websocket_status_timeout_ms,
+                ),
+                connect_timeout: std::time::Duration::from_millis(
+                    fluidnc_config.websocket_connect_timeout_ms,
+                ),
+            };
+            Arc::new(
+                cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect_discovering_with_priority(
+                    adapter_config,
+                    priority_targets,
+                )
+                .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
             )
-            .map_err(|error| startup_error(format!("{}: {}", error.code, error.message)))?,
-        ),
+        }
     };
 
     CNCController::connect_with_api(api)
@@ -1173,6 +1282,180 @@ async fn get_status(
         }
     }
     Ok(Json(response))
+}
+
+async fn get_discovered_machines(
+    State(state): State<SharedController>,
+) -> Result<Json<DiscoveredMachinesResponse>, (StatusCode, String)> {
+    let (machines, connected_device_id) = {
+        let controller = state.controller.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "controller lock poisoned".into(),
+            )
+        })?;
+        let status = controller.get_status_snapshot();
+        let connected_device_id = status
+            .machine
+            .connected
+            .then(|| controller.connected_device_id())
+            .flatten();
+        (controller.discovered_devices(), connected_device_id)
+    };
+    for device in &machines {
+        if let Err(error) = state.cache_discovered_endpoint(&device.endpoint) {
+            eprintln!(
+                "Could not persist discovered endpoint {} from startup scan: {error}",
+                device.endpoint
+            );
+        }
+    }
+    Ok(discovered_machines_response(machines, connected_device_id))
+}
+
+async fn rediscover_machines(
+    State(state): State<SharedController>,
+) -> Result<
+    axum::response::sse::Sse<
+        std::pin::Pin<
+            Box<
+                dyn futures_util::Stream<
+                        Item = Result<axum::response::sse::Event, std::convert::Infallible>,
+                    > + Send,
+            >,
+        >,
+    >,
+    (StatusCode, String),
+> {
+    use axum::response::sse::{Event, Sse};
+    use futures_util::stream;
+    use std::convert::Infallible;
+
+    let (api, fallback_machines, connected_device_id) = {
+        let controller = state.controller.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "controller lock poisoned".to_string(),
+            )
+        })?;
+        let status = controller.get_status_snapshot();
+        let connected_device_id = status
+            .machine
+            .connected
+            .then(|| controller.connected_device_id())
+            .flatten();
+        (
+            controller.discovery_api(),
+            controller.discovered_devices(),
+            connected_device_id,
+        )
+    };
+    let priority_targets = state.cached_discovery_endpoints().unwrap_or_default();
+
+    let Some(api) = api else {
+        let payload = discovered_machines_response(fallback_machines, connected_device_id);
+        let event = Event::default()
+            .event("snapshot")
+            .json_data(payload.0)
+            .unwrap();
+        let events: std::pin::Pin<
+            Box<dyn futures_util::Stream<Item = Result<Event, Infallible>> + Send>,
+        > = Box::pin(stream::iter(vec![Ok(event)]));
+        return Ok(Sse::new(events));
+    };
+
+    let (sender, mut receiver) =
+        tokio::sync::mpsc::channel::<Result<cnc_core::discovery::DiscoveredDevice, String>>(32);
+    let state_for_stream = state.clone();
+    let api_for_stream = api.clone();
+    tokio::spawn(async move {
+        match api.rediscover_devices_stream(priority_targets).await {
+            Ok(mut discoveries) => {
+                while let Some(device) = discoveries.recv().await {
+                    if let Err(error) = state_for_stream.cache_discovered_endpoint(&device.endpoint)
+                    {
+                        eprintln!(
+                            "Could not persist discovered endpoint {}: {error}",
+                            device.endpoint
+                        );
+                    }
+                    if sender.send(Ok(device)).await.is_err() {
+                        return;
+                    }
+                }
+            }
+            Err(error) => {
+                eprintln!("Manual device rediscovery failed: {}", error.message);
+                let _ = sender.send(Err(error.message)).await;
+            }
+        }
+    });
+    let events = async_stream::stream! {
+        let mut machines = Vec::<cnc_core::discovery::DiscoveredDevice>::new();
+        while let Some(result) = receiver.recv().await {
+            let device = match result {
+                Ok(device) => device,
+                Err(error) => {
+                    let event = Event::default().event("error").data(error);
+                    yield Ok::<_, Infallible>(event);
+                    break;
+                }
+            };
+            if !machines.iter().any(|existing| existing.id == device.id) {
+                machines.push(device);
+            }
+            let response = discovered_machines_response(
+                machines.clone(),
+                api_for_stream.connected_device_id(),
+            );
+            let event = Event::default().event("machines").json_data(response.0).unwrap();
+            yield Ok::<_, Infallible>(event);
+        }
+        let response = discovered_machines_response(
+            machines,
+            api_for_stream.connected_device_id(),
+        );
+        let event = Event::default().event("complete").json_data(response.0).unwrap();
+        yield Ok::<_, Infallible>(event);
+    };
+    let events: std::pin::Pin<
+        Box<dyn futures_util::Stream<Item = Result<Event, Infallible>> + Send>,
+    > = Box::pin(events);
+    Ok(Sse::new(events).keep_alive(axum::response::sse::KeepAlive::default()))
+}
+
+fn discovered_machines_response(
+    machines: Vec<cnc_core::discovery::DiscoveredDevice>,
+    connected_device_id: Option<String>,
+) -> Json<DiscoveredMachinesResponse> {
+    let connected_address = connected_device_id.as_ref().and_then(|id| {
+        machines
+            .iter()
+            .find(|device| &device.id == id)
+            .map(|device| device.endpoint.clone())
+    });
+    Json(DiscoveredMachinesResponse {
+        machines: machines
+            .into_iter()
+            .map(|device| DiscoveredMachine {
+                connected: connected_device_id.as_deref() == Some(device.id.as_str()),
+                id: device.id,
+                protocol: device.protocol,
+                machine_name: device.machine_name,
+                version: device.version,
+                transport: match device.transport {
+                    cnc_core::discovery::DiscoveryTransport::WebSocket => "ws",
+                    cnc_core::discovery::DiscoveryTransport::Telnet => "telnet",
+                    cnc_core::discovery::DiscoveryTransport::Serial => "serial",
+                    cnc_core::discovery::DiscoveryTransport::UnixSocket => "unix",
+                    cnc_core::discovery::DiscoveryTransport::TcpSocket => "tcp",
+                }
+                .into(),
+                address: device.endpoint,
+            })
+            .collect(),
+        connected_address,
+    })
 }
 
 async fn cancel_machine_command(State(state): State<SharedController>) -> StatusCode {
@@ -1404,6 +1687,10 @@ pub async fn run() -> io::Result<()> {
         ServeDir::new(WEB_ROOT).fallback(ServeFile::new(format!("{WEB_ROOT}/index.html")));
     let app = Router::new()
         .route("/api/status", get(get_status))
+        .route(
+            "/api/discovered-machines",
+            get(get_discovered_machines).post(rediscover_machines),
+        )
         .route("/api/log", get(get_log).post(post_log_message))
         .route("/api/command", post(post_machine_command))
         .route("/api/command/cancel", post(cancel_machine_command))

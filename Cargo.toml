@@ -17,9 +17,12 @@ serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 axum = "0.7"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
+async-stream = "0.3"
+futures-util = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync"] }
 tower-http = { version = "0.5", features = ["fs"] }
 tauri = "2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

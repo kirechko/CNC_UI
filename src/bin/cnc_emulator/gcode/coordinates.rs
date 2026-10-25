@@ -80,10 +80,7 @@ pub(super) fn handle_g_word(emulator: &mut Emulator, value: f64) -> Result<GWord
     }
 }
 
-pub(super) fn handle_g10_l2(
-    emulator: &mut Emulator,
-    words: G10Words,
-) -> Result<(), WireError> {
+pub(super) fn handle_g10_l2(emulator: &mut Emulator, words: G10Words) -> Result<(), WireError> {
     let G10Words {
         l: l_word,
         p: p_word,

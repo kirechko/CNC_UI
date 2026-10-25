@@ -100,18 +100,28 @@ impl Default for GrblSettings {
 #[serde(default)]
 pub struct FluidNcSettings {
     pub base_url: String,
+    pub discovery_port: Vec<String>,
     pub serial_port: String,
     pub baud_rate: u32,
-    pub websocket_url: String,
+    pub websocket_rx_buffer_bytes: usize,
+    pub websocket_max_line_len: usize,
+    pub websocket_ack_timeout_ms: u64,
+    pub websocket_status_timeout_ms: u64,
+    pub websocket_connect_timeout_ms: u64,
 }
 
 impl Default for FluidNcSettings {
     fn default() -> Self {
         Self {
             base_url: "http://192.168.0.10".into(),
+            discovery_port: Vec::new(),
             serial_port: "/dev/serial/by-id/REPLACE_WITH_CONTROLLER_ID".into(),
             baud_rate: 115_200,
-            websocket_url: "ws://192.168.0.10:81/".into(),
+            websocket_rx_buffer_bytes: 128,
+            websocket_max_line_len: 80,
+            websocket_ack_timeout_ms: 2_000,
+            websocket_status_timeout_ms: 1_000,
+            websocket_connect_timeout_ms: 5_000,
         }
     }
 }

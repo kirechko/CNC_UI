@@ -1,9 +1,10 @@
-//! Defines the shared CNC API types, status models, and controller interface.
+//! Defines the shared CNC API types, status models, discovery, and controller interface.
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
 pub mod adapters;
+pub mod discovery;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Axis {
@@ -208,6 +209,7 @@ pub struct MachineStatus {
     pub homing: bool,
 }
 
+/// An error returned by a CNC controller or adapter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ControllerError {
     pub code: String,
@@ -221,6 +223,84 @@ impl ControllerError {
             message: message.into(),
         }
     }
+}
+
+/// Program input accepted by a controller adapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProgramSource {
+    /// A path interpreted according to the adapter's documented server/client semantics.
+    Path(std::path::PathBuf),
+    /// Inline G-code content. Adapters may reject this when the controller cannot receive it.
+    Inline(String),
+}
+
+/// CNC override channel to modify.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverrideKind {
+    /// Feed-rate override, expressed as a percentage.
+    Feed,
+    /// Spindle-speed override, expressed as a percentage.
+    Spindle,
+    /// Rapid-traverse override, expressed as a percentage.
+    Rapid,
+}
+
+/// Coarse UI machine state used in state transition events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MachineState {
+    /// No active controller connection.
+    Disconnected,
+    /// Controller is idle and ready.
+    Idle,
+    /// Program execution or motion is running.
+    Run,
+    /// Motion is held or program execution is paused.
+    Hold,
+    /// Jog motion is active.
+    Jog,
+    /// Homing is active.
+    Home,
+    /// Controller reports an alarm condition.
+    Alarm,
+    /// Controller reports a door interlock condition.
+    Door,
+    /// Controller is in check/dry-run mode.
+    Check,
+    /// Controller is asleep.
+    Sleep,
+    /// The controller state is not recognized.
+    Unknown,
+}
+
+/// Event emitted by a CNC adapter for UI consumers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum CncEvent {
+    /// Transport connection was established.
+    Connected,
+    /// Transport connection was lost.
+    Disconnected { reason: String },
+    /// A fresh status snapshot was published.
+    StatusUpdate,
+    /// The coarse UI state changed.
+    StateChanged {
+        from: MachineState,
+        to: MachineState,
+    },
+    /// The acknowledged or reported program line changed.
+    ProgramLineChanged { line: u32 },
+    /// Program execution started.
+    ProgramStarted,
+    /// Program execution finished.
+    ProgramFinished,
+    /// Controller-reported alarm.
+    Alarm { code: String, message: String },
+    /// Adapter detected a protocol inconsistency.
+    ProtocolError { code: String, message: String },
+    /// Controller-reported override value changed.
+    OverrideChanged { kind: OverrideKind, value: f64 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -239,11 +319,113 @@ pub struct SpindleCommand {
     pub rpm: f64,
 }
 
+/// Result type shared by CNC adapters.
 pub type CncResult<T> = Result<T, ControllerError>;
 
+/// Return the coarse UI state represented by a controller status snapshot.
+pub fn machine_state(status: &MachineStatus) -> MachineState {
+    if !status.connected {
+        MachineState::Disconnected
+    } else if status.task_state == TaskState::Estop
+        || status
+            .message
+            .as_deref()
+            .is_some_and(|m| m.starts_with("ALARM:"))
+    {
+        MachineState::Alarm
+    } else if status.homing {
+        MachineState::Home
+    } else if status
+        .motion_mode
+        .as_deref()
+        .is_some_and(|mode| mode.eq_ignore_ascii_case("jog"))
+    {
+        MachineState::Jog
+    } else if status.interpreter_state == InterpreterState::Paused {
+        MachineState::Hold
+    } else if status.interpreter_state == InterpreterState::Reading {
+        MachineState::Run
+    } else if status.task_state == TaskState::On {
+        MachineState::Idle
+    } else {
+        MachineState::Unknown
+    }
+}
+
+/// Shared asynchronous control API implemented by CNC backends.
 #[async_trait::async_trait]
 pub trait CncApi: Send + Sync {
+    /// Query the controller and return its most recent complete status.
     async fn status(&self) -> CncResult<MachineStatus>;
+
+    /// Return endpoints found by automatic discovery, if this adapter supports it.
+    fn discovered_devices(&self) -> Vec<discovery::DiscoveredDevice> {
+        Vec::new()
+    }
+
+    /// Start a discovery pass and stream each result as it is found.
+    async fn rediscover_devices_stream(
+        &self,
+        _priority_targets: Vec<String>,
+    ) -> CncResult<tokio::sync::mpsc::Receiver<discovery::DiscoveredDevice>> {
+        let (sender, receiver) = tokio::sync::mpsc::channel(16);
+        for device in self.discovered_devices() {
+            if sender.send(device).await.is_err() {
+                break;
+            }
+        }
+        Ok(receiver)
+    }
+
+    /// Run a new device discovery pass, if supported by this adapter.
+    async fn rediscover_devices(&self) -> CncResult<Vec<discovery::DiscoveredDevice>> {
+        let mut receiver = self.rediscover_devices_stream(Vec::new()).await?;
+        let mut devices = Vec::new();
+        while let Some(device) = receiver.recv().await {
+            devices.push(device);
+        }
+        Ok(devices)
+    }
+
+    /// Stable identifier of the endpoint currently used by this adapter, when known.
+    fn connected_device_id(&self) -> Option<String> {
+        None
+    }
+
+    /// Return a nonblocking copy of the most recently published status, when supported.
+    fn last_status(&self) -> Option<MachineStatus> {
+        None
+    }
+
+    /// Subscribe to status snapshot changes, when supported by the adapter.
+    fn subscribe_status(&self) -> Option<tokio::sync::watch::Receiver<MachineStatus>> {
+        None
+    }
+
+    /// Subscribe to adapter events, when supported by the adapter.
+    fn subscribe_events(&self) -> Option<tokio::sync::broadcast::Receiver<CncEvent>> {
+        None
+    }
+
+    /// Load a path or inline program. The default supports existing path-based adapters only.
+    async fn load_program_source(&self, source: ProgramSource) -> CncResult<()> {
+        match source {
+            ProgramSource::Path(path) => self.load_program(&path).await,
+            ProgramSource::Inline(_) => Err(ControllerError::new(
+                "unsupported",
+                "inline program loading is not supported by this adapter",
+            )),
+        }
+    }
+
+    /// Set a feed, spindle, or rapid override as a percentage.
+    async fn set_override(&self, kind: OverrideKind, value: f64) -> CncResult<()> {
+        let _ = (kind, value);
+        Err(ControllerError::new(
+            "unsupported",
+            "overrides are not supported by this adapter",
+        ))
+    }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
         Err(ControllerError::new(
@@ -295,11 +477,17 @@ pub trait CncApi: Send + Sync {
         cancellation: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> CncResult<String> {
         if cancellation.load(std::sync::atomic::Ordering::Acquire) {
-            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+            return Err(ControllerError::new(
+                "command_cancelled",
+                "Команда отменена.",
+            ));
         }
         self.mdi(command).await?;
         if cancellation.load(std::sync::atomic::Ordering::Acquire) {
-            return Err(ControllerError::new("command_cancelled", "Команда отменена."));
+            return Err(ControllerError::new(
+                "command_cancelled",
+                "Команда отменена.",
+            ));
         }
         Ok("Команда принята контроллером.".into())
     }

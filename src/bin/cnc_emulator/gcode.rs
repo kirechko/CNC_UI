@@ -1,4 +1,4 @@
- //! Connects the G-code parser and command handlers to the emulator state.
+//! Connects the G-code parser and command handlers to the emulator state.
 #[path = "gcode/accessories.rs"]
 mod accessories;
 #[path = "gcode/coordinates.rs"]

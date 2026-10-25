@@ -4,6 +4,7 @@ use crate::cnc_api::{
     SpindleDirection as ApiSpindleDirection,
 };
 use cnc_core::adapters::emulator::EmAdapter;
+use cnc_core::discovery::DiscoveredDevice;
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -54,6 +55,7 @@ enum Command {
 
 pub struct CNCController {
     pub status: Arc<Mutex<ControllerSnapshot>>,
+    api: Option<Arc<dyn CncApi>>,
     commands: mpsc::Sender<Command>,
     emergency_stop: mpsc::Sender<()>,
     xy_jog_speed: Mutex<f64>,
@@ -118,6 +120,7 @@ impl CNCController {
 
         Ok(Self {
             status,
+            api: None,
             commands,
             emergency_stop,
             xy_jog_speed: Mutex::new(1000.0),
@@ -138,6 +141,7 @@ impl CNCController {
         let motion_stop_requested = Arc::new(AtomicBool::new(false));
         let worker_motion_stop_requested = motion_stop_requested.clone();
 
+        let worker_api = api.clone();
         thread::Builder::new()
             .name("cnc-api-worker".into())
             .spawn(move || {
@@ -146,7 +150,7 @@ impl CNCController {
                     .build()
                     .expect("failed to create CNC API worker runtime");
 
-                match runtime.block_on(api.status()) {
+                match runtime.block_on(worker_api.status()) {
                     Ok(initial_status) => {
                         worker_status.lock().unwrap().machine = initial_status;
                     }
@@ -156,7 +160,7 @@ impl CNCController {
                 }
 
                 api_worker(
-                    api,
+                    worker_api,
                     receiver,
                     emergency_receiver,
                     worker_status,
@@ -169,6 +173,7 @@ impl CNCController {
 
         Ok(Self {
             status,
+            api: Some(api),
             commands,
             emergency_stop,
             xy_jog_speed: Mutex::new(1000.0),
@@ -177,6 +182,21 @@ impl CNCController {
             command_cancel_requested,
             motion_stop_requested,
         })
+    }
+
+    pub fn discovered_devices(&self) -> Vec<DiscoveredDevice> {
+        self.api
+            .as_ref()
+            .map(|api| api.discovered_devices())
+            .unwrap_or_default()
+    }
+
+    pub fn discovery_api(&self) -> Option<Arc<dyn CncApi>> {
+        self.api.clone()
+    }
+
+    pub fn connected_device_id(&self) -> Option<String> {
+        self.api.as_ref().and_then(|api| api.connected_device_id())
     }
 
     pub fn command_cancellation_handle(&self) -> Arc<AtomicBool> {
