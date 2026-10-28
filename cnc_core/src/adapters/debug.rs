@@ -1,6 +1,7 @@
 use crate::{
-    Axis, CncApi, CncResult, CoordinateSystem, InterpreterState, JogRequest, MachineStatus,
-    Position, SpindleCommand, SpindleDirection, SpindleStatus, TaskMode, TaskState,
+    toolpath::ToolpathProgress, Axis, CncApi, CncResult, CoordinateSystem, InterpreterState,
+    JogRequest, MachineStatus, Position, SpindleCommand, SpindleDirection, SpindleStatus, TaskMode,
+    TaskState,
 };
 use std::path::Path;
 
@@ -46,6 +47,7 @@ fn debug_status() -> MachineStatus {
         message: Some("Debug adapter: no backend logic".into()),
         homed: [false; 6],
         homing: false,
+        progress: ToolpathProgress::default(),
     }
 }
 

@@ -1,7 +1,4 @@
-const INCREMENTAL_DIAL_TITLE =
-  "Пошаговый XY Jog: выберите направление на диске, кольцо задаёт расстояние перемещения";
-const CONTINUOUS_DIAL_TITLE =
-  "Непрерывный XY Jog: удерживайте кнопку мыши на секторе; перемещайте указатель по диску для изменения направления";
+import { t } from "./i18n.js";
 
 export function initJogModeControls({
   incrementalButton,
@@ -20,6 +17,22 @@ export function initJogModeControls({
   clearHoveredSelection,
   onMotionModeChange,
 }) {
+  /**
+   * Applies the localized idle tooltip and hint text of the dial for the given
+   * motion mode. Used on every mode switch and from main.js on locale change.
+   *
+   * @param {boolean} incremental - True for incremental mode, false for continuous.
+   */
+  function refreshDialChrome(incremental) {
+    dialCanvas.title = t(incremental ? "jog.dial.incrementalTitle" : "jog.dial.continuousTitle");
+
+    if (dialHint) {
+      dialHint.textContent = incremental
+        ? t("jog.dial.hintIncremental", { steps: getStepValues().map(String).join(" / ") })
+        : t("jog.dial.hintContinuous");
+    }
+  }
+
   function setMotionMode(mode) {
     const incremental = mode === "incremental";
     onMotionModeChange?.(mode);
@@ -33,19 +46,14 @@ export function initJogModeControls({
 
     if (incremental) stopContinuousJog();
 
-    const stepsPanel = document.querySelector("#jog-dial-z-steps");
-    const continuousPanel = document.querySelector("#jog-dial-z-continuous");
-    if (stepsPanel) stepsPanel.hidden = !incremental;
-    if (continuousPanel) continuousPanel.hidden = incremental;
+    // Z and rotary columns (A–C) share the same incremental/continuous switch.
+    const stepsPanels = document.querySelectorAll("#jog-dial-z-steps, .jog-rotary-steps");
+    const continuousPanels = document.querySelectorAll("#jog-dial-z-continuous, .jog-rotary-continuous");
+    stepsPanels.forEach((panel) => { panel.hidden = !incremental; });
+    continuousPanels.forEach((panel) => { panel.hidden = incremental; });
 
-    dialCanvas.title = incremental ? INCREMENTAL_DIAL_TITLE : CONTINUOUS_DIAL_TITLE;
+    refreshDialChrome(incremental);
     clearHoveredSelection();
-
-    if (dialHint) {
-      dialHint.textContent = incremental
-        ? `Наведите на сектор: кольца задают шаг ${getStepValues().map(String).join(" / ")} mm`
-        : "Удерживайте кнопку и перемещайте указатель по диску";
-    }
 
     if (!dialPanel.hidden) drawDial();
   }
@@ -69,4 +77,8 @@ export function initJogModeControls({
 
   setMotionMode("incremental");
   setViewMode("dial");
+
+  // Expose the chrome refresher so main.js can re-localize the dial tooltip
+  // and hint immediately after a runtime language switch.
+  return { refreshDialChrome };
 }

@@ -1,0 +1,225 @@
+/* File-manager panel: source chips, path bar, volume usage line, action row
+   and the scrollable directory listing rendered inside `#sidebar-content` by
+   file-manager-ui.js. The panel occupies the FILES tab; `hidden` on the root
+   keeps the legacy placeholder alone in the MACROS tab. */
+.file-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px;
+  color: var(--text-primary);
+}
+
+/* Row of filesystem source chips (host / controller flash / SD card). */
+.fm-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fm-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-chip);
+  color: var(--muted);
+  font: 11px var(--font-mono);
+  cursor: pointer;
+}
+
+.fm-chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.fm-chip.active {
+  border-color: var(--accent);
+  background: var(--bg-inset);
+  color: var(--accent-bright);
+}
+
+.fm-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Current path with the "up" and "refresh" buttons around it. */
+.fm-path-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fm-path {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 11px var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Icon-only square button used across the panel chrome and each entry row. */
+.fm-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-chip);
+  color: var(--muted);
+  cursor: pointer;
+  flex: none;
+}
+
+.fm-icon-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fm-icon-button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.fm-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* FluidNC capacity line: "used / total · N%". */
+.fm-usage {
+  color: var(--muted);
+  font: 10px var(--font-mono);
+}
+
+/* Panel-level actions: new folder, upload, paste. */
+.fm-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Scrollable directory listing. */
+.fm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 120px;
+  max-height: 42vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  padding: 4px;
+}
+
+/* Neutral status line inside the list (loading / empty directory). */
+.fm-note {
+  padding: 10px 8px;
+  color: var(--muted);
+  font: 11px var(--font-mono);
+  text-align: center;
+}
+
+/* One directory row: icon + name + meta + per-entry action buttons. */
+.fm-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+
+.fm-entry:hover {
+  background: var(--bg-chip);
+}
+
+.fm-entry-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  flex: none;
+}
+
+.fm-entry-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fm-entry:hover .fm-entry-icon {
+  color: var(--accent-bright);
+}
+
+/* Long names shrink and ellipsize; the full path stays in the tooltip. */
+.fm-entry-name {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-primary);
+  font: 11px var(--font-mono);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fm-entry-name:hover {
+  color: var(--accent-bright);
+}
+
+/* Size + modification date line; hidden on narrow panels. */
+.fm-entry-meta {
+  flex: none;
+  max-width: 132px;
+  overflow: hidden;
+  color: var(--muted);
+  font: 10px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-entry-actions {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  /* The six action buttons do not fit next to the name in the narrow
+     right column (flex: none overflowed the viewport and hid Rename /
+     Delete, flex-wrap made rows 130px tall). The cluster therefore sits
+     on its own second line of the wrapped row, revealed on hover. */
+  flex: 0 0 100%;
+  order: 5;
+  justify-content: flex-end;
+}
+
+/* Row actions appear on hover/focus so the list stays readable. */
+.fm-entry:hover .fm-entry-actions,
+.fm-entry:focus-within .fm-entry-actions {
+  display: inline-flex;
+}
+
+/* On touch-friendly widths the actions are always visible. */
+@media (max-width: 720px) {
+  .fm-entry-actions {
+    display: inline-flex;
+  }
+
+  .fm-entry-meta {
+    display: none;
+  }
+}

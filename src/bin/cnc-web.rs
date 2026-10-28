@@ -1,11 +1,13 @@
 //! Runs the Axum web UI without linking the Tauri desktop runtime.
-#[path = "../cnc_controller.rs"]
+// Directory module (mod.rs owns the CNCController facade; helpers live in sibling files).
+#[path = "../cnc_controller/mod.rs"]
 mod cnc_controller;
-#[path = "../config.rs"]
-mod config;
+#[path = "../i18n.rs"]
+mod i18n;
 #[path = "../message_log.rs"]
 mod message_log;
-#[path = "../web_server.rs"]
+// Directory module (mod.rs re-exports `run` and the shared models).
+#[path = "../web_server/mod.rs"]
 mod web_server;
 
 use cnc_core as cnc_api;

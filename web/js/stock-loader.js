@@ -1,8 +1,17 @@
 import { parseObj } from "./obj.js";
 import { finalizeStockMesh, parseStl, parseThreeJsJson } from "./stock.js";
+import { t } from "./i18n.js";
 
+/** Maximum accepted size of a stock file in bytes (50 MiB). */
 const MAX_STOCK_FILE_BYTES = 50 * 1024 * 1024;
 
+/**
+ * Wires the stock file picker: the load button opens the file dialog, and the
+ * selected file is parsed by extension (STL, OBJ or Three.js JSON).
+ * Parsing errors are passed to `onError`; successful results go to `onLoad`.
+ * @param {{input: HTMLInputElement, loadButton: HTMLElement, onLoad: Function, onError: Function}} options
+ * @returns {void}
+ */
 export function initStockLoader({ input, loadButton, onLoad, onError }) {
   loadButton.addEventListener("click", () => input.click());
 
@@ -12,7 +21,7 @@ export function initStockLoader({ input, loadButton, onLoad, onError }) {
 
     try {
       if (file.size > MAX_STOCK_FILE_BYTES) {
-        throw new Error("Размер файла заготовки превышает лимит 50 MiB.");
+        throw new Error(t("stock.error.tooLarge"));
       }
 
       const extension = file.name.split(".").pop()?.toLowerCase();
@@ -25,7 +34,7 @@ export function initStockLoader({ input, loadButton, onLoad, onError }) {
       } else if (extension === "json") {
         mesh = parseThreeJsJson(await file.text());
       } else {
-        throw new Error("Поддерживаются форматы STL, OBJ и Three.js JSON.");
+        throw new Error(t("stock.error.unsupportedFormat"));
       }
 
       onLoad(mesh, file);

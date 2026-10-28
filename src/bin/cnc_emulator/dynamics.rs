@@ -131,7 +131,7 @@ impl ActiveMove {
             return Err(api_error("bad_arc", "arc has zero length"));
         }
 
-        // Ограничиваем скорость/ускорение по обеим осям XY и по Z при спирали.
+        // Limit velocity/acceleration on both XY axes and on Z during helical moves.
         let mut max_velocity = (feed_mm_min / 60.0).max(0.001);
         let mut acceleration = f64::INFINITY;
         let tangent_x = planar_length.max(1e-9);

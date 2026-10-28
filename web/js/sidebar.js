@@ -1,3 +1,9 @@
+import { t } from "./i18n.js";
+
+/**
+ * Wires the sidebar tabs (files / macros) and switches the sidebar
+ * title and description using translated strings.
+ */
 export function initSidebarTabs() {
   const filesTab = document.querySelector("#files-tab");
   const macrosTab = document.querySelector("#macros-tab");
@@ -9,6 +15,10 @@ export function initSidebarTabs() {
     return;
   }
 
+  /**
+   * Activates the given sidebar tab and updates ARIA state and texts.
+   * @param {"files" | "macros"} tab - Tab to show.
+   */
   function selectSidebarTab(tab) {
     const showFiles = tab === "files";
     filesTab.classList.toggle("active", showFiles);
@@ -16,10 +26,10 @@ export function initSidebarTabs() {
     filesTab.setAttribute("aria-selected", String(showFiles));
     macrosTab.setAttribute("aria-selected", String(!showFiles));
     sidebarContent.setAttribute("aria-labelledby", showFiles ? "files-tab" : "macros-tab");
-    sidebarTitle.textContent = showFiles ? "Файловый менеджер" : "Макросы";
+    sidebarTitle.textContent = showFiles ? t("sidebar.files.title") : t("sidebar.macros.title");
     sidebarDescription.textContent = showFiles
-      ? "Просмотр и загрузка файлов пока не подключены. Сейчас доступно пошаговое управление осями."
-      : "Запуск и настройка макросов пока не подключены к контроллеру.";
+      ? t("sidebar.files.description")
+      : t("sidebar.macros.description");
   }
 
   filesTab.addEventListener("click", () => selectSidebarTab("files"));

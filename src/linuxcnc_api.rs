@@ -33,12 +33,14 @@ struct ApiConnection {
     reader: BufReader<UnixStream>,
 }
 
- /// Адаптер эмулятора: преобразует общий CNC API в запросы по Unix-сокету.
-/// Использует собственный JSON-протокол эмулятора, а не NML.
+/// Emulator adapter: maps the shared CNC API onto requests sent over a Unix socket.
+/// Uses the emulator's own JSON protocol rather than NML.
 pub struct EmAdapter {
     socket_path: PathBuf,
     timeout: Duration,
     connection: Mutex<Option<ApiConnection>>,
+    /// Parsed toolpath of the last successfully loaded program, used to report progress.
+    toolpath: Mutex<cnc_core::Toolpath>,
 }
 
 impl EmAdapter {
@@ -48,6 +50,7 @@ impl EmAdapter {
             socket_path: path,
             timeout: Duration::from_secs(3),
             connection: Mutex::new(None),
+            toolpath: Mutex::new(cnc_core::Toolpath::default()),
         })
     }
 
@@ -133,7 +136,17 @@ impl EmAdapter {
 impl LinuxCncApi for EmAdapter {
     fn status(&self) -> CncResult<MachineStatus> {
         let value = self.call("status", json!({}))?;
-        serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))
+        let mut status: MachineStatus =
+            serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))?;
+        // Progress is derived from the reported tool position on the parsed toolpath.
+        let toolpath = self
+            .toolpath
+            .lock()
+            .map_err(|_| ControllerError::new("connection", "toolpath lock poisoned"))?;
+        status.progress = toolpath
+            .locate(&status.position)
+            .unwrap_or_else(cnc_core::ToolpathProgress::unavailable);
+        Ok(status)
     }
 
     fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
@@ -211,7 +224,14 @@ impl LinuxCncApi for EmAdapter {
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("program.ngc");
-        self.unit("load_program", json!({ "name": name, "content": content }))
+        self.unit("load_program", json!({ "name": name, "content": content }))?;
+        // Parse only after the emulator accepted the program, so progress matches what is loaded.
+        let parsed = cnc_core::parse_toolpath(&content);
+        *self
+            .toolpath
+            .lock()
+            .map_err(|_| ControllerError::new("connection", "toolpath lock poisoned"))? = parsed;
+        Ok(())
     }
 
     fn program_run(&self, start_line: u32) -> CncResult<()> {

@@ -1,3 +1,19 @@
+/**
+ * Converts a backend `Position` object into an `[x, y, z]` point array.
+ *
+ * @param {{x: number, y: number, z: number}} position - Backend position.
+ * @returns {number[]} Point as `[x, y, z]`.
+ */
+export function toPoint(position) {
+  return [position.x, position.y, position.z];
+}
+
+/**
+ * Computes an axis-aligned bounding box from a list of `[x, y, z]` points.
+ *
+ * @param {number[][]} points - Points to include.
+ * @returns {{min: number[], max: number[], center: number[]}} Bounds.
+ */
 function boundsFromPoints(points) {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -16,8 +32,15 @@ function boundsFromPoints(points) {
   };
 }
 
+/**
+ * Calculates scene bounds including all trajectory segments, the stock mesh and the origin.
+ *
+ * @param {Array<object>} segments - Backend toolpath segments.
+ * @param {object|null} stockMesh - Loaded stock mesh, if any.
+ * @returns {{min: number[], max: number[], center: number[]}} Scene bounds.
+ */
 export function calculateSceneBounds(segments, stockMesh) {
-  const points = segments.flatMap(({ from, to }) => [from, to]);
+  const points = segments.flatMap(({ from, to }) => [toPoint(from), toPoint(to)]);
   if (stockMesh) {
     for (const triangle of stockMesh.triangles) points.push(...triangle);
   }
@@ -26,8 +49,15 @@ export function calculateSceneBounds(segments, stockMesh) {
   return boundsFromPoints(points);
 }
 
+/**
+ * Calculates bounds of the trajectory only, padding flat axes to a visible thickness.
+ *
+ * @param {Array<object>} segments - Backend toolpath segments.
+ * @param {object|null} stockMesh - Loaded stock mesh, used as fallback when there is no path.
+ * @returns {{min: number[], max: number[], center: number[]}} Trajectory bounds.
+ */
 export function calculateTrajectoryBounds(segments, stockMesh) {
-  const points = segments.flatMap(({ from, to }) => [from, to]);
+  const points = segments.flatMap(({ from, to }) => [toPoint(from), toPoint(to)]);
   if (points.length === 0) {
     return calculateSceneBounds(segments, stockMesh);
   }

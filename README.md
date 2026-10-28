@@ -67,7 +67,7 @@ The web server listens on `0.0.0.0:8080`; open `http://localhost:8080` in a brow
 The standalone web backend binary `cnc-web` runs the same web interface without linking the Tauri desktop runtime:
 
 ```bash
-CNC_UI_CONFIG=config/fluidnc-test.yaml RUST_LOG=info cargo run --bin cnc-web
+RUST_LOG=info cargo run --bin cnc-web
 ```
 
 Logs are written to stderr through `tracing`; `RUST_LOG` controls the verbosity (default `info`).
@@ -90,30 +90,30 @@ The desktop and web interfaces share the browser-based UI in `web/index.html`. T
 
 UI commands are handled by `CNCController`, which queues commands on a worker thread and maintains a cached status snapshot. The worker communicates through the shared `LinuxCncApi` interface. The emulator runs as a separate process; `EmAdapter` connects to it over a Unix-domain socket and translates API calls to the emulator's JSON protocol.
 
-## Backend configuration
+## Backend selection
 
-The application reads `cnc-ui.yaml` from the current working directory by default. Set `CNC_UI_CONFIG` to use a different configuration file. Select one backend with the `backend` setting:
+There is no adapter configuration file anymore. The backend always starts with the
+local emulator adapter (socket `/tmp/linuxcnc-ui-emulator.sock` by default, overridable
+through `CNC_EMULATOR_SOCKET`); the adapter connects lazily, so the UI boots cleanly
+even when the emulator process is absent and recovers as soon as it appears.
 
-- `emulator` — connects to the standalone emulator. Its socket path can be configured in `emulator.socket_path`; `CNC_EMULATOR_SOCKET` can override it for the UI.
-- `grbl` — connects to a GRBL 1.1 controller over the configured serial port and baud rate. The user running the application must have permission to access the device.
-- `fluid_nc_web_socket` — connects to an ESP32 FluidNC controller over WebSocket (port 80). The address is found by automatic discovery; there is no manual address setting. See [FluidNC over WebSocket](#fluidnc-over-websocket).
-- `fluid_nc_rs232` — uses the GRBL-compatible serial adapter for FluidNC over the configured `fluidnc.serial_port` and `fluidnc.baud_rate`. Firmware compatibility is not verified on hardware.
-- `linux_cnc` and `fluid_nc` — debug placeholders. They log their parameters and do not connect to hardware.
-
-The `linuxcnc.socket_path` setting is a placeholder for a future adapter.
+All machines — the local emulator and any FluidNC controller found on the network —
+are listed in the machines dialog and are selected (switched between) by clicking a
+row. Serial COM-port machines and LinuxCNC hosts will join the same discovery list
+through the composite scanner in `src/web_server.rs`.
 
 ## FluidNC over WebSocket
 
-The `fluid_nc_web_socket` adapter works as follows:
+The FluidNC WebSocket adapter works as follows:
 
-- Discovery scans the IPv4 networks of local interfaces (no wider than `/24`) and any hosts or CIDRs listed in `fluidnc.discovery_port`. Each candidate is probed on WebSocket (TCP 80) and Telnet (TCP 23). A device is accepted only after a read-only `$I` response confirms FluidNC.
-- Cached endpoints are probed first. The adapter connects to the first machine found and keeps it selected; other machines are listed for reference only.
+- Discovery scans the IPv4 networks of local interfaces (no wider than `/24`). Each candidate is probed on WebSocket (TCP 80) and Telnet (TCP 23). A device is accepted only after a read-only `$I` response confirms FluidNC.
+- Cached endpoints are probed first. Clicking a machine in the machines dialog connects to it; the selection can be changed at any time.
 - After connecting, the adapter reads `$ESP130`, `$ESP131`, `$ESP120`, and `$ESP121`. When `$ESP120=ON`, the WebSocket endpoint is added to the machine table on the port reported by `$ESP121`. FluidNC uses the same port for HTTP and WebSocket, so a verified Telnet entry also confirms the HTTP/WebSocket entry on the same address.
 - Scans are disabled while a session is active; the connected machine is not scanned again.
 - A controller error (`error:N`, `ALARM:`) is reported to the UI and does not close the session. Only transport failures and timeouts close the connection, and reconnection is manual.
 - Set `CNC_UI_FLUIDNC_WS_TRACE` to enable opt-in tracing of the WebSocket and discovery traffic.
 
-Tuning parameters (in milliseconds for timeouts): `websocket_rx_buffer_bytes`, `websocket_max_line_len`, `websocket_ack_timeout_ms`, `websocket_status_timeout_ms`, `websocket_connect_timeout_ms`. See `config/fluidnc-test.yaml` for an example profile.
+Timeouts, buffer sizes and line limits use the built-in adapter defaults; there is no per-backend configuration file anymore.
 
 Known limitations: discovery scans only ports 80 and 23, which are hardcoded; devices reconfigured to other ports are not found. A status timeout closes the session, and automatic reconnection is not implemented yet.
 

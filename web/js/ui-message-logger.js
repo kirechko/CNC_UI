@@ -14,22 +14,24 @@ export function initUiMessageLogger({ elements, getStatus }) {
       lastLoggedMessages.set(element, message);
 
       const status = getStatus();
+      // Messages already shown as the controller status are not duplicated in the journal.
       if (
-        source === "интерфейс" &&
+        source === "interface" &&
         status &&
         [status.message, status.error].filter(Boolean).includes(message)
       ) {
         return;
       }
 
-      const severity = /^(авария|alarm|emergency stop)\b/i.test(message)
-        ? "авария"
-        : /^(ошибка|не удалось|error|failed|failure)\b/i.test(message)
-          ? "ошибка"
-          : /^(предупреждение|warning)\b/i.test(message)
-            ? "предупреждение"
-            : "информация";
-      if (severity === "информация") return;
+      // Severity is an internal English identifier (alarm/error/warning/info).
+      const severity = /^(alarm|авария|emergency stop)\b/i.test(message)
+        ? "alarm"
+        : /^(error|failed|failure|ошибка|не удалось)\b/i.test(message)
+          ? "error"
+          : /^(warning|предупреждение)\b/i.test(message)
+            ? "warning"
+            : "info";
+      if (severity === "info") return;
 
       try {
         await invokeOrFetch(
@@ -39,7 +41,7 @@ export function initUiMessageLogger({ elements, getStatus }) {
           "POST",
         );
       } catch (error) {
-        console.warn("Не удалось записать сообщение интерфейса в журнал:", error);
+        console.warn("Failed to write interface message to the journal:", error);
       }
     };
 

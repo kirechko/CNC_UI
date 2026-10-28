@@ -42,7 +42,11 @@ fn execute_machine_command(state: State<'_, AppState>, command: String) -> Resul
         || command.contains('\n')
         || command.contains('\r')
     {
-        return Err("Введите одну непустую команду длиной не более 4096 символов".into());
+        return Err(crate::i18n::translate(
+            desktop_language(),
+            "api.error.commandLength",
+            &[],
+        ));
     }
 
     state.execute_command(command)
@@ -59,12 +63,21 @@ fn log_message(
     let source = source.trim();
     let message = message.trim();
 
-    if !["авария", "ошибка", "предупреждение", "информация"].contains(&severity)
-    {
-        return Err("Неизвестная критичность сообщения".into());
+    // Severity is an internal English identifier (alarm/error/warning/info).
+    let language = desktop_language();
+    if !crate::message_log::ALL_SEVERITIES.contains(&severity) {
+        return Err(crate::i18n::translate(
+            language,
+            "api.error.unknownSeverity",
+            &[],
+        ));
     }
     if source.is_empty() || source.len() > 128 || message.is_empty() || message.len() > 16_384 {
-        return Err("Некорректный источник или сообщение".into());
+        return Err(crate::i18n::translate(
+            language,
+            "api.error.invalidSourceMessage",
+            &[],
+        ));
     }
 
     state.insert_log(severity, source, message);
@@ -77,7 +90,8 @@ struct TauriLogPage {
     total: i64,
 }
 
-#[allow(clippy::too_many_arguments)] // Сохраняем плоскую структуру аргументов Tauri-команды.
+// Keep the flat argument list so the Tauri command signature matches the frontend invoke payload.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 fn get_log(
     state: State<'_, AppState>,
@@ -123,12 +137,14 @@ fn load_program(
     file_name: String,
     content: String,
 ) -> Result<LoadedProgram, String> {
-    load_program_into_state(&state, &file_name, &content)
+    load_program_into_state(&state, &file_name, &content, desktop_language())
+        .map_err(|error| error.message)
 }
 
+/// Starts the loaded program; errors are localized with the desktop language.
 #[tauri::command]
 fn start_program(state: State<'_, AppState>) -> Result<(), String> {
-    state.start_loaded_program()
+    state.start_loaded_program(desktop_language())
 }
 
 #[tauri::command]
@@ -181,33 +197,51 @@ fn set_spindle(
         return Ok(());
     }
 
+    let language = desktop_language();
     if !rpm.is_finite() {
-        return Err("Скорость шпинделя должна быть конечным числом".into());
+        return Err(crate::i18n::translate(
+            language,
+            "api.error.spindleSpeedFinite",
+            &[],
+        ));
     }
 
     let status = controller.get_status_snapshot();
     if !status.machine.connected {
-        return Err("Нет соединения со станком".into());
+        return Err(crate::i18n::translate(language, "api.error.noConnection", &[]));
     }
 
     let spindle = status
         .machine_configuration
         .as_ref()
         .map(|configuration| &configuration.spindle)
-        .ok_or_else(|| "Конфигурация шпинделя недоступна".to_string())?;
+        .ok_or_else(|| {
+            crate::i18n::translate(language, "api.error.spindleConfigUnavailable", &[])
+        })?;
     let minimum = spindle.min_rpm.unwrap_or(0.0);
     let maximum = spindle.max_rpm.unwrap_or(status.machine.max_spindle_rpm);
 
     if maximum <= 0.0 || rpm < minimum || rpm > maximum {
-        return Err(format!(
-            "Скорость шпинделя должна быть в диапазоне {minimum:.0}–{maximum:.0} RPM"
+        return Err(crate::i18n::translate(
+            language,
+            "api.error.spindleRange",
+            &[
+                ("minimum", format!("{minimum:.0}")),
+                ("maximum", format!("{maximum:.0}")),
+            ],
         ));
     }
 
     let direction = match direction.as_str() {
         "CW" => UiSpindleDirection::CW,
         "CCW" => UiSpindleDirection::Ccw,
-        _ => return Err("Направление шпинделя должно быть CW или CCW".into()),
+        _ => {
+            return Err(crate::i18n::translate(
+                language,
+                "api.error.spindleDirection",
+                &[],
+            ))
+        }
     };
 
     controller.set_spindle_speed(rpm);
@@ -266,14 +300,22 @@ fn jog_continuous_xy(
     Ok(())
 }
 
+/// Returns the language used for desktop (Tauri) error messages.
+///
+/// Tauri commands receive no HTTP headers, so the language is taken from the
+/// `CNC_LANG` environment variable and falls back to English when unset or unsupported.
+fn desktop_language() -> &'static str {
+    crate::i18n::negotiate(std::env::var("CNC_LANG").ok().as_deref(), None)
+}
+
 #[tauri::command]
 fn select_coordinate_system(state: State<'_, AppState>, system: String) -> Result<(), String> {
-    state.select_coordinate_system(&system)
+    state.select_coordinate_system(&system, desktop_language())
 }
 
 #[tauri::command]
 fn zero_all(state: State<'_, AppState>, system: String) -> Result<(), String> {
-    state.zero_all(&system)
+    state.zero_all(&system, desktop_language())
 }
 
 #[tauri::command]
@@ -298,7 +340,7 @@ fn set_axis_work_value(
     system: String,
     value: f64,
 ) -> Result<(), String> {
-    state.set_axis_work_value(axis, &system, value)
+    state.set_axis_work_value(axis, &system, value, desktop_language())
 }
 
 #[tauri::command]
@@ -308,7 +350,7 @@ fn go_to_axis_work_value(
     system: String,
     value: f64,
 ) -> Result<(), String> {
-    state.go_to_axis_work_value(axis, &system, value)
+    state.go_to_axis_work_value(axis, &system, value, desktop_language())
 }
 
 #[tauri::command]
@@ -324,10 +366,11 @@ fn jog_xy(
         || distance <= 0.0
         || distance > 100_000.0
     {
-        return Err(
-            "XY directions must be -1 or 1; distance must be greater than 0 and at most 100000 mm"
-                .into(),
-        );
+        return Err(crate::i18n::translate(
+            desktop_language(),
+            "api.error.jogXyRange",
+            &[],
+        ));
     }
 
     let controller = state
@@ -368,6 +411,18 @@ fn jog(state: State<'_, AppState>, axis: Axis, direction: i8, distance: f64) -> 
     Ok(())
 }
 
+/// Returns the raw JSON dictionary embedded for a UI language.
+///
+/// The desktop webview may run on a custom protocol where fetching
+/// `web/locales/*.json` assets is unreliable, so the frontend asks this
+/// command for dictionary text instead. Unknown languages produce an error
+/// which the frontend treats as "fall back to English".
+#[tauri::command]
+fn get_ui_dictionary(language: String) -> Result<&'static str, String> {
+    crate::i18n::raw_dictionary(&language)
+        .ok_or_else(|| format!("unsupported UI language: {language}"))
+}
+
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     tauri::Builder::default()
         .manage(AppState::new()?)
@@ -396,7 +451,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             home_all,
             set_axis_work_value,
             go_to_axis_work_value,
-            jog_xy
+            jog_xy,
+            get_ui_dictionary
         ])
         .run(tauri::generate_context!())?;
 

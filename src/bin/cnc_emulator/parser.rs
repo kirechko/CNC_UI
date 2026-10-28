@@ -37,7 +37,7 @@ pub(super) fn parse_words(input: &str) -> Vec<(char, f64)> {
             continue;
         }
 
-        // Поддерживаем экспоненциальную запись, если после E есть цифры.
+        // Support exponent notation when digits follow the E.
         let mantissa_end = end;
         if end < bytes.len() && matches!(bytes[end], b'e' | b'E') {
             let mut exponent_end = end + 1;

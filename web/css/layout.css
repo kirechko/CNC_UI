@@ -1,0 +1,165 @@
+/* Layout layer: three-column grid, the draggable column/row splitters,
+   panel chrome and the fluid panel sizing driven by CSS variables. */
+.app-main {
+  display: grid;
+  /* Stretch across the whole window width and take every pixel of height the header leaves. */
+  flex: 1 1 auto;
+  min-height: 0; /* Allow the grid to shrink below its content instead of leaving gaps/overflow. */
+  width: 100%;
+  /* Width of the draggable splitters between columns (see layout-splitters.js). */
+  --splitter-size: 7px;
+  /* Columns scale proportionally with the viewport unless the user dragged a splitter (--left-col / --right-col). */
+  grid-template-columns:
+    var(--left-col, clamp(220px, 21.25vw, 340px))
+    var(--splitter-size)
+    minmax(280px, 1fr)
+    var(--splitter-size)
+    var(--right-col, clamp(200px, 17vw, 275px));
+  align-items: stretch;
+  gap: 3.5px;
+  margin: 0;
+  padding: 8px;
+}
+
+/* Vertical splitter bars between the main columns; the drag logic lives in layout-splitters.js. */
+.col-splitter {
+  position: relative;
+  width: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.col-splitter::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(128, 128, 128, 0.35);
+  transition: background-color 0.15s;
+}
+
+.col-splitter:hover::after,
+.col-splitter:focus-visible::after,
+.col-splitter.is-dragging::after {
+  background: var(--selection);
+}
+
+.col-splitter:focus-visible {
+  outline: none;
+}
+
+/* Horizontal splitter between stacked panels; its height is set by --row-splitter-size. */
+.row-splitter {
+  position: relative;
+  height: var(--row-splitter-size, 8px);
+  width: 100%;
+  cursor: row-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.row-splitter::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: rgba(128, 128, 128, 0.35);
+  transition: background-color 0.15s;
+}
+
+.row-splitter:hover::after,
+.row-splitter:focus-visible::after,
+.row-splitter.is-dragging::after {
+  background: var(--selection);
+}
+
+.row-splitter:focus-visible {
+  outline: none;
+}
+
+.left-column, .center-column, .right-column {
+  display: grid;
+  min-width: 0;
+  /* Without an explicit zero, a grid item's automatic minimum size is its
+     content, so the fixed `--left-top-row` / `--right-bottom-row` tracks could
+     push the whole column (and the page) past the viewport while dragging.
+     The row splitters clamp heights against constants in JS instead, which is
+     both instant and independent per column. */
+  min-height: 0;
+  gap: 3.5px;
+}
+
+.center-column {
+  align-self: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* Jog panel height follows its content so the smaller dial does not leave empty space. */
+.jog-panel {
+  height: auto;
+}
+
+.jog-panel > .panel-body {
+  height: calc(100% - 43px);
+  overflow-y: auto;
+}
+
+/* Left column: POSITION panel height is controlled by --left-top-row (set by layout-row-splitters.js). */
+.left-column {
+  grid-template-rows: var(--left-top-row, auto) var(--row-splitter-size, 8px) minmax(0, 1fr);
+}
+
+/* Right column: MACROS/FILES panel height is controlled by --right-top-row. */
+.right-column {
+  grid-template-rows: minmax(0, 1fr) var(--row-splitter-size, 8px) var(--right-bottom-row, auto);
+}
+
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--surface-raised) 96%, transparent), color-mix(in srgb, var(--bg-chip) 98%, transparent));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.panel-heading {
+  display: flex;
+  min-height: 43px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.position-panel-heading {
+  min-height: 37px;
+  gap: 6px;
+  padding-inline: 7px;
+}
+
+.panel-title {
+  color: var(--text-button);
+  font-size: var(--font-size-sm);
+  font-weight: 750;
+  letter-spacing: 0.13em;
+}
+
+.panel-caption { color: var(--muted); font-size: 10px; }
+/* Panel body padding scales with the viewport. */
+.panel-body { padding: var(--panel-pad); }
+
+.position-panel-heading + .panel-body {
+  padding-top: 2.335px;
+  padding-bottom: 1.1675px;
+}
+

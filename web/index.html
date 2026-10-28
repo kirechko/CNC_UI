@@ -1,1999 +1,39 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CNC UI — Jog</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-        --font-size-xs: 10px;
-        --font-size-sm: 12px;
-        --font-size-md: 14px;
-        --font-size-lg: 16px;
-        --font-size-coordinate: 22px;
-        font-family: var(--font-ui);
-        background: #111416;
-        color: #e7ecee;
-        font-synthesis: none;
-        text-rendering: optimizeLegibility;
-        --surface: #191e21;
-        --surface-raised: #202629;
-        --surface-hover: #293135;
-        --border: #30393d;
-        --muted: #879398;
-        --accent: #287eaa;
-        --accent-bright: #42a4d4;
-        --green: #64c99a;
-        --red: #eb7474;
-      }
-
-      * { box-sizing: border-box; }
-
-      body {
-        min-width: 320px;
-        min-height: 100vh;
-        margin: 0;
-        background:
-          radial-gradient(ellipse at 52% -20%, rgb(40 126 170 / 11%), transparent 50%),
-          #111416;
-      }
-
-      button, select {
-        color: inherit;
-        font: inherit;
-      }
-
-      button {
-        border: 1px solid var(--border);
-        border-radius: 7px;
-        background: var(--surface-raised);
-        cursor: pointer;
-        transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
-      }
-
-      button:hover:not(:disabled) {
-        border-color: #4a5c64;
-        background: var(--surface-hover);
-      }
-
-      button:focus-visible, select:focus-visible {
-        outline: 2px solid var(--accent-bright);
-        outline-offset: 2px;
-      }
-
-      button:disabled {
-        cursor: not-allowed;
-        opacity: 0.48;
-      }
-
-      .app-header {
-        position: sticky;
-        z-index: 2;
-        top: 0;
-        display: flex;
-        min-height: 40px;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        padding: 0 22px;
-        border-bottom: 1px solid var(--border);
-        background: rgb(19 23 25 / 94%);
-        backdrop-filter: blur(14px);
-      }
-
-      .brand, .header-status, .machine-chip, .section-heading, .toolbar,
-      .axis-row, .jog-step-row, .panel-tabs, .spindle-reading {
-        display: flex;
-        align-items: center;
-      }
-
-      .brand { gap: 11px; min-width: 0; }
-      .brand-mark {
-        display: grid;
-        width: 33px;
-        height: 33px;
-        place-items: center;
-        border: 1px solid #315d72;
-        border-radius: 9px;
-        background: #182b34;
-        color: var(--accent-bright);
-        font-size: 18px;
-        font-weight: 800;
-      }
-
-      .brand-name { font-size: 14px; font-weight: 720; letter-spacing: 0.03em; }
-      .brand-subtitle { margin-top: 2px; color: var(--muted); font-size: 10px; }
-      .header-status { gap: 12px; }
-
-      .machine-chip {
-        gap: 8px;
-        padding: 7px 10px;
-        border: 1px solid var(--border);
-        border-radius: 7px;
-        background: #171c1f;
-        color: #b8c2c5;
-        font-size: 12px;
-        font-weight: 700;
-      }
-
-      .status-dot {
-        width: 7px;
-        height: 7px;
-        flex: 0 0 auto;
-        border-radius: 50%;
-        background: #657176;
-        box-shadow: 0 0 0 3px rgb(101 113 118 / 13%);
-      }
-
-      .status-dot.online {
-        background: var(--green);
-        box-shadow: 0 0 0 3px rgb(100 201 154 / 13%);
-      }
-
-      .status-dot.offline {
-        background: var(--red);
-        box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
-      }
-
-      .connection-chip-button {
-        cursor: pointer;
-        text-align: left;
-      }
-
-      .connection-chip-button:hover { filter: brightness(1.12); }
-
-      .connection-chip.connection-online {
-        border-color: rgb(100 201 154 / 35%);
-        background: rgb(100 201 154 / 8%);
-        color: var(--green);
-      }
-
-      .connection-chip.connection-offline {
-        border-color: rgb(235 116 116 / 35%);
-        background: rgb(235 116 116 / 8%);
-        color: var(--red);
-      }
-
-      .machines-dialog {
-        width: min(390px, calc(100vw - 32px));
-        padding: 0;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        background: var(--surface);
-        color: #e7ecee;
-        box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
-      }
-
-      .machines-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-      .machines-dialog-content { display: grid; gap: 14px; padding: 18px; }
-      .machines-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-      .machines-dialog-heading h2 { margin: 0; font-size: 16px; }
-      .machines-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
-      .machines-dialog-actions button { display: grid; place-items: center; width: 34px; min-width: 34px; min-height: 32px; padding: 6px; }
-      .machines-dialog-actions button svg { width: 17px; height: 17px; }
-      #machines-refresh.searching svg { animation: machines-refresh-spin 1s linear infinite; }
-      @keyframes machines-refresh-spin { to { transform: rotate(360deg); } }
-      .machines-list { display: grid; gap: 7px; max-height: min(50vh, 360px); overflow-y: auto; }
-      .machine-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px; color: #b8c2c5; font: 12px var(--font-mono); }
-      .machine-entry.connected { border-color: rgb(100 201 154 / 55%); background: rgb(100 201 154 / 12%); color: var(--green); }
-      .machine-entry-details { display: grid; gap: 4px; min-width: 0; }
-      .machine-entry-endpoint { overflow-wrap: anywhere; }
-      .machine-entry-meta { color: var(--muted); font: 11px var(--font-ui); }
-      .machines-empty { margin: 0; color: var(--muted); font-size: 12px; }
-      .machines-dialog-close { min-width: 34px; min-height: 30px; }
-
-      .header-state { min-width: 56px; }
-
-      .header-state::before {
-        width: 7px;
-        height: 7px;
-        flex: 0 0 auto;
-        border-radius: 50%;
-        background: #657176;
-        box-shadow: 0 0 0 3px rgb(101 113 118 / 13%);
-        content: "";
-      }
-
-      .header-state.state-idle { color: var(--green); }
-      .header-state.state-idle::before {
-        background: var(--green);
-        box-shadow: 0 0 0 3px rgb(100 201 154 / 13%);
-      }
-
-      .header-state.state-homing,
-      .header-state.state-running { color: var(--accent-bright); }
-      .header-state.state-homing::before,
-      .header-state.state-running::before {
-        background: var(--accent-bright);
-        box-shadow: 0 0 0 3px rgb(66 164 212 / 13%);
-      }
-
-      .header-state.state-alarm,
-      .header-state.state-disconnected { color: var(--red); }
-      .header-state.state-alarm::before,
-      .header-state.state-disconnected::before {
-        background: var(--red);
-        box-shadow: 0 0 0 3px rgb(235 116 116 / 13%);
-      }
-
-      .header-state.state-paused { color: #e8bd69; }
-      .header-state.state-paused::before {
-        background: #e8bd69;
-        box-shadow: 0 0 0 3px rgb(232 189 105 / 13%);
-      }
-
-      .app-main {
-        display: grid;
-        width: min(1600px, 100%);
-        grid-template-columns: minmax(290px, 340px) minmax(360px, 1fr) minmax(230px, 275px);
-        align-items: stretch;
-        gap: 3.5px;
-        margin: 0 auto;
-        padding: 8px 8px 16px;
-      }
-
-      .left-column, .center-column, .right-column {
-        display: grid;
-        min-width: 0;
-        gap: 3.5px;
-      }
-
-      .center-column {
-        align-self: stretch;
-        grid-template-rows: minmax(0, 1fr);
-      }
-
-      .jog-panel {
-        height: 349.25px;
-      }
-
-      .jog-panel > .panel-body {
-        height: calc(100% - 43px);
-        overflow-y: auto;
-      }
-
-      .right-column {
-        grid-template-rows: minmax(0, 1fr) auto;
-      }
-
-      .panel {
-        overflow: hidden;
-        border: 1px solid var(--border);
-        border-radius: 9px;
-        background: linear-gradient(155deg, rgb(32 38 41 / 96%), rgb(24 29 32 / 98%));
-        box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
-      }
-
-      .panel-heading {
-        display: flex;
-        min-height: 43px;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 0 14px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .position-panel-heading {
-        min-height: 37px;
-        gap: 6px;
-        padding-inline: 7px;
-      }
-
-      .panel-title {
-        color: #b9c3c6;
-        font-size: var(--font-size-sm);
-        font-weight: 750;
-        letter-spacing: 0.13em;
-      }
-
-      .panel-caption { color: var(--muted); font-size: 10px; }
-      .panel-body { padding: 14px; }
-
-      .position-panel-heading + .panel-body {
-        padding-top: 2.335px;
-        padding-bottom: 1.1675px;
-      }
-
-      .coordinate-select, .step-select {
-        min-height: 31px;
-        padding: 0 27px 0 9px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #171c1f;
-        font-size: 12px;
-      }
-
-      .position-panel-heading .section-heading {
-        min-width: 0;
-        flex: 1;
-        justify-content: flex-end;
-        gap: 4px;
-      }
-
-      .position-panel-heading .position-mode-toggle {
-        width: 54px;
-        min-width: 54px;
-        flex: 0 0 54px;
-        min-height: 26px;
-        padding: 0 3px;
-        font-size: 10px;
-      }
-
-      .coordinate-select {
-        width: 74px;
-        min-width: 74px;
-        padding: 0 14px 0 5px;
-      }
-
-      .dro-header, .axis-row {
-        display: grid;
-        grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 25px 25px;
-        align-items: center;
-        gap: 7px;
-      }
-
-      .axis-row.both,
-      #position-grid-header.both {
-        grid-template-columns: 24px minmax(0, 1.5fr) minmax(0, 0.5fr) 25px 25px;
-      }
-
-      .axis-row.wpos-only,
-      .axis-row.mpos-only {
-        grid-template-columns: 24px minmax(0, 1fr) 25px 25px;
-      }
-
-      #position-grid-header {
-        grid-template-columns: 24px minmax(0, 1.5fr) minmax(0, 0.5fr) 25px 25px;
-      }
-
-      .position-column {
-        overflow: hidden;
-        white-space: nowrap;
-      }
-
-      .axis-row.wpos-only .position-column.machine,
-      .axis-row.mpos-only .position-column.work {
-        display: none;
-      }
-
-      .position-mode-toggle {
-        min-height: 31px;
-        padding: 0 8px;
-        font-size: 10px;
-        font-weight: 700;
-      }
-
-      .position-mode-toggle.active {
-        border-color: #4385a1;
-        background: #1a2b33;
-        color: #a3d5e9;
-      }
-
-
-      .dro-header {
-        margin: 1px 0 7px;
-        color: var(--muted);
-        font-size: 10px;
-        font-weight: 650;
-        letter-spacing: 0.09em;
-        text-align: right;
-      }
-
-      .dro-header span:first-child { text-align: left; }
-
-      .axis-row {
-        min-height: 19.2px;
-        border-top: 1px solid rgb(48 57 61 / 65%);
-      }
-
-      .axis-row:first-child {
-        border-top: 0;
-      }
-
-      .machine-work-field {
-        margin-top: 6px;
-        color: var(--muted);
-        font-size: 10px;
-        line-height: 1.5;
-      }
-
-      .machine-controller-settings {
-        margin-top: 5px;
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .machine-controller-settings summary {
-        width: fit-content;
-        cursor: pointer;
-      }
-
-      .machine-controller-settings-list {
-        max-height: 120px;
-        overflow: auto;
-        margin-top: 4px;
-        color: #aeb9bc;
-        font: 10px/1.5 var(--font-mono);
-        overflow-wrap: anywhere;
-      }
-
-      .axis-label {
-        font-size: 14px;
-        font-weight: 800;
-      }
-
-      .axis-label.x { color: #ef7777; }
-      .axis-label.y { color: #68ce9e; }
-      .axis-label.z { color: #57b5e2; }
-      .axis-label.a { color: #c49be8; }
-      .axis-label.b { color: #e8bd69; }
-
-      .axis-value {
-        overflow: hidden;
-        font-family: var(--font-mono);
-        font-size: var(--font-size-coordinate);
-        font-variant-numeric: tabular-nums;
-        text-align: right;
-        text-overflow: ellipsis;
-      }
-
-      .axis-value.machine { color: #a0aaae; font-size: 12px; }
-
-      .axis-value.work {
-        cursor: pointer;
-        border-radius: 4px;
-      }
-
-      .axis-value.work:hover,
-      .axis-value.work:focus-visible { color: var(--accent-bright); }
-
-      .position-action {
-        display: grid;
-        width: 25px;
-        min-height: 27px;
-        padding: 0;
-        place-items: center;
-        color: #aeb9bc;
-        font-size: 10px;
-      }
-
-      .position-action svg {
-        display: block;
-        width: 14px;
-        height: 14px;
-      }
-
-      .position-action.axis-x { color: #ef7777; }
-      .position-action.axis-y { color: #68ce9e; }
-      .position-action.axis-z { color: #57b5e2; }
-      .position-action.axis-a { color: #c49be8; }
-      .position-action.axis-b { color: #e8bd69; }
-
-      .position-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-top: 6px;
-        padding-top: 5.5px;
-        padding-bottom: 0;
-        border-top: 1px solid var(--border);
-      }
-
-      .position-actions button {
-        display: flex;
-        height: 34px;
-        min-height: 34px;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        border-color: #b87333;
-        color: #b9c3c6;
-        font-size: 18px;
-      }
-
-      .position-actions button:hover:not(:disabled) {
-        border-color: #e69a4e;
-      }
-
-      .position-actions button svg {
-        width: 20px;
-        height: 20px;
-      }
-
-      .position-meta {
-        display: flex;
-        height: 32.25px;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        margin-top: 5.5px;
-        padding-top: 0;
-        border-top: 1px solid var(--border);
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .position-meta span {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .position-meta strong {
-        color: #d8e0e2;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .position-dialog {
-        width: min(360px, calc(100vw - 32px));
-        padding: 0;
-        border: 1px solid #3b484d;
-        border-radius: 10px;
-        background: #202629;
-        color: #e7ecee;
-        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
-      }
-
-      .position-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-
-      #message-log-empty-dialog {
-        min-height: 240px;
-      }
-
-      .position-dialog-content {
-        display: grid;
-        gap: 14px;
-        padding: 18px;
-      }
-
-      .position-dialog h2 { margin: 0; font-size: 16px; }
-      .position-dialog label { color: var(--muted); font-size: 12px; }
-      .position-dialog input {
-        min-height: 42px;
-        padding: 0 10px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 16px ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-
-      .position-dialog-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 7px;
-      }
-
-      .position-dialog-actions button { min-height: 38px; font-size: 12px; }
-      .position-dialog-actions .primary { border-color: #287eaa; background: #1d5f80; }
-
-      .jog-mode-switch {
-        display: flex;
-        gap: 3px;
-        padding: 3px;
-        border: 1px solid var(--border);
-        border-radius: 7px;
-        background: #171c1f;
-      }
-
-      .jog-mode-button {
-        display: grid;
-        width: 29px;
-        min-width: 29px;
-        min-height: 25px;
-        padding: 0;
-        place-items: center;
-        border-color: transparent;
-        background: transparent;
-        color: var(--muted);
-      }
-
-      .jog-mode-button svg {
-        width: 15px;
-        height: 15px;
-      }
-
-      .jog-mode-button.active {
-        border-color: #344e5b;
-        background: #1a2b33;
-        color: #a3d5e9;
-      }
-
-      .jog-dial-z-label {
-        color: #f1f3f3;
-        font: 700 12px system-ui, sans-serif;
-        text-align: center;
-      }
-
-      .jog-step-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-bottom: 12px;
-      }
-
-      .jog-step-row > div {
-        display: grid;
-        gap: 5px;
-      }
-
-      .jog-step-row label, .jog-speed { color: var(--muted); font-size: 10px; }
-
-      .jog-dial-layout {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-      }
-
-      .jog-dial-control {
-        position: relative;
-        display: grid;
-        flex: 0 1 240px;
-        place-items: center;
-      }
-
-      .jog-step-custom-button {
-        display: grid;
-        width: 28px;
-        min-width: 28px;
-        height: 28px;
-        min-height: 28px;
-        padding: 0;
-        place-items: center;
-        border-color: #40545d;
-        background: #1b2529;
-        color: #a3d5e9;
-      }
-
-      .jog-step-custom-button svg {
-        width: 15px;
-        height: 15px;
-      }
-
-      .jog-step-custom-xy {
-        position: absolute;
-        z-index: 2;
-        top: 26px;
-        left: 5px;
-        width: 24px;
-        min-width: 24px;
-        height: 24px;
-        min-height: 24px;
-        padding: 0;
-        transform: translate(-50%, -50%);
-      }
-
-      .jog-dial-canvas {
-        width: min(240px, calc(100vw - 100px));
-        height: min(240px, calc(100vw - 100px));
-        cursor: crosshair;
-        touch-action: manipulation;
-      }
-
-      .jog-stop-button {
-        display: grid;
-        width: 38px;
-        min-width: 38px;
-        height: 38px;
-        min-height: 38px;
-        padding: 0;
-        place-items: center;
-        border: 1px solid #7c3033;
-        border-radius: 50%;
-        background: #351719;
-        color: #f08b8b;
-      }
-
-      .jog-stop-button:hover:not(:disabled) {
-        border-color: #bd4d51;
-        background: #4a1d20;
-      }
-
-      .jog-stop-button svg {
-        width: 17px;
-        height: 17px;
-      }
-
-      .jog-dial-stop {
-        position: absolute;
-        z-index: 1;
-      }
-
-      .jog-dial-canvas:focus-visible {
-        outline: 2px solid var(--accent-bright);
-        outline-offset: 2px;
-        border-radius: 50%;
-      }
-
-      .jog-dial-z {
-        display: grid;
-        height: 240px;
-        grid-template-rows: auto repeat(4, 1fr) 8px repeat(4, 1fr);
-        gap: 3px;
-      }
-
-      .jog-dial-z-steps {
-        position: relative;
-        height: 92%;
-        align-self: flex-end;
-        margin-bottom: 4%;
-        grid-template-rows: 12px repeat(4, minmax(0, 1fr)) 6px repeat(4, minmax(0, 1fr));
-        gap: 2px;
-      }
-
-      .jog-dial-z-steps button {
-        min-height: 0;
-        transform: none;
-      }
-
-      .jog-step-custom-z {
-        position: absolute;
-        z-index: 2;
-        top: 14px;
-        left: -31px;
-        box-sizing: border-box;
-        width: 24px;
-        min-width: 24px;
-        height: 24px;
-        min-height: 24px;
-        padding: 0;
-        aspect-ratio: 1;
-      }
-
-      .jog-steps-dialog {
-        width: min(340px, calc(100vw - 32px));
-      }
-
-      .jog-steps-fields {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 9px;
-      }
-
-      .jog-steps-fields label {
-        display: grid;
-        gap: 5px;
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .jog-steps-fields input {
-        width: 100%;
-        min-height: 36px;
-        padding: 0 8px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-
-      .jog-dial-z-steps .jog-dial-z-label {
-        height: 12px;
-        line-height: 12px;
-      }
-
-      .jog-dial-z-continuous {
-        grid-template-rows: auto repeat(2, minmax(0, 1fr));
-      }
-
-      .jog-dial-z-continuous button {
-        min-height: 0;
-        font-size: var(--font-size-sm);
-      }
-
-      .jog-dial-z[hidden] {
-        display: none;
-      }
-
-      .jog-dial-z-label {
-        color: var(--muted);
-        font-size: 10px;
-        font-weight: 700;
-        text-align: center;
-      }
-
-      .jog-dial-z button {
-        min-width: 42px;
-        min-height: 24px;
-        padding: 0 4px;
-        border-color: #31556a;
-        color: #8bc9e7;
-        font-size: var(--font-size-sm);
-        transform: scale(.9);
-      }
-
-      #jog-dial-panel:not([hidden]) {
-        margin-top: -7px;
-      }
-
-      .jog-dial-z button[data-direction="-1"] {
-        color: #7197ab;
-      }
-
-      .jog-dial-gap {
-        border-block: 1px solid #465257;
-        background: #252d30;
-      }
-
-      .jog-dial-hint {
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 10px;
-        text-align: center;
-      }
-      .jog-keys-layout {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-      }
-
-      .jog-grid {
-        display: grid;
-        width: min(100%, 202.5px);
-        grid-template-columns: repeat(3, minmax(39px, 1fr));
-        gap: 5.25px;
-        margin: 0;
-      }
-
-      .jog-keys-z {
-        display: grid;
-        width: 48px;
-        gap: 5.25px;
-      }
-
-      .jog-button {
-        min-height: 42.75px;
-        padding: 0;
-        font-size: var(--font-size-sm);
-        font-weight: 720;
-        touch-action: manipulation;
-      }
-
-      .jog-stop-key {
-        border-color: #7c3033;
-        background: #351719;
-        color: #f08b8b;
-      }
-
-      .jog-stop-key:hover:not(:disabled) {
-        border-color: #bd4d51;
-        background: #4a1d20;
-      }
-
-      .jog-stop-key svg {
-        display: block;
-        width: 14px;
-        height: 14px;
-        margin: auto;
-      }
-
-      .jog-button.xy { border-color: #385347; }
-      .jog-button.xy:hover:not(:disabled) { border-color: #58a77e; }
-      .jog-button.x { border-color: #604044; }
-      .jog-button.x:hover:not(:disabled) { border-color: #b8666b; }
-      .jog-button.z { border-color: #31556a; }
-      .jog-button.z:hover:not(:disabled) { border-color: #4d9bc2; }
-      .jog-button.center {
-        color: var(--muted);
-        font-size: 10px;
-        letter-spacing: 0.04em;
-      }
-
-      .jog-speed {
-        margin: 12px 0 0;
-        text-align: center;
-      }
-
-      .secondary-controls {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-top: 14px;
-        padding-top: 12px;
-        border-top: 1px solid var(--border);
-      }
-
-      .secondary-controls button {
-        min-height: 36px;
-        color: #aeb9bc;
-        font-size: 10px;
-      }
-
-      .spindle-reading {
-        justify-content: space-between;
-        margin-bottom: 12px;
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .spindle-reading strong {
-        color: #d8e0e2;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 12px;
-      }
-
-      .spindle-control {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-      }
-
-
-      .spindle-speed-control {
-        display: grid;
-        min-width: 0;
-        flex: 1;
-        grid-template-columns: auto minmax(60px, 1fr) 42px;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .spindle-speed-control label {
-        color: var(--muted);
-        font-size: 10px;
-        font-weight: 650;
-      }
-
-
-      .spindle-speed-control input[type="range"] {
-        width: 100%;
-        min-width: 60px;
-        accent-color: var(--accent-bright);
-      }
-
-      .spindle-step-button {
-        min-width: 42px;
-        min-height: 24px;
-        padding: 0 4px;
-        border-color: #31556a;
-        color: #8bc9e7;
-        font-size: 10px;
-      }
-
-      .spindle-speed-picker {
-        position: relative;
-      }
-
-      .spindle-speed-options {
-        position: absolute;
-        z-index: 5;
-        right: 0;
-        bottom: calc(100% + 6px);
-        display: grid;
-        min-width: 112px;
-        gap: 3px;
-        padding: 5px;
-        border: 1px solid var(--border);
-        border-radius: 7px;
-        background: #202629;
-        box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
-      }
-
-      .spindle-speed-options[hidden] {
-        display: none;
-      }
-
-      .spindle-speed-presets {
-        display: grid;
-        gap: 3px;
-      }
-
-      .spindle-manual-speed-label {
-        display: block;
-        margin: 7px 2px 4px;
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .spindle-manual-speed-control {
-        display: flex;
-        gap: 4px;
-      }
-
-      .spindle-manual-speed-control input {
-        width: 68px;
-        min-width: 0;
-        min-height: 28px;
-        padding: 0 5px;
-        border: 1px solid var(--border);
-        border-radius: 5px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-
-      .spindle-manual-speed-control button {
-        min-height: 28px;
-        padding: 0 7px;
-        color: #a3d5e9;
-        font-size: 10px;
-      }
-
-      .spindle-speed-option {
-        min-height: 28px;
-        padding: 0 8px;
-        border-color: transparent;
-        background: transparent;
-        color: #c8d1d4;
-        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
-        text-align: right;
-      }
-
-      .spindle-speed-option:hover,
-      .spindle-speed-option[aria-selected="true"] {
-        border-color: #344e5b;
-        background: #1a2b33;
-        color: #a3d5e9;
-      }
-
-      .spindle-limits {
-        display: flex;
-        justify-content: space-between;
-        color: var(--muted);
-        font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-
-      .spindle-actions {
-        display: flex;
-        flex: 0 0 auto;
-        align-items: center;
-        gap: 4px;
-      }
-
-      .spindle-direction-button {
-        display: grid;
-        width: 28px;
-        min-width: 28px;
-        height: 28px;
-        min-height: 28px;
-        padding: 0;
-        place-items: center;
-        color: #aeb9bc;
-      }
-
-      .spindle-direction-button svg {
-        width: 16px;
-        height: 16px;
-      }
-
-      .spindle-direction-button.active-cw {
-        border-color: #39704f;
-        background: #19291f;
-        color: #76d49c;
-      }
-
-      .spindle-direction-button.active-ccw {
-        border-color: #7c3033;
-        background: #351719;
-        color: #f08b8b;
-      }
-
-      .spindle-toggle {
-        display: flex;
-        width: auto;
-        min-width: 76px;
-        height: 42px;
-        min-height: 42px;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 0 8px;
-        border-color: #39704f;
-        background: #19291f;
-        color: #76d49c;
-      }
-
-      .spindle-toggle:hover:not(:disabled) {
-        border-color: #56a875;
-        background: #20372a;
-      }
-
-      .spindle-toggle.running {
-        border-color: #7c3033;
-        background: #351719;
-        color: #f08b8b;
-      }
-
-      .spindle-toggle.running:hover:not(:disabled) {
-        border-color: #bd4d51;
-        background: #4a1d20;
-      }
-
-      .spindle-toggle svg {
-        width: 18px;
-        height: 18px;
-        flex: 0 0 auto;
-      }
-
-      .spindle-toggle-value {
-        font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .spindle-state {
-        color: var(--muted);
-        font-size: 10px;
-        line-height: 1.5;
-      }
-
-      .viewer-panel {
-        display: grid;
-        height: 100%;
-        min-height: 525px;
-        grid-template-rows: auto minmax(0, 1fr) auto;
-      }
-
-      .machine-console {
-        display: grid;
-        gap: 10px;
-      }
-
-      .machine-console-toolbar,
-      .machine-console-command {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      .machine-console-toolbar { justify-content: space-between; }
-      .machine-console-toolbar label { color: var(--muted); font-size: 10px; }
-
-      .machine-console textarea,
-      .machine-console input {
-        min-width: 0;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 12px var(--font-mono);
-      }
-
-      .machine-console textarea {
-        width: 100%;
-        min-height: 150px;
-        padding: 10px;
-        resize: vertical;
-        line-height: 1.5;
-        tab-size: 2;
-      }
-
-      .machine-command-input-wrap {
-        position: relative;
-        min-width: 0;
-        flex: 1;
-      }
-
-      .machine-console input {
-        width: 100%;
-        min-height: 34px;
-        padding: 0 9px;
-      }
-
-      .machine-command-input-wrap.searching input {
-        padding-left: 132px;
-      }
-
-      .command-search-indicator {
-        position: absolute;
-        top: 50%;
-        left: 8px;
-        display: none;
-        max-width: 116px;
-        overflow: hidden;
-        color: #f1aa58;
-        font: 10px var(--font-mono);
-        text-overflow: ellipsis;
-        transform: translateY(-50%);
-        white-space: nowrap;
-        pointer-events: none;
-      }
-
-      .machine-command-input-wrap.searching .command-search-indicator {
-        display: block;
-      }
-
-      .machine-console input:focus,
-      .machine-console input:focus-visible {
-        border-color: #b87333;
-        outline: 1px solid #b87333;
-        outline-offset: 0;
-      }
-
-      .machine-console button {
-        display: grid;
-        width: 36px;
-        min-width: 36px;
-        min-height: 34px;
-        padding: 0;
-        place-items: center;
-        border-color: #b87333;
-        color: #d99a5e;
-      }
-
-      .machine-console .editor-open-button {
-        display: flex;
-        width: auto;
-        min-width: 0;
-        min-height: 30px;
-        justify-content: center;
-        padding: 0 10px;
-        border-color: #344e5b;
-        background: #1a2b33;
-        color: #8fc8e2;
-        font-size: 10px;
-      }
-
-      .machine-console .editor-open-button:hover:not(:disabled) {
-        border-color: #4385a1;
-        background: #1a2b33;
-        color: #a3d5e9;
-      }
-
-      .machine-console button:hover:not(:disabled) {
-        border-color: #e69a4e;
-        color: #ffc17c;
-      }
-
-      .machine-console button svg {
-        width: 17px;
-        height: 17px;
-      }
-
-      .command-history-dialog {
-        width: min(480px, calc(100vw - 32px));
-        padding: 0;
-        border: 1px solid #3b484d;
-        border-radius: 10px;
-        background: #202629;
-        color: #e7ecee;
-        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
-      }
-
-      .command-history-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-
-      .command-history-content {
-        display: grid;
-        gap: 12px;
-        padding: 16px;
-      }
-
-      .command-history-content h2 { margin: 0; font-size: 16px; }
-
-      .command-history-content input {
-        min-height: 36px;
-        padding: 0 9px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 12px var(--font-mono);
-      }
-
-      .command-history-result {
-        min-height: 38px;
-        overflow-wrap: anywhere;
-        color: var(--muted);
-        font: 12px/1.5 var(--font-mono);
-      }
-
-      .command-history-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-      }
-
-      .command-history-actions button { min-height: 32px; padding: 0 10px; }
-
-      .program-editor-dialog {
-        width: min(1100px, calc(100vw - 32px));
-        height: min(900px, calc(100vh - 32px));
-        max-height: calc(100vh - 32px);
-        padding: 0;
-        border: 1px solid #3b484d;
-        border-radius: 10px;
-        background: #202629;
-        color: #e7ecee;
-        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
-      }
-
-      .program-editor-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-
-      .program-editor-content {
-        display: grid;
-        height: 100%;
-        min-height: 0;
-        grid-template-rows: auto auto minmax(0, 1fr);
-      }
-
-      .program-editor-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .program-editor-heading h2 { margin: 0; font-size: 16px; }
-
-      .program-editor-toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .program-editor-toolbar button {
-        min-height: 32px;
-        padding: 0 10px;
-        color: #aeb9bc;
-        font-size: 10px;
-      }
-
-      .program-editor-textarea {
-        width: calc(100% - 28px);
-        height: calc(100% - 28px);
-        min-height: 0;
-        margin: 14px;
-        padding: 12px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 12px/1.55 var(--font-mono);
-        resize: none;
-        tab-size: 2;
-      }
-      .viewer-toolbar { display: flex; align-items: center; gap: 7px; }
-      .toolbar-button {
-        min-height: 29px;
-        padding: 0 9px;
-        color: #aeb9bc;
-        font-size: 10px;
-      }
-
-      .toolbar-group {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-      }
-
-      .toolbar-separator {
-        width: 1px;
-        height: 20px;
-        flex: 0 0 1px;
-        background: var(--border);
-      }
-
-      .toolbar-icon-button {
-        display: grid;
-        width: 29px;
-        min-width: 29px;
-        padding: 0;
-        place-items: center;
-      }
-
-      .toolbar-icon-button svg {
-        width: 16px;
-        height: 16px;
-      }
-
-      .projection-toggle[data-perspective="true"] .ortho-icon {
-        display: none;
-      }
-
-      .projection-toggle[data-perspective="false"] .perspective-icon {
-        display: none;
-      }
-
-      .viewer-stage {
-        position: relative;
-        display: grid;
-        min-height: 456px;
-        overflow: hidden;
-        place-items: center;
-        background-color: #151a1d;
-        background-image:
-          linear-gradient(rgb(79 98 107 / 9%) 1px, transparent 1px),
-          linear-gradient(90deg, rgb(79 98 107 / 9%) 1px, transparent 1px),
-          linear-gradient(rgb(79 98 107 / 4%) 1px, transparent 1px),
-          linear-gradient(90deg, rgb(79 98 107 / 4%) 1px, transparent 1px);
-        background-position: center;
-        background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
-      }
-
-      .viewer-stage::after {
-        position: absolute;
-        width: min(62%, 470px);
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgb(55 87 101 / 30%), transparent);
-        content: "";
-      }
-
-      .trajectory-canvas,
-      .tool-canvas {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-      }
-
-      .trajectory-canvas {
-        z-index: 0;
-        cursor: grab;
-        touch-action: none;
-      }
-
-      .trajectory-canvas.dragging { cursor: grabbing; }
-
-      .tool-canvas {
-        z-index: 1;
-        pointer-events: none;
-      }
-
-      .orientation-cube {
-        position: absolute;
-        z-index: 2;
-        top: 10px;
-        right: 10px;
-        width: 112px;
-        height: 112px;
-        cursor: pointer;
-        pointer-events: auto;
-        touch-action: manipulation;
-      }
-
-      .viewer-toolbar .active {
-        border-color: #4385a1;
-        background: #1a2b33;
-        color: #a3d5e9;
-      }
-
-      .empty-viewer {
-        z-index: 1;
-        display: grid;
-        justify-items: center;
-        gap: 10px;
-        padding: 22px;
-        color: var(--muted);
-        text-align: center;
-      }
-
-      .viewer-icon {
-        display: grid;
-        width: 54px;
-        height: 54px;
-        place-items: center;
-        border: 1px solid #34434a;
-        border-radius: 15px;
-        background: #1a2429;
-        color: #5d91a8;
-        font-size: 23px;
-      }
-
-      .empty-viewer strong { color: #bdc8cb; font-size: 12px; }
-      .empty-viewer span { max-width: 260px; font-size: 10px; line-height: 1.6; }
-      .empty-viewer[hidden] { display: none; }
-
-      .viewer-footer {
-        display: flex;
-        min-height: 40px;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 0 13px;
-        border-top: 1px solid var(--border);
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .viewer-message-summary {
-        display: grid;
-        min-width: 0;
-        flex: 1;
-        gap: 3px;
-        padding: 4px 0;
-      }
-
-      .toolpath-time {
-        color: #b9c3c6;
-        font: 10px var(--font-mono);
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-      }
-
-      .toolpath-time[hidden] { display: none; }
-
-      .viewer-message-line {
-        overflow: hidden;
-        color: #a9b4b7;
-        font-size: 10px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .viewer-message-line.critical { color: var(--red); }
-      .viewer-message-line .message-meta { color: var(--muted); }
-
-      .message-log-button {
-        min-height: 27px;
-        flex: 0 0 auto;
-        padding: 0 8px;
-        color: #aeb9bc;
-        font-size: 10px;
-      }
-
-      .message-log-dialog {
-        width: min(900px, calc(100vw - 28px));
-        height: min(760px, calc(100vh - 28px));
-        min-height: min(560px, calc(100vh - 28px));
-        max-height: min(760px, calc(100vh - 28px));
-        padding: 0;
-        border: 1px solid #3b484d;
-        border-radius: 10px;
-        background: #202629;
-        color: #e7ecee;
-        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
-      }
-
-      .message-log-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-
-      .message-log-text-dialog {
-        width: min(800px, calc(100vw - 28px));
-        height: min(600px, calc(100vh - 28px));
-        padding: 0;
-        border: 1px solid #3b484d;
-        border-radius: 10px;
-        background: #202629;
-        color: #e7ecee;
-        box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
-      }
-
-      .message-log-text-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-
-      .message-log-text-content {
-        display: grid;
-        height: 100%;
-        min-height: 0;
-        grid-template-rows: auto minmax(0, 1fr);
-        gap: 10px;
-        padding: 14px;
-      }
-
-      .message-log-text-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .message-log-text-heading h2 { margin: 0; font-size: 16px; }
-
-      .message-log-text-content textarea {
-        width: 100%;
-        min-height: 0;
-        padding: 10px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: 12px/1.5 var(--font-mono);
-        resize: none;
-      }
-
-      .message-log-content {
-        position: relative;
-        display: grid;
-        height: 100%;
-        min-height: 0;
-        grid-template-rows: auto auto minmax(0, 1fr) auto;
-      }
-
-
-      .message-log-heading {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .message-log-heading h2 { margin: 0; font-size: 16px; }
-
-      .message-log-heading > button {
-        font-size: 16px;
-        font-weight: 700;
-      }
-
-      .message-log-filters {
-        display: grid;
-        grid-template-columns:
-          minmax(0, 25fr)
-          minmax(0, 18fr)
-          minmax(0, 20fr)
-          minmax(0, 37fr);
-        grid-template-rows: auto;
-        align-items: center;
-        gap: 8px;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .log-date-picker {
-        position: relative;
-        grid-column: 1;
-        grid-row: 1;
-        min-width: 0;
-      }
-
-      .log-date-picker-button {
-        width: 100%;
-        min-height: 34px;
-        overflow: hidden;
-        padding: 0 8px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font-size: 12px;
-        text-align: left;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .log-calendar {
-        position: absolute;
-        z-index: 5;
-        top: calc(100% + 6px);
-        left: 0;
-        width: 280px;
-        padding: 10px;
-        border: 1px solid #3b484d;
-        border-radius: 8px;
-        background: #202629;
-        box-shadow: 0 12px 36px rgb(0 0 0 / 45%);
-      }
-
-      .log-calendar[hidden] { display: none; }
-
-      .log-calendar-heading,
-      .log-calendar-footer {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      .log-calendar-heading { margin-bottom: 8px; }
-      .log-calendar-month { font-size: 12px; font-weight: 700; }
-
-      .log-calendar-heading button,
-      .log-calendar-footer button {
-        min-height: 28px;
-        padding: 0 8px;
-        color: #c8d1d4;
-        font-size: 10px;
-      }
-
-      .log-calendar-grid {
-        display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
-        gap: 2px;
-        user-select: none;
-        touch-action: none;
-      }
-
-      .log-calendar-weekday,
-      .log-calendar-day {
-        display: grid;
-        min-width: 0;
-        min-height: 30px;
-        place-items: center;
-        border-radius: 5px;
-        font-size: 10px;
-      }
-
-      .log-calendar-weekday { color: var(--muted); font-weight: 700; }
-
-      .log-calendar-day {
-        padding: 0;
-        border-color: transparent;
-        background: transparent;
-        color: #d8e0e2;
-      }
-
-      .log-calendar-day.outside-month { color: #687479; }
-      .log-calendar-day:hover:not(:disabled) { background: #303b40; }
-      .log-calendar-day.in-range { border-radius: 0; background: #1b4356; }
-      .log-calendar-day.range-start,
-      .log-calendar-day.range-end {
-        border-color: #42a4d4;
-        border-radius: 5px;
-        background: #287eaa;
-        color: #fff;
-      }
-
-      .log-calendar-footer {
-        margin-top: 9px;
-        padding-top: 8px;
-        border-top: 1px solid var(--border);
-      }
-
-      .log-calendar-date-times {
-        display: grid;
-        min-width: 0;
-        flex: 1;
-        gap: 6px;
-      }
-
-      .log-calendar-actions {
-        display: grid;
-        flex: 0 0 auto;
-        gap: 6px;
-        padding-top: 14px;
-      }
-
-      .log-calendar-actions button {
-        min-height: 23px;
-      }
-
-      .log-calendar-date-time {
-        display: grid;
-        min-width: 0;
-        grid-template-columns: 1fr;
-        gap: 3px;
-      }
-
-      .log-calendar-date-time label {
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .log-calendar-date-time input {
-        width: 100%;
-        min-height: 23px;
-        padding: 0 3px;
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: inherit;
-        font-size: 10px;
-      }
-
-      .log-calendar-date-time input:disabled {
-        opacity: 0.48;
-      }
-
-      @media (max-width: 700px) {
-        .message-log-filters {
-          grid-template-columns: 25fr 18fr 20fr 37fr;
-        }
-      }
-
-      .message-log-filters select,
-      .message-log-filters input {
-        min-width: 0;
-        min-height: 34px;
-        padding: 0 8px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font-family: inherit;
-        font-size: 12px;
-      }
-
-      .message-log-table-wrap { overflow: auto; min-height: 200px; }
-
-      .message-log-table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: collapse;
-        font-size: 12px;
-      }
-
-      .message-log-table th,
-      .message-log-table td {
-        padding: 8px 10px;
-        border-bottom: 1px solid rgb(48 57 61 / 65%);
-        text-align: left;
-        vertical-align: top;
-      }
-
-      .message-log-table th {
-        position: sticky;
-        top: 0;
-        background: #202629;
-        color: #f1aa58;
-      }
-
-      .message-log-table th button {
-        min-height: 24px;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        text-align: left;
-      }
-
-      .message-log-table th button:hover { color: #e7ecee; }
-      .message-log-table th button::after { color: var(--accent-bright); }
-
-      .message-log-table td:last-child { overflow-wrap: anywhere; }
-      .message-log-table .critical { color: var(--red); }
-      .message-log-footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        padding: 10px 16px;
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .message-log-footer button {
-        min-height: 30px;
-        padding: 0 9px;
-      }
-
-      .message-log-page-size {
-        min-height: 30px;
-        padding: 0 8px;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        background: #151a1d;
-        color: #e7ecee;
-        font: inherit;
-        font-size: 10px;
-      }
-
-      .legend-item { display: flex; align-items: center; gap: 5px; }
-      .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
-      .legend-dot.rapid { background: #99a8ae; }
-      .legend-dot.linear { background: #55bd91; }
-      .legend-dot.arc { background: #f1aa58; }
-
-      .job-buttons {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 7px;
-      }
-
-      .job-buttons button {
-        min-height: 39px;
-        color: #aeb9bc;
-        font-size: 10px;
-      }
-
-      .viewer-job-buttons {
-        display: flex;
-        gap: 5px;
-      }
-
-      .viewer-job-buttons button {
-        min-height: 29px;
-        padding: 0 8px;
-        white-space: nowrap;
-      }
-
-      .job-note {
-        margin: 10px 0 0;
-        color: var(--muted);
-        font-size: 10px;
-        line-height: 1.5;
-      }
-
-      .panel-tabs {
-        gap: 4px;
-        padding: 7px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .tab-button {
-        min-height: 30px;
-        flex: 1;
-        border-color: transparent;
-        background: transparent;
-        color: var(--muted);
-        font-size: 10px;
-      }
-
-      .tab-button.active {
-        border-color: #344e5b;
-        background: #1a2b33;
-        color: #8fc8e2;
-      }
-
-      .sidebar-empty {
-        display: grid;
-        min-height: 168px;
-        align-content: center;
-        justify-items: center;
-        gap: 9px;
-        padding: 18px;
-        color: var(--muted);
-        text-align: center;
-      }
-
-      .sidebar-empty strong { color: #c0c9cc; font-size: 12px; }
-      .sidebar-empty span { font-size: 10px; line-height: 1.55; }
-
-      .right-column > .machine-console-panel {
-        grid-column: 1 / -1;
-      }
-
-      .event-panel { min-height: 134px; }
-      .event-message {
-        min-height: 46px;
-        color: #a9b4b7;
-        font-size: 10px;
-        line-height: 1.5;
-        overflow-wrap: anywhere;
-      }
-
-      .safety-note {
-        padding: 10px 12px;
-        border: 1px solid #594b2d;
-        border-radius: 7px;
-        background: rgb(113 83 27 / 12%);
-        color: #dfc98e;
-        font-size: 10px;
-        line-height: 1.5;
-      }
-
-      .connected { color: var(--green); }
-      .disconnected, .error { color: var(--red); }
-
-      @media (max-width: 1100px) {
-        .app-main {
-          grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
-        }
-        .right-column { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
-        .viewer-panel { min-height: 480px; }
-        .viewer-stage { min-height: 411px; }
-      }
-
-      @media (max-width: 700px) {
-        .app-header { min-height: 48px; padding: 0 12px; }
-        .brand-subtitle, .header-state { display: none; }
-        .machine-chip { padding: 7px 8px; }
-        .app-main {
-          grid-template-columns: minmax(0, 1fr);
-          gap: 2.75px;
-          padding: 5.5px 5.5px 11px;
-        }
-        .left-column, .center-column, .right-column { gap: 2.75px; }
-        .right-column { grid-column: auto; grid-template-columns: 1fr; }
-        .viewer-panel { min-height: 360px; }
-        .viewer-stage { min-height: 290px; }
-        .jog-button { min-height: 60px; }
-      }
-
-      @media (max-width: 380px) {
-        .header-status { gap: 6px; }
-        .machine-chip { font-size: 10px; }
-        .app-main { padding: 4px 4px 8px; }
-        .panel-body { padding: 11px; }
-        .axis-value { font-size: 14px; }
-      }
-    </style>
+    <!-- Localized document title; applyTranslations() re-applies it on every locale switch. -->
+    <title data-i18n="app.title">CNC UI — Jog</title>
+    <!-- Application stylesheets, split from the former app.css/themes.css.
+         Order preserves the original cascade: base chrome -> layout -> panels ->
+         theme token overrides (dark :root first, then [data-theme] overrides). -->
+    <link rel="stylesheet" href="./css/base.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/position.css">
+    <link rel="stylesheet" href="./css/jog.css">
+    <link rel="stylesheet" href="./css/spindle.css">
+    <link rel="stylesheet" href="./css/console-editor.css">
+    <link rel="stylesheet" href="./css/viewer.css">
+    <link rel="stylesheet" href="./css/message-log.css">
+    <link rel="stylesheet" href="./css/misc-responsive.css">
+    <link rel="stylesheet" href="./css/files.css">
+    <link rel="stylesheet" href="./css/theme-dark.css">
+    <link rel="stylesheet" href="./css/theme-light.css">
+    <link rel="stylesheet" href="./css/theme-green.css">
+    <link rel="stylesheet" href="./css/theme-gray.css">
+    <script>
+      // Apply the stored theme before the first paint to avoid a flash of the
+      // wrong palette. Kept inline (blocking) on purpose: it must run earlier
+      // than any module. Values are validated against the known theme list.
+      (function () {
+        var themes = ["dark", "light", "green", "gray"];
+        var stored = null;
+        try { stored = localStorage.getItem("cnc-ui-theme"); } catch (e) { /* ignore */ }
+        document.documentElement.dataset.theme =
+          themes.indexOf(stored) !== -1 ? stored : "dark";
+      })();
+    </script>
   </head>
   <body>
     <header class="app-header">
@@ -2001,27 +41,33 @@
         <div class="brand-mark" aria-hidden="true">C</div>
         <div>
           <div class="brand-name">CNC UI</div>
-          <div class="brand-subtitle">Machine control</div>
+          <div class="brand-subtitle" data-i18n="html.brand.subtitle">Machine control</div>
         </div>
       </div>
 
       <div class="header-status">
-        <button class="machine-chip connection-chip connection-chip-button" id="connection-machines-button" type="button" aria-haspopup="dialog" aria-controls="machines-dialog" title="Показать обнаруженные станки">
+        <button class="machine-chip connection-chip connection-chip-button" id="connection-machines-button" type="button" aria-haspopup="dialog" aria-controls="machines-dialog" data-i18n-title="html.machines.showTitle" title="Show discovered machines">
           <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
-          <span id="connection">Подключение…</span>
+          <span id="connection" data-i18n="ui.connecting">Connecting…</span>
         </button>
         <div class="machine-chip header-state" id="state">—</div>
+        <button class="header-settings-button" id="ui-settings-button" type="button" aria-haspopup="dialog" aria-controls="ui-settings-dialog" data-i18n-title="html.settings.title" data-i18n-aria-label="html.settings.title" title="Interface settings" aria-label="Interface settings">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
       </div>
     </header>
 
     <dialog class="machines-dialog" id="machines-dialog" aria-labelledby="machines-dialog-title">
       <section class="machines-dialog-content">
         <div class="machines-dialog-heading">
-          <h2 id="machines-dialog-title">Обнаруженные станки</h2>
-          <button class="machines-dialog-close" id="machines-dialog-close" type="button" aria-label="Закрыть">×</button>
+          <h2 id="machines-dialog-title" data-i18n="html.machines.title">Discovered machines</h2>
+          <button class="machines-dialog-close" id="machines-dialog-close" type="button" data-i18n-title="common.closeDialogTitle" data-i18n-aria-label="common.close" title="Close the dialog" aria-label="Close">×</button>
         </div>
         <div class="machines-dialog-actions">
-          <button id="machines-refresh" type="button" title="Запустить новый поиск станков" aria-label="Запустить новый поиск станков">
+          <button id="machines-refresh" type="button" data-i18n-title="html.machines.refreshLabel" data-i18n-aria-label="html.machines.refreshLabel" title="Start a new machine search" aria-label="Start a new machine search">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 7v5h-5"></path>
               <path d="M19 12a7 7 0 1 1-2-5"></path>
@@ -2029,20 +75,77 @@
           </button>
         </div>
         <div class="machines-list" id="machines-list" aria-live="polite">
-          <p class="machines-empty">Загрузка списка…</p>
+          <p class="machines-empty" data-i18n="ui.machines.loading">Loading list…</p>
         </div>
       </section>
     </dialog>
 
+    <dialog class="ui-settings-dialog" id="ui-settings-dialog" aria-labelledby="ui-settings-title">
+      <section class="ui-settings-content">
+        <div class="ui-settings-heading">
+          <h2 id="ui-settings-title" data-i18n="html.settings.title">Interface settings</h2>
+          <button class="ui-settings-close" id="ui-settings-close" type="button" data-i18n-title="common.closeDialogTitle" data-i18n-aria-label="common.close" title="Close the dialog" aria-label="Close">×</button>
+        </div>
+        <fieldset class="ui-settings-fieldset">
+          <legend data-i18n="html.settings.theme">Theme</legend>
+          <div class="theme-options" role="radiogroup" data-i18n-aria-label="html.settings.theme" aria-label="Theme">
+            <label class="theme-option" data-i18n-title="html.settings.selectDark" title="Use the dark theme">
+              <input type="radio" name="ui-theme" value="dark">
+              <span class="theme-preview theme-preview-dark" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeDark">Dark</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeDarkHint">Default dark workspace palette</span>
+              </span>
+            </label>
+            <label class="theme-option" data-i18n-title="html.settings.selectLight" title="Use the light theme">
+              <input type="radio" name="ui-theme" value="light">
+              <span class="theme-preview theme-preview-light" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeLight">Light</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeLightHint">Bright surfaces for daylight</span>
+              </span>
+            </label>
+            <label class="theme-option" data-i18n-title="html.settings.selectGreen" title="Use the green theme">
+              <input type="radio" name="ui-theme" value="green">
+              <span class="theme-preview theme-preview-green" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeGreen">Green</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeGreenHint">Bright surfaces with a green tint</span>
+              </span>
+            </label>
+            <label class="theme-option" data-i18n-title="html.settings.selectGray" title="Use the gray theme">
+              <input type="radio" name="ui-theme" value="gray">
+              <span class="theme-preview theme-preview-gray" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeGray">Gray</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeGrayHint">Light grayscale; red marks alarms only</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <fieldset class="ui-settings-fieldset">
+          <legend data-i18n="html.settings.language">Language</legend>
+          <!-- Option labels stay in their native language: the picker must be
+               usable before the page is translated, so they are never i18n'd. -->
+          <select id="ui-language" class="ui-language-select" data-i18n-title="html.settings.languageTitle" data-i18n-aria-label="html.settings.language" title="Choose the interface language" aria-label="Language">
+            <option value="en">English</option>
+            <option value="ru">Русский</option>
+            <option value="zh">中文</option>
+            <option value="fa">فارسی</option>
+          </select>
+        </fieldset>
+      </section>
+    </dialog>
+
     <main class="app-main">
-      <aside class="left-column" aria-label="Управление станком">
+      <aside class="left-column" data-i18n-aria-label="html.aria.machineControl" aria-label="Machine control">
         <section class="panel">
           <div class="panel-heading position-panel-heading">
-            <span class="panel-title">POSITION</span>
+            <span class="panel-title" data-i18n="html.panel.position">POSITION</span>
             <div class="section-heading">
-              <button class="position-mode-toggle active" id="wpos-toggle" type="button" title="Показать рабочие координаты" aria-pressed="true">WPOS</button>
-              <button class="position-mode-toggle" id="mpos-toggle" type="button" title="Показать машинные координаты" aria-pressed="false">MPOS</button>
-              <select id="coordinate-system" class="coordinate-select" aria-label="Система координат">
+              <button class="position-mode-toggle active" id="wpos-toggle" type="button" data-i18n-title="html.position.wposTitle" title="Show work coordinates" aria-pressed="true">WPOS</button>
+              <button class="position-mode-toggle" id="mpos-toggle" type="button" data-i18n-title="html.position.mposTitle" title="Show machine coordinates" aria-pressed="false">MPOS</button>
+              <select id="coordinate-system" class="coordinate-select" data-i18n-title="html.position.coordinateSystemTitle" data-i18n-aria-label="html.position.coordinateSystem" title="Pick the coordinate system (G54–G59) used for zeroing and work offsets" aria-label="Coordinate system">
               <option value="g54">G54</option>
               <option value="g55">G55</option>
               <option value="g56">G56</option>
@@ -2059,64 +162,72 @@
             <div id="position-axes">
               <div id="axis-rows"></div>
             </div>
-            <div class="position-actions">
-              <button id="zero-all" type="button" title="Установить рабочий ноль всех осей в выбранной системе координат">
+            <div class="position-actions" data-i18n-compact-group>
+              <button id="zero-all" type="button" data-i18n-title="html.position.zeroAllTitle" title="Set the work zero of all axes in the selected coordinate system">
                 <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
                   <circle cx="10" cy="10" r="7"></circle>
                   <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
                 </svg>
-                Zero all
+                <span data-i18n="html.position.zeroAll" data-i18n-compact="html.position.zeroAllShort">Zero all</span>
               </button>
-              <button id="home-all" type="button" title="Выполнить homing всех осей">
+              <button id="home-all" type="button" data-i18n-title="html.position.homeAllTitle" title="Home all axes">
                 <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M2.5 9.2 10 3l7.5 6.2"></path>
                   <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
                 </svg>
-                Home all
+                <span data-i18n="html.position.homeAll" data-i18n-compact="html.position.homeAllShort">Home all</span>
               </button>
             </div>
           </div>
         </section>
 
+        <div class="row-splitter" data-row-splitter="left" role="separator" tabindex="0" aria-orientation="horizontal" data-i18n-aria-label="html.layout.resizeLeftRight" aria-label="Resize position and jog panels" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
         <section class="panel jog-panel">
           <div class="panel-heading">
-            <span class="panel-title">JOG</span>
-            <div class="jog-mode-switch" role="group" aria-label="Вид управления">
-              <button class="jog-mode-button active" id="jog-dial-mode" type="button" title="Управление диском" aria-label="Управление диском" aria-pressed="true">
+            <span class="panel-title" data-i18n="html.panel.jog">JOG</span>
+            <div class="jog-mode-switch" role="group" data-i18n-aria-label="html.jog.controlType" aria-label="Control type">
+              <button class="jog-mode-button active" id="jog-dial-mode" type="button" data-i18n-title="html.jog.dial" data-i18n-aria-label="html.jog.dial" title="Dial control" aria-label="Dial control" aria-pressed="true">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="9"></circle>
                   <circle cx="12" cy="12" r="2"></circle>
                   <path d="M12 3v4M21 12h-4M12 21v-4M3 12h4"></path>
                 </svg>
               </button>
-              <button class="jog-mode-button" id="jog-keys-mode" type="button" title="Управление кнопками" aria-label="Управление кнопками" aria-pressed="false">
+              <button class="jog-mode-button" id="jog-keys-mode" type="button" data-i18n-title="html.jog.buttons" data-i18n-aria-label="html.jog.buttons" title="Button control" aria-label="Button control" aria-pressed="false">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="5" width="18" height="14" rx="2"></rect>
                   <path d="M6 9h1m3 0h1m3 0h1m3 0h1M7 12h1m3 0h1m3 0h1m-9 3h10"></path>
                 </svg>
               </button>
             </div>
-            <div class="jog-mode-switch" role="group" aria-label="Режим перемещения">
-              <button class="jog-mode-button active" id="jog-incremental-mode" type="button" title="Пошаговое перемещение" aria-label="Пошаговое перемещение" aria-pressed="true">
+            <div class="jog-mode-switch" role="group" data-i18n-aria-label="html.jog.movementMode" aria-label="Movement mode">
+              <button class="jog-mode-button active" id="jog-incremental-mode" type="button" data-i18n-title="html.jog.incremental" data-i18n-aria-label="html.jog.incremental" title="Incremental movement" aria-label="Incremental movement" aria-pressed="true">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 12h12m-4-4 4 4-4 4"></path>
                   <circle cx="19" cy="12" r="2"></circle>
                 </svg>
               </button>
-              <button class="jog-mode-button" id="jog-continuous-mode" type="button" title="Непрерывное перемещение, пока кнопка удерживается" aria-label="Непрерывное перемещение" aria-pressed="false">
+              <button class="jog-mode-button" id="jog-continuous-mode" type="button" data-i18n-title="html.jog.continuousTitle" data-i18n-aria-label="html.jog.continuous" title="Continuous movement while the button is held" aria-label="Continuous movement" aria-pressed="false">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 7v5h-5M4 17v-5h5"></path>
                   <path d="M5.6 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.4-3"></path>
                 </svg>
               </button>
             </div>
+              <button class="jog-step-custom-button" id="jog-speed-open" type="button" data-i18n-title="html.jog.speedSettingsTitle" title="JOG speed settings" data-i18n-aria-label="html.jog.speedSettingsAria" aria-label="Configure JOG speeds">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path>
+                  <circle cx="16" cy="7" r="2"></circle>
+                  <circle cx="8" cy="17" r="2"></circle>
+                </svg>
+              </button>
           </div>
           <div class="panel-body">
             <div id="jog-keys-panel" hidden>
             <div class="jog-step-row">
               <div>
-                <label for="distance">ШАГ XY</label>
-                <select id="distance" class="step-select">
+                <label for="distance" data-i18n="html.jog.xyStep">XY STEP</label>
+                <select id="distance" class="step-select" data-i18n-title="html.jog.xyStepTitle" title="Select the jog step size for the XY axes, mm">
                   <option value="0.1">0.1 mm</option>
                   <option value="1" selected>1 mm</option>
                   <option value="10">10 mm</option>
@@ -2124,8 +235,8 @@
                 </select>
               </div>
               <div>
-                <label for="distance-z">ШАГ Z</label>
-                <select id="distance-z" class="step-select">
+                <label for="distance-z" data-i18n="html.jog.zStep">Z STEP</label>
+                <select id="distance-z" class="step-select" data-i18n-title="html.jog.zStepTitle" title="Select the jog step size for the Z axis, mm">
                   <option value="0.1">0.1 mm</option>
                   <option value="1" selected>1 mm</option>
                   <option value="10">10 mm</option>
@@ -2135,26 +246,26 @@
             </div>
 
             <div class="jog-keys-layout">
-              <div class="jog-grid" aria-label="Пошаговое перемещение осей XY">
-                <button class="jog-button xy" data-x-direction="-1" data-y-direction="1" aria-label="Переместить X минус и Y плюс" title="Диагональный Jog: X− / Y+">X−Y+</button>
-                <button class="jog-button xy" data-axis="Y" data-direction="1" aria-label="Переместить Y плюс" title="Переместить ось Y в положительном направлении">Y+</button>
-                <button class="jog-button xy" data-x-direction="1" data-y-direction="1" aria-label="Переместить X плюс и Y плюс" title="Диагональный Jog: X+ / Y+">X+Y+</button>
+              <div class="jog-grid" data-i18n-aria-label="html.jog.incrementalXY" aria-label="Incremental XY axis movement">
+                <button class="jog-button xy" data-x-direction="-1" data-y-direction="1" data-i18n-aria-label="html.jog.keyXMinusYPlus.aria" data-i18n-title="html.jog.keyXMinusYPlus.title" aria-label="Move X minus and Y plus" title="Diagonal jog: X− / Y+">X−Y+</button>
+                <button class="jog-button xy" data-axis="Y" data-direction="1" data-i18n-aria-label="html.jog.keyYPlus.aria" data-i18n-title="html.jog.keyYPlus.title" aria-label="Move Y plus" title="Move the Y axis in the positive direction">Y+</button>
+                <button class="jog-button xy" data-x-direction="1" data-y-direction="1" data-i18n-aria-label="html.jog.keyXPlusYPlus.aria" data-i18n-title="html.jog.keyXPlusYPlus.title" aria-label="Move X plus and Y plus" title="Diagonal jog: X+ / Y+">X+Y+</button>
 
-                <button class="jog-button x" data-axis="X" data-direction="-1" aria-label="Переместить X минус" title="Переместить ось X в отрицательном направлении">X−</button>
-                <button class="jog-button jog-stop-key" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
+                <button class="jog-button x" data-axis="X" data-direction="-1" data-i18n-aria-label="html.jog.keyXMinus.aria" data-i18n-title="html.jog.keyXMinus.title" aria-label="Move X minus" title="Move the X axis in the negative direction">X−</button>
+                <button class="jog-button jog-stop-key" type="button" data-jog-stop data-i18n-title="html.jog.stop" data-i18n-aria-label="html.jog.stop" title="Stop jog movement" aria-label="Stop jog movement">
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="5" y="5" width="14" height="14" rx="2"></rect>
                   </svg>
                 </button>
-                <button class="jog-button x" data-axis="X" data-direction="1" aria-label="Переместить X плюс" title="Переместить ось X в положительном направлении">X+</button>
+                <button class="jog-button x" data-axis="X" data-direction="1" data-i18n-aria-label="html.jog.keyXPlus.aria" data-i18n-title="html.jog.keyXPlus.title" aria-label="Move X plus" title="Move the X axis in the positive direction">X+</button>
 
-                <button class="jog-button xy" data-x-direction="-1" data-y-direction="-1" aria-label="Переместить X минус и Y минус" title="Диагональный Jog: X− / Y−">X−Y−</button>
-                <button class="jog-button xy" data-axis="Y" data-direction="-1" aria-label="Переместить Y минус" title="Переместить ось Y в отрицательном направлении">Y−</button>
-                <button class="jog-button xy" data-x-direction="1" data-y-direction="-1" aria-label="Переместить X плюс и Y минус" title="Диагональный Jog: X+ / Y−">X+Y−</button>
+                <button class="jog-button xy" data-x-direction="-1" data-y-direction="-1" data-i18n-aria-label="html.jog.keyXMinusYMinus.aria" data-i18n-title="html.jog.keyXMinusYMinus.title" aria-label="Move X minus and Y minus" title="Diagonal jog: X− / Y−">X−Y−</button>
+                <button class="jog-button xy" data-axis="Y" data-direction="-1" data-i18n-aria-label="html.jog.keyYMinus.aria" data-i18n-title="html.jog.keyYMinus.title" aria-label="Move Y minus" title="Move the Y axis in the negative direction">Y−</button>
+                <button class="jog-button xy" data-x-direction="1" data-y-direction="-1" data-i18n-aria-label="html.jog.keyXPlusYMinus.aria" data-i18n-title="html.jog.keyXPlusYMinus.title" aria-label="Move X plus and Y minus" title="Diagonal jog: X+ / Y−">X+Y−</button>
               </div>
-              <div class="jog-keys-z" aria-label="Перемещение оси Z">
-                <button class="jog-button z" data-axis="Z" data-direction="1" aria-label="Переместить Z плюс" title="Переместить ось Z в положительном направлении">Z+</button>
-                <button class="jog-button z" data-axis="Z" data-direction="-1" aria-label="Переместить Z минус" title="Переместить ось Z в отрицательном направлении">Z−</button>
+              <div class="jog-keys-z" data-i18n-aria-label="html.jog.zAxisMovement" aria-label="Z axis movement">
+                <button class="jog-button z" data-axis="Z" data-direction="1" data-i18n-aria-label="html.jog.keyZPlus.aria" data-i18n-title="html.jog.keyZPlus.title" aria-label="Move Z plus" title="Move the Z axis in the positive direction">Z+</button>
+                <button class="jog-button z" data-axis="Z" data-direction="-1" data-i18n-aria-label="html.jog.keyZMinus.aria" data-i18n-title="html.jog.keyZMinus.title" aria-label="Move Z minus" title="Move the Z axis in the negative direction">Z−</button>
               </div>
             </div>
 
@@ -2162,75 +273,113 @@
             <div id="jog-dial-panel">
               <div class="jog-dial-layout">
                 <div class="jog-dial-control">
-                  <button class="jog-step-custom-button jog-step-custom-xy" type="button" data-open-jog-steps="xy" title="Настроить шаги XY" aria-label="Настроить пользовательские шаги XY">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 7h16M4 12h16M4 17h16"></path>
-                      <circle cx="9" cy="7" r="2" fill="#1b2529"></circle>
-                      <circle cx="15" cy="12" r="2" fill="#1b2529"></circle>
-                      <circle cx="11" cy="17" r="2" fill="#1b2529"></circle>
-                    </svg>
-                  </button>
-                  <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" aria-label="Диск управления XY: выберите сектор для направления движения; в пошаговом режиме кольца задают шаг, в непрерывном удерживайте кнопку и перемещайте указатель" title="XY Jog: кольцо задаёт шаг; нажмите сектор для перемещения"></canvas>
-                  <button class="jog-stop-button jog-dial-stop" type="button" data-jog-stop title="Остановить перемещение Jog" aria-label="Остановить перемещение Jog">
+                  <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" data-i18n-aria-label="html.jog.dialAria" data-i18n-title="html.jog.dialTitle" aria-label="XY jog dial: pick a sector for the direction; in incremental mode the rings set the step, in continuous mode hold the button and move the pointer" title="XY jog: the rings set the step; click a sector to move"></canvas>
+                  <button class="jog-stop-button jog-dial-stop" type="button" data-jog-stop data-i18n-title="html.jog.stop" data-i18n-aria-label="html.jog.stop" title="Stop jog movement" aria-label="Stop jog movement">
                     <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                       <rect x="5" y="5" width="14" height="14" rx="2"></rect>
                     </svg>
                   </button>
                 </div>
-                <div class="jog-dial-z jog-dial-z-steps" id="jog-dial-z-steps" aria-label="Пошаговое перемещение оси Z">
-                  <button class="jog-step-custom-button jog-step-custom-z" type="button" data-open-jog-steps="z" title="Настроить шаги Z" aria-label="Настроить пользовательские шаги Z">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M4 7h16M4 12h16M4 17h16"></path>
-                      <circle cx="9" cy="7" r="2" fill="#1b2529"></circle>
-                      <circle cx="15" cy="12" r="2" fill="#1b2529"></circle>
-                      <circle cx="11" cy="17" r="2" fill="#1b2529"></circle>
-                    </svg>
-                  </button>
+                <div class="jog-dial-z jog-dial-z-steps" id="jog-dial-z-steps" data-i18n-aria-label="html.jog.incrementalZ" aria-label="Incremental Z axis movement">
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" aria-label="Переместить Z плюс на 100 миллиметров" title="Переместить Z вверх на 100 мм">100</button>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" aria-label="Переместить Z плюс на 10 миллиметров" title="Переместить Z вверх на 10 мм">10</button>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="1" aria-label="Переместить Z плюс на 1 миллиметр" title="Переместить Z вверх на 1 мм">1</button>
-                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="0.1" aria-label="Переместить Z плюс на 0.1 миллиметра" title="Переместить Z вверх на 0,1 мм">0.1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" data-i18n-aria-label="html.jog.zPlus100.aria" data-i18n-title="html.jog.zPlus100.title" aria-label="Move Z plus 100 millimeters" title="Move Z up 100 mm">100</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" data-i18n-aria-label="html.jog.zPlus10.aria" data-i18n-title="html.jog.zPlus10.title" aria-label="Move Z plus 10 millimeters" title="Move Z up 10 mm">10</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="1" data-i18n-aria-label="html.jog.zPlus1.aria" data-i18n-title="html.jog.zPlus1.title" aria-label="Move Z plus 1 millimeter" title="Move Z up 1 mm">1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="0.1" data-i18n-aria-label="html.jog.zPlus01.aria" data-i18n-title="html.jog.zPlus01.title" aria-label="Move Z plus 0.1 millimeters" title="Move Z up 0.1 mm">0.1</button>
                   <span class="jog-dial-gap" aria-hidden="true"></span>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="0.1" aria-label="Переместить Z минус на 0.1 миллиметра" title="Переместить Z вниз на 0,1 мм">−0.1</button>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="1" aria-label="Переместить Z минус на 1 миллиметр" title="Переместить Z вниз на 1 мм">−1</button>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="10" aria-label="Переместить Z минус на 10 миллиметров" title="Переместить Z вниз на 10 мм">−10</button>
-                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="100" aria-label="Переместить Z минус на 100 миллиметров" title="Переместить Z вниз на 100 мм">−100</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="0.1" data-i18n-aria-label="html.jog.zMinus01.aria" data-i18n-title="html.jog.zMinus01.title" aria-label="Move Z minus 0.1 millimeters" title="Move Z down 0.1 mm">−0.1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="1" data-i18n-aria-label="html.jog.zMinus1.aria" data-i18n-title="html.jog.zMinus1.title" aria-label="Move Z minus 1 millimeter" title="Move Z down 1 mm">−1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="10" data-i18n-aria-label="html.jog.zMinus10.aria" data-i18n-title="html.jog.zMinus10.title" aria-label="Move Z minus 10 millimeters" title="Move Z down 10 mm">−10</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="100" data-i18n-aria-label="html.jog.zMinus100.aria" data-i18n-title="html.jog.zMinus100.title" aria-label="Move Z minus 100 millimeters" title="Move Z down 100 mm">−100</button>
                 </div>
-                <div class="jog-dial-z jog-dial-z-continuous" id="jog-dial-z-continuous" aria-label="Непрерывное перемещение оси Z" hidden>
+                <div class="jog-dial-z jog-dial-z-continuous" id="jog-dial-z-continuous" data-i18n-aria-label="html.jog.continuousZ" aria-label="Continuous Z axis movement" hidden>
                   <span class="jog-dial-z-label" aria-hidden="true">Z</span>
-                  <button type="button" data-dial-continuous-axis="Z" data-direction="1" aria-label="Непрерывно перемещать Z вверх, пока кнопка удерживается" title="Удерживайте для непрерывного перемещения Z вверх">▲</button>
-                  <button type="button" data-dial-continuous-axis="Z" data-direction="-1" aria-label="Непрерывно перемещать Z вниз, пока кнопка удерживается" title="Удерживайте для непрерывного перемещения Z вниз">▼</button>
+                  <button type="button" data-dial-continuous-axis="Z" data-direction="1" data-i18n-aria-label="html.jog.zUpHoldAria" data-i18n-title="html.jog.zUpHoldTitle" aria-label="Continuously move Z up while the button is held" title="Hold to move Z up continuously">▲</button>
+                  <button type="button" data-dial-continuous-axis="Z" data-direction="-1" data-i18n-aria-label="html.jog.zDownHoldAria" data-i18n-title="html.jog.zDownHoldTitle" aria-label="Continuously move Z down while the button is held" title="Hold to move Z down continuously">▼</button>
+                </div>
+                <div class="jog-rotary-columns" id="jog-rotary-columns" hidden>
+                  <div class="jog-rotary-col" data-rotary-column="A" hidden>
+                    <button class="jog-rotary-head" type="button" data-rotary-unit-toggle="A" title="Switch units for axis A" aria-label="Axis A: switch units">A · °</button>
+                    <!-- The per-axis ARIA label for rotary columns is set by jog-rotary-columns.js with t("html.jog.rotary.stepsAria"). -->
+                    <div class="jog-rotary-steps" data-rotary-steps="A" aria-label="Incremental axis A movement">
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="100" aria-label="Move A plus 100" title="Move A plus 100">+100</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="10" aria-label="Move A plus 10" title="Move A plus 10">+10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="1" aria-label="Move A plus 1" title="Move A plus 1">+1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="0.1" aria-label="Move A plus 0.1" title="Move A plus 0.1">+0.1</button>
+                      <span class="jog-dial-gap" aria-hidden="true"></span>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="0.1" aria-label="Move A minus 0.1" title="Move A minus 0.1">−0.1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="1" aria-label="Move A minus 1" title="Move A minus 1">−1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="10" aria-label="Move A minus 10" title="Move A minus 10">−10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="100" aria-label="Move A minus 100" title="Move A minus 100">−100</button>
+                    </div>
+                    <div class="jog-rotary-continuous" data-rotary-continuous="A" hidden>
+                      <button type="button" data-dial-continuous-axis="A" data-direction="1" aria-label="Continuously move A plus while held" title="Hold to move A plus">▲</button>
+                      <button type="button" data-dial-continuous-axis="A" data-direction="-1" aria-label="Continuously move A minus while held" title="Hold to move A minus">▼</button>
+                    </div>
+                  </div>
+                  <div class="jog-rotary-col" data-rotary-column="B" hidden>
+                    <button class="jog-rotary-head" type="button" data-rotary-unit-toggle="B" title="Switch units for axis B" aria-label="Axis B: switch units">B · °</button>
+                    <div class="jog-rotary-steps" data-rotary-steps="B" aria-label="Incremental axis B movement">
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="100" aria-label="Move B plus 100" title="Move B plus 100">+100</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="10" aria-label="Move B plus 10" title="Move B plus 10">+10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="1" aria-label="Move B plus 1" title="Move B plus 1">+1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="0.1" aria-label="Move B plus 0.1" title="Move B plus 0.1">+0.1</button>
+                      <span class="jog-dial-gap" aria-hidden="true"></span>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="0.1" aria-label="Move B minus 0.1" title="Move B minus 0.1">−0.1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="1" aria-label="Move B minus 1" title="Move B minus 1">−1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="10" aria-label="Move B minus 10" title="Move B minus 10">−10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="100" aria-label="Move B minus 100" title="Move B minus 100">−100</button>
+                    </div>
+                    <div class="jog-rotary-continuous" data-rotary-continuous="B" hidden>
+                      <button type="button" data-dial-continuous-axis="B" data-direction="1" aria-label="Continuously move B plus while held" title="Hold to move B plus">▲</button>
+                      <button type="button" data-dial-continuous-axis="B" data-direction="-1" aria-label="Continuously move B minus while held" title="Hold to move B minus">▼</button>
+                    </div>
+                  </div>
+                  <div class="jog-rotary-col" data-rotary-column="C" hidden>
+                    <button class="jog-rotary-head" type="button" data-rotary-unit-toggle="C" title="Switch units for axis C" aria-label="Axis C: switch units">C · °</button>
+                    <div class="jog-rotary-steps" data-rotary-steps="C" aria-label="Incremental axis C movement">
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="100" aria-label="Move C plus 100" title="Move C plus 100">+100</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="10" aria-label="Move C plus 10" title="Move C plus 10">+10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="1" aria-label="Move C plus 1" title="Move C plus 1">+1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="0.1" aria-label="Move C plus 0.1" title="Move C plus 0.1">+0.1</button>
+                      <span class="jog-dial-gap" aria-hidden="true"></span>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="0.1" aria-label="Move C minus 0.1" title="Move C minus 0.1">−0.1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="1" aria-label="Move C minus 1" title="Move C minus 1">−1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="10" aria-label="Move C minus 10" title="Move C minus 10">−10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="100" aria-label="Move C minus 100" title="Move C minus 100">−100</button>
+                    </div>
+                    <div class="jog-rotary-continuous" data-rotary-continuous="C" hidden>
+                      <button type="button" data-dial-continuous-axis="C" data-direction="1" aria-label="Continuously move C plus while held" title="Hold to move C plus">▲</button>
+                      <button type="button" data-dial-continuous-axis="C" data-direction="-1" aria-label="Continuously move C minus while held" title="Hold to move C minus">▼</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
         <section class="spindle-control">
             <div class="spindle-speed-control">
-              <label for="spindle-speed">RPM</label>
-              <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" aria-label="Настройка скорости шпинделя">
+              <label for="spindle-speed" data-i18n="html.spindle.rpm">RPM</label>
+              <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" data-i18n-title="html.spindle.sliderTitle" data-i18n-aria-label="html.spindle.slider" title="Drag to set the spindle speed in RPM" aria-label="Spindle speed slider">
               <div class="spindle-speed-picker">
-                <button class="spindle-step-button" id="spindle-step" type="button" title="Выбрать предустановленную скорость шпинделя" aria-label="Заданная скорость шпинделя; открыть список предустановок" aria-haspopup="listbox" aria-expanded="false">0</button>
-                <div class="spindle-speed-options" id="spindle-speed-options" role="group" aria-label="Скорость шпинделя" hidden>
-                  <div class="spindle-speed-presets" id="spindle-speed-presets" role="listbox" aria-label="Предустановленные скорости шпинделя"></div>
-                  <label class="spindle-manual-speed-label" for="spindle-manual-speed">Своя скорость, RPM</label>
+                <button class="spindle-step-button" id="spindle-step" type="button" data-i18n-title="html.spindle.presetTitle" data-i18n-aria-label="html.spindle.presetAria" title="Pick a preset spindle speed" aria-label="Set spindle speed; open preset list" aria-haspopup="listbox" aria-expanded="false">0</button>
+                <div class="spindle-speed-options" id="spindle-speed-options" role="group" data-i18n-aria-label="spindle.speedLabel" aria-label="Spindle speed" hidden>
+                  <div class="spindle-speed-presets" id="spindle-speed-presets" role="listbox" data-i18n-aria-label="html.spindle.presets" aria-label="Preset spindle speeds"></div>
+                  <label class="spindle-manual-speed-label" for="spindle-manual-speed" data-i18n="html.spindle.customSpeed">Custom speed, RPM</label>
                   <div class="spindle-manual-speed-control">
-                    <input id="spindle-manual-speed" type="number" min="0" step="any" inputmode="decimal" aria-label="Ввести скорость шпинделя вручную">
-                    <button id="spindle-manual-speed-apply" type="button">Применить</button>
+                    <input id="spindle-manual-speed" type="number" min="0" step="any" inputmode="decimal" data-i18n-title="html.spindle.manualTitle" data-i18n-aria-label="html.spindle.manualAria" title="Enter the spindle speed manually, RPM" aria-label="Enter spindle speed manually">
+                    <button id="spindle-manual-speed-apply" type="button" data-i18n="common.apply" data-i18n-title="html.spindle.manualApplyTitle" title="Apply the entered spindle speed">Apply</button>
                   </div>
                 </div>
               </div>
             </div>
             <div class="spindle-actions">
-              <button class="spindle-direction-button" id="spindle-cw" type="button" aria-label="Запустить шпиндель по часовой стрелке" title="Запустить шпиндель по часовой стрелке">
+              <button class="spindle-direction-button" id="spindle-cw" type="button" data-i18n-aria-label="spindle.startClockwise" data-i18n-title="spindle.startClockwise" aria-label="Start spindle clockwise" title="Start spindle clockwise">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path>
                   <path d="M4 4v5h5"></path>
                 </svg>
               </button>
-              <button class="spindle-direction-button" id="spindle-ccw" type="button" aria-label="Запустить шпиндель против часовой стрелки" title="Запустить шпиндель против часовой стрелки">
+              <button class="spindle-direction-button" id="spindle-ccw" type="button" data-i18n-aria-label="spindle.startCounterClockwise" data-i18n-title="spindle.startCounterClockwise" aria-label="Start spindle counterclockwise" title="Start spindle counterclockwise">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path>
                   <path d="M20 4v5h-5"></path>
@@ -2238,33 +387,38 @@
               </button>
             </div>
         </section>
+          </div>
+        </section>
+
       </aside>
 
-      <section class="center-column" aria-label="Просмотр программы и управление заданием">
+      <div class="col-splitter" data-splitter="left" role="separator" tabindex="0" aria-orientation="vertical" data-i18n-aria-label="html.layout.resizeLeftColumn" aria-label="Resize left column" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
+
+      <section class="center-column" data-i18n-aria-label="html.layout.centerAria" aria-label="Program viewer and job control">
         <section class="panel viewer-panel">
           <div class="panel-heading">
-            <span class="panel-title">G-CODE VIEWER</span>
+            <span class="panel-title" data-i18n="html.panel.viewer">G-CODE VIEWER</span>
             <div class="viewer-toolbar">
               <input id="program-file" type="file" accept=".nc,.ngc,.gcode" hidden>
-              <div class="toolbar-group" role="group" aria-label="Траектория">
-                <button class="toolbar-button toolbar-icon-button" id="load-program" type="button" aria-label="Загрузить G-Code" title="Загрузка программы G-Code">
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.toolpathGroup" aria-label="Toolpath">
+                <button class="toolbar-button toolbar-icon-button" id="load-program" type="button" data-i18n-aria-label="html.viewer.loadAria" data-i18n-title="html.viewer.loadTitle" aria-label="Load G-code" title="Load G-code program">
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M5 3h10l4 4v14H5z"></path>
                     <path d="M14 3v5h5M8 13h8M8 17h5"></path>
                   </svg>
                 </button>
-                <button class="toolbar-button toolbar-icon-button" id="job-run" type="button" aria-label="Запустить программу" title="Запустить или продолжить программу" disabled>
+                <button class="toolbar-button toolbar-icon-button" id="job-run" type="button" data-i18n-aria-label="html.viewer.startAria" data-i18n-title="html.viewer.startTitle" aria-label="Start program" title="Start or resume the program" disabled>
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M7 4.8v14.4L19 12 7 4.8Z"></path>
                   </svg>
                 </button>
-                <button class="toolbar-button toolbar-icon-button" id="job-pause" type="button" aria-label="Пауза программы" title="Приостановить программу" disabled>
+                <button class="toolbar-button toolbar-icon-button" id="job-pause" type="button" data-i18n-aria-label="html.viewer.pauseAria" data-i18n-title="html.viewer.pauseTitle" aria-label="Pause program" title="Pause the program" disabled>
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="5" width="4" height="14" rx="1"></rect>
                     <rect x="14" y="5" width="4" height="14" rx="1"></rect>
                   </svg>
                 </button>
-                <button class="toolbar-button toolbar-icon-button" id="job-abort" type="button" aria-label="Остановить программу" title="Остановить программу" disabled>
+                <button class="toolbar-button toolbar-icon-button" id="job-abort" type="button" data-i18n-aria-label="html.viewer.stopAria" data-i18n-title="html.viewer.stopTitle" aria-label="Stop program" title="Stop the program" disabled>
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="5" y="5" width="14" height="14" rx="2"></rect>
                   </svg>
@@ -2274,14 +428,14 @@
               <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
 
               <input id="stock-file" type="file" accept=".stl,.obj,.json,model/stl,model/obj,application/json" hidden>
-              <div class="toolbar-group" role="group" aria-label="Заготовка">
-                <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" aria-label="Вкл/выкл заготовки" title="Вкл/выкл заготовки" aria-pressed="true">
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.stockGroup" aria-label="Stock">
+                <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" data-i18n-aria-label="html.viewer.stockToggle" data-i18n-title="html.viewer.stockToggle" aria-label="Show/hide stock" title="Show/hide stock" aria-pressed="true">
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
                     <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
                     <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
                   </svg>
                 </button>
-                <button class="toolbar-button toolbar-icon-button" id="load-stock" type="button" aria-label="Загрузка геометрии заготовки" title="Загрузка геометрии заготовки">
+                <button class="toolbar-button toolbar-icon-button" id="load-stock" type="button" data-i18n-aria-label="html.viewer.loadStock" data-i18n-title="html.viewer.loadStock" aria-label="Load stock geometry" title="Load stock geometry">
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
                     <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
@@ -2292,8 +446,8 @@
 
               <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
 
-              <div class="toolbar-group" role="group" aria-label="Сцена">
-                <button class="toolbar-button toolbar-icon-button active projection-toggle" id="projection-toggle" type="button" data-perspective="true" title="Переключить на ортографическую проекцию" aria-label="Перспективная проекция; переключить на ортографическую" aria-pressed="true">
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.sceneGroup" aria-label="Scene">
+                <button class="toolbar-button toolbar-icon-button active projection-toggle" id="projection-toggle" type="button" data-perspective="true" data-i18n-title="viewer.projection.toOrthographic" data-i18n-aria-label="viewer.projection.perspectiveAria" title="Switch to orthographic projection" aria-label="Perspective projection; switch to orthographic" aria-pressed="true">
                   <svg class="perspective-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
                     <path d="M4 8 9 4h6l5 4v13H4V8Z"></path>
                     <path d="M4 8h16M9 4v4m6-4v4M9 8v13m6-13v13"></path>
@@ -2303,7 +457,7 @@
                     <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
                   </svg>
                 </button>
-                <button class="toolbar-button toolbar-icon-button" id="fit-program" type="button" aria-label="Вписать сцену в окно" title="Вписать сцену в окно">
+                <button class="toolbar-button toolbar-icon-button" id="fit-program" type="button" data-i18n-aria-label="html.viewer.fit" data-i18n-title="html.viewer.fit" aria-label="Fit scene to window" title="Fit scene to window">
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"></path>
                     <path d="M9 9h6v6H9z"></path>
@@ -2313,58 +467,61 @@
             </div>
           </div>
           <div class="viewer-stage">
-            <canvas class="trajectory-canvas" id="trajectory-canvas" aria-label="3D-траектория G-code"></canvas>
+            <canvas class="trajectory-canvas" id="trajectory-canvas" data-i18n-aria-label="html.viewer.toolpathCanvas" aria-label="3D G-code toolpath"></canvas>
             <canvas class="tool-canvas" id="tool-canvas" aria-hidden="true"></canvas>
-            <canvas class="orientation-cube" id="orientation-cube" aria-label="Куб ориентации: нажмите на метку оси для выбора вида"></canvas>
+            <canvas class="orientation-cube" id="orientation-cube" data-i18n-aria-label="html.viewer.orientationCube" aria-label="Orientation cube: click an axis label to pick a view"></canvas>
             <div class="empty-viewer" id="viewer-empty">
               <div class="viewer-icon" aria-hidden="true">⌘</div>
-              <strong>Просмотр траектории</strong>
-              <span>Загрузите файл G-code или положите test.gcode рядом с приложением для автоматической загрузки.</span>
+              <strong data-i18n="html.viewer.emptyTitle">Toolpath viewer</strong>
+              <span data-i18n="html.viewer.emptyText">Load a G-code file, or place test.gcode next to the app for automatic loading.</span>
             </div>
           </div>
           <div class="viewer-footer">
             <div class="viewer-message-summary" aria-live="polite">
-              <div class="toolpath-time" id="toolpath-time" hidden title="Осталось / всего, оценка по подачам G-code">—</div>
+              <div class="toolpath-time" id="toolpath-time" hidden data-i18n-title="html.viewer.timeTitle" title="Remaining / total, estimated from G-code feed rates">—</div>
               <div class="viewer-message-line critical" id="latest-critical-message">—</div>
-              <div class="viewer-message-line" id="latest-other-message">Сообщений нет</div>
+              <div class="viewer-message-line" id="latest-other-message" data-i18n="ui.noMessages">No messages</div>
             </div>
-            <button class="message-log-button" id="open-message-log" type="button">Журнал</button>
+            <button class="message-log-button" id="open-message-log" type="button" data-i18n="html.viewer.log" data-i18n-title="html.viewer.logTitle" title="Open the message log">Log</button>
           </div>
         </section>
 
 
         <div hidden>
-          <span id="job-caption">Нет загруженной программы</span>
-          <p class="job-note" id="job-note">Сначала загрузите программу или дождитесь автозагрузки test.gcode.</p>
+          <span id="job-caption" data-i18n="job.caption.noProgram">No program loaded</span>
+          <p class="job-note" id="job-note" data-i18n="html.job.noteInitial">Load a program first, or wait for test.gcode to load automatically.</p>
         </div>
       </section>
 
-      <aside class="right-column" aria-label="Файлы и сообщения">
+      <div class="col-splitter" data-splitter="right" role="separator" tabindex="0" aria-orientation="vertical" data-i18n-aria-label="html.layout.resizeRightColumn" aria-label="Resize right column" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
+
+      <aside class="right-column" data-i18n-aria-label="html.layout.rightAria" aria-label="Files and messages">
         <section class="panel">
-          <div class="panel-tabs" role="tablist" aria-label="Боковая панель">
-            <button class="tab-button" id="macros-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-content">MACROS</button>
-            <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content">FILES</button>
+          <div class="panel-tabs" role="tablist" data-i18n-aria-label="html.layout.tabsAria" aria-label="Sidebar">
+            <button class="tab-button" id="macros-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-content" data-i18n="html.sidebar.macros" data-i18n-title="html.sidebar.macrosTitle" title="Show the macros panel">MACROS</button>
+            <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content" data-i18n="html.sidebar.files" data-i18n-title="html.sidebar.filesTitle" title="Show the file manager panel">FILES</button>
           </div>
           <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
             <div class="sidebar-empty">
-              <strong id="sidebar-title">Файловый менеджер</strong>
-              <span id="sidebar-description">Просмотр и загрузка файлов пока не подключены. Сейчас доступно пошаговое управление осями.</span>
+              <strong id="sidebar-title" data-i18n="sidebar.files.title">File manager</strong>
+              <span id="sidebar-description" data-i18n="sidebar.files.description">File browsing and loading are not connected yet. Incremental axis control is available now.</span>
             </div>
           </div>
         </section>
 
+        <div class="row-splitter" data-row-splitter="right" role="separator" tabindex="0" aria-orientation="horizontal" data-i18n-aria-label="html.layout.resizeMacrosCommands" aria-label="Resize macros and commands panels" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
         <section class="panel machine-console-panel">
           <div class="panel-heading">
-            <span class="panel-title">КОМАНДЫ И G-CODE</span>
+            <span class="panel-title" data-i18n="html.panel.commands">COMMANDS</span>
           </div>
           <div class="panel-body machine-console">
-            <button class="tab-button active editor-open-button" id="open-program-editor" type="button">Редактор</button>
+            <button class="tab-button active editor-open-button" id="open-program-editor" type="button" data-i18n="html.commands.editor" data-i18n-title="html.commands.editorTitle" title="Open the G-code editor">Editor</button>
             <form class="machine-console-command" id="machine-command-form">
               <div class="machine-command-input-wrap" id="machine-command-input-wrap">
                 <span class="command-search-indicator" id="command-search-indicator" aria-hidden="true"></span>
-                <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" placeholder="Команда станка, например G0 X0 или $$" aria-label="Команда станка">
+                <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="html.commands.placeholder" placeholder="Machine command, for example G0 X0 or $$" data-i18n-title="html.commands.inputTitle" data-i18n-aria-label="html.commands.inputAria" title="Type a machine command; press Enter to run it" aria-label="Machine command">
               </div>
-              <button type="submit" id="machine-command-run" title="Выполнить команду (Enter)" aria-label="Выполнить команду">
+              <button type="submit" id="machine-command-run" data-i18n-title="html.commands.runTitle" data-i18n-aria-label="html.commands.run" title="Run command (Enter)" aria-label="Run command">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M4 12h13"></path>
                   <path d="m12 6 6 6-6 6"></path>
@@ -2376,19 +533,19 @@
         </section>
 
         <div hidden>
-          <div id="message">Ожидание состояния контроллера…</div>
+          <div id="message" data-i18n="html.status.waiting">Waiting for controller status…</div>
         </div>
       </aside>
     </main>
 
     <dialog class="command-history-dialog" id="command-history-dialog">
       <form class="command-history-content" id="command-history-form">
-        <h2>Поиск в истории команд</h2>
-        <input id="command-history-search" type="search" autocomplete="off" placeholder="Введите часть команды">
-        <div class="command-history-result" id="command-history-result" aria-live="polite">Введите текст для поиска.</div>
+        <h2 data-i18n="html.history.title">Search command history</h2>
+        <input id="command-history-search" type="search" autocomplete="off" data-i18n-placeholder="html.history.placeholder" placeholder="Type part of a command" data-i18n-title="html.history.searchTitle" title="Type part of a command to find it in the history">
+        <div class="command-history-result" id="command-history-result" aria-live="polite" data-i18n="command.history.prompt">Enter text to search.</div>
         <div class="command-history-actions">
-          <button type="button" id="command-history-cancel">Отмена</button>
-          <button type="submit" id="command-history-use" disabled>Подставить команду</button>
+          <button type="button" id="command-history-cancel" data-i18n="common.cancel" data-i18n-title="common.cancelTitle" title="Close without changes">Cancel</button>
+          <button type="submit" id="command-history-use" disabled data-i18n="html.history.insert" data-i18n-title="html.history.useTitle" title="Insert the found command into the command line">Insert command</button>
         </div>
       </form>
     </dialog>
@@ -2396,57 +553,84 @@
     <dialog class="program-editor-dialog" id="program-editor-dialog">
       <section class="program-editor-content" aria-labelledby="program-editor-title">
         <div class="program-editor-heading">
-          <h2 id="program-editor-title">Редактор G-code</h2>
-          <button type="button" id="close-program-editor">Закрыть</button>
+          <h2 id="program-editor-title" data-i18n="html.editor.title">G-code editor</h2>
+          <button type="button" id="close-program-editor" data-i18n="common.close" data-i18n-title="html.editor.closeTitle" title="Close the editor">Close</button>
         </div>
         <div class="program-editor-toolbar">
-          <button id="editor-load-program" type="button">Загрузить</button>
-          <button id="editor-save-program" type="button">Сохранить файл</button>
-          <button id="editor-cancel-changes" type="button">Отменить изменения</button>
+          <button id="editor-load-program" type="button" data-i18n="html.editor.load" data-i18n-title="html.editor.loadTitle" title="Load a G-code file into the editor">Load</button>
+          <button id="editor-save-program" type="button" data-i18n="html.editor.save" data-i18n-title="html.editor.saveTitle" title="Save the editor contents to a file">Save file</button>
+          <button id="editor-cancel-changes" type="button" data-i18n="html.editor.discard" data-i18n-title="html.editor.discardTitle" title="Discard unsaved changes and restore the loaded program">Discard changes</button>
         </div>
         <textarea
           class="program-editor-textarea"
           id="program-editor"
           spellcheck="false"
-          aria-label="Редактор G-code программы"
-          placeholder="Загрузите программу или введите G-code"
+          data-i18n-title="html.editor.textareaTitle"
+          data-i18n-aria-label="html.editor.aria"
+          aria-label="G-code program editor"
+          data-i18n-placeholder="html.editor.placeholder"
+          placeholder="Load a program or type G-code"
+          title="Edit the G-code program here"
         ></textarea>
       </section>
     </dialog>
 
-    <dialog class="position-dialog jog-steps-dialog" id="jog-steps-dialog">
-      <form class="position-dialog-content" id="jog-steps-form">
-        <h2>Пользовательские шаги Jog</h2>
-        <span class="panel-caption">Укажите четыре возрастающих шага в миллиметрах для перемещений XY и Z.</span>
-        <div class="jog-steps-fields">
-          <label>Шаг 1, mm<input type="number" min="0" step="any" required></label>
-          <label>Шаг 2, mm<input type="number" min="0" step="any" required></label>
-          <label>Шаг 3, mm<input type="number" min="0" step="any" required></label>
-          <label>Шаг 4, mm<input type="number" min="0" step="any" required></label>
-        </div>
+    <dialog class="position-dialog jog-steps-dialog" id="jog-speed-dialog">
+      <form class="position-dialog-content" id="jog-speed-form">
+        <h2 data-i18n="html.jogSpeed.title">JOG settings</h2>
+
+        <section class="jog-settings-section">
+          <h3 data-i18n="html.jogSpeed.stepsXy">Steps XY, mm</h3>
+          <div class="jog-steps-fields">
+            <label><span data-i18n="html.jogSpeed.step1">Step 1</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step2">Step 2</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step3">Step 3</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step4">Step 4</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+          </div>
+        </section>
+
+        <section class="jog-settings-section">
+          <h3 data-i18n="html.jogSpeed.stepsZ">Steps Z, mm</h3>
+          <div class="jog-steps-fields">
+            <label><span data-i18n="html.jogSpeed.step1">Step 1</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step2">Step 2</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step3">Step 3</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step4">Step 4</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+          </div>
+        </section>
+
+        <section class="jog-settings-section">
+          <h3 data-i18n="html.jogSpeed.speeds">Speeds</h3>
+          <div class="jog-steps-fields">
+            <label><span data-i18n="html.jogSpeed.feedXy">XY, mm/min</span><input name="xy" type="number" min="1" max="100000" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.feedTitle" title="Feed rate for continuous jog, mm/min (rotary axes: units/min)"></label>
+            <label><span data-i18n="html.jogSpeed.feedZ">Z, mm/min</span><input name="z" type="number" min="1" max="100000" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.feedTitle" title="Feed rate for continuous jog, mm/min (rotary axes: units/min)"></label>
+            <label><span data-i18n="html.jogSpeed.feedRotary">A–C, units/min</span><input name="rotary" type="number" min="1" max="100000" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.feedTitle" title="Feed rate for continuous jog, mm/min (rotary axes: units/min)"></label>
+          </div>
+        </section>
+
+        <p class="error" id="jog-speed-error" hidden></p>
         <div class="position-dialog-actions">
-          <button type="button" id="jog-steps-cancel">Отмена</button>
-          <button type="button" id="jog-steps-apply" class="primary">Применить</button>
+          <button type="button" id="jog-speed-cancel" data-i18n="common.cancel" data-i18n-title="common.cancelTitle" title="Close without changes">Cancel</button>
+          <button type="submit" id="jog-speed-apply" data-i18n="common.apply" data-i18n-title="html.jogSpeed.applyTitle" title="Apply the jog speeds and step sizes">Apply</button>
         </div>
       </form>
     </dialog>
-
     <dialog class="message-log-dialog" id="message-log-dialog">
       <section class="message-log-content" aria-labelledby="message-log-title">
         <div class="message-log-heading">
-          <h2 id="message-log-title">Журнал сообщений</h2>
-          <button type="button" id="close-message-log" aria-label="Закрыть журнал">Закрыть</button>
+          <h2 id="message-log-title" data-i18n="html.log.title">Message log</h2>
+          <button type="button" id="close-message-log" data-i18n="common.close" data-i18n-title="html.log.closeTitle" data-i18n-aria-label="html.log.closeAria" title="Close the message log" aria-label="Close log">Close</button>
         </div>
         <form class="message-log-filters" id="message-log-filters">
-          <select id="log-severity" aria-label="Фильтр критичности" style="grid-column: 2">
-            <option value="">Все критичности</option>
-            <option value="авария">Авария</option>
-            <option value="ошибка">Ошибка</option>
-            <option value="предупреждение">Предупреждение</option>
-            <option value="информация">Информация</option>
+          <select id="log-severity" data-i18n-title="html.log.severityFilterTitle" data-i18n-aria-label="html.log.severityFilter" title="Show only records of the selected severity" aria-label="Severity filter" style="grid-column: 2">
+            <option value="" data-i18n="log.severity.all">All severities</option>
+            <option value="alarm" data-i18n="log.severity.alarm">Alarm</option>
+            <option value="error" data-i18n="log.severity.error">Error</option>
+            <option value="warning" data-i18n="log.severity.warning">Warning</option>
+            <option value="info" data-i18n="log.severity.info">Info</option>
           </select>
-          <input id="log-source" type="search" placeholder="Источник" aria-label="Фильтр источника" style="grid-column: 3">
-          <input id="log-search" type="search" placeholder="Текст сообщения" aria-label="Поиск по тексту" style="grid-column: 4">
+          <input id="log-source" type="search" data-i18n-placeholder="html.log.source" placeholder="Source" data-i18n-title="html.log.sourceFilterTitle" data-i18n-aria-label="html.log.sourceFilter" title="Filter log records by source" aria-label="Source filter" style="grid-column: 3">
+          <input id="log-search" type="search" data-i18n-placeholder="html.log.messageText" placeholder="Message text" data-i18n-title="html.log.searchTitle" data-i18n-aria-label="html.log.searchText" title="Search for a text fragment in the message" aria-label="Search text" style="grid-column: 4">
           <div class="log-date-picker" style="grid-column: 1">
             <button
               class="log-date-picker-button"
@@ -2454,28 +638,31 @@
               type="button"
               aria-haspopup="dialog"
               aria-expanded="false"
-            >Любая дата</button>
-            <div class="log-calendar" id="log-calendar" role="dialog" aria-label="Выбор периода журнала" hidden>
+              data-i18n="html.log.anyDate"
+              data-i18n-title="html.log.datePickerTitle"
+              title="Select the date range for the log"
+            >Any date</button>
+            <div class="log-calendar" id="log-calendar" role="dialog" data-i18n-aria-label="html.log.selectPeriod" aria-label="Select log period" hidden>
               <div class="log-calendar-heading">
-                <button type="button" id="log-calendar-prev" aria-label="Предыдущий месяц">‹</button>
+                <button type="button" id="log-calendar-prev" data-i18n-title="html.log.prevMonth" data-i18n-aria-label="html.log.prevMonth" title="Previous month" aria-label="Previous month">‹</button>
                 <span class="log-calendar-month" id="log-calendar-month"></span>
-                <button type="button" id="log-calendar-next" aria-label="Следующий месяц">›</button>
+                <button type="button" id="log-calendar-next" data-i18n-title="html.log.nextMonth" data-i18n-aria-label="html.log.nextMonth" title="Next month" aria-label="Next month">›</button>
               </div>
               <div class="log-calendar-grid" id="log-calendar-grid"></div>
               <div class="log-calendar-footer">
                 <div class="log-calendar-date-times">
                   <div class="log-calendar-date-time">
-                    <label for="log-calendar-start-time">Время начала</label>
-                    <input id="log-calendar-start-time" type="time" value="00:00" aria-label="Время начала периода" disabled>
+                    <label for="log-calendar-start-time" data-i18n="html.log.startTime">Start time</label>
+                    <input id="log-calendar-start-time" type="time" value="00:00" data-i18n-title="html.log.startTime" data-i18n-aria-label="html.log.startTimeAria" title="Start time" aria-label="Period start time" disabled>
                   </div>
                   <div class="log-calendar-date-time">
-                    <label for="log-calendar-end-time">Время окончания</label>
-                    <input id="log-calendar-end-time" type="time" value="23:59" aria-label="Время окончания периода" disabled>
+                    <label for="log-calendar-end-time" data-i18n="html.log.endTime">End time</label>
+                    <input id="log-calendar-end-time" type="time" value="23:59" data-i18n-title="html.log.endTime" data-i18n-aria-label="html.log.endTimeAria" title="End time" aria-label="Period end time" disabled>
                   </div>
                 </div>
                 <div class="log-calendar-actions">
-                  <button type="button" id="log-calendar-clear">Очистить</button>
-                  <button type="button" id="log-calendar-done">Готово</button>
+                  <button type="button" id="log-calendar-clear" data-i18n="html.log.clear" data-i18n-title="html.log.clearTitle" title="Clear the selected date range">Clear</button>
+                  <button type="button" id="log-calendar-done" data-i18n="html.log.done" data-i18n-title="html.log.doneTitle" title="Apply the selected period to the filters">Done</button>
                 </div>
               </div>
             </div>
@@ -2491,21 +678,21 @@
             </colgroup>
             <thead>
               <tr>
-                <th scope="col" data-log-sort="timestamp"><button type="button" aria-label="Сортировать по времени">Время</button></th>
-                <th scope="col" data-log-sort="severity"><button type="button" aria-label="Сортировать по критичности">Критичность</button></th>
-                <th scope="col" data-log-sort="source"><button type="button" aria-label="Сортировать по источнику">Источник</button></th>
-                <th scope="col" data-log-sort="message"><button type="button" aria-label="Сортировать по сообщению">Сообщение</button></th>
+                <th scope="col" data-log-sort="timestamp"><button type="button" data-i18n="log.column.time" data-i18n-title="html.log.sortTime" data-i18n-aria-label="html.log.sortTime" title="Sort by time" aria-label="Sort by time">Time</button></th>
+                <th scope="col" data-log-sort="severity"><button type="button" data-i18n="log.column.severity" data-i18n-title="html.log.sortSeverity" data-i18n-aria-label="html.log.sortSeverity" title="Sort by severity" aria-label="Sort by severity">Severity</button></th>
+                <th scope="col" data-log-sort="source"><button type="button" data-i18n="log.column.source" data-i18n-title="html.log.sortSource" data-i18n-aria-label="html.log.sortSource" title="Sort by source" aria-label="Sort by source">Source</button></th>
+                <th scope="col" data-log-sort="message"><button type="button" data-i18n="log.column.message" data-i18n-title="html.log.sortMessage" data-i18n-aria-label="html.log.sortMessage" title="Sort by message" aria-label="Sort by message">Message</button></th>
               </tr>
             </thead>
             <tbody id="message-log-rows"></tbody>
           </table>
         </div>
         <div class="message-log-footer">
-          <span id="message-log-count">Загрузка…</span>
-          <button type="button" id="message-log-copy-page">Скопировать страницу</button>
+          <span id="message-log-count" data-i18n="common.loading">Loading…</span>
+          <button type="button" id="message-log-copy-page" data-i18n="html.log.copyPage" data-i18n-title="html.log.copyPageTitle" title="Copy the current page to the clipboard">Copy page</button>
           <label>
-            На странице
-            <select class="message-log-page-size" id="message-log-page-size" aria-label="Количество записей на странице">
+            <span data-i18n="html.log.perPage">Per page</span>
+            <select class="message-log-page-size" id="message-log-page-size" data-i18n-title="html.log.recordsPerPage" data-i18n-aria-label="html.log.recordsPerPage" title="Records per page" aria-label="Records per page">
               <option value="25">25</option>
               <option value="50">50</option>
               <option value="100" selected>100</option>
@@ -2514,9 +701,9 @@
             </select>
           </label>
           <div>
-            <!-- Постраничная навигация: API возвращает по 100 записей, offset выбирает страницу. -->
-            <button type="button" id="message-log-prev">Назад</button>
-            <button type="button" id="message-log-next">Далее</button>
+            <!-- Pagination: the API returns 100 records per request; offset selects the page. -->
+            <button type="button" id="message-log-prev" data-i18n="html.log.previous" data-i18n-title="html.log.previousTitle" title="Show the previous page of records">Previous</button>
+            <button type="button" id="message-log-next" data-i18n="html.log.next" data-i18n-title="html.log.nextTitle" title="Show the next page of records">Next</button>
           </div>
         </div>
       </section>
@@ -2525,1181 +712,28 @@
     <dialog class="message-log-text-dialog" id="message-log-text-dialog" aria-labelledby="message-log-text-title">
       <section class="message-log-text-content">
         <div class="message-log-text-heading">
-          <h2 id="message-log-text-title">Текущая страница журнала</h2>
-          <button type="button" id="message-log-text-close">Закрыть</button>
+          <h2 id="message-log-text-title" data-i18n="html.log.textTitle">Current log page</h2>
+          <button type="button" id="message-log-text-close" data-i18n="common.close" data-i18n-title="common.closeDialogTitle" title="Close the dialog">Close</button>
         </div>
-        <textarea id="message-log-text" readonly aria-label="Текст текущей страницы журнала"></textarea>
+        <textarea id="message-log-text" readonly data-i18n-title="html.log.textTitle" data-i18n-aria-label="html.log.textAria" title="Current log page" aria-label="Text of the current log page"></textarea>
       </section>
     </dialog>
 
     <dialog class="position-dialog" id="position-dialog">
       <form class="position-dialog-content" method="dialog">
-        <h2 id="position-dialog-title">Позиция оси</h2>
-        <label for="position-value" id="position-value-label">Рабочая координата</label>
-        <input id="position-value" type="number" step="any" inputmode="decimal" required>
+        <h2 id="position-dialog-title" data-i18n="html.position.dialogTitle">Axis position</h2>
+        <label for="position-value" id="position-value-label" data-i18n="html.position.workCoordinate">Work coordinate</label>
+        <input id="position-value" type="number" step="any" inputmode="decimal" required data-i18n-title="html.position.workCoordinate" title="Work coordinate">
         <div class="position-dialog-actions">
-          <button type="button" id="position-cancel" title="Закрыть без изменений">Отмена</button>
-          <button type="button" id="position-set" class="primary" title="Задать рабочую координату оси">Set</button>
-          <button type="button" id="position-go" class="primary" title="Переместить ось к указанной рабочей координате">Go</button>
+          <button type="button" id="position-cancel" data-i18n="common.cancel" data-i18n-title="html.position.cancelTitle" title="Close without changes">Cancel</button>
+          <button type="button" id="position-set" class="primary" data-i18n="html.position.set" data-i18n-title="html.position.setTitle" title="Set the axis work coordinate">Set</button>
+          <button type="button" id="position-go" class="primary" data-i18n="html.position.go" data-i18n-title="html.position.goTitle" title="Move the axis to the specified work coordinate">Go</button>
         </div>
       </form>
     </dialog>
 
-    <script>
-      // Показываем ошибки инициализации модульного UI вместо вечного
-      // состояния «Подключение…».
-      window.addEventListener("error", (event) => {
-        console.error("Ошибка JavaScript интерфейса:", event.error || event.message);
-        const connection = document.querySelector("#connection");
-        if (connection) {
-          const details = event.message || "Ошибка загрузки JavaScript";
-          connection.textContent = `Ошибка интерфейса: ${details}`;
-          connection.title = details;
-        }
-      });
+    <script src="./js/startup-errors.js"></script>
 
-      window.addEventListener("unhandledrejection", (event) => {
-        console.error("Необработанная ошибка интерфейса:", event.reason);
-        const connection = document.querySelector("#connection");
-        if (connection) {
-          const details = String(event.reason?.message || event.reason);
-          connection.textContent = `Ошибка интерфейса: ${details}`;
-          connection.title = details;
-        }
-      });
-    </script>
-
-    <script type="module">
-      import { invokeOrFetch } from "./js/api.js";
-      import { parseToolpath } from "./js/gcode.js";
-      import {
-        estimateToolpathTime,
-        formatDuration,
-        formatRemainingDuration,
-      } from "./js/toolpath-time.js";
-      import { initUiMessageLogger } from "./js/ui-message-logger.js";
-      import { initSidebarTabs } from "./js/sidebar.js";
-      import { initStockLoader } from "./js/stock-loader.js";
-      import { initPositionControls } from "./js/position-controls.js";
-      import { createPositionReadoutUpdater } from "./js/position-readouts.js";
-      import { initPositionAxisView } from "./js/position-axis-view.js";
-      import { renderLatestLogLine, initMessageLog } from "./js/message-log.js";
-      import { initJobControls } from "./js/job-control.js";
-      import { initProgramLoader } from "./js/program-loader.js";
-      import { initProgramEditor, setProgramEditorBaseline } from "./js/program-editor.js";
-      import { initLogCalendar } from "./js/log-calendar-control.js";
-      import { initSpindleControls } from "./js/spindle-control.js";
-      import { dialDirectionAt, dialMoves, dialSelectionAt } from "./js/jog-dial-hit-test.js";
-      import { initJogDialInteraction } from "./js/jog-dial-interaction.js";
-      import { initJogKeyboard } from "./js/jog-keyboard.js";
-      import { initJogApi } from "./js/jog-api.js";
-      import { initJogModeControls } from "./js/jog-mode.js";
-      import { initJogStepDialog } from "./js/jog-step-dialog.js";
-      import { renderJogDial as renderJogDialCanvas } from "./js/jog-dial-renderer.js";
-      import { initCommandConsole } from "./js/command-console.js";
-      import { initCameraControls } from "./js/camera-controls.js";
-      import { initOrientationCube } from "./js/orientation-cube.js";
-      import { initViewerToolbar } from "./js/viewer-toolbar.js";
-      import { initSceneViewer } from "./js/scene-viewer.js";
-      import { initToolAnimation } from "./js/tool-animation.js";
-      import {
-        formatJogStep,
-        isValidJogStepValues,
-        loadJogStepValues,
-      } from "./js/jog-step-settings.js";
-
-      const connection = document.querySelector("#connection");
-      const latestCriticalMessage = document.querySelector("#latest-critical-message");
-      initUiMessageLogger({
-        elements: [
-          [document.querySelector("#message"), "интерфейс"],
-          [document.querySelector("#job-note"), "управление программой"],
-        ],
-        getStatus: () => latestStatus,
-      });
-      const latestOtherMessage = document.querySelector("#latest-other-message");
-      const messageLog = initMessageLog({ getDateRange: () => logCalendar.getRange() });
-      const logCalendar = initLogCalendar({
-        onChange: () => messageLog.refresh(),
-      });
-      const connectionChip = document.querySelector(".connection-chip");
-      const machinesDialog = document.querySelector("#machines-dialog");
-      const machinesList = document.querySelector("#machines-list");
-      const machinesRefreshButton = document.querySelector("#machines-refresh");
-      const connectionDot = document.querySelector("#connection-dot");
-      const state = document.querySelector("#state");
-      const feedback = document.querySelector("#message");
-      const jogButtons = [
-        ...document.querySelectorAll("[data-axis], [data-x-direction][data-y-direction]"),
-      ];
-      const axisRowsContainer = document.querySelector("#axis-rows");
-      const positionDialog = document.querySelector("#position-dialog");
-      const positionValue = document.querySelector("#position-value");
-      const coordinateSystem = document.querySelector("#coordinate-system");
-      let editingAxis = null;
-      let latestStatus = null;
-      let machineConnected = false;
-      let statusRequestInFlight = false;
-      let jogMotionMode = "incremental";
-      let xyJogStepValues = [0.1, 1, 10, 100];
-      let zJogStepValues = [0.1, 1, 10, 100];
-
-
-      function renderDiscoveredMachines(payload) {
-        machinesList.replaceChildren();
-        const machines = Array.isArray(payload?.machines) ? payload.machines : [];
-        if (!machines.length) {
-          const empty = document.createElement("p");
-          empty.className = "machines-empty";
-          empty.textContent = "Станки пока не обнаружены.";
-          machinesList.append(empty);
-          return;
-        }
-        for (const machine of machines) {
-          const row = document.createElement("div");
-          row.className = `machine-entry${machine.connected ? " connected" : ""}`;
-          const details = document.createElement("div");
-          details.className = "machine-entry-details";
-          const endpoint = document.createElement("span");
-          endpoint.className = "machine-entry-endpoint";
-          endpoint.textContent = machine.address;
-          const system = document.createElement("span");
-          system.className = "machine-entry-meta";
-          const identity = [machine.protocol, machine.version].filter(Boolean).join(" ");
-          const machineName = String(machine.machine_name || "").trim();
-          const endpointName = String(machine.address || "").split(/[/:]/).filter(Boolean).pop();
-          const transportName = machine.transport === "serial"
-            ? (endpointName || "serial")
-            : machine.transport || "";
-          system.textContent = [machineName, identity, transportName].filter(Boolean).join(" · ") || "Контроллер не определён";
-          const label = document.createElement("span");
-          label.className = "machine-entry-meta";
-          label.textContent = machine.connected ? "Подключено" : "Обнаружен";
-          details.append(endpoint, system);
-          row.append(details, label);
-          machinesList.append(row);
-        }
-      }
-
-      async function loadDiscoveredMachines({ refresh = false } = {}) {
-        machinesRefreshButton.disabled = refresh;
-        if (refresh) machinesRefreshButton.classList.add("searching");
-        machinesList.replaceChildren();
-        const loading = document.createElement("p");
-        loading.className = "machines-empty";
-        loading.textContent = refresh ? "Выполняется новый поиск станков…" : "Загрузка списка…";
-        machinesList.append(loading);
-        try {
-          const response = await fetch("/api/discovered-machines", {
-            method: refresh ? "POST" : "GET",
-            cache: "no-store",
-          });
-          if (!response.ok) {
-            const details = await response.text();
-            throw new Error(details || `HTTP ${response.status}`);
-          }
-          if (!refresh) {
-            renderDiscoveredMachines(await response.json());
-            return;
-          }
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const events = buffer.split("\n\n");
-            buffer = events.pop() || "";
-            for (const rawEvent of events) {
-              const data = rawEvent.split("\n")
-                .filter((line) => line.startsWith("data:"))
-                .map((line) => line.slice(5).trim())
-                .join("\n");
-              if (data) renderDiscoveredMachines(JSON.parse(data));
-            }
-          }
-        } catch (error) {
-          machinesList.replaceChildren();
-          const message = document.createElement("p");
-          message.className = "machines-empty";
-          message.textContent = `Не удалось получить список: ${error.message}`;
-          machinesList.append(message);
-        } finally {
-          machinesRefreshButton.disabled = false;
-          machinesRefreshButton.classList.remove("searching");
-        }
-      }
-
-      async function openMachinesDialog() {
-        machinesDialog.showModal();
-        await loadDiscoveredMachines();
-      }
-
-      document.querySelector("#connection-machines-button").addEventListener("click", openMachinesDialog);
-      machinesRefreshButton.addEventListener("click", () => loadDiscoveredMachines({ refresh: true }));
-      document.querySelector("#machines-dialog-close").addEventListener("click", () => machinesDialog.close());
-      machinesDialog.addEventListener("click", (event) => {
-        if (event.target === machinesDialog) machinesDialog.close();
-      });
-
-      const legacyJogStepValues = loadJogStepValues(
-        "cnc-ui-jog-steps",
-        [0.1, 1, 10, 100],
-      );
-      xyJogStepValues = loadJogStepValues("cnc-ui-jog-steps-xy", legacyJogStepValues);
-      zJogStepValues = loadJogStepValues("cnc-ui-jog-steps-z", legacyJogStepValues);
-      const activeContinuousAxes = new Set();
-      const {
-        sendContinuousXY,
-        sendContinuousJog,
-        cancelJog,
-        cancelMachineCommand,
-        sendDialXyJog,
-        sendDialJog,
-      } = initJogApi({ isConnected: () => machineConnected });
-      let loadedProgram = null;
-      let toolpathRemainingAnchor = null;
-      let toolpathTimeAnchorAt = 0;
-      let toolpathTotalSeconds = 0;
-      let toolpathClockRunning = false;
-      let loadedStockMesh = null;
-      let stockVisible = true;
-      let machineState = "DISCONNECTED";
-      let renderedAxisSignature = null;
-      const jobControls = initJobControls({
-        getProgram: () => loadedProgram,
-        getMachineState: () => machineState,
-        refreshStatus,
-      });
-
-      const trajectoryCanvas = document.querySelector("#trajectory-canvas");
-      const trajectoryContext = trajectoryCanvas.getContext("2d");
-      const toolCanvas = document.querySelector("#tool-canvas");
-      const toolContext = toolCanvas.getContext("2d");
-      const orientationCube = document.querySelector("#orientation-cube");
-      const viewerStage = document.querySelector(".viewer-stage");
-      const viewerEmpty = document.querySelector("#viewer-empty");
-      const programName = document.querySelector("#program-name");
-      const camera = { yaw: -0.72, pitch: 0.62, zoom: 1, panX: 0, panY: 0, perspective: true };
-      const toolPosition = [0, 0, 0];
-      let toolSpindleRpm = 0;
-      let toolRotationPhase = 0;
-      let currentProgramLine = 0;
-      let lastArcDiagnosticLine = null;
-      let lastArcDiagnosticAt = 0;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      const sceneViewer = initSceneViewer({
-        trajectoryCanvas,
-        trajectoryContext,
-        toolCanvas,
-        toolContext,
-        viewerEmpty,
-        getProgram: () => loadedProgram,
-        getStockMesh: () => loadedStockMesh,
-        isStockVisible: () => stockVisible,
-        getCamera: () => camera,
-        getStatus: () => latestStatus,
-        getToolPosition: () => toolPosition,
-        getCurrentProgramLine: () => currentProgramLine,
-        isConnected: () => machineConnected,
-        getToolRotationPhase: () => toolRotationPhase,
-        renderOrientationCube: () => orientationCubeRenderer.render(),
-      });
-
-      function drawToolpath() {
-        sceneViewer.draw();
-      }
-
-      function traceArcPosition(status) {
-        const segments = loadedProgram?.segments || [];
-        const arcLines = [...new Set(
-          segments
-            .filter((segment) => segment.type === "arc-cw" || segment.type === "arc-ccw")
-            .map((segment) => segment.programLine),
-        )].sort((a, b) => a - b);
-        const running = status?.state === "READING" || status?.state === "RUNNING";
-
-        if (!running || arcLines.length === 0) {
-          lastArcDiagnosticLine = null;
-          lastArcDiagnosticAt = 0;
-          return;
-        }
-
-        const now = performance.now();
-        const line = Number(status.current_line) || 0;
-        if (now - lastArcDiagnosticAt < 100) return;
-
-        console.info(
-          `[ARC DIAG] t=${new Date().toISOString()} line=${line} X=${Number(status.x).toFixed(2)} Y=${Number(status.y).toFixed(2)} Z=${Number(status.z).toFixed(2)}`,
-        );
-        lastArcDiagnosticLine = line;
-        lastArcDiagnosticAt = now;
-      }
-
-      const toolAnimation = initToolAnimation({
-        isActive: () => machineConnected && toolSpindleRpm > 0,
-        advance: (elapsed) => {
-          // Масштабируем реальные обороты для читаемой анимации, сохраняя пропорциональность RPM.
-          toolRotationPhase = (
-            toolRotationPhase + toolSpindleRpm * (Math.PI * 2 / 60) * 0.05 * elapsed
-          ) % (Math.PI * 2);
-        },
-        render: sceneViewer.drawTool,
-      });
-
-      const orientationCubeRenderer = initOrientationCube({
-        canvas: orientationCube,
-        camera,
-        onView: setView,
-      });
-
-      function drawOrientationCube() {
-        orientationCubeRenderer.render();
-      }
-
-      function setView(axis, sign = 1) {
-        if (axis === "Z") {
-          camera.yaw = -0.72;
-          camera.pitch = sign > 0 ? Math.PI / 2 - 0.001 : -Math.PI / 2 + 0.001;
-        } else if (axis === "X") {
-          camera.yaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
-          camera.pitch = 0.001;
-        } else {
-          camera.yaw = sign > 0 ? 0 : Math.PI;
-          camera.pitch = 0.001;
-        }
-        camera.panX = 0;
-        camera.panY = 0;
-        drawToolpath();
-      }
-
-
-      initCameraControls({
-        canvas: trajectoryCanvas,
-        camera,
-        render: drawToolpath,
-      });
-
-      const programEditor = document.querySelector("#program-editor");
-
-      async function logMachineConsoleEvent(severity, message) {
-        try {
-          await invokeOrFetch(
-            "log_message",
-            { severity, source: "команды и G-code", message },
-            "/api/log",
-            "POST",
-          );
-        } catch (error) {
-          console.warn("Не удалось записать событие панели команд в журнал:", error);
-        }
-      }
-
-      async function logMachineConsoleError(context, error) {
-        const message = `${context}: ${error instanceof Error ? error.message : String(error)}`;
-        await logMachineConsoleEvent("ошибка", message);
-        return message;
-      }
-
-      function renderToolpathTime() {
-        const element = document.querySelector("#toolpath-time");
-        if (!element || toolpathRemainingAnchor === null) return;
-
-        const elapsed = toolpathClockRunning
-          ? Math.max(0, (performance.now() - toolpathTimeAnchorAt) / 1000)
-          : 0;
-        const remaining = Math.max(0, toolpathRemainingAnchor - elapsed);
-        element.textContent =
-          `${formatRemainingDuration(remaining)}/${formatDuration(toolpathTotalSeconds)}`;
-        element.hidden = false;
-      }
-
-      function updateToolpathTime(status = latestStatus) {
-        const element = document.querySelector("#toolpath-time");
-        if (!element) return;
-
-        if (!loadedProgram?.segments?.length) {
-          toolpathRemainingAnchor = null;
-          toolpathClockRunning = false;
-          element.hidden = true;
-          return;
-        }
-
-        const estimate = estimateToolpathTime(
-          loadedProgram.segments,
-          status?.configuration,
-          status?.state === "READING" || status?.state === "RUNNING"
-            ? status.current_line
-            : status?.state === "IDLE" && status.current_line >= status.total_lines
-              ? status.current_line
-              : 0,
-          status ? [status.x, status.y, status.z].map(Number) : null,
-        );
-        const now = performance.now();
-        const isRunning =
-          status?.state === "READING" || status?.state === "RUNNING";
-        let remaining = estimate.remainingSeconds;
-
-        if (
-          isRunning &&
-          toolpathClockRunning &&
-          toolpathRemainingAnchor !== null
-        ) {
-          const elapsed = Math.max(0, (now - toolpathTimeAnchorAt) / 1000);
-          const predicted = Math.max(0, toolpathRemainingAnchor - elapsed);
-          // Сглаживаем изменение оценки положения по времени, а не по величине
-          // скачка телеметрии. Это уменьшает дрожание на дугах и при смене строки.
-          const smoothingTimeSeconds = 4;
-          const alpha = 1 - Math.exp(-elapsed / smoothingTimeSeconds);
-          remaining = Math.max(
-            0,
-            predicted + (estimate.remainingSeconds - predicted) * alpha,
-          );
-        }
-
-        toolpathRemainingAnchor = remaining;
-        toolpathTimeAnchorAt = now;
-        toolpathTotalSeconds = estimate.totalSeconds;
-        toolpathClockRunning = isRunning;
-        renderToolpathTime();
-      }
-
-      function showProgram(name, content) {
-        loadedProgram = { name, content, segments: parseToolpath(content) };
-        updateToolpathTime();
-        setProgramEditorBaseline(content);
-        document.querySelector("#job-note").textContent =
-          `G-code загружен: ${name} · ${loadedProgram.segments.length} сегментов.`;
-        camera.zoom = 1;
-        camera.panX = 0;
-        camera.panY = 0;
-        if (programName) {
-          programName.textContent = `${name} · ${loadedProgram.segments.length} SEGMENTS`;
-        }
-        drawToolpath();
-      }
-
-
-      const programLoader = initProgramLoader({
-        onLoad: showProgram,
-        onError(error) {
-          document.querySelector("#message").textContent =
-            `Ошибка загрузки G-code: ${error.message}`;
-        },
-      });
-
-      initProgramEditor({
-        getProgram: () => loadedProgram,
-        logEvent: logMachineConsoleEvent,
-        logError: logMachineConsoleError,
-      });
-
-
-      const commandConsole = initCommandConsole({
-        logEvent: logMachineConsoleEvent,
-        logError: logMachineConsoleError,
-        refreshStatus,
-        isConnected: () => machineConnected,
-      });
-
-
-      const positionControls = initPositionControls({
-        getStatus: () => latestStatus,
-        refreshStatus,
-      });
-
-      function renderConfiguredAxes(configuration) {
-        positionAxisView.render(configuration);
-      }
-
-
-      const positionAxisView = initPositionAxisView({
-        container: axisRowsContainer,
-        workToggle: document.querySelector("#wpos-toggle"),
-        machineToggle: document.querySelector("#mpos-toggle"),
-        openPosition: (axis) => positionControls.openDialog(axis),
-        async zeroAxis(axis) {
-          await positionControls.sendPositionAction(
-            "zero_axis",
-            "/api/position/zero-axis",
-            { axis },
-          );
-          await refreshStatus();
-        },
-        async homeAxis(axis) {
-          await positionControls.sendPositionAction(
-            "home_axis",
-            "/api/position/home",
-            { axis },
-          );
-          document.querySelector("#message").textContent =
-            `Запущено homing оси ${axis}.`;
-        },
-        showError(message) {
-          document.querySelector("#message").textContent = message;
-        },
-      });
-
-      const updatePositionReadouts = createPositionReadoutUpdater(axisRowsContainer);
-
-
-
-
-      const jobNote = document.querySelector("#job-note");
-      const spindleControls = initSpindleControls({ refreshStatus });
-
-
-
-
-      const stockFileInput = document.querySelector("#stock-file");
-      const stockToggle = document.querySelector("#stock-toggle");
-
-      stockToggle.addEventListener("click", () => {
-        stockVisible = !stockVisible;
-        stockToggle.classList.toggle("active", stockVisible);
-        stockToggle.setAttribute("aria-pressed", String(stockVisible));
-        drawToolpath();
-      });
-
-      initStockLoader({
-        input: stockFileInput,
-        loadButton: document.querySelector("#load-stock"),
-        onLoad(mesh, file) {
-          loadedStockMesh = mesh;
-          stockVisible = true;
-          stockToggle.classList.add("active");
-          stockToggle.setAttribute("aria-pressed", "true");
-
-          const programNameLabel = document.querySelector("#program-name");
-          if (programNameLabel) {
-            programNameLabel.textContent =
-              `${loadedProgram?.name || "NO PROGRAM"} · ${file.name}`;
-          }
-
-          drawToolpath();
-          document.querySelector("#message").textContent =
-            `Заготовка загружена: ${file.name}`;
-        },
-        onError(error) {
-          document.querySelector("#message").textContent =
-            `Ошибка загрузки заготовки: ${error.message}`;
-        },
-      });
-
-      initViewerToolbar({ camera, render: drawToolpath });
-
-      window.addEventListener("resize", () => {
-        drawToolpath();
-        if (!jogDialPanel.hidden) drawJogDial();
-      });
-
-
-
-      async function requestStatus() {
-        const invoke = window.__TAURI__?.core?.invoke;
-        if (invoke) return invoke("get_status");
-
-        const response = await fetch("/api/status", { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json();
-      }
-
-      function setJogEnabled(enabled) {
-        machineConnected = enabled;
-        jogButtons.forEach((button) => {
-          button.disabled = !enabled;
-        });
-        document.querySelectorAll("[data-dial-axis], [data-dial-continuous-axis]").forEach((button) => {
-          button.disabled = !enabled;
-        });
-        axisRowsContainer.querySelectorAll("[data-zero-axis], [data-home-axis]").forEach((button) => {
-          button.disabled = !enabled;
-        });
-        document.querySelector("#zero-all").disabled = !enabled;
-        document.querySelector("#home-all").disabled = !enabled;
-        document.querySelectorAll("[data-jog-stop]").forEach((button) => {
-          button.disabled = !enabled;
-        });
-        coordinateSystem.disabled = !enabled;
-      }
-
-      async function refreshStatus() {
-        if (statusRequestInFlight) return;
-        statusRequestInFlight = true;
-
-        try {
-          const status = await requestStatus();
-          latestStatus = status;
-          machineConnected = Boolean(status.connected);
-          machineState = status.state || "DISCONNECTED";
-          currentProgramLine = Number(status.current_line) || 0;
-          connection.textContent = machineConnected ? "Подключено" : "Нет связи";
-          updateToolpathTime(status);
-          connectionDot.classList.toggle("online", machineConnected);
-          connectionDot.classList.toggle("offline", !machineConnected);
-          connectionChip.classList.toggle("connection-online", machineConnected);
-          connectionChip.classList.toggle("connection-offline", !machineConnected);
-          state.textContent = status.state || "—";
-          const stateClass = ({
-            IDLE: "state-idle",
-            HOMING: "state-homing",
-            READING: "state-running",
-            RUNNING: "state-running",
-            PAUSED: "state-paused",
-            ALARM: "state-alarm",
-            DISCONNECTED: "state-disconnected",
-          })[machineState] || "";
-          state.classList.remove(
-            "state-idle",
-            "state-homing",
-            "state-running",
-            "state-paused",
-            "state-alarm",
-            "state-disconnected",
-          );
-          if (stateClass) state.classList.add(stateClass);
-          setJogEnabled(machineConnected);
-          jobControls.update(status);
-          spindleControls.update(status);
-          renderConfiguredAxes(status.configuration);
-          positionAxisView.updateDisplay();
-          coordinateSystem.value = status.coordinate_system || "g54";
-
-          renderLatestLogLine(
-            latestCriticalMessage,
-            status.latest_critical,
-            "—",
-          );
-          renderLatestLogLine(
-            latestOtherMessage,
-            status.latest_other,
-            "Сообщений нет",
-          );
-          messageLog.refreshIfOpen();
-          updatePositionReadouts(status);
-
-          document.querySelector("#message").textContent =
-            status.error || spindleControls.commandError || status.message || "Контроллер готов.";
-          toolPosition[0] = Number(status.x) || 0;
-          toolPosition[1] = Number(status.y) || 0;
-          toolPosition[2] = Number(status.z) || 0;
-          traceArcPosition(status);
-          toolSpindleRpm = Math.max(0, Number(status.spindle_rpm) || 0);
-          toolAnimation.sync();
-          drawToolpath();
-        } catch (error) {
-          machineConnected = false;
-          toolSpindleRpm = 0;
-          currentProgramLine = 0;
-          toolAnimation.sync();
-          connection.textContent = "Ошибка связи";
-          connectionDot.classList.remove("online");
-          connectionDot.classList.add("offline");
-          connectionChip.classList.remove("connection-online");
-          connectionChip.classList.add("connection-offline");
-          state.textContent = "DISCONNECTED";
-          machineState = "DISCONNECTED";
-          document.querySelector("#message").textContent = error.message;
-          setJogEnabled(false);
-          jobControls.update({ connected: false, total_lines: 0, state: "DISCONNECTED" });
-        } finally {
-          statusRequestInFlight = false;
-        }
-      }
-
-      async function jog(button) {
-        if (!machineConnected || button.disabled || jogMotionMode === "continuous") return;
-
-        jogButtons.forEach((item) => {
-          item.disabled = true;
-        });
-        feedback.textContent = "";
-        feedback.className = "panel-caption";
-
-        try {
-          const distanceSelect = button.dataset.axis === "Z"
-            ? document.querySelector("#distance-z")
-            : document.querySelector("#distance");
-          const distance = Number(distanceSelect.value);
-          if (button.dataset.xDirection && button.dataset.yDirection) {
-            const xDirection = Number(button.dataset.xDirection);
-            const yDirection = Number(button.dataset.yDirection);
-            await sendDialXyJog(xDirection, yDirection, distance);
-            feedback.textContent = `Диагональный Jog X${xDirection > 0 ? "+" : "−"} / Y${yDirection > 0 ? "+" : "−"} · ${distance} mm`;
-            await refreshStatus();
-            return;
-          }
-
-          const request = {
-            axis: button.dataset.axis,
-            direction: Number(button.dataset.direction),
-            distance,
-          };
-          const invoke = window.__TAURI__?.core?.invoke;
-
-          if (invoke) {
-            await invoke("jog", request);
-          } else {
-            const response = await fetch("/api/jog", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(request),
-            });
-
-            if (!response.ok) {
-              const detail = await response.text();
-              throw new Error(detail || `HTTP ${response.status}`);
-            }
-          }
-
-          feedback.textContent = `Команда ${request.axis} отправлена`;
-          await refreshStatus();
-        } catch (error) {
-          feedback.textContent = `Ошибка: ${error.message}`;
-          feedback.className = "error";
-        } finally {
-          jogButtons.forEach((item) => {
-            item.disabled = !machineConnected;
-          });
-        }
-      }
-
-      const continuousXyDirections = { X: 0, Y: 0 };
-
-      async function startContinuousJog(axis, direction) {
-        if (!machineConnected) return;
-
-        if (axis === "X" || axis === "Y") {
-          continuousXyDirections[axis] = direction;
-          activeContinuousAxes.add(axis);
-          try {
-            await sendContinuousXY(
-              continuousXyDirections.X,
-              continuousXyDirections.Y,
-            );
-          } catch (error) {
-            continuousXyDirections[axis] = 0;
-            activeContinuousAxes.delete(axis);
-            feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
-            feedback.className = "error";
-          }
-          return;
-        }
-
-        if (activeContinuousAxes.has(axis)) return;
-        activeContinuousAxes.add(axis);
-        try {
-          await sendContinuousJog(axis, direction);
-        } catch (error) {
-          activeContinuousAxes.delete(axis);
-          feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
-          feedback.className = "error";
-        }
-      }
-
-
-      async function stopAllJog() {
-        await stopContinuousJog();
-        const results = await Promise.allSettled([cancelJog(), cancelMachineCommand()]);
-        const failure = results.find((result) => result.status === "rejected");
-        if (failure) throw failure.reason;
-        feedback.textContent = "Jog остановлен";
-        feedback.className = "panel-caption";
-        await refreshStatus();
-      }
-
-      document.querySelectorAll("[data-jog-stop]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          button.disabled = true;
-          try {
-            await stopAllJog();
-          } catch (error) {
-            feedback.textContent = `Ошибка остановки Jog: ${error.message}`;
-            feedback.className = "error";
-          } finally {
-            button.disabled = !machineConnected;
-          }
-        });
-      });
-
-      async function stopContinuousJog(axis = null) {
-        const xyAxis = axis === "X" || axis === "Y";
-        const stopXy = axis === null
-          ? activeContinuousAxes.has("X") || activeContinuousAxes.has("Y")
-          : xyAxis && activeContinuousAxes.has(axis);
-
-        if (axis === null || axis === "X") continuousXyDirections.X = 0;
-        if (axis === null || axis === "Y") continuousXyDirections.Y = 0;
-
-        const axes = axis
-          ? [axis].filter((activeAxis) => activeContinuousAxes.has(activeAxis) && activeAxis !== "X" && activeAxis !== "Y")
-          : [...activeContinuousAxes].filter((activeAxis) => activeAxis !== "X" && activeAxis !== "Y");
-
-        axes.forEach((activeAxis) => activeContinuousAxes.delete(activeAxis));
-        if (axis === null || axis === "X") activeContinuousAxes.delete("X");
-        if (axis === null || axis === "Y") activeContinuousAxes.delete("Y");
-
-        if (stopXy) {
-          try {
-            await sendContinuousXY(
-              continuousXyDirections.X,
-              continuousXyDirections.Y,
-            );
-          } catch (error) {
-            feedback.textContent = `Ошибка остановки XY Jog: ${error.message}`;
-            feedback.className = "error";
-          }
-        }
-
-        for (const activeAxis of axes) {
-          try {
-            await sendContinuousJog(activeAxis, 0);
-          } catch (error) {
-            feedback.textContent = `Ошибка остановки Jog: ${error.message}`;
-            feedback.className = "error";
-          }
-        }
-      }
-
-      function bindContinuousButton(button, axis, direction) {
-        const diagonalX = Number(button.dataset.xDirection);
-        const diagonalY = Number(button.dataset.yDirection);
-        const isDiagonal = Number.isInteger(diagonalX) && Number.isInteger(diagonalY);
-
-        const start = () => {
-          if (isDiagonal) {
-            continuousXyDirections.X = diagonalX;
-            continuousXyDirections.Y = diagonalY;
-            activeContinuousAxes.add("X");
-            activeContinuousAxes.add("Y");
-            sendContinuousXY(diagonalX, diagonalY).catch((error) => {
-              continuousXyDirections.X = 0;
-              continuousXyDirections.Y = 0;
-              activeContinuousAxes.delete("X");
-              activeContinuousAxes.delete("Y");
-              feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
-              feedback.className = "error";
-            });
-          } else {
-            startContinuousJog(axis, direction);
-          }
-        };
-
-        button.addEventListener("pointerdown", (event) => {
-          if (jogMotionMode !== "continuous" || button.disabled) return;
-          event.preventDefault();
-          button.setPointerCapture(event.pointerId);
-          start();
-        });
-
-        const stop = () => {
-          if (jogMotionMode === "continuous") {
-            stopContinuousJog(isDiagonal ? null : axis);
-          }
-        };
-        button.addEventListener("pointerup", stop);
-        button.addEventListener("pointercancel", stop);
-        button.addEventListener("lostpointercapture", stop);
-
-        button.addEventListener("keydown", (event) => {
-          if (
-            jogMotionMode !== "continuous" ||
-            button.disabled ||
-            !["Enter", " "].includes(event.key) ||
-            event.repeat
-          ) return;
-
-          event.preventDefault();
-          startContinuousJog(axis, direction);
-        });
-        button.addEventListener("keyup", (event) => {
-          if (jogMotionMode === "continuous" && ["Enter", " "].includes(event.key)) {
-            event.preventDefault();
-            stopContinuousJog(axis);
-          }
-        });
-        button.addEventListener("blur", stop);
-      }
-
-      jogButtons.forEach((button) => {
-        button.addEventListener("click", () => jog(button));
-        bindContinuousButton(
-          button,
-          button.dataset.axis,
-          Number(button.dataset.direction),
-        );
-      });
-
-      initJogKeyboard({
-        isConnected: () => machineConnected,
-        getMotionMode: () => jogMotionMode,
-        getJogButtons: () => jogButtons,
-        isDialogOpen: () => positionDialog.open || jogStepsDialog.open,
-        jog,
-        startContinuousJog,
-        stopContinuousJog,
-      });
-
-      const jogIncrementalMode = document.querySelector("#jog-incremental-mode");
-      const jogContinuousMode = document.querySelector("#jog-continuous-mode");
-      const jogDistanceSelect = document.querySelector("#distance");
-      const jogZDistanceSelect = document.querySelector("#distance-z");
-
-      const jogKeysMode = document.querySelector("#jog-keys-mode");
-      const jogDialMode = document.querySelector("#jog-dial-mode");
-      const jogKeysPanel = document.querySelector("#jog-keys-panel");
-      const jogDialPanel = document.querySelector("#jog-dial-panel");
-      const jogDialCanvas = document.querySelector("#jog-dial");
-      const jogDialContext = jogDialCanvas.getContext("2d");
-      const jogDialHint = document.querySelector("#jog-dial-hint");
-      const jogStepsDialog = document.querySelector("#jog-steps-dialog");
-      const jogStepsInputs = [...jogStepsDialog.querySelectorAll(".jog-steps-fields input")];
-      let hoveredDialSelection = null;
-
-      const jogStepDialog = initJogStepDialog({
-        dialog: jogStepsDialog,
-        inputs: jogStepsInputs,
-        getSteps: (axis) => axis === "z" ? zJogStepValues : xyJogStepValues,
-        onApply(axis, values) {
-          if (axis === "z") {
-            zJogStepValues = values;
-          } else {
-            xyJogStepValues = values;
-          }
-
-          try {
-            localStorage.setItem(`cnc-ui-jog-steps-${axis}`, JSON.stringify(values));
-          } catch {
-            // Настройки остаются активными до закрытия страницы.
-          }
-
-          updateJogStepControls();
-        },
-      });
-
-      initJogModeControls({
-        incrementalButton: jogIncrementalMode,
-        continuousButton: jogContinuousMode,
-        xyStepSelect: jogDistanceSelect,
-        zStepSelect: jogZDistanceSelect,
-        keysButton: jogKeysMode,
-        dialButton: jogDialMode,
-        keysPanel: jogKeysPanel,
-        dialPanel: jogDialPanel,
-        dialCanvas: jogDialCanvas,
-        dialHint: jogDialHint,
-        stopContinuousJog,
-        drawDial: drawJogDial,
-        getStepValues: () => xyJogStepValues,
-        clearHoveredSelection: () => {
-          hoveredDialSelection = null;
-        },
-        onMotionModeChange: (mode) => {
-          jogMotionMode = mode;
-        },
-      });
-
-
-      function updateJogStepControls() {
-        const updateDistanceSelect = (select, steps) => {
-          const previousSelection = Number(select.value);
-          select.replaceChildren();
-
-          for (const step of steps) {
-            const option = document.createElement("option");
-            option.value = formatJogStep(step);
-            option.textContent = `${formatJogStep(step)} mm`;
-            select.append(option);
-          }
-
-          select.value = steps.includes(previousSelection)
-            ? formatJogStep(previousSelection)
-            : formatJogStep(steps[Math.min(1, steps.length - 1)]);
-        };
-
-        updateDistanceSelect(jogDistanceSelect, xyJogStepValues);
-        updateDistanceSelect(jogZDistanceSelect, zJogStepValues);
-
-        const zButtons = [...document.querySelectorAll('[data-dial-axis="Z"]')];
-        for (const direction of [1, -1]) {
-          const directionalButtons = zButtons.filter(
-            (button) => Number(button.dataset.direction) === direction,
-          );
-          const steps = direction === 1 ? [...zJogStepValues].reverse() : zJogStepValues;
-
-          directionalButtons.forEach((button, index) => {
-            const step = steps[index];
-            const label = direction < 0 ? `−${formatJogStep(step)}` : formatJogStep(step);
-            button.dataset.distance = formatJogStep(step);
-            button.textContent = label;
-            button.setAttribute(
-              "aria-label",
-              `Переместить Z ${direction > 0 ? "плюс" : "минус"} на ${formatJogStep(step)} миллиметров`,
-            );
-            button.title = `Переместить Z ${direction > 0 ? "вверх" : "вниз"} на ${formatJogStep(step)} мм`;
-          });
-        }
-
-        const stepLabels = jogStepsDialog.querySelectorAll(".jog-steps-fields label");
-        stepLabels.forEach((label, index) => {
-          label.firstChild.textContent = `Шаг ${index + 1}, mm`;
-        });
-
-        if (jogDialHint) {
-          jogDialHint.textContent =
-            `Наведите на сектор: кольца задают шаг ${xyJogStepValues.map(formatJogStep).join(" / ")} mm`;
-        }
-        drawJogDial();
-      }
-
-      function openJogStepsDialog(axis) {
-        jogStepDialog.open(axis);
-      }
-
-      document.querySelectorAll("[data-open-jog-steps]").forEach((button) => {
-        button.addEventListener("click", () => openJogStepsDialog(button.dataset.openJogSteps));
-      });
-
-      document.querySelector("#jog-steps-cancel").addEventListener("click", () => {
-        jogStepsDialog.close();
-      });
-
-      document.querySelector("#jog-steps-apply").addEventListener("click", () => {
-        jogStepDialog.apply();
-      });
-
-      updateJogStepControls();
-
-
-
-      function drawJogDial() {
-        renderJogDialCanvas({
-          canvas: jogDialCanvas,
-          context: jogDialContext,
-          mode: jogMotionMode,
-          stepValues: xyJogStepValues,
-          hoveredSelection: hoveredDialSelection,
-        });
-      }
-
-      function setContinuousDialDirection(selection) {
-        const moves = dialMoves(selection);
-        const xDirection = moves?.find(([axis]) => axis === "X")?.[1] || 0;
-        const yDirection = moves?.find(([axis]) => axis === "Y")?.[1] || 0;
-
-        if (
-          xDirection === continuousXyDirections.X &&
-          yDirection === continuousXyDirections.Y
-        ) return;
-
-        continuousXyDirections.X = xDirection;
-        continuousXyDirections.Y = yDirection;
-        if (xDirection) activeContinuousAxes.add("X");
-        else activeContinuousAxes.delete("X");
-        if (yDirection) activeContinuousAxes.add("Y");
-        else activeContinuousAxes.delete("Y");
-
-        sendContinuousXY(xDirection, yDirection).catch((error) => {
-          continuousXyDirections.X = 0;
-          continuousXyDirections.Y = 0;
-          activeContinuousAxes.delete("X");
-          activeContinuousAxes.delete("Y");
-          feedback.textContent = `Ошибка непрерывного Jog: ${error.message}`;
-          feedback.className = "error";
-        });
-      }
-
-
-
-      async function jogDialSelection(selection) {
-        if (!selection || !machineConnected) return;
-
-        const moves = dialMoves(selection);
-        if (!moves) return;
-
-        try {
-          if (moves.length === 2) {
-            await sendDialXyJog(moves[0][1], moves[1][1], selection.step);
-          } else {
-            await sendDialJog(moves[0][0], moves[0][1], selection.step);
-          }
-          feedback.textContent = `Jog ${moves.map(([axis, direction]) => `${axis}${direction > 0 ? "+" : "−"}`).join(" / ")} · ${selection.step} mm`;
-          feedback.className = "panel-caption";
-          await refreshStatus();
-        } catch (error) {
-          feedback.textContent = `Ошибка: ${error.message}`;
-          feedback.className = "error";
-        }
-      }
-
-
-
-      initJogDialInteraction({
-        canvas: jogDialCanvas,
-        getMode: () => jogMotionMode,
-        getConnected: () => machineConnected,
-        getStepValues: () => xyJogStepValues,
-        getHoveredSelection: () => hoveredDialSelection,
-        onHover(selection) {
-          hoveredDialSelection = selection;
-          drawJogDial();
-        },
-        onContinuousSelection: setContinuousDialDirection,
-        onIncrementalSelection: jogDialSelection,
-        stopContinuousJog,
-        hint: jogDialHint,
-      });
-
-      document.querySelectorAll("[data-dial-axis]").forEach((button) => {
-        button.addEventListener("click", async () => {
-          if (jogMotionMode === "continuous") return;
-          try {
-            await sendDialJog(
-              button.dataset.dialAxis,
-              Number(button.dataset.direction),
-              Number(button.dataset.distance),
-            );
-            feedback.textContent = `Jog Z${button.dataset.direction === "1" ? "+" : "−"} · ${button.dataset.distance} mm`;
-            feedback.className = "panel-caption";
-            await refreshStatus();
-          } catch (error) {
-            feedback.textContent = `Ошибка: ${error.message}`;
-            feedback.className = "error";
-          }
-        });
-      });
-
-      document.querySelectorAll("[data-dial-continuous-axis]").forEach((button) => {
-        bindContinuousButton(
-          button,
-          button.dataset.dialContinuousAxis,
-          Number(button.dataset.direction),
-        );
-      });
-
-      initSidebarTabs();
-
-      setJogEnabled(false);
-      commandConsole.loadHistory();
-      programLoader.loadDefault();
-      refreshStatus();
-      window.setInterval(refreshStatus, 50);
-      window.setInterval(renderToolpathTime, 250);
-    </script>
+    <script type="module" src="./js/main.js"></script>
   </body>
 </html>

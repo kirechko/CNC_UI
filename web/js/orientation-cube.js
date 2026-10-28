@@ -1,18 +1,20 @@
 import { rotatePoint } from "./scene-projection.js";
 import { resizeCanvas } from "./canvas-utils.js";
+import { themeAlpha, themeToken } from "./theme-colors.js";
 
 const VERTICES = [
   [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
   [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
 ];
 
+// Face definitions: vertex indices, theme token for the fill and the axis caption.
 const RENDER_FACES = [
-  { vertices: [0, 1, 2, 3], color: "rgba(74, 83, 88, .8)", label: "Z−" },
-  { vertices: [4, 5, 6, 7], color: "rgba(40, 126, 170, .78)", label: "Z+" },
-  { vertices: [0, 1, 5, 4], color: "rgba(151, 74, 77, .82)", label: "Y−" },
-  { vertices: [2, 3, 7, 6], color: "rgba(67, 139, 103, .82)", label: "Y+" },
-  { vertices: [1, 2, 6, 5], color: "rgba(166, 83, 83, .82)", label: "X+" },
-  { vertices: [0, 3, 7, 4], color: "rgba(87, 132, 102, .82)", label: "X−" },
+  { vertices: [0, 1, 2, 3], token: "--cube-face-zneg", alpha: 0.8, label: "Z−" },
+  { vertices: [4, 5, 6, 7], token: "--cube-face-zpos", alpha: 0.78, label: "Z+" },
+  { vertices: [0, 1, 5, 4], token: "--cube-face-yneg", alpha: 0.82, label: "Y−" },
+  { vertices: [2, 3, 7, 6], token: "--cube-face-ypos", alpha: 0.82, label: "Y+" },
+  { vertices: [1, 2, 6, 5], token: "--cube-face-xpos", alpha: 0.82, label: "X+" },
+  { vertices: [0, 3, 7, 4], token: "--cube-face-xneg", alpha: 0.82, label: "X−" },
 ];
 
 const HIT_TEST_FACES = [
@@ -39,6 +41,9 @@ function projectVertices(width, height, camera) {
   });
 }
 
+/**
+ * Draws the axis caption on one cube face, skewing the text to the face plane.
+ */
 function drawFaceLabel(context, points, label) {
   const p0 = points[0];
   const p1 = points[1];
@@ -56,7 +61,7 @@ function drawFaceLabel(context, points, label) {
     0,
     0,
   );
-  context.fillStyle = "#f0f4f5";
+  context.fillStyle = themeToken("--cube-label");
   context.font = "bold 0.58px system-ui";
   context.textAlign = "center";
   context.textBaseline = "middle";
@@ -86,8 +91,10 @@ export function initOrientationCube({ canvas, camera, onView }) {
     const { width, height } = resizeCanvas(canvas, context);
     context.clearRect(0, 0, width, height);
     const projected = projectVertices(width, height, camera);
+    const edgeColor = themeAlpha("--cube-edge", 0.58);
     const faces = RENDER_FACES.map((face) => ({
       ...face,
+      color: themeAlpha(face.token, face.alpha),
       depth: face.vertices.reduce((sum, index) => sum + projected[index].depth, 0) / 4,
     })).sort((a, b) => a.depth - b.depth);
 
@@ -99,7 +106,7 @@ export function initOrientationCube({ canvas, camera, onView }) {
       context.closePath();
       context.fillStyle = face.color;
       context.fill();
-      context.strokeStyle = "rgba(206, 220, 225, .58)";
+      context.strokeStyle = edgeColor;
       context.lineWidth = 1;
       context.stroke();
       drawFaceLabel(context, points, face.label);
@@ -125,7 +132,7 @@ export function initOrientationCube({ canvas, camera, onView }) {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    // Сначала проверяем передние грани — в порядке отрисовки back-to-front.
+    // Check front faces first, in back-to-front drawing order.
     for (const face of faces.reverse()) {
       const polygon = face.vertices.map((index) => projected[index]);
       if (pointInPolygon(x, y, polygon)) {

@@ -87,8 +87,8 @@ pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
         };
         if let Err(error) = &result {
             crate::message_log::record(
-                "ошибка",
-                "эмулятор/протокол",
+                "error",
+                "emulator/protocol",
                 &format!("{}: {}", error.code, error.message),
             );
         }

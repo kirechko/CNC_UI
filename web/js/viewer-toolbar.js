@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 const INITIAL_VIEW = Object.freeze({
   yaw: -0.72,
   pitch: 0.62,
@@ -6,6 +8,11 @@ const INITIAL_VIEW = Object.freeze({
   panY: 0,
 });
 
+/**
+ * Wires the viewer toolbar: fit-to-window button and projection toggle.
+ * @param {{camera: object, render: Function}} deps
+ * @returns {{updateProjectionToggle: Function}}
+ */
 export function initViewerToolbar({ camera, render }) {
   const fitButton = document.querySelector("#fit-program");
   const projectionToggle = document.querySelector("#projection-toggle");
@@ -15,18 +22,21 @@ export function initViewerToolbar({ camera, render }) {
     render();
   });
 
+  /**
+   * Syncs the projection toggle's state, tooltip and ARIA label with the camera.
+   */
   function updateProjectionToggle() {
     if (!projectionToggle) return;
 
     projectionToggle.dataset.perspective = String(camera.perspective);
     projectionToggle.title = camera.perspective
-      ? "Переключить на ортографическую проекцию"
-      : "Переключить на перспективную проекцию";
+      ? t("viewer.projection.toOrthographic")
+      : t("viewer.projection.toPerspective");
     projectionToggle.setAttribute(
       "aria-label",
       camera.perspective
-        ? "Перспективная проекция; переключить на ортографическую"
-        : "Ортографическая проекция; переключить на перспективную",
+        ? t("viewer.projection.perspectiveAria")
+        : t("viewer.projection.orthographicAria"),
     );
     projectionToggle.classList.toggle("active", camera.perspective);
     projectionToggle.setAttribute("aria-pressed", String(camera.perspective));

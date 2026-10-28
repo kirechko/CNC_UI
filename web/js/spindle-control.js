@@ -1,4 +1,5 @@
 import { invokeOrFetch } from "./api.js";
+import { t } from "./i18n.js";
 
 export function initSpindleControls({ refreshStatus }) {
   const speedSlider = document.querySelector("#spindle-speed-slider");
@@ -61,6 +62,9 @@ export function initSpindleControls({ refreshStatus }) {
       option.type = "button";
       option.role = "option";
       option.textContent = rpm.toFixed(0);
+      // Preset buttons are recreated on every open, so the tooltip always
+      // uses the dictionary of the currently active locale.
+      option.title = t("html.spindle.presetOptionTitle", { rpm: rpm.toFixed(0) });
       option.setAttribute("aria-selected", String(rpm === Number(speedSlider.value)));
       option.addEventListener("click", () => {
         syncSpeed(rpm);
@@ -89,7 +93,10 @@ export function initSpindleControls({ refreshStatus }) {
       rpm > maximumRpm
     ) {
       manualSpeedInput.setCustomValidity(
-        `Введите скорость от ${minimumRpm.toFixed(0)} до ${maximumRpm.toFixed(0)} RPM.`,
+        t("spindle.speedRange", {
+          min: minimumRpm.toFixed(0),
+          max: maximumRpm.toFixed(0),
+        }),
       );
       manualSpeedInput.reportValidity();
       return;
@@ -144,7 +151,7 @@ export function initSpindleControls({ refreshStatus }) {
       await refreshStatus();
     } catch (error) {
       pendingDirection = null;
-      commandError = `Ошибка шпинделя: ${error.message}`;
+      commandError = t("spindle.error", { message: error.message });
       await refreshStatus();
     }
   }
@@ -164,8 +171,8 @@ export function initSpindleControls({ refreshStatus }) {
 
     clockwiseButton.classList.toggle("active-cw", clockwiseActive);
     counterClockwiseButton.classList.toggle("active-ccw", counterClockwiseActive);
-    // Не заменяем SVG при каждом обновлении телеметрии: pointerdown/click должны
-    // оставаться на одном DOM-элементе, иначе браузер может отменить click.
+    // Do not replace the SVG on every telemetry update: pointerdown/click must
+    // stay on the same DOM element, otherwise the browser may cancel the click.
     if (clockwiseButton.dataset.iconState !== clockwiseIconState) {
       clockwiseButton.innerHTML =
         `<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${clockwiseActive ? stopIcon : clockwiseIcon}</svg>`;
@@ -177,22 +184,18 @@ export function initSpindleControls({ refreshStatus }) {
       counterClockwiseButton.dataset.iconState = counterClockwiseIconState;
     }
 
-    clockwiseButton.setAttribute(
-      "aria-label",
-      clockwiseActive ? "Остановить шпиндель" : "Запустить шпиндель по часовой стрелке",
-    );
-    counterClockwiseButton.setAttribute(
-      "aria-label",
-      counterClockwiseActive
-        ? "Остановить шпиндель"
-        : "Запустить шпиндель против часовой стрелки",
-    );
-    clockwiseButton.title = clockwiseActive
-      ? "Остановить шпиндель"
-      : "Запустить шпиндель по часовой стрелке";
-    counterClockwiseButton.title = counterClockwiseActive
-      ? "Остановить шпиндель"
-      : "Запустить шпиндель против часовой стрелки";
+    // Labels are resolved from the dictionary; the same text is used for
+    // the accessible name and the tooltip.
+    const clockwiseLabel = clockwiseActive
+      ? t("spindle.stop")
+      : t("spindle.startClockwise");
+    const counterClockwiseLabel = counterClockwiseActive
+      ? t("spindle.stop")
+      : t("spindle.startCounterClockwise");
+    clockwiseButton.setAttribute("aria-label", clockwiseLabel);
+    counterClockwiseButton.setAttribute("aria-label", counterClockwiseLabel);
+    clockwiseButton.title = clockwiseLabel;
+    counterClockwiseButton.title = counterClockwiseLabel;
   }
 
   function update(status) {

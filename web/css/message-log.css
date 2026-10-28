@@ -1,0 +1,347 @@
+/* Message log: dialog chrome, severity/date filters, the calendar range
+   picker, the sortable table, pagination and the trajectory legend dots. */
+.message-log-button {
+  min-height: 27px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.message-log-dialog {
+  width: min(900px, calc(100vw - 28px));
+  height: min(760px, calc(100vh - 28px));
+  min-height: min(560px, calc(100vh - 28px));
+  max-height: min(760px, calc(100vh - 28px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+}
+
+.message-log-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+.message-log-text-dialog {
+  width: min(800px, calc(100vw - 28px));
+  height: min(600px, calc(100vh - 28px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+}
+
+.message-log-text-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+.message-log-text-content {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+}
+
+.message-log-text-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.message-log-text-heading h2 { margin: 0; font-size: 16px; }
+
+.message-log-text-content textarea {
+  width: 100%;
+  min-height: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 12px/1.5 var(--font-mono);
+  resize: none;
+}
+
+.message-log-content {
+  position: relative;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+
+.message-log-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.message-log-heading h2 { margin: 0; font-size: 16px; }
+
+.message-log-heading > button {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.message-log-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 25fr)
+    minmax(0, 18fr)
+    minmax(0, 20fr)
+    minmax(0, 37fr);
+  grid-template-rows: auto;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.log-date-picker {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.log-date-picker-button {
+  width: 100%;
+  min-height: 34px;
+  overflow: hidden;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-calendar {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 280px;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 45%);
+}
+
+.log-calendar[hidden] { display: none; }
+
+.log-calendar-heading,
+.log-calendar-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.log-calendar-heading { margin-bottom: 8px; }
+.log-calendar-month { font-size: 12px; font-weight: 700; }
+
+.log-calendar-heading button,
+.log-calendar-footer button {
+  min-height: 28px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.log-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  user-select: none;
+  touch-action: none;
+}
+
+.log-calendar-weekday,
+.log-calendar-day {
+  display: grid;
+  min-width: 0;
+  min-height: 30px;
+  place-items: center;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+.log-calendar-weekday { color: var(--muted); font-weight: 700; }
+
+.log-calendar-day {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-strong);
+}
+
+.log-calendar-day.outside-month { color: var(--muted-2); }
+.log-calendar-day:hover:not(:disabled) { background: var(--surface-hover); }
+.log-calendar-day.in-range { border-radius: 0; background: var(--bg-selected); }
+.log-calendar-day.range-start,
+.log-calendar-day.range-end {
+  border-color: var(--accent-bright);
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.log-calendar-footer {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.log-calendar-date-times {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 6px;
+}
+
+.log-calendar-actions {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding-top: 14px;
+}
+
+.log-calendar-actions button {
+  min-height: 23px;
+}
+
+.log-calendar-date-time {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1fr;
+  gap: 3px;
+}
+
+.log-calendar-date-time label {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.log-calendar-date-time input {
+  width: 100%;
+  min-height: 23px;
+  padding: 0 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 10px;
+}
+
+.log-calendar-date-time input:disabled {
+  opacity: 0.48;
+}
+
+@media (max-width: 700px) {
+  .message-log-filters {
+    grid-template-columns: 25fr 18fr 20fr 37fr;
+  }
+}
+
+.message-log-filters select,
+.message-log-filters input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.message-log-table-wrap { overflow: auto; min-height: 200px; }
+
+.message-log-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.message-log-table th,
+.message-log-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-log-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-raised);
+  color: var(--orange);
+}
+
+.message-log-table th button {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.message-log-table th button:hover { color: var(--text-primary); }
+.message-log-table th button::after { color: var(--accent-bright); }
+
+.message-log-table td:last-child { overflow-wrap: anywhere; }
+.message-log-table .critical { color: var(--red); }
+.message-log-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.message-log-footer button {
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.message-log-page-size {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 10px;
+}
+
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+/* Legend dots must mirror the trajectory renderer: use the --traj-* tokens so
+   the swatches match the canvas in every theme (the gray theme keeps segment
+   colors colored while --green/--orange themselves are gray). */
+.legend-dot.rapid { background: var(--traj-rapid); }
+.legend-dot.linear { background: var(--traj-linear); }
+.legend-dot.arc { background: var(--traj-arc); }
+

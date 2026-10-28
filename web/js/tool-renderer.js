@@ -1,5 +1,11 @@
 import { makeProjector } from "./scene-projection.js";
+import { themeAlpha, themeToken } from "./theme-colors.js";
 
+/**
+ * Renders the rotating tool (a hexagonal pencil) at the machine position.
+ * Body, sharpened wood, cap and graphite tip colors come from theme tokens so
+ * the tool blends with whichever UI theme is active.
+ */
 export function drawTool({
   canvas,
   context,
@@ -49,17 +55,22 @@ export function drawTool({
   const lower = ring(lowerZ);
   const upper = ring(upperZ);
   const projectedTip = project(tip);
+  // Six facets alternate light/shade tones from the theme for a metallic look.
+  const faceTokens = [
+    "--tool-face-mid", "--tool-face-shade", "--tool-face-light",
+    "--tool-face-shade", "--tool-face-mid", "--tool-face-dark",
+  ];
   const faces = Array.from({ length: 6 }, (_, index) => {
     const next = (index + 1) % 6;
     return {
       points: [lower[index], lower[next], upper[next], upper[index]],
       depth:
         (lower[index].depth + lower[next].depth + upper[next].depth + upper[index].depth) / 4,
-      color: ["#c2c7ca", "#aeb4b8", "#d0d4d7", "#aeb4b8", "#c2c7ca", "#969da2"][index],
+      color: themeToken(faceTokens[index]),
     };
   }).sort((a, b) => a.depth - b.depth);
 
-  // Фасетный корпус вращающегося шестигранного карандаша.
+  // Faceted body of the rotating hexagonal pencil.
   for (const face of faces) {
     context.beginPath();
     context.moveTo(face.points[0].x, face.points[0].y);
@@ -67,12 +78,12 @@ export function drawTool({
     context.closePath();
     context.fillStyle = face.color;
     context.fill();
-    context.strokeStyle = "rgba(220, 235, 239, .75)";
+    context.strokeStyle = themeAlpha("--tool-edge", 0.75);
     context.lineWidth = 1;
     context.stroke();
   }
 
-  // Заточенная деревянная часть и графитовый кончик.
+  // Sharpened wooden section and graphite tip.
   for (let index = 0; index < 6; index++) {
     const next = (index + 1) % 6;
     context.beginPath();
@@ -80,9 +91,11 @@ export function drawTool({
     context.lineTo(lower[index].x, lower[index].y);
     context.lineTo(lower[next].x, lower[next].y);
     context.closePath();
-    context.fillStyle = index % 2 === 0 ? "#b9bec2" : "#92999e";
+    context.fillStyle = index % 2 === 0
+      ? themeToken("--tool-wood-light")
+      : themeToken("--tool-wood-dark");
     context.fill();
-    context.strokeStyle = "rgba(240, 213, 167, .62)";
+    context.strokeStyle = themeAlpha("--tool-wood-edge", 0.62);
     context.lineWidth = 0.7;
     context.stroke();
   }
@@ -94,16 +107,16 @@ export function drawTool({
     else context.lineTo(point.x, point.y);
   });
   context.closePath();
-  context.fillStyle = "#d5d9dc";
+  context.fillStyle = themeToken("--tool-cap");
   context.fill();
-  context.strokeStyle = "rgba(230, 241, 244, .8)";
+  context.strokeStyle = themeAlpha("--tool-cap-edge", 0.8);
   context.lineWidth = 1;
   context.stroke();
 
   context.beginPath();
   context.moveTo(projectedTip.x, projectedTip.y);
   context.lineTo(capCenter.x, capCenter.y);
-  context.strokeStyle = "#303a3e";
+  context.strokeStyle = themeToken("--tool-tip-line");
   context.lineWidth = 1.2;
   context.stroke();
 }

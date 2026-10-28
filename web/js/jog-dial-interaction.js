@@ -1,5 +1,8 @@
 import { dialDirectionAt, dialSelectionAt } from "./jog-dial-hit-test.js";
+import { t } from "./i18n.js";
 
+// Dial sector labels are axis symbols (+X, −Y, ...) shared by every locale, so
+// they stay untranslated; only the surrounding sentences are localized below.
 const DIRECTION_LABELS = [
   "+X",
   "+X / −Y",
@@ -11,10 +14,15 @@ const DIRECTION_LABELS = [
   "+X / +Y",
 ];
 
-const INCREMENTAL_TITLE =
-  "Пошаговый XY Jog: выберите направление на диске, кольцо задаёт расстояние перемещения";
-const CONTINUOUS_TITLE =
-  "Непрерывный XY Jog: удерживайте кнопку мыши на секторе; перемещайте указатель по диску для изменения направления";
+/** Idle (not hovered) canvas tooltip for the incremental dial mode. */
+function incrementalTitle() {
+  return t("jog.dial.incrementalTitle");
+}
+
+/** Idle (not hovered) canvas tooltip for the continuous dial mode. */
+function continuousTitle() {
+  return t("jog.dial.continuousTitle");
+}
 
 function selectionAt(event, canvas, mode, stepValues) {
   const rect = canvas.getBoundingClientRect();
@@ -55,33 +63,40 @@ export function initJogDialInteraction({
     ) return;
 
     onHover(selection);
+    // The sector name is a technical axis symbol; it is injected into the
+    // localized template through the {direction} placeholder.
     const direction = DIRECTION_LABELS[selection?.sector];
     canvas.title = selection
       ? mode === "continuous"
-        ? `${direction}: удерживайте кнопку мыши для непрерывного перемещения; перемещайте указатель для смены направления`
-        : `${direction}: нажмите для перемещения на ${selection.step} mm`
+        ? t("jog.dial.hoverContinuous", { direction })
+        : t("jog.dial.hoverIncremental", { direction, step: selection.step })
       : mode === "continuous"
-        ? "Непрерывный XY Jog: удерживайте кнопку на секторе; центр диска — без движения"
-        : `Пошаговый XY Jog: нажмите сектор; кольца задают шаг ${getStepValues().join(" / ")} mm`;
+        ? t("jog.dial.centerContinuous")
+        : t("jog.dial.centerIncremental", { steps: getStepValues().join(" / ") });
 
     if (hint) {
       hint.textContent = selection
         ? mode === "continuous"
-          ? `${direction} · удерживайте для перемещения`
-          : `${direction} · ${selection.step} mm`
+          ? t("jog.dial.hintHoverContinuous", { direction })
+          : t("jog.dial.hintHoverIncremental", { direction, step: selection.step })
         : mode === "continuous"
-          ? "Удерживайте кнопку и перемещайте указатель по диску"
-          : `Наведите на сектор: кольца задают шаг ${getStepValues().join(" / ")} mm`;
+          ? t("jog.dial.hintContinuous")
+          : t("jog.dial.hintIncremental", { steps: getStepValues().join(" / ") });
     }
   }
 
+  /**
+   * Removes the hovered selection and restores the idle tooltip/hint. Also
+   * used by main.js on the cnc-locale-changed event so stale English strings
+   * disappear immediately after a language switch.
+   */
   function clearHover() {
     onHover(null);
-    canvas.title = getMode() === "continuous" ? CONTINUOUS_TITLE : INCREMENTAL_TITLE;
+    canvas.title = getMode() === "continuous" ? continuousTitle() : incrementalTitle();
     if (hint) {
       hint.textContent = getMode() === "continuous"
-        ? "Удерживайте кнопку и перемещайте указатель по диску"
-        : `Наведите на сектор: кольца задают шаг ${getStepValues().join(" / ")} mm`;
+        ? t("jog.dial.hintContinuous")
+        : t("jog.dial.hintIncremental", { steps: getStepValues().join(" / ") });
     }
   }
 

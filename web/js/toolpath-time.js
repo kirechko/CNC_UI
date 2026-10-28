@@ -1,27 +1,33 @@
-function segmentLength(segment) {
-  return Math.hypot(
-    segment.to[0] - segment.from[0],
-    segment.to[1] - segment.from[1],
-    segment.to[2] - segment.from[2],
-  );
-}
-
+/**
+ * Returns the estimated machining time of one backend toolpath segment.
+ *
+ * Rapid moves are limited only by the axis maximum velocities; feed moves use
+ * the segment feed rate, further limited by axis maximum velocities.
+ *
+ * @param {object} segment - Backend toolpath segment (`from`, `to`, `kind`, `feed_rate`, `length_mm`).
+ * @param {object} configuration - Machine configuration with `axes[].max_velocity`.
+ * @returns {number} Duration in seconds.
+ */
 function segmentDuration(segment, configuration) {
-  const length = segmentLength(segment);
+  const length = segment.length_mm;
   if (length <= 1e-9) return 0;
 
   const axes = Array.isArray(configuration?.axes) ? configuration.axes : [];
-  let speed = segment.type === "rapid"
-    ? Infinity
-    : Number.isFinite(segment.feedRate) && segment.feedRate > 0
-      ? segment.feedRate
-      : 1000;
+  const fallbackFeed = Number.isFinite(segment.feed_rate) && segment.feed_rate > 0
+    ? segment.feed_rate
+    : 1000;
+  let speed = segment.kind === "rapid" ? Infinity : fallbackFeed;
 
-  for (let index = 0; index < 3; index++) {
-    const component = Math.abs(segment.to[index] - segment.from[index]) / length;
+  const delta = {
+    X: segment.to.x - segment.from.x,
+    Y: segment.to.y - segment.from.y,
+    Z: segment.to.z - segment.from.z,
+  };
+
+  for (const axis of ["X", "Y", "Z"]) {
+    const component = Math.abs(delta[axis]) / length;
     if (component <= 1e-9) continue;
 
-    const axis = ["X", "Y", "Z"][index];
     const maxVelocity = Number(
       axes.find((item) => String(item.axis).toUpperCase() === axis)?.max_velocity,
     );
@@ -31,14 +37,18 @@ function segmentDuration(segment, configuration) {
   }
 
   if (!Number.isFinite(speed) || speed <= 0) {
-    speed = Number.isFinite(segment.feedRate) && segment.feedRate > 0
-      ? segment.feedRate
-      : 1000;
+    speed = fallbackFeed;
   }
 
   return (length / speed) * 60;
 }
 
+/**
+ * Formats seconds as `HH:MM:SS`.
+ *
+ * @param {number} seconds - Duration in seconds.
+ * @returns {string} Formatted duration.
+ */
 export function formatDuration(seconds) {
   const total = Math.max(0, Math.ceil(seconds));
   const hours = Math.floor(total / 3600);
@@ -50,6 +60,12 @@ export function formatDuration(seconds) {
     .join(":");
 }
 
+/**
+ * Formats seconds as `HH:MM:SS.t` with tenths of a second.
+ *
+ * @param {number} seconds - Duration in seconds.
+ * @returns {string} Formatted duration with one fractional digit.
+ */
 export function formatRemainingDuration(seconds) {
   const tenths = Math.max(0, Math.ceil(seconds * 10));
   const wholeSeconds = Math.floor(tenths / 10);
@@ -57,73 +73,35 @@ export function formatRemainingDuration(seconds) {
   return `${formatDuration(wholeSeconds)}.${fraction}`;
 }
 
-export function estimateToolpathTime(
-  segments,
-  configuration,
-  currentLine = 0,
-  position = null,
-) {
+/**
+ * Estimates total and remaining machining time from the backend traversed distance.
+ *
+ * The traversed distance is the backend `progress.path_distance_mm`, so the
+ * estimate uses the same source of truth as the drawn trajectory.
+ *
+ * @param {Array<object>} segments - Backend toolpath segments.
+ * @param {object} configuration - Machine configuration with axis limits.
+ * @param {number|null} pathDistanceMm - Traversed path distance, or null when unknown.
+ * @returns {{totalSeconds: number, remainingSeconds: number, label: string}} Time estimate.
+ */
+export function estimateToolpathTime(segments, configuration, pathDistanceMm = null) {
   const timedSegments = segments.map((segment) => ({
-    segment,
-    length: segmentLength(segment),
     seconds: segmentDuration(segment, configuration),
+    startDistance: segment.start_distance_mm,
+    length: segment.length_mm,
   }));
-  const totalSeconds = timedSegments.reduce(
-    (sum, item) => sum + item.seconds,
-    0,
-  );
-  const line = Number(currentLine) || 0;
+  const totalSeconds = timedSegments.reduce((sum, item) => sum + item.seconds, 0);
+
   let remainingSeconds = totalSeconds;
-
-  if (line > 0) {
-    const active = timedSegments.filter(
-      ({ segment }) => segment.programLine === line,
-    );
-    const futureSeconds = timedSegments
-      .filter(({ segment }) => segment.programLine > line)
-      .reduce((sum, item) => sum + item.seconds, 0);
-
-    if (active.length === 0) {
-      remainingSeconds = futureSeconds;
-    } else {
-      const activeLength = active.reduce((sum, item) => sum + item.length, 0);
-      let progressDistance = 0;
-
-      if (Array.isArray(position) && position.length >= 3 && activeLength > 1e-9) {
-        let precedingLength = 0;
-        let closestDistanceSquared = Infinity;
-
-        for (const { segment, length } of active) {
-          const delta = segment.to.map((value, axis) => value - segment.from[axis]);
-          const lengthSquared = delta.reduce((sum, value) => sum + value * value, 0);
-          const projection = lengthSquared > 1e-12
-            ? Math.max(0, Math.min(1, position.reduce(
-                (sum, value, axis) => sum + (value - segment.from[axis]) * delta[axis],
-                0,
-              ) / lengthSquared))
-            : 0;
-          const projected = segment.from.map(
-            (value, axis) => value + delta[axis] * projection,
-          );
-          const distanceSquared = projected.reduce(
-            (sum, value, axis) => sum + (value - position[axis]) ** 2,
-            0,
-          );
-
-          if (distanceSquared < closestDistanceSquared) {
-            closestDistanceSquared = distanceSquared;
-            progressDistance = precedingLength + length * projection;
-          }
-          precedingLength += length;
-        }
-      }
-
-      const activeSeconds = active.reduce((sum, item) => sum + item.seconds, 0);
-      const progress = activeLength > 1e-9
-        ? Math.max(0, Math.min(1, progressDistance / activeLength))
-        : 0;
-      remainingSeconds = futureSeconds + activeSeconds * (1 - progress);
-    }
+  if (Number.isFinite(pathDistanceMm)) {
+    remainingSeconds = timedSegments.reduce((sum, item) => {
+      if (item.length <= 1e-9) return sum;
+      const done = Math.max(
+        0,
+        Math.min(1, (pathDistanceMm - item.startDistance) / item.length),
+      );
+      return sum + item.seconds * (1 - done);
+    }, 0);
   }
 
   return {

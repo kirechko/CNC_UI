@@ -1,0 +1,171 @@
+/* Theme layer: the default dark palette declared on :root. Split from themes.css. */
+/*
+ * themes.css — the single source of truth for every color token used by the UI.
+ *
+ * The base palette (defined on :root) is the original DARK theme; it must stay
+ * pixel-identical to the colors that lived inside app.css before the migration.
+ * Alternate themes override the same tokens via `html[data-theme="..."]`, which
+ * has higher specificity than `:root`, so no !important is needed anywhere.
+ *
+ * Conventions:
+ *  - Every value here is a plain hex color. `app.css` applies translucency via
+ *    `color-mix(in srgb, ...)`, while the canvas renderers read these tokens via
+ *    `web/js/theme-colors.js` (`token()` / `tokenAlpha()`) because the Canvas 2D
+ *    API cannot parse `var()` or `color-mix()` expressions.
+ *  - Layout/typography tokens (--font-*, --dial-size, --panel-*, --left-col...)
+ *    intentionally live in app.css and are NOT themed here.
+ */
+
+/* ---------------------------------------------------------------------------
+ * DARK theme (default) — the historical palette of the application.
+ * ------------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+
+  /* App chrome / backgrounds */
+  --bg-page: #111416;           /* the deepest page background */
+  --bg-inset: #151a1d;          /* recessed areas (input wells, table headers) */
+  --bg-chip: #171c1f;           /* chips and small static badges */
+  --bg-button: #1b2529;         /* resting background of default buttons */
+  --surface: #191e21;           /* panel surface */
+  --surface-raised: #202629;    /* popovers, dialogs, hovered toolbar items */
+  --surface-hover: #293135;     /* generic hover tint */
+  --surface-alt: #252d30;       /* alternating rows / secondary surfaces */
+  --accent-soft-bg: #1a2b33;    /* faint accent-tinted backdrop */
+  --btn-primary-bg: #1d5f80;    /* primary (filled) button background */
+  --bg-selected: #1b4356;       /* selected list rows / active tabs */
+  --brand-bg: #182b34;          /* header brand block */
+
+  /* Borders and dividers */
+  --border: #30393d;
+  --border-strong: #3b484d;
+  --border-stronger: #40545d;
+  --border-divider: #465257;
+  --border-hover: #4a5c64;
+  --brand-border: #315d72;
+
+  /* Text ramp (light text on dark surfaces) */
+  --text-primary: #e7ecee;
+  --text-bright: #f1f3f3;
+  --text-strong: #d8e0e2;
+  --text-secondary: #c8d1d4;
+  --text-button: #b9c3c6;
+  --text-chip: #b8c2c5;
+  --text-soft: #aeb9bc;
+  --text-machine: #a0aaae;
+  --muted: #879398;
+  --muted-2: #687479;
+  --dot-idle: #657176;
+  --legend-rapid: #99a8ae;      /* toolpath legend: rapid-move dot */
+  --text-on-accent: #ffffff;    /* text sitting on accent-filled controls */
+
+  /* Accent (blue) family */
+  --accent: #287eaa;
+  --accent-bright: #42a4d4;
+  --accent-hover: #4385a1;
+  --selection: #4a9eff;         /* ::selection and focus glows */
+  --accent-text: #a3d5e9;
+  --accent-text-bright: #8bc9e7;
+  --accent-text-mid: #8fc8e2;
+  --accent-text-dim: #7197ab;
+  --accent-border: #31556a;
+  --accent-border-soft: #344e5b;
+  --accent-border-bright: #4d9bc2;
+
+  /* Status: green (ok / feed / enabled) */
+  --green: #64c99a;
+  --green-text: #76d49c;
+  --green-border: #39704f;
+  --green-border-hover: #56a875;
+  --green-bg: #19291f;
+  --green-bg-hover: #20372a;
+  --jog-xy-border: #385347;     /* JOG +X/+Y button border tint */
+  --jog-xy-border-hover: #58a77e;
+
+  /* Status: red (error / abort / disabled move) */
+  --red: #eb7474;
+  --red-text: #f08b8b;
+  --red-border: #7c3033;
+  --red-border-hover: #bd4d51;
+  --red-bg: #351719;
+  --red-bg-hover: #4a1d20;
+  --jog-x-border: #604044;      /* JOG −X button border tint */
+  --jog-x-border-hover: #b8666b;
+
+  /* Status: amber / orange (warnings, arcs, feedhold) */
+  --amber: #e8bd69;
+  --amber-text: #dfc98e;
+  --amber-border: #594b2d;
+  --orange: #f1aa58;
+  --orange-bright: #ffc17c;
+  --copper: #b87333;            /* spindle dial metal */
+  --copper-text: #d99a5e;
+  --copper-hover: #e69a4e;
+
+  /* Scene axes */
+  --axis-x: #ef7777;
+  --axis-y: #68ce9e;
+  --axis-z: #57b5e2;
+  --axis-a: #c49be8;
+
+  /* Styled tooltips (kept lighter than regular text by design) */
+  --tooltip-border: #c4cbce;
+  --tooltip-text: #d5dcdf;
+
+  /* Workspace background grid lines */
+  --grid-line: #4f626b;
+
+  /* --- Canvas-only tokens ------------------------------------------------
+   * Consumed by the 2D renderers through theme-colors.js. Alpha values that
+   * used to be baked into rgba() literals now live in the JS call sites. */
+
+  /* JOG dial: four concentric rings per direction family */
+  --dial-x-1: #3f2a2b;  --dial-x-2: #532e2e;  --dial-x-3: #6e3332;  --dial-x-4: #8d3837;
+  --dial-y-1: #2b3937;  --dial-y-2: #314945;  --dial-y-3: #375e56;  --dial-y-4: #3d766c;
+  --dial-diag-1: #314965; --dial-diag-2: #46668b; --dial-diag-3: #4f749e; --dial-diag-4: #5a85b6;
+  --dial-stroke: #111719;        /* gaps between sectors */
+  --dial-label: #f1f3f3;         /* +X/+Y/−X/−Y captions */
+  --dial-hover-fill: #ffffff;    /* hovered sector wash (alpha applied in JS) */
+  --dial-hover-stroke: #ffffff;  /* hovered sector outline */
+  --dial-center-bg: #202629;
+  --dial-center-border: #101416;
+  --dial-center-cross: #879398;
+
+  /* Scene viewer grid plane */
+  --viewer-grid-fill: #11191d;
+  --viewer-grid-border: #667f89;
+  --viewer-grid-line: #68838e;
+
+  /* Toolpath legend strokes (rapid kept translucent so it reads as "non-cut") */
+  --traj-rapid: #99a8ae;
+  --traj-linear: #55bd91;
+  --traj-arc: #f1aa58;
+
+  /* Orientation cube */
+  --cube-face-zneg: #4a5358;
+  --cube-face-zpos: #287eaa;
+  --cube-face-yneg: #974a4d;
+  --cube-face-ypos: #438b67;
+  --cube-face-xpos: #a65353;
+  --cube-face-xneg: #578466;
+  --cube-label: #f0f4f5;
+  --cube-edge: #cedce1;
+
+  /* Rotating tool (hexagonal pencil) */
+  --tool-face-light: #d0d4d7;
+  --tool-face-mid: #c2c7ca;
+  --tool-face-shade: #aeb4b8;
+  --tool-face-dark: #969da2;
+  --tool-edge: #dcebef;          /* facet outlines */
+  --tool-wood-light: #b9bec2;
+  --tool-wood-dark: #92999e;
+  --tool-wood-edge: #f0d5a7;     /* sharpened-cone outline (tan) */
+  --tool-cap: #d5d9dc;
+  --tool-cap-edge: #e6f1f4;
+  --tool-tip-line: #303a3e;      /* graphite core stroke */
+
+  /* Stock (raw material) overlay */
+  --stock-fill: #42a4d4;
+  --stock-edge: #96d8f2;
+}
+

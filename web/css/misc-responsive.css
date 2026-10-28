@@ -1,0 +1,162 @@
+/* Miscellaneous job/sidebar chrome and the responsive width/height
+   breakpoints that shrink the layout on small screens. */
+.job-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 7px;
+}
+
+.job-buttons button {
+  min-height: 39px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.viewer-job-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.viewer-job-buttons button {
+  min-height: 29px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.job-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.panel-tabs {
+  gap: 4px;
+  padding: 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-button {
+  min-height: 30px;
+  flex: 1;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.tab-button.active {
+  border-color: var(--accent-border-soft);
+  background: var(--accent-soft-bg);
+  color: var(--accent-text-mid);
+}
+
+.sidebar-empty {
+  display: grid;
+  min-height: 168px;
+  align-content: center;
+  justify-items: center;
+  gap: 9px;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.sidebar-empty strong { color: var(--text-secondary); font-size: 12px; }
+.sidebar-empty span { font-size: 10px; line-height: 1.55; }
+
+.right-column > .machine-console-panel {
+  grid-column: 1 / -1;
+}
+
+.event-panel { min-height: 134px; }
+.event-message {
+  min-height: 46px;
+  color: var(--text-soft);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.safety-note {
+  padding: 10px 12px;
+  border: 1px solid var(--amber-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--amber-border) 28%, transparent);
+  color: var(--amber-text);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.connected { color: var(--green); }
+.disconnected, .error { color: var(--red); }
+
+/*
+ * Narrow windows: the layout is NOT re-stacked, so the panels keep their
+ * relative positions. Only the header is compacted here.
+ * The right column is hidden below 900px, after the left panels and the
+ * jog dial have already shrunk proportionally.
+ */
+@media (max-width: 900px) {
+  .app-main {
+    grid-template-columns:
+      var(--left-col, clamp(220px, 21.25vw, 340px))
+      var(--splitter-size)
+      minmax(280px, 1fr);
+  }
+  .right-column,
+  .col-splitter[data-splitter="right"] { display: none; }
+}
+
+@media (max-width: 700px) {
+  .app-header { min-height: 48px; padding: 0 12px; }
+  .brand-subtitle, .header-state { display: none; }
+  .machine-chip { padding: 7px 8px; }
+  .app-main { padding: 5.5px; gap: 2.75px; }
+}
+
+/*
+ * Vertical reduction, applied in this order as the window gets shorter:
+ * 1. panels and the dial shrink fluidly (clamp/vh rules above);
+ * 2. axis C row is hidden, then B, then A;
+ * 3. the JOG panel is hidden last.
+ */
+@media (max-height: 820px) {
+  .axis-row[data-axis="C" i] { display: none; }
+}
+
+@media (max-height: 760px) {
+  .axis-row[data-axis="B" i] { display: none; }
+}
+
+@media (max-height: 700px) {
+  .axis-row[data-axis="A" i] { display: none; }
+}
+
+/*
+ * Further vertical reduction inside the JOG panel.
+ * Stepped Z buttons are hidden one at a time by js/jog-z-fit.js (ResizeObserver),
+ * innermost first: -0.1, +0.1, -1, +1, -10, +10, -100, +100.
+ * Continuous Z buttons shrink in size as the window gets shorter.
+ */
+@media (max-height: 660px) {
+  .jog-dial-z-continuous { gap: 2px; }
+  .jog-dial-z-continuous button {
+    min-height: 16px;
+    padding: 0;
+    font-size: 10px;
+    transform: scale(.85);
+  }
+}
+
+@media (max-height: 640px) {
+  .jog-panel { display: none; }
+}
+
+@media (max-width: 380px) {
+  .header-status { gap: 6px; }
+  .machine-chip { font-size: 10px; }
+  .app-main { padding: 4px; }
+  .panel-body { padding: 11px; }
+  .axis-value { font-size: 14px; }
+}

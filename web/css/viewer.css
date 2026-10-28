@@ -1,0 +1,174 @@
+/* Viewer stage: toolbar, canvases, orientation cube, empty state and the
+   footer message/toolpath-time summary. */
+.viewer-toolbar { display: flex; align-items: center; gap: 7px; }
+.toolbar-button {
+  min-height: 29px;
+  padding: 0 9px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  flex: 0 0 1px;
+  background: var(--border);
+}
+
+.toolbar-icon-button {
+  display: grid;
+  width: 29px;
+  min-width: 29px;
+  padding: 0;
+  place-items: center;
+}
+
+.toolbar-icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.projection-toggle[data-perspective="true"] .ortho-icon {
+  display: none;
+}
+
+.projection-toggle[data-perspective="false"] .perspective-icon {
+  display: none;
+}
+
+.viewer-stage {
+  position: relative;
+  display: grid;
+  /* The stage grows/shrinks with the panel; the absolutely positioned canvases fill it. */
+  min-height: 0;
+  overflow: hidden;
+  place-items: center;
+  background-color: var(--bg-inset);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--grid-line) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--grid-line) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--grid-line) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--grid-line) 4%, transparent) 1px, transparent 1px);
+  background-position: center;
+  background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+}
+
+.viewer-stage::after {
+  position: absolute;
+  width: min(62%, 470px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-border) 30%, transparent), transparent);
+  content: "";
+}
+
+.trajectory-canvas,
+.tool-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.trajectory-canvas {
+  z-index: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.trajectory-canvas.dragging { cursor: grabbing; }
+
+.tool-canvas {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.orientation-cube {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  width: 112px;
+  height: 112px;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.viewer-toolbar .active {
+  border-color: var(--accent-hover);
+  background: var(--accent-soft-bg);
+  color: var(--accent-text);
+}
+
+.empty-viewer {
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 22px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.viewer-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border: 1px solid var(--border-stronger);
+  border-radius: 15px;
+  background: var(--accent-soft-bg);
+  color: var(--accent-text-dim);
+  font-size: 23px;
+}
+
+.empty-viewer strong { color: var(--text-secondary); font-size: 12px; }
+.empty-viewer span { max-width: 260px; font-size: 10px; line-height: 1.6; }
+.empty-viewer[hidden] { display: none; }
+
+.viewer-footer {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 13px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.viewer-message-summary {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+  padding: 4px 0;
+}
+
+.toolpath-time {
+  color: var(--text-button);
+  font: 10px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toolpath-time[hidden] { display: none; }
+
+.viewer-message-line {
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-message-line.critical { color: var(--red); }
+.viewer-message-line .message-meta { color: var(--muted); }
+

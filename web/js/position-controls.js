@@ -1,5 +1,11 @@
 import { invokeOrFetch } from "./api.js";
+import { t } from "./i18n.js";
 
+/**
+ * Initializes the work-position dialog, coordinate system selector, and zero/home-all buttons.
+ * @param {{getStatus: Function, refreshStatus: Function}} options Status accessor and refresh callback.
+ * @returns {{openDialog: Function, sendPositionAction: Function}} Dialog opener and generic action sender.
+ */
 export function initPositionControls({ getStatus, refreshStatus }) {
   const dialog = document.querySelector("#position-dialog");
   const valueInput = document.querySelector("#position-value");
@@ -7,10 +13,22 @@ export function initPositionControls({ getStatus, refreshStatus }) {
   const message = document.querySelector("#message");
   let editingAxis = null;
 
+  /**
+   * Sends a POST position action to the backend (Tauri command or HTTP endpoint).
+   * @param {string} command Tauri command name.
+   * @param {string} endpoint HTTP path used in browser mode.
+   * @param {unknown} args Request payload.
+   * @returns {Promise<unknown>} Backend response.
+   */
   async function sendPositionAction(command, endpoint, args) {
     return invokeOrFetch(command, args, endpoint, "POST");
   }
 
+  /**
+   * Opens the work-coordinate dialog for an axis and pre-fills the current value.
+   * @param {string} axis Axis letter, for example "X" or "A".
+   * @returns {void}
+   */
   function openDialog(axis) {
     editingAxis = axis;
     const option = coordinateSystem.options[coordinateSystem.selectedIndex];
@@ -18,9 +36,9 @@ export function initPositionControls({ getStatus, refreshStatus }) {
     const angular = ["A", "B", "C"].includes(axis);
 
     document.querySelector("#position-dialog-title").textContent =
-      `Ось ${axis} · ${option.text}`;
+      t("position.dialog.title", { axis, system: option.text });
     document.querySelector("#position-value-label").textContent =
-      angular ? "Рабочая координата, °" : "Рабочая координата, mm";
+      angular ? t("position.label.angular") : t("position.label.linear");
     valueInput.value = status
       ? Number(status[axis.toLowerCase()]).toFixed(3)
       : document.querySelector(`#${axis.toLowerCase()}`).textContent;
@@ -29,12 +47,17 @@ export function initPositionControls({ getStatus, refreshStatus }) {
     valueInput.select();
   }
 
+  /**
+   * Validates the entered value and sends either a "set work value" or a "go to" action.
+   * @param {"set"|"go"} action Action to perform on the axis being edited.
+   * @returns {Promise<void>}
+   */
   async function executePositionAction(action) {
     if (!editingAxis) return;
 
     const value = Number(valueInput.value);
     if (!Number.isFinite(value) || Math.abs(value) > 100000) {
-      valueInput.setCustomValidity("Введите конечное значение в диапазоне ±100000 mm");
+      valueInput.setCustomValidity(t("position.validation.range"));
       valueInput.reportValidity();
       return;
     }
@@ -55,11 +78,11 @@ export function initPositionControls({ getStatus, refreshStatus }) {
       );
       dialog.close();
       message.textContent = setPosition
-        ? `Рабочая координата ${editingAxis} задана.`
-        : `Команда перемещения ${editingAxis} отправлена.`;
+        ? t("position.set.done", { axis: editingAxis })
+        : t("position.go.sent", { axis: editingAxis });
       await refreshStatus();
     } catch (error) {
-      message.textContent = `Ошибка позиции: ${error.message}`;
+      message.textContent = t("position.error", { message: error.message });
     }
   }
 
@@ -72,7 +95,7 @@ export function initPositionControls({ getStatus, refreshStatus }) {
       );
       await refreshStatus();
     } catch (error) {
-      message.textContent = `Ошибка выбора системы координат: ${error.message}`;
+      message.textContent = t("position.coordinateSystem.error", { message: error.message });
     }
   });
 
@@ -85,16 +108,16 @@ export function initPositionControls({ getStatus, refreshStatus }) {
       );
       await refreshStatus();
     } catch (error) {
-      message.textContent = `Ошибка Zero all: ${error.message}`;
+      message.textContent = t("position.zeroAll.error", { message: error.message });
     }
   });
 
   document.querySelector("#home-all").addEventListener("click", async () => {
     try {
       await sendPositionAction("home_all", "/api/position/home-all", {});
-      message.textContent = "Запущено homing всех осей.";
+      message.textContent = t("position.homeAll.started");
     } catch (error) {
-      message.textContent = `Ошибка homing: ${error.message}`;
+      message.textContent = t("position.homeAll.error", { message: error.message });
     }
   });
 

@@ -1,5 +1,12 @@
+import { themeAlpha, themeToken } from "./theme-colors.js";
+
+/**
+ * Fills the XY work-plane with a translucent sheet and draws the minor/major
+ * background grid plus the work-zero origin dot. All colors come from theme
+ * tokens so the scene follows the active UI theme.
+ */
 export function drawGrid(context, width, height, project, bounds) {
-  // Плоскость XY вдвое больше заготовки и симметрична относительно её габаритов.
+  // The XY plane is twice the stock size and centered on its bounds.
   const stockWidth = bounds.max[0] - bounds.min[0];
   const stockHeight = bounds.max[1] - bounds.min[1];
   const planeMinX = bounds.min[0] - stockWidth / 2;
@@ -18,9 +25,9 @@ export function drawGrid(context, width, height, project, bounds) {
     else context.lineTo(point.x, point.y);
   });
   context.closePath();
-  context.fillStyle = "rgba(17, 25, 29, .52)";
+  context.fillStyle = themeAlpha("--viewer-grid-fill", 0.52);
   context.fill();
-  context.strokeStyle = "rgba(102, 127, 137, .38)";
+  context.strokeStyle = themeAlpha("--viewer-grid-border", 0.38);
   context.lineWidth = 1;
   context.stroke();
 
@@ -37,7 +44,9 @@ export function drawGrid(context, width, height, project, bounds) {
     context.moveTo(a.x, a.y);
     context.lineTo(b.x, b.y);
     const major = Math.abs(x / step - Math.round(x / step)) < 1e-6;
-    context.strokeStyle = major ? "rgba(104, 131, 142, .30)" : "rgba(104, 131, 142, .13)";
+    context.strokeStyle = major
+      ? themeAlpha("--viewer-grid-line", 0.3)
+      : themeAlpha("--viewer-grid-line", 0.13);
     context.stroke();
   }
 
@@ -48,17 +57,23 @@ export function drawGrid(context, width, height, project, bounds) {
     context.moveTo(a.x, a.y);
     context.lineTo(b.x, b.y);
     const major = Math.abs(y / step - Math.round(y / step)) < 1e-6;
-    context.strokeStyle = major ? "rgba(104, 131, 142, .30)" : "rgba(104, 131, 142, .13)";
+    context.strokeStyle = major
+      ? themeAlpha("--viewer-grid-line", 0.3)
+      : themeAlpha("--viewer-grid-line", 0.13);
     context.stroke();
   }
 
   const origin = project([0, 0, 0]);
-  context.fillStyle = "#ef7777";
+  context.fillStyle = themeToken("--axis-x");
   context.beginPath();
   context.arc(origin.x, origin.y, 3, 0, Math.PI * 2);
   context.fill();
 }
 
+/**
+ * Draws the colored X/Y/Z axis triad at the work zero. Axis colors reuse the
+ * `--axis-*` theme tokens shared with the legend and the rotary buttons.
+ */
 export function drawAxes(context, project, bounds) {
   const length = Math.max(
     bounds.max[0] - bounds.min[0],
@@ -69,9 +84,9 @@ export function drawAxes(context, project, bounds) {
   const origin = project([0, 0, 0]);
 
   for (const [axis, end, color] of [
-    ["X", [length, 0, 0], "#ef7777"],
-    ["Y", [0, length, 0], "#68ce9e"],
-    ["Z", [0, 0, length], "#57b5e2"],
+    ["X", [length, 0, 0], themeToken("--axis-x")],
+    ["Y", [0, length, 0], themeToken("--axis-y")],
+    ["Z", [0, 0, length], themeToken("--axis-z")],
   ]) {
     const point = project(end);
     context.beginPath();

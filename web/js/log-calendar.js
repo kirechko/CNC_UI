@@ -1,20 +1,36 @@
 import { localDateKey } from "./log-calendar-utils.js";
+import { getLocale, t } from "./i18n.js";
 
+/**
+ * Renders the month grid of the log period calendar.
+ * Date names follow the active UI locale; weekday headers come from the dictionary.
+ * @param {{month: Date, range: object, grid: HTMLElement, monthLabel: HTMLElement}} options
+ */
 export function renderLogCalendarGrid({ month, range, grid, monthLabel }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
-  monthLabel.textContent = month.toLocaleDateString("ru-RU", {
+  const locale = getLocale();
+  monthLabel.textContent = month.toLocaleDateString(locale, {
     month: "long",
     year: "numeric",
   });
 
-  const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+  // Weekday headers, Monday-first, matching the ISO week layout used below.
+  const weekdayKeys = [
+    "calendar.weekday.mon",
+    "calendar.weekday.tue",
+    "calendar.weekday.wed",
+    "calendar.weekday.thu",
+    "calendar.weekday.fri",
+    "calendar.weekday.sat",
+    "calendar.weekday.sun",
+  ];
   grid.replaceChildren();
 
-  for (const weekday of weekdays) {
+  for (const weekdayKey of weekdayKeys) {
     const label = document.createElement("span");
     label.className = "log-calendar-weekday";
-    label.textContent = weekday;
+    label.textContent = t(weekdayKey);
     grid.append(label);
   }
 
@@ -34,12 +50,16 @@ export function renderLogCalendarGrid({ month, range, grid, monthLabel }) {
     day.className = "log-calendar-day";
     day.dataset.date = key;
     day.textContent = String(date.getDate());
-    day.setAttribute("aria-label", date.toLocaleDateString("ru-RU", {
+    // Fully formatted date doubles as the accessible name and the tooltip so
+    // hovering a day cell explains which calendar date it represents.
+    const dateLabel = date.toLocaleDateString(locale, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
-    }));
+    });
+    day.setAttribute("aria-label", dateLabel);
+    day.title = dateLabel;
 
     if (date.getMonth() !== monthIndex) day.classList.add("outside-month");
     const start = range.start;

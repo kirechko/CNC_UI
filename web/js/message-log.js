@@ -1,5 +1,13 @@
 import { invokeOrFetch } from "./api.js";
 import { parseLocalDate } from "./log-calendar-utils.js";
+import { t } from "./i18n.js";
+
+// Maps an internal severity identifier (alarm/error/warning/info) to a translated label.
+// Unknown values are shown as-is so that new backend severities remain visible.
+function severityLabel(severity) {
+  const known = ["alarm", "error", "warning", "info"];
+  return known.includes(severity) ? t(`log.severity.${severity}`) : String(severity);
+}
 
 export function renderLatestLogLine(element, entry, emptyText) {
   if (!element) return;
@@ -13,7 +21,7 @@ export function renderLatestLogLine(element, entry, emptyText) {
   const metadata = document.createElement("span");
   metadata.className = "message-meta";
   metadata.textContent =
-    `${new Date(entry.timestamp_ms).toLocaleString()} · ${entry.severity} · ${entry.source} · `;
+    `${new Date(entry.timestamp_ms).toLocaleString()} · ${severityLabel(entry.severity)} · ${entry.source} · `;
 
   element.replaceChildren(metadata, document.createTextNode(entry.message));
   element.title = `${metadata.textContent}${entry.message}`;
@@ -106,8 +114,9 @@ export function initMessageLog({ getDateRange }) {
         timestamp.textContent = formatLogTimestamp(entry.timestamp_ms);
 
         const severity = document.createElement("td");
-        severity.textContent = entry.severity;
-        severity.className = entry.severity === "авария" ? "critical" : "";
+        // Severity values are internal English identifiers; the label is translated.
+        severity.textContent = severityLabel(entry.severity);
+        severity.className = entry.severity === "alarm" ? "critical" : "";
 
         const source = document.createElement("td");
         source.textContent = entry.source;
@@ -119,13 +128,16 @@ export function initMessageLog({ getDateRange }) {
         rows.append(row);
       }
 
-      count.textContent =
-        `${page.total} сообщений · ${page.total ? offset + 1 : 0}–${Math.min(offset + page.entries.length, page.total)}`;
+      count.textContent = t("log.count", {
+        total: page.total,
+        from: page.total ? offset + 1 : 0,
+        to: Math.min(offset + page.entries.length, page.total),
+      });
       document.querySelector("#message-log-prev").disabled = offset <= 0;
       document.querySelector("#message-log-next").disabled =
         offset + page.entries.length >= page.total;
     } catch (error) {
-      count.textContent = `Не удалось загрузить журнал: ${error.message}`;
+      count.textContent = t("log.error.load", { message: error.message });
     }
   }
 
@@ -146,7 +158,12 @@ export function initMessageLog({ getDateRange }) {
   document.querySelector("#message-log-copy-page").addEventListener("click", () => {
     const pageRows = [...rows.querySelectorAll("tr")];
     const lines = [
-      ["Время", "Критичность", "Источник", "Сообщение"],
+      [
+        t("log.column.time"),
+        t("log.column.severity"),
+        t("log.column.source"),
+        t("log.column.message"),
+      ],
       ...pageRows.map((row) =>
         [...row.cells].map((cell) => cell.textContent.trim().replace(/[\t\r\n]+/g, " ")),
       ),
@@ -158,8 +175,8 @@ export function initMessageLog({ getDateRange }) {
     textOutput.select();
 
     if (pageRows.length === 0) {
-      textOutput.value = "На текущей странице нет сообщений.";
-      count.textContent = "На текущей странице нет сообщений.";
+      textOutput.value = t("log.empty.page");
+      count.textContent = t("log.empty.page");
     }
   });
 

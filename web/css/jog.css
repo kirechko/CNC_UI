@@ -1,0 +1,431 @@
+/* JOG panel: mode switch, step selectors, the dial layout (canvas, Z
+   columns, rotary A-C columns), styled tooltips and button-key grid. */
+.jog-mode-switch {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-chip);
+}
+
+.jog-mode-button {
+  display: grid;
+  width: 29px;
+  min-width: 29px;
+  min-height: 25px;
+  padding: 0;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.jog-mode-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.jog-mode-button.active {
+  border-color: var(--accent-border-soft);
+  background: var(--accent-soft-bg);
+  color: var(--accent-text);
+}
+
+.jog-dial-z-label {
+  color: var(--text-bright);
+  font: 700 12px system-ui, sans-serif;
+  text-align: center;
+}
+
+/* Step selectors row: gap scales with the viewport. */
+.jog-step-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--panel-gap);
+  margin-bottom: 12px;
+}
+
+.jog-step-row > div {
+  display: grid;
+  gap: 5px;
+}
+
+.jog-step-row label, .jog-speed { color: var(--muted); font-size: 10px; }
+
+/* Dial layout: dial and Z column are centered; gap scales with the viewport. */
+.jog-dial-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--panel-gap);
+}
+
+/* Dial container uses the fluid dial size so it shrinks before the right panel is hidden. */
+.jog-dial-control {
+  position: relative;
+  display: grid;
+  flex: 0 1 var(--dial-size);
+  place-items: center;
+}
+
+.jog-step-custom-button {
+  display: grid;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  place-items: center;
+  border-color: var(--border-stronger);
+  background: var(--bg-button);
+  color: var(--accent-text);
+}
+
+.jog-step-custom-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Canvas size follows the fluid dial size; the canvas is redrawn from its CSS box. */
+.jog-dial-canvas {
+  width: var(--dial-size);
+  height: var(--dial-size);
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+.jog-stop-button {
+  display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--red-border);
+  border-radius: 50%;
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.jog-stop-button:hover:not(:disabled) {
+  border-color: var(--red-border-hover);
+  background: var(--red-bg-hover);
+}
+
+.jog-stop-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.jog-dial-stop {
+  position: absolute;
+  z-index: 1;
+}
+
+.jog-dial-canvas:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+/* Z column height matches the fluid dial size. */
+.jog-dial-z {
+  display: grid;
+  height: var(--dial-size);
+  grid-template-rows: auto repeat(4, 1fr) 8px repeat(4, 1fr);
+  gap: 3px;
+}
+
+.jog-dial-z-steps {
+  position: relative;
+  height: 92%;
+  align-self: flex-end;
+  margin-bottom: 4%;
+  grid-template-rows: 12px repeat(4, minmax(0, 1fr)) 6px repeat(4, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.jog-dial-z-steps button {
+  min-height: 0;
+  transform: none;
+}
+
+.jog-steps-dialog {
+  width: min(340px, calc(100vw - 32px));
+}
+
+/* Sections of the JOG settings dialog: steps XY, steps Z and speeds. */
+.jog-settings-section {
+  display: grid;
+  gap: 6px;
+}
+
+.jog-settings-section h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.jog-steps-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.jog-steps-fields label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.jog-steps-fields input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.jog-dial-z-steps .jog-dial-z-label {
+  height: 12px;
+  line-height: 12px;
+}
+
+.jog-dial-z-continuous {
+  grid-template-rows: auto repeat(2, minmax(0, 1fr));
+}
+
+.jog-dial-z-continuous button {
+  min-height: 0;
+  font-size: var(--font-size-sm);
+}
+
+.jog-dial-z[hidden] {
+  display: none;
+}
+
+/* Rotary columns A–C: a flex row of narrow columns, same height as the Z column. */
+.jog-rotary-columns {
+  display: flex;
+  height: var(--dial-size);
+  gap: 4px;
+  /* Same bottom alignment as the Z steps column (.jog-dial-z-steps). */
+  align-self: flex-end;
+  margin-bottom: 4%;
+}
+
+.jog-rotary-columns[hidden],
+.jog-rotary-col[hidden] {
+  display: none;
+}
+
+.jog-rotary-col {
+  display: grid;
+  /* Same geometry as the Z column: 12px label row, then the step area with a 2px gap. */
+  grid-template-rows: 12px minmax(0, 1fr);
+  gap: 2px;
+  /* Same column width as the Z buttons so the step buttons match (vert.png requirement). */
+  min-width: 42px;
+}
+
+.jog-rotary-head {
+  box-sizing: border-box;
+  height: 12px;
+  min-height: 12px;
+  line-height: 10px;
+  padding: 0 4px;
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  background: var(--bg-button);
+  color: var(--accent-text-bright);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.jog-rotary-col .jog-button.rotary {
+  min-height: 0;
+  padding: 0 4px;
+  font-size: var(--font-size-sm);
+}
+
+/* Incremental step buttons of A–C: same grid as the Z step column, spanning the rows below the header. */
+.jog-rotary-steps {
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr)) 6px repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  min-height: 0;
+}
+
+.jog-rotary-steps[hidden],
+.jog-rotary-continuous[hidden] {
+  display: none;
+}
+
+.jog-rotary-step {
+  min-height: 0;
+  min-width: 0;
+  padding: 0 2px;
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  background: var(--bg-button);
+  color: var(--accent-text-bright);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jog-rotary-step[data-direction="-1"] {
+  color: var(--accent-text-dim);
+}
+
+/* Continuous buttons of A–C: two buttons (▲ / ▼) filling the rows below the header. */
+.jog-rotary-continuous {
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  min-height: 0;
+}
+
+.jog-rotary-continuous button {
+  min-height: 0;
+  padding: 0 4px;
+  border-color: var(--accent-border);
+  color: var(--accent-text-bright);
+  font-size: var(--font-size-sm);
+}
+
+.jog-dial-z-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.jog-dial-z button {
+  min-width: 42px;
+  min-height: 24px;
+  padding: 0 4px;
+  border-color: var(--accent-border);
+  color: var(--accent-text-bright);
+  font-size: var(--font-size-sm);
+  /* No scale: Z buttons must match the A–C step buttons exactly (vert.png requirement). */
+  transform: none;
+}
+
+#jog-dial-panel:not([hidden]) {
+  margin-top: -7px;
+}
+
+.jog-dial-z button[data-direction="-1"] {
+  color: var(--accent-text-dim);
+}
+
+.jog-dial-gap {
+  border-block: 1px solid var(--border-divider);
+  background: var(--surface-alt);
+}
+
+.jog-dial-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+/* Button-jog layout: gaps scale with the viewport. */
+.jog-keys-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--panel-gap);
+}
+
+.jog-grid {
+  display: grid;
+  width: min(100%, 202.5px);
+  grid-template-columns: repeat(3, minmax(39px, 1fr));
+  gap: var(--panel-gap);
+  margin: 0;
+}
+
+.jog-keys-z {
+  display: grid;
+  width: 48px;
+  gap: var(--panel-gap);
+}
+
+.jog-button {
+  min-height: 42.75px;
+  padding: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 720;
+  touch-action: manipulation;
+}
+
+.jog-stop-key {
+  border-color: var(--red-border);
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.jog-stop-key:hover:not(:disabled) {
+  border-color: var(--red-border-hover);
+  background: var(--red-bg-hover);
+}
+
+.jog-stop-key svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: auto;
+}
+
+.jog-button.xy { border-color: var(--jog-xy-border); }
+.jog-button.xy:hover:not(:disabled) { border-color: var(--jog-xy-border-hover); }
+.jog-button.x { border-color: var(--jog-x-border); }
+.jog-button.x:hover:not(:disabled) { border-color: var(--jog-x-border-hover); }
+.jog-button.z { border-color: var(--accent-border); }
+.jog-button.z:hover:not(:disabled) { border-color: var(--accent-border-bright); }
+/* Styled tooltip bubble: same font, rounded corners and stroke weight as the JOG Z buttons, light-gray text and border. */
+.app-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 4px 8px;
+  border: 1px solid var(--tooltip-border);
+  border-radius: 6px;
+  background: var(--bg-button);
+  color: var(--tooltip-text);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-sm);
+  font-weight: 720;
+  line-height: 1.35;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 40%);
+}
+
+.app-tooltip[hidden] {
+  display: none;
+}
+
+.jog-button.center {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.jog-speed {
+  margin: 12px 0 0;
+  text-align: center;
+}

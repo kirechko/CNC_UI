@@ -1,7 +1,14 @@
 import { invokeOrFetch } from "./api.js";
+import { t } from "./i18n.js";
 
+/** Maximum accepted size of a G-code program in bytes (5 MiB). */
 const MAX_PROGRAM_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Wires the G-code file picker and loads the default program from the backend.
+ * @param {{onLoad: Function, onError: Function}} options Callbacks receiving the program name and content, or an error.
+ * @returns {{loadDefault: Function}} Object exposing `loadDefault`, which fetches the currently loaded program.
+ */
 export function initProgramLoader({ onLoad, onError }) {
   const loadButton = document.querySelector("#load-program");
   const fileInput = document.querySelector("#program-file");
@@ -14,7 +21,7 @@ export function initProgramLoader({ onLoad, onError }) {
 
     try {
       if (file.size > MAX_PROGRAM_BYTES) {
-        throw new Error("Размер G-code превышает лимит 5 MiB.");
+        throw new Error(t("program.error.tooLarge"));
       }
 
       const content = await file.text();
@@ -32,12 +39,17 @@ export function initProgramLoader({ onLoad, onError }) {
     }
   });
 
+  /**
+   * Fetches the program that is already loaded on the backend, if any.
+   * Failures are logged to the console and do not interrupt startup.
+   * @returns {Promise<void>}
+   */
   async function loadDefault() {
     try {
       const program = await invokeOrFetch("get_program", null, "/api/program");
       if (program) onLoad(program.name, program.content);
     } catch (error) {
-      console.warn("Не удалось получить траекторию:", error);
+      console.warn(t("program.error.trajectoryLoad"), error);
     }
   }
 

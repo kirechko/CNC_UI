@@ -8,7 +8,7 @@ use crate::cnc_api::*;
 use std::path::PathBuf;
 use std::time::Instant;
 
-#[path = "state/commands.rs"]
+#[path = "state/commands/mod.rs"]
 mod commands;
 #[path = "state/coordinates.rs"]
 mod coordinates;
@@ -29,7 +29,7 @@ pub(super) struct Emulator {
     pub(super) continuous_jog: Option<(Axis, i8, f64)>,
     pub(super) continuous_jog_xy: Option<(i8, i8, f64)>,
     pub(super) jog_move_active: bool,
-    /// Направление и ускорение для плавной остановки непрерывного Jog.
+    /// Direction and deceleration used for a smooth stop of continuous jog.
     pub(super) jog_stop: Option<([f64; 5], f64)>,
     pub(super) active_move_is_rapid: bool,
     pub(super) homing_queue: Vec<Axis>,
@@ -39,6 +39,9 @@ pub(super) struct Emulator {
     pub(super) last_rapid_z: Option<f64>,
     pub(super) stop_retract_active: bool,
     pub(super) jog_velocity: f64,
+    /// Modal G-code feed rate (mm/min) set by the `F` word.
+    /// Kept separate from `status.feed_rate`, which JOG and rapid moves overwrite.
+    pub(super) program_feed_mm_min: f64,
     pub(super) last_tick: Instant,
 }
 
@@ -89,6 +92,7 @@ impl Emulator {
                 message: Some("Virtual controller ready".into()),
                 homed: [false; 6],
                 homing: false,
+                progress: cnc_core::ToolpathProgress::default(),
                 max_spindle_rpm: config.spindle.max_rpm,
                 mist_coolant_on: false,
                 flood_coolant_on: false,
@@ -113,6 +117,7 @@ impl Emulator {
             last_rapid_z: None,
             stop_retract_active: false,
             jog_velocity: 0.0,
+            program_feed_mm_min: 100.0,
             last_tick: Instant::now(),
         }
     }

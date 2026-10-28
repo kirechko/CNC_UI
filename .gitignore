@@ -1,6 +1,12 @@
 /target/
 .env
 
+# Auto-generated Tauri JSON schemas (created by the tauri CLI at build time).
+/gen/
+
+# One-off Playwright screenshot produced while testing; not part of the UI.
+/cnc-ui-playwright.png
+
 # Local machine/work-coordinate offsets; do not commit real setup values.
 /config/coordinate_systems.yaml
 .aider*

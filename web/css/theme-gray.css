@@ -1,0 +1,150 @@
+/* Theme layer: gray palette overrides via html[data-theme="gray"]. Split from themes.css. */
+/* ---------------------------------------------------------------------------
+ * GRAY theme — a LIGHT, fully grayscale UI. The page background is light gray
+ * and every element is rendered as white/gray of a different brightness, so
+ * hierarchy comes from luminance only. The single exception is RED: it marks
+ * alarm/danger states on the header indicator, error chips and log rows.
+ * Trajectory segment types keep distinct colors so the toolpath stays legible.
+ * ------------------------------------------------------------------------ */
+html[data-theme="gray"] {
+  color-scheme: light;
+
+  /* Surfaces: brightness ramp from white (raised) down to mid gray (page). */
+  --bg-page: #e6e6e6;
+  --bg-inset: #dcdcdc;
+  --bg-chip: #e0e0e0;
+  --bg-button: #d4d4d4;
+  --surface: #fafafa;
+  --surface-raised: #ffffff;
+  --surface-hover: #d0d0d0;
+  --surface-alt: #ededed;
+  --accent-soft-bg: #d9d9d9;
+  --btn-primary-bg: #6e6e6e;
+  --bg-selected: #c4c4c4;
+  --brand-bg: #dcdcdc;
+
+  /* Borders: gray only, strength expressed through darkness. */
+  --border: #b9b9b9;
+  --border-strong: #a3a3a3;
+  --border-stronger: #8f8f8f;
+  --border-divider: #c2c2c2;
+  --border-hover: #9e9e9e;
+  --brand-border: #8a8a8a;
+
+  /* Text: dark ramp on light backgrounds. */
+  --text-primary: #1f1f1f;
+  --text-bright: #101010;
+  --text-strong: #232323;
+  --text-secondary: #454545;
+  --text-button: #3a3a3a;
+  --text-chip: #3f3f3f;
+  --text-soft: #5a5a5a;
+  --text-machine: #4f4f4f;
+  --muted: #6b6b6b;
+  --muted-2: #858585;
+  --dot-idle: #a8a8a8;
+  --legend-rapid: #7d7d7d;
+  --text-on-accent: #ffffff;
+
+  /* The accent role becomes neutral dark gray: no hue anywhere except red. */
+  --accent: #5c5c5c;
+  --accent-bright: #6f6f6f;
+  --accent-hover: #565656;
+  --selection: #8a8a8a;
+  --accent-text: #333333;
+  --accent-text-bright: #2a2a2a;
+  --accent-text-mid: #3d3d3d;
+  --accent-text-dim: #5f5f5f;
+  --accent-border: #a6a6a6;
+  --accent-border-soft: #bdbdbd;
+  --accent-border-bright: #7f7f7f;
+
+  /* The "active/OK" green role degrades to gray: idle states must not shine. */
+  --green: #4d4d4d;
+  --green-text: #3c3c3c;
+  --green-border: #a9a9a9;
+  --green-border-hover: #7a7a7a;
+  --green-bg: #dedede;
+  --green-bg-hover: #d0d0d0;
+  --jog-xy-border: #b0b0b0;
+  --jog-xy-border-hover: #7c7c7c;
+
+  /* RED is the only hue left: alarms, errors and critical log rows. */
+  --red: #c2362f;
+  --red-text: #a5271f;
+  --red-border: #e3ada8;
+  --red-border-hover: #c85650;
+  --red-bg: #f7e2df;
+  --red-bg-hover: #f2cfcb;
+  --jog-x-border: #d6b0ab;
+  --jog-x-border-hover: #c05f58;
+
+  /* Amber/warning and copper accents flatten into grays as well. */
+  --amber: #585858;
+  --amber-text: #4b4b4b;
+  --amber-border: #b5b5b5;
+  --orange: #5c5c5c;
+  --orange-bright: #6e6e6e;
+  --copper: #7a7a7a;
+  --copper-text: #5f5f5f;
+  --copper-hover: #6b6b6b;
+
+  /* Axis letters: a brightness ramp instead of red/green/blue/purple. */
+  --axis-x: #3f3f3f;
+  --axis-y: #6f6f6f;
+  --axis-z: #9a9a9a;
+  --axis-a: #b8b8b8;
+
+  --tooltip-border: #9a9a9a;
+  --tooltip-text: #303030;
+
+  --grid-line: #8f8f8f;
+
+  /* Dial sectors: light-to-dark gray ramps replace the colored gradients. */
+  --dial-x-1: #dedede;  --dial-x-2: #c8c8c8;  --dial-x-3: #b1b1b1;  --dial-x-4: #989898;
+  --dial-y-1: #e4e4e4;  --dial-y-2: #d0d0d0;  --dial-y-3: #bcbcbc;  --dial-y-4: #a8a8a8;
+  --dial-diag-1: #d6d6d6; --dial-diag-2: #c2c2c2; --dial-diag-3: #acacac; --dial-diag-4: #969696;
+  --dial-stroke: #fafafa;
+  --dial-label: #242424;
+  --dial-hover-fill: #1a1a1a;    /* dark wash marks the hover on light sectors */
+  --dial-hover-stroke: #2f2f2f;
+  --dial-center-bg: #ffffff;
+  --dial-center-border: #cfcfcf;
+  --dial-center-cross: #707070;
+
+  --viewer-grid-fill: #dcdcdc;
+  --viewer-grid-border: #8a8a8a;
+  --viewer-grid-line: #5f5f5f;
+
+  /* Trajectory keeps distinct colors: rapid gray (as everywhere), linear green,
+     arc orange — the user explicitly wants segment types color-coded. */
+  --traj-rapid: #7d7d7d;
+  --traj-linear: #159260;
+  --traj-arc: #bf6a17;
+
+  /* Orientation cube: gray faces; Z+ slightly darker for orientation. */
+  --cube-face-zneg: #8b8b8b;
+  --cube-face-zpos: #5e5e5e;
+  --cube-face-yneg: #767676;
+  --cube-face-ypos: #6a6a6a;
+  --cube-face-xpos: #838383;
+  --cube-face-xneg: #707070;
+  --cube-label: #fafafa;
+  --cube-edge: #3c3c3c;
+
+  /* Tool: light metallic grays (same values the light theme uses). */
+  --tool-face-light: #d0d0d0;
+  --tool-face-mid: #c2c2c2;
+  --tool-face-shade: #aeaeae;
+  --tool-face-dark: #969696;
+  --tool-edge: #6e7a80;
+  --tool-wood-light: #b8b8b8;
+  --tool-wood-dark: #909090;
+  --tool-wood-edge: #9aa0a3;
+  --tool-cap: #d5d5d5;
+  --tool-cap-edge: #7f8b90;
+  --tool-tip-line: #2c2c2c;
+
+  --stock-fill: #8b8b8b;
+  --stock-edge: #5f5f5f;
+}

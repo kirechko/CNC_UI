@@ -6,10 +6,18 @@ import {
 import { drawAxes, drawGrid } from "./scene-renderer.js";
 import { drawStockBox, drawStockMesh } from "./stock-renderer.js";
 import { drawTool as renderTool } from "./tool-renderer.js";
-import { calculateToolpathProgress } from "./toolpath-progress.js";
 import { drawTrajectorySegments } from "./trajectory-renderer.js";
 import { resizeCanvas } from "./canvas-utils.js";
 
+/**
+ * Creates the scene viewer that draws the trajectory, stock, axes and tool.
+ *
+ * Trajectory progress is taken exclusively from the backend status
+ * (`progress.path_distance_mm`); the viewer does not infer progress itself.
+ *
+ * @param {object} options - Viewer dependencies and DOM/canvas handles.
+ * @returns {{draw: () => void, drawTool: () => void}} Drawing entry points.
+ */
 export function initSceneViewer({
   trajectoryCanvas,
   trajectoryContext,
@@ -22,16 +30,13 @@ export function initSceneViewer({
   getCamera,
   getStatus,
   getToolPosition,
-  getCurrentProgramLine,
   isConnected,
   getToolRotationPhase,
   renderOrientationCube,
 }) {
-  let trackedSegments = null;
-  let lastProgress = null;
-  let lastPosition = null;
-  let lastProgramLine = 0;
-
+  /**
+   * Draws the tool marker on its own canvas.
+   */
   function drawTool() {
     const camera = getCamera();
     const program = getProgram();
@@ -49,6 +54,16 @@ export function initSceneViewer({
     });
   }
 
+  /**
+   * Draws the stock as a mesh when available, otherwise as a bounding box.
+   *
+   * @param {CanvasRenderingContext2D} context - Target 2D context.
+   * @param {(point: number[]) => {x: number, y: number}} project - Projection function.
+   * @param {{min: number[], max: number[]}} bounds - Stock bounds.
+   * @param {number} angleA - Machine A rotation in radians.
+   * @param {number} angleB - Machine B rotation in radians.
+   * @param {object|null} stockMesh - Loaded stock mesh, if any.
+   */
   function drawStock(context, project, bounds, angleA, angleB, stockMesh) {
     if (stockMesh) {
       drawStockMesh(context, project, stockMesh, angleA, angleB);
@@ -57,6 +72,9 @@ export function initSceneViewer({
     }
   }
 
+  /**
+   * Redraws the whole trajectory canvas and the tool canvas.
+   */
   function draw() {
     const { width, height } = resizeCanvas(trajectoryCanvas, trajectoryContext);
     const program = getProgram();
@@ -88,53 +106,10 @@ export function initSceneViewer({
       drawStock(trajectoryContext, project, stockBounds, angleA, angleB, stockMesh);
     }
 
-    const currentProgramLine = getCurrentProgramLine();
-    const toolPosition = getToolPosition();
-
-    if (
-      trackedSegments !== segments ||
-      currentProgramLine + 1 < lastProgramLine
-    ) {
-      trackedSegments = segments;
-      lastProgress = null;
-      lastPosition = null;
-    }
-
-    const displacement = lastPosition
-      ? Math.hypot(
-          toolPosition[0] - lastPosition[0],
-          toolPosition[1] - lastPosition[1],
-          toolPosition[2] - lastPosition[2],
-        )
-      : Infinity;
-    // Не продвигаем прогресс при повторной отрисовке того же статуса:
-    // иначе небольшой фиксированный допуск накапливает ложное движение.
-    const maxAdvance = Number.isFinite(displacement)
-      ? displacement * 1.5
-      : Infinity;
-    const activeProgress = calculateToolpathProgress(
-      segments,
-      currentProgramLine,
-      toolPosition,
-      lastProgress,
-      maxAdvance,
-    );
-
-    if (activeProgress) lastProgress = activeProgress;
-    if (
-      Array.isArray(toolPosition) &&
-      toolPosition.length >= 3 &&
-      toolPosition.slice(0, 3).every(Number.isFinite)
-    ) {
-      lastPosition = toolPosition.slice(0, 3);
-    }
-    lastProgramLine = currentProgramLine;
-
     drawTrajectorySegments({
       context: trajectoryContext,
       segments,
-      currentProgramLine: activeProgress?.line ?? currentProgramLine,
-      activeProgress,
+      progress: status?.progress ?? null,
       project,
     });
 

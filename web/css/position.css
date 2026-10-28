@@ -1,0 +1,301 @@
+/* POSITION panel: DRO header/axis rows, work/machine readouts, axis
+   zero/home actions and the set-work-value dialog. */
+.coordinate-select, .step-select {
+  min-height: 31px;
+  padding: 0 27px 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-chip);
+  font-size: 12px;
+}
+
+.position-panel-heading .section-heading {
+  min-width: 0;
+  flex: 1;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.position-panel-heading .position-mode-toggle {
+  width: 54px;
+  min-width: 54px;
+  flex: 0 0 54px;
+  min-height: 26px;
+  padding: 0 3px;
+  font-size: 10px;
+}
+
+.coordinate-select {
+  width: 74px;
+  min-width: 74px;
+  padding: 0 14px 0 5px;
+}
+
+.dro-header, .axis-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 25px 25px;
+  align-items: center;
+  gap: 7px;
+}
+
+.axis-row.both,
+#position-grid-header.both {
+  grid-template-columns: 24px minmax(0, 1.5fr) minmax(0, 0.5fr) 25px 25px;
+}
+
+.axis-row.wpos-only,
+.axis-row.mpos-only {
+  grid-template-columns: 24px minmax(0, 1fr) 25px 25px;
+}
+
+#position-grid-header {
+  grid-template-columns: 24px minmax(0, 1.5fr) minmax(0, 0.5fr) 25px 25px;
+}
+
+.position-column {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.axis-row.wpos-only .position-column.machine,
+.axis-row.mpos-only .position-column.work {
+  display: none;
+}
+
+.position-mode-toggle {
+  min-height: 31px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.position-mode-toggle.active {
+  border-color: var(--accent-hover);
+  background: var(--accent-soft-bg);
+  color: var(--accent-text);
+}
+
+
+.dro-header {
+  margin: 1px 0 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-align: right;
+}
+
+.dro-header span:first-child { text-align: left; }
+
+.axis-row {
+  min-height: 19.2px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.axis-row:first-child {
+  border-top: 0;
+}
+
+.machine-work-field {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.machine-controller-settings {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.machine-controller-settings summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.machine-controller-settings-list {
+  max-height: 120px;
+  overflow: auto;
+  margin-top: 4px;
+  color: var(--text-soft);
+  font: 10px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.axis-label {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.axis-label.x { color: var(--axis-x); }
+.axis-label.y { color: var(--axis-y); }
+.axis-label.z { color: var(--axis-z); }
+.axis-label.a { color: var(--axis-a); }
+.axis-label.b { color: var(--amber); }
+
+.axis-value {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-coordinate);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
+.axis-value.machine { color: var(--text-machine); font-size: 12px; }
+
+.axis-value.work {
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.axis-value.work:hover,
+.axis-value.work:focus-visible { color: var(--accent-bright); }
+
+.position-action {
+  display: grid;
+  width: 25px;
+  min-height: 27px;
+  padding: 0;
+  place-items: center;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.position-action svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.position-action.axis-x { color: var(--axis-x); }
+.position-action.axis-y { color: var(--axis-y); }
+.position-action.axis-z { color: var(--axis-z); }
+.position-action.axis-a { color: var(--axis-a); }
+.position-action.axis-b { color: var(--amber); }
+
+/* Gap between the position action buttons scales with the viewport.
+   `minmax(0, 1fr)` (instead of plain `1fr`) removes the automatic min-content
+   floor of the tracks: without it, a nowrap caption would refuse to shrink and
+   would push the buttons wider than the panel when the column narrows. Letting
+   the tracks shrink to zero is what allows compact-labels.js to detect the
+   overflow (scrollWidth > clientWidth) and swap in the short caption. */
+.position-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--panel-gap);
+  margin-top: 6px;
+  padding-top: 5.5px;
+  padding-bottom: 0;
+  border-top: 1px solid var(--border);
+}
+
+.position-actions button {
+  display: flex;
+  height: 34px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  /* Tightened gap/padding so "Home all" (80px at 18px font) keeps one line in
+     the default 272px column: chrome (borders+padding+gap+icon) leaves ~84px
+     for the caption instead of ~78px. compact-labels.js shortens the caption
+     further only when the column actually narrows. */
+  gap: 4px;
+  padding: 6px 4px;
+  border-color: var(--copper);
+  color: var(--text-button);
+  font-size: 18px;
+}
+
+.position-actions button:hover:not(:disabled) {
+  border-color: var(--copper-hover);
+}
+
+.position-actions button svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Captions must never wrap onto a second line: when the POSITION panel gets
+   narrow, web/js/compact-labels.js swaps the wordy wording ("Zero all") for its
+   short variant ("Zero") instead of re-flowing the text. `min-width: 0` and
+   `overflow: hidden` let the span shrink below its content so JS can detect the
+   overflow via scrollWidth > clientWidth; the ellipsis is only an extreme-case
+   fallback (e.g. very small columns where even the short caption is clipped). */
+.position-actions button span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.position-meta {
+  display: flex;
+  height: 32.25px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5.5px;
+  padding-top: 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.position-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.position-meta strong {
+  color: var(--text-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.position-dialog {
+  width: min(360px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+}
+
+.position-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+#message-log-empty-dialog {
+  min-height: 240px;
+}
+
+.position-dialog-content {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.position-dialog h2 { margin: 0; font-size: 16px; }
+.position-dialog label { color: var(--muted); font-size: 12px; }
+.position-dialog input {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 16px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.position-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 7px;
+}
+
+.position-dialog-actions button { min-height: 38px; font-size: 12px; }
+.position-dialog-actions .primary { border-color: var(--accent); background: var(--btn-primary-bg); }
+

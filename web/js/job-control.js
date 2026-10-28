@@ -1,5 +1,7 @@
 import { invokeOrFetch } from "./api.js";
+import { t } from "./i18n.js";
 
+/** Maps job commands to their HTTP endpoint suffixes under `/api/program/`. */
 const JOB_ENDPOINTS = {
   start_program: "run",
   pause_program: "pause",
@@ -7,10 +9,16 @@ const JOB_ENDPOINTS = {
   abort_program: "abort",
 };
 
+/**
+ * Sends a program job command to the backend.
+ * @param {string} command One of the keys of `JOB_ENDPOINTS`.
+ * @returns {Promise<void>} Resolves when the backend accepts the command.
+ * @throws {Error} When the command is unknown or the request fails.
+ */
 async function sendJobCommand(command) {
   const endpoint = JOB_ENDPOINTS[command];
   if (!endpoint) {
-    throw new Error(`Неизвестная команда: ${command}`);
+    throw new Error(t("job.error.unknownCommand", { command }));
   }
 
   await invokeOrFetch(
@@ -21,6 +29,12 @@ async function sendJobCommand(command) {
   );
 }
 
+/**
+ * Initializes the program run/pause/stop buttons and the job caption.
+ * @param {{getProgram: Function, getMachineState: Function, refreshStatus: Function}} options
+ * Accessors for the loaded program and machine state, and a status refresh callback.
+ * @returns {{update: Function}} Object with `update(status)`, which refreshes button states and caption.
+ */
 export function initJobControls({ getProgram, getMachineState, refreshStatus }) {
   const runButton = document.querySelector("#job-run");
   const pauseButton = document.querySelector("#job-pause");
@@ -36,11 +50,11 @@ export function initJobControls({ getProgram, getMachineState, refreshStatus }) 
     try {
       await sendJobCommand(paused ? "resume_program" : "start_program");
       note.textContent = paused
-        ? "Отправлена команда продолжения программы."
-        : "Отправлена команда запуска программы.";
+        ? t("job.note.resumeSent")
+        : t("job.note.startSent");
       await refreshStatus();
     } catch (error) {
-      note.textContent = `Ошибка управления программой: ${error.message}`;
+      note.textContent = t("job.error.control", { message: error.message });
     }
   });
 
@@ -48,10 +62,10 @@ export function initJobControls({ getProgram, getMachineState, refreshStatus }) 
     pauseButton.disabled = true;
     try {
       await sendJobCommand("pause_program");
-      note.textContent = "Отправлена команда паузы.";
+      note.textContent = t("job.note.pauseSent");
       await refreshStatus();
     } catch (error) {
-      note.textContent = `Ошибка паузы: ${error.message}`;
+      note.textContent = t("job.error.pause", { message: error.message });
     }
   });
 
@@ -59,36 +73,43 @@ export function initJobControls({ getProgram, getMachineState, refreshStatus }) 
     abortButton.disabled = true;
     try {
       await sendJobCommand("abort_program");
-      note.textContent = "Отправлена команда остановки программы.";
+      note.textContent = t("job.note.stopSent");
       await refreshStatus();
     } catch (error) {
-      note.textContent = `Ошибка остановки: ${error.message}`;
+      note.textContent = t("job.error.stop", { message: error.message });
     }
   });
 
   return {
+    /**
+     * Updates button enablement, labels and the caption from the latest machine status.
+     * @param {{connected?: boolean, state: string, current_line: number, total_lines: number}} status Latest status snapshot.
+     * @returns {void}
+     */
     update(status) {
       const hasProgram = Boolean(getProgram());
       const running = status.state === "READING";
       const paused = status.state === "PAUSED";
       const canControl = Boolean(status.connected) && hasProgram;
+      const runLabel = paused ? t("job.run.resume") : t("job.run.start");
 
       runButton.disabled = !canControl || (running && !paused);
-      runButton.title = paused ? "Продолжить программу" : "Запустить программу";
-      runButton.setAttribute(
-        "aria-label",
-        paused ? "Продолжить программу" : "Запустить программу",
-      );
+      runButton.title = runLabel;
+      runButton.setAttribute("aria-label", runLabel);
       pauseButton.disabled = !canControl || !running;
       abortButton.disabled = !canControl || (!running && !paused);
 
       if (!hasProgram) {
-        caption.textContent = "Нет загруженной программы";
+        caption.textContent = t("job.caption.noProgram");
       } else if (running || paused) {
-        caption.textContent =
-          `${paused ? "Пауза" : "Выполняется"} · ${status.current_line}/${status.total_lines}`;
+        const stateLabel = paused ? t("job.state.paused") : t("job.state.running");
+        caption.textContent = t("job.caption.progress", {
+          state: stateLabel,
+          current: status.current_line,
+          total: status.total_lines,
+        });
       } else {
-        caption.textContent = `Программа загружена · ${status.total_lines} строк`;
+        caption.textContent = t("job.caption.loaded", { lines: status.total_lines });
       }
     },
   };

@@ -120,7 +120,7 @@ pub(super) fn execute_motion(emulator: &mut Emulator, words: MotionWords) -> Res
                 radius: radius_start,
                 start_angle,
                 sweep,
-                feed_mm_min: emulator.status.feed_rate,
+                feed_mm_min: emulator.program_feed_mm_min,
             },
             &emulator.config,
         )?);
@@ -143,7 +143,9 @@ pub(super) fn execute_motion(emulator: &mut Emulator, words: MotionWords) -> Res
                 .map(|axis| emulator.config.axis_limits(axis).2)
                 .fold(f64::INFINITY, f64::min)
         } else {
-            emulator.status.feed_rate
+            // G1/G2/G3 without an F word use the modal program feed, not the
+            // live status feed (which JOG and rapids reset to zero).
+            emulator.program_feed_mm_min
         };
         emulator.queue_move(target, feed, rapid)?;
         if emulator.active_move.is_some() {
@@ -242,7 +244,7 @@ mod tests {
     fn valid_feed_is_saved_and_invalid_feed_is_rejected() {
         let mut emulator = test_emulator();
         assert!(emulator.execute_gcode("F1200 G1 X10").is_ok());
-        assert_eq!(emulator.status.feed_rate, 1200.0);
+        assert_eq!(emulator.program_feed_mm_min, 1200.0);
         assert!(emulator.active_move.is_some());
 
         for command in ["F0", "F-1"] {
@@ -257,10 +259,10 @@ mod tests {
     #[test]
     fn overflowing_feed_is_rejected_without_changing_saved_feed() {
         let mut emulator = test_emulator();
-        let initial_feed = emulator.status.feed_rate;
+        let initial_feed = emulator.program_feed_mm_min;
         let command = format!("F{}", "9".repeat(400));
 
         assert!(emulator.execute_gcode(&command).is_err());
-        assert_eq!(emulator.status.feed_rate, initial_feed);
+        assert_eq!(emulator.program_feed_mm_min, initial_feed);
     }
 }

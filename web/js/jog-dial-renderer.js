@@ -1,5 +1,11 @@
 import { resizeCanvas } from "./canvas-utils.js";
+import { themeAlpha, themeToken } from "./theme-colors.js";
 
+/**
+ * Paints the circular JOG dial (four step rings around eight directions, or a
+ * single solid ring in continuous mode). All sector colors come from theme
+ * tokens (web/css/theme-*.css) so the dial follows the active UI theme.
+ */
 export function renderJogDial({
   canvas,
   context,
@@ -13,17 +19,24 @@ export function renderJogDial({
   const cy = h / 2;
   const radius = Math.min(w, h) * 0.46;
   const inner = [0.15, 0.3625, 0.575, 0.7875, 1];
-  const colorsX = ["#3f2a2b", "#532e2e", "#6e3332", "#8d3837"];
-  const colorsY = ["#2b3937", "#314945", "#375e56", "#3d766c"];
-  const colorsDiagonal = ["#314965", "#46668b", "#4f749e", "#5a85b6"];
+  // Ring gradients per direction family, read from the current theme.
+  const colorsX = ["--dial-x-1", "--dial-x-2", "--dial-x-3", "--dial-x-4"].map((token) => themeToken(token));
+  const colorsY = ["--dial-y-1", "--dial-y-2", "--dial-y-3", "--dial-y-4"].map((token) => themeToken(token));
+  const colorsDiagonal = ["--dial-diag-1", "--dial-diag-2", "--dial-diag-3", "--dial-diag-4"].map((token) => themeToken(token));
+  // Stroke/label palette shared by both modes.
+  const dialStroke = themeToken("--dial-stroke");
+  const labelColor = themeToken("--dial-label");
+  const hoverFill = themeAlpha("--dial-hover-fill", 0.24);
+  const hoverStroke = themeAlpha("--dial-hover-stroke", 0.9);
   const labels = ["+X", "", "−Y", "", "−X", "", "+Y", ""];
 
   context.clearRect(0, 0, w, h);
 
   if (mode === "continuous") {
+    // Solid directions reuse the darkest ring of each family (X red, diagonals blue, Y green).
     const directionColors = [
-      "#8d3837", "#5a85b6", "#3d766c", "#5a85b6",
-      "#8d3837", "#5a85b6", "#3d766c", "#5a85b6",
+      colorsX[3], colorsDiagonal[3], colorsY[3], colorsDiagonal[3],
+      colorsX[3], colorsDiagonal[3], colorsY[3], colorsDiagonal[3],
     ];
 
     for (let sector = 0; sector < 8; sector++) {
@@ -37,7 +50,7 @@ export function renderJogDial({
       context.closePath();
       context.fillStyle = directionColors[sector];
       context.fill();
-      context.strokeStyle = "#111719";
+      context.strokeStyle = dialStroke;
       context.lineWidth = 1.5;
       context.stroke();
 
@@ -46,9 +59,9 @@ export function renderJogDial({
         context.moveTo(cx, cy);
         context.arc(cx, cy, radius, start, end);
         context.closePath();
-        context.fillStyle = "rgba(255, 255, 255, .24)";
+        context.fillStyle = hoverFill;
         context.fill();
-        context.strokeStyle = "rgba(255, 255, 255, .9)";
+        context.strokeStyle = hoverStroke;
         context.lineWidth = 2;
         context.stroke();
       }
@@ -61,7 +74,7 @@ export function renderJogDial({
 
       const angle = sector * Math.PI / 4;
       const labelRadius = radius * 0.76;
-      context.fillStyle = "#f1f3f3";
+      context.fillStyle = labelColor;
       context.font = `bold ${Math.max(9, radius * 0.105)}px system-ui`;
       context.textAlign = "center";
       context.textBaseline = "middle";
@@ -95,13 +108,13 @@ export function renderJogDial({
       context.closePath();
       context.fillStyle = color;
       context.fill();
-      context.strokeStyle = "#111719";
+      context.strokeStyle = dialStroke;
       context.lineWidth = 1.5;
       context.stroke();
 
       if (labels[sector] && ring === 3) {
         const labelRadius = (innerRadius + outerRadius) / 2;
-        context.fillStyle = "#f1f3f3";
+        context.fillStyle = labelColor;
         context.font = `bold ${Math.max(9, radius * 0.105)}px system-ui`;
         context.textAlign = "center";
         context.textBaseline = "middle";
@@ -114,11 +127,11 @@ export function renderJogDial({
     }
   }
 
-  // Подписываем размер шага в каждом кольце в секторе +X/+Y.
+  // Label the step size in each ring within the +X/+Y sector.
   const formatStep = (value) => String(value);
   const stepLabels = stepValues.map(formatStep);
   const labelAngle = 7 * Math.PI / 4;
-  context.fillStyle = "#f1f3f3";
+  context.fillStyle = labelColor;
   context.font = `bold ${Math.max(8, radius * 0.09)}px system-ui`;
   context.textAlign = "center";
   context.textBaseline = "middle";
@@ -142,9 +155,9 @@ export function renderJogDial({
       context.arc(cx, cy, radius * inner[ring + 1], start, end);
       context.arc(cx, cy, radius * inner[ring], end, start, true);
       context.closePath();
-      context.fillStyle = "rgba(255, 255, 255, .24)";
+      context.fillStyle = hoverFill;
       context.fill();
-      context.strokeStyle = "rgba(255, 255, 255, .9)";
+      context.strokeStyle = hoverStroke;
       context.lineWidth = 2;
       context.stroke();
     }
@@ -153,12 +166,16 @@ export function renderJogDial({
   drawDialCenter(context, cx, cy, radius);
 }
 
+/**
+ * Draws the small hub at the dial center: background disc, border ring and
+ * a crosshair. Colors are theme tokens so the hub blends with the panels.
+ */
 function drawDialCenter(context, cx, cy, radius) {
   context.beginPath();
   context.arc(cx, cy, radius * 0.14, 0, Math.PI * 2);
-  context.fillStyle = "#202629";
+  context.fillStyle = themeToken("--dial-center-bg");
   context.fill();
-  context.strokeStyle = "#101416";
+  context.strokeStyle = themeToken("--dial-center-border");
   context.lineWidth = 2;
   context.stroke();
 
@@ -167,7 +184,7 @@ function drawDialCenter(context, cx, cy, radius) {
   context.lineTo(cx + 5, cy);
   context.moveTo(cx, cy - 5);
   context.lineTo(cx, cy + 5);
-  context.strokeStyle = "#879398";
+  context.strokeStyle = themeToken("--dial-center-cross");
   context.lineWidth = 1.5;
   context.stroke();
 }

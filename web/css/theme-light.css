@@ -1,0 +1,136 @@
+/* Theme layer: light palette overrides via html[data-theme="light"]. Split from themes.css. */
+/* ---------------------------------------------------------------------------
+ * LIGHT theme — the same blue accent language, inverted surfaces and a dark
+ * text ramp so all chrome reads naturally on white/gray backgrounds.
+ * ------------------------------------------------------------------------ */
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-page: #eef2f4;
+  --bg-inset: #e4eaed;
+  --bg-chip: #e9eef0;
+  --bg-button: #dde5e9;
+  --surface: #f8fafb;
+  --surface-raised: #ffffff;
+  --surface-hover: #e2eaee;
+  --surface-alt: #edf2f4;
+  --accent-soft-bg: #d8e9f3;
+  --btn-primary-bg: #17699a;
+  --bg-selected: #cfe3f0;
+  --brand-bg: #d9e8f1;
+
+  --border: #c0cbd0;
+  --border-strong: #aab8be;
+  --border-stronger: #93a3aa;
+  --border-divider: #c6d2d6;
+  --border-hover: #8da0a8;
+  --brand-border: #7fb0c9;
+
+  --text-primary: #182226;
+  --text-bright: #0b1215;
+  --text-strong: #1f2a2f;
+  --text-secondary: #45555c;
+  --text-button: #2e3c42;
+  --text-chip: #3f4d53;
+  --text-soft: #57666d;
+  --text-machine: #37474e;
+  --muted: #67757c;
+  --muted-2: #85939a;
+  --dot-idle: #98a5ab;
+  --legend-rapid: #74848c;
+  --text-on-accent: #ffffff;
+
+  --accent: #14688f;
+  --accent-bright: #1b84ba;
+  --accent-hover: #1d7ba8;
+  --selection: #3d8bdd;
+  --accent-text: #0d5e85;
+  --accent-text-bright: #0a4f70;
+  --accent-text-mid: #146a92;
+  --accent-text-dim: #37718c;
+  --accent-border: #9cc2d7;
+  --accent-border-soft: #b3cddd;
+  --accent-border-bright: #5fa3c4;
+
+  --green: #159260;
+  --green-text: #10714a;
+  --green-border: #7fc4a3;
+  --green-border-hover: #46a37a;
+  --green-bg: #d9f1e6;
+  --green-bg-hover: #c2e7d3;
+  --jog-xy-border: #8cc3a9;
+  --jog-xy-border-hover: #3f9c6f;
+
+  --red: #c8393e;
+  --red-text: #a52f33;
+  --red-border: #dfa0a2;
+  --red-border-hover: #c85b5f;
+  --red-bg: #fae1e2;
+  --red-bg-hover: #f4ccce;
+  --jog-x-border: #e0aeaf;
+  --jog-x-border-hover: #c05f63;
+
+  --amber: #96650f;
+  --amber-text: #7a530c;
+  --amber-border: #d3b273;
+  --orange: #bf6a17;
+  --orange-bright: #9d5612;
+  --copper: #8f5a22;
+  --copper-text: #93602a;
+  --copper-hover: #a96b29;
+
+  --axis-x: #c9404a;
+  --axis-y: #199c63;
+  --axis-z: #1673ab;
+  --axis-a: #8a4fc0;
+
+  --tooltip-border: #9aa6ab;
+  --tooltip-text: #242e33;
+
+  --grid-line: #9db0b7;
+
+  /* Canvas tokens tuned for light surroundings. */
+  --dial-x-1: #f6e0e1;  --dial-x-2: #efc3c5;  --dial-x-3: #e69ba0;  --dial-x-4: #d96e75;
+  --dial-y-1: #dcf0e7;  --dial-y-2: #bce4d1;  --dial-y-3: #92d1b4;  --dial-y-4: #46ab7f;
+  --dial-diag-1: #dbe8f6; --dial-diag-2: #bdd6ef; --dial-diag-3: #98bfe6; --dial-diag-4: #5f9ad6;
+  --dial-stroke: #ffffff;
+  --dial-label: #16232a;
+  --dial-hover-fill: #0e161a;    /* dark wash marks the hover on light sectors */
+  --dial-hover-stroke: #24343c;
+  --dial-center-bg: #ffffff;
+  --dial-center-border: #ccd6da;
+  --dial-center-cross: #67757c;
+
+  --viewer-grid-fill: #dfe7ea;
+  --viewer-grid-border: #7e929c;
+  --viewer-grid-line: #43606d;
+
+  --traj-rapid: #7d8d95;
+  --traj-linear: #159260;
+  --traj-arc: #bf6a17;
+
+  --cube-face-zneg: #b4bec2;
+  --cube-face-zpos: #14688f;
+  --cube-face-yneg: #b06063;
+  --cube-face-ypos: #1d8a5f;
+  --cube-face-xpos: #c25457;
+  --cube-face-xneg: #2f9268;
+  --cube-label: #f7fafb;
+  --cube-edge: #7f8f96;
+
+  --tool-face-light: #b9c0c4;
+  --tool-face-mid: #a7aeb2;
+  --tool-face-shade: #969da1;
+  --tool-face-dark: #828a8e;
+  --tool-edge: #6e7a80;
+  --tool-wood-light: #aeb4b8;
+  --tool-wood-dark: #8d9498;
+  --tool-wood-edge: #8a9296;
+  --tool-cap: #c2c7ca;
+  --tool-cap-edge: #7f8b90;
+  --tool-tip-line: #2c353a;
+
+  --stock-fill: #2f8fc0;
+  --stock-edge: #1f6f9b;
+}
+

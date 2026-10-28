@@ -1,4 +1,5 @@
 import { invokeOrFetch } from "./api.js";
+import { t } from "./i18n.js";
 
 export function initCommandConsole({ logEvent, logError, refreshStatus, isConnected }) {
   const input = document.querySelector("#machine-command-input");
@@ -37,7 +38,7 @@ export function initCommandConsole({ logEvent, logError, refreshStatus, isConnec
         : [];
       historyCursor = history.length;
     } catch (error) {
-      console.warn("Не удалось загрузить историю команд:", error);
+      console.warn(t("command.history.loadError"), error);
     }
   }
 
@@ -73,10 +74,14 @@ export function initCommandConsole({ logEvent, logError, refreshStatus, isConnec
     historyMatchIndex = findMatch(lastSearch, startIndex);
     historyUseButton.disabled = historyMatchIndex < 0;
     historyResult.textContent = historyMatchIndex >= 0
-      ? `${history.length - historyMatchIndex} из ${history.length}: ${history[historyMatchIndex]}`
+      ? t("command.history.match", {
+        index: history.length - historyMatchIndex,
+        total: history.length,
+        command: history[historyMatchIndex],
+      })
       : lastSearch.trim()
-        ? "Совпадений не найдено."
-        : "Введите текст для поиска.";
+        ? t("command.history.noMatches")
+        : t("command.history.prompt");
   }
 
   function openDialogSearch() {
@@ -117,7 +122,7 @@ export function initCommandConsole({ logEvent, logError, refreshStatus, isConnec
 
     const query = reverseSearch.query;
     lastSearch = query;
-    searchIndicator.textContent = `r->\`${query}':`;
+    searchIndicator.textContent = t("command.search.indicator", { query });
     historyMatchIndex = findMatch(query, matchFrom);
 
     if (historyMatchIndex < 0) {
@@ -229,22 +234,22 @@ export function initCommandConsole({ logEvent, logError, refreshStatus, isConnec
         "POST",
       );
       input.value = "";
-      // G0X-22 — команда быстрого перемещения; фактическое движение зависит
-      // от текущего режима координат контроллера (G90/G91). Если backend
-      // возвращает объект, шаблонная строка показывает "[object Object]",
-      // поэтому сериализуем такой ответ в JSON для журнала.
+      // Example: G0X-22 is a rapid move; the actual motion depends on the
+      // controller's current coordinate mode (G90/G91). If the backend
+      // returns an object, a template string would show "[object Object]",
+      // so such a response is serialized to JSON for the log.
       const formattedOutput = output == null
         ? ""
         : typeof output === "string"
           ? output
           : JSON.stringify(output);
       const result = formattedOutput
-        ? `Команда выполнена: ${command}. Ответ: ${formattedOutput}`
-        : `Команда выполнена: ${command}.`;
-      await logEvent("информация", result);
+        ? t("command.executedWithResponse", { command, response: formattedOutput })
+        : t("command.executed", { command });
+      await logEvent("info", result);
       await refreshStatus();
     } catch (error) {
-      await logError(`Ошибка команды «${command}»`, error);
+      await logError(t("command.failed", { command }), error);
     } finally {
       runButton.disabled = !isConnected();
     }

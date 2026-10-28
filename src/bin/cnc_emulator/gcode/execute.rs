@@ -37,7 +37,7 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
             'J' => j_word = Some(value),
             'P' => p_word = Some(value),
             'L' => l_word = Some(value),
-            'F' if value.is_finite() && value > 0.0 => emulator.status.feed_rate = value,
+            'F' if value.is_finite() && value > 0.0 => emulator.program_feed_mm_min = value,
             'F' => return Err(api_error("bad_feed", "F must be positive and finite")),
             'S' if value.is_finite() && value >= 0.0 => {
                 if value > emulator.config.spindle.max_rpm {
