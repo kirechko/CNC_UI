@@ -13,3 +13,7 @@
 
 # Personal plans and work notes; keep these local to this checkout.
 .local-plans/
+
+# Dev-container and CI configuration kept local-only; do not publish on GitHub.
+/.devcontainer/
+/.github/
