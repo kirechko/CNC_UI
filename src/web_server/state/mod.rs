@@ -25,9 +25,14 @@ pub(crate) struct AppState {
     /// Latest FluidNC/network discovery registry. The local emulator entry is
     /// never stored here: it is probed live whenever a machine snapshot is
     /// built, so a crashed or stopped emulator disappears from the list
-    /// automatically. Future scanners (serial COM ports, LinuxCNC) contribute
-    /// their entries to this same registry.
+    /// automatically. Serial (GRBL) entries live in `serial_machines`
+    /// instead, because probing a port resets Arduino boards and must never
+    /// be cached as a network priority target.
     pub(crate) machines: Mutex<Vec<cnc_core::discovery::DiscoveredDevice>>,
+    /// Last confirmed GRBL serial scan result. Like the emulator entry it is
+    /// refreshed by every discovery pass: unplugged ports disappear from the
+    /// machine list automatically.
+    pub(crate) serial_machines: Mutex<Vec<cnc_core::discovery::DiscoveredDevice>>,
     /// One-at-a-time guard for background scans triggered by GET requests, so
     /// a polling browser cannot stack parallel network sweeps.
     pub(crate) discovery_in_flight: Arc<AtomicBool>,
@@ -53,6 +58,7 @@ impl AppState {
             log: Mutex::new(super::log_store::open_log()?),
             last_logged_status: Mutex::new(None),
             machines: Mutex::new(Vec::new()),
+            serial_machines: Mutex::new(Vec::new()),
             discovery_in_flight: Arc::new(AtomicBool::new(false)),
             command_cancel_requested: Mutex::new(command_cancel_requested),
             motion_stop_requested: Mutex::new(motion_stop_requested),
@@ -74,11 +80,17 @@ impl AppState {
     }
 
     /// Full machine list served to the UI: the live emulator entry first,
-    /// followed by the FluidNC devices cached in the discovery registry.
-    /// Future scanners (COM ports, LinuxCNC) only need to contribute entries
-    /// to the registry or the probe used here.
+    /// then the last GRBL serial scan result, followed by the FluidNC
+    /// devices cached in the discovery registry.
     pub(crate) fn machine_snapshot(&self) -> Vec<cnc_core::discovery::DiscoveredDevice> {
         let mut devices = emulator_device().into_iter().collect::<Vec<_>>();
+        if let Ok(serial) = self.serial_machines.lock() {
+            for device in &*serial {
+                if !devices.iter().any(|listed| listed.id == device.id) {
+                    devices.push(device.clone());
+                }
+            }
+        }
         if let Ok(registry) = self.machines.lock() {
             for device in &*registry {
                 if !devices.iter().any(|listed| listed.id == device.id) {
@@ -118,4 +130,5 @@ impl AppState {
 // Sub-implementation files of AppState; `position::temp_program_path` is also
 // used by the program-upload module.
 pub(crate) mod log_ops;
+pub(crate) mod macros;
 pub(crate) mod position;

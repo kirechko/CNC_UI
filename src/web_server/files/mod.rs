@@ -133,16 +133,15 @@ pub(crate) struct FsError {
 
 impl FsError {
     pub(crate) fn new(key: &'static str, detail: impl Into<String>) -> Self {
-        Self { key, detail: detail.into() }
+        Self {
+            key,
+            detail: detail.into(),
+        }
     }
 
     /// Renders the user-facing message in the requested language.
     pub(crate) fn translate(&self, language: &str) -> String {
-        crate::i18n::translate(
-            language,
-            self.key,
-            &[("detail", self.detail.clone())],
-        )
+        crate::i18n::translate(language, self.key, &[("detail", self.detail.clone())])
     }
 }
 
@@ -165,7 +164,10 @@ pub(crate) fn normalize_path(raw: &str) -> Option<String> {
         if segment == "." || segment == ".." {
             return None;
         }
-        if segment.chars().any(|c| (c as u32) < 0x20 || c as u32 == 0x7f) {
+        if segment
+            .chars()
+            .any(|c| (c as u32) < 0x20 || c as u32 == 0x7f)
+        {
             return None;
         }
         segments.push(segment);
@@ -223,7 +225,11 @@ pub(crate) fn sources(state: &AppState, language: &str) -> Vec<FsSourceInfo> {
 // ---------------------------------------------------------------------------
 
 /// Lists one directory on the requested source.
-pub(crate) async fn list(state: &AppState, source: FsSource, path: &str) -> Result<FileListResult, FsError> {
+pub(crate) async fn list(
+    state: &AppState,
+    source: FsSource,
+    path: &str,
+) -> Result<FileListResult, FsError> {
     match source {
         FsSource::Local => local::list(path),
         source => fluidnc::list(&fluidnc::device_address(state)?, source, path).await,
@@ -231,7 +237,11 @@ pub(crate) async fn list(state: &AppState, source: FsSource, path: &str) -> Resu
 }
 
 /// Reads a whole file (used by both the text editor and copy/move staging).
-pub(crate) async fn read_bytes(state: &AppState, source: FsSource, path: &str) -> Result<Vec<u8>, FsError> {
+pub(crate) async fn read_bytes(
+    state: &AppState,
+    source: FsSource,
+    path: &str,
+) -> Result<Vec<u8>, FsError> {
     match source {
         FsSource::Local => local::read_bytes(path),
         source => fluidnc::read_bytes(&fluidnc::device_address(state)?, source, path).await,
@@ -252,7 +262,11 @@ pub(crate) async fn write_bytes(
 }
 
 /// Creates one directory; parents must already exist.
-pub(crate) async fn make_dir(state: &AppState, source: FsSource, path: &str) -> Result<(), FsError> {
+pub(crate) async fn make_dir(
+    state: &AppState,
+    source: FsSource,
+    path: &str,
+) -> Result<(), FsError> {
     match source {
         FsSource::Local => local::mkdir(path),
         source => fluidnc::make_dir(&fluidnc::device_address(state)?, source, path).await,
@@ -260,7 +274,11 @@ pub(crate) async fn make_dir(state: &AppState, source: FsSource, path: &str) -> 
 }
 
 /// Removes a file or a whole directory recursively.
-pub(crate) async fn remove_path(state: &AppState, source: FsSource, path: &str) -> Result<(), FsError> {
+pub(crate) async fn remove_path(
+    state: &AppState,
+    source: FsSource,
+    path: &str,
+) -> Result<(), FsError> {
     match source {
         FsSource::Local => local::remove(path),
         source => fluidnc::remove(&fluidnc::device_address(state)?, source, path).await,
@@ -274,11 +292,21 @@ pub(crate) async fn rename_path(
     path: &str,
     new_name: &str,
 ) -> Result<(), FsError> {
-    let (dir, _) = split_dir_and_name(path).ok_or_else(|| FsError::new("files.error.badPath", path))?;
+    let (dir, _) =
+        split_dir_and_name(path).ok_or_else(|| FsError::new("files.error.badPath", path))?;
     let target = join_path(dir, new_name);
     match source {
         FsSource::Local => local::rename(path, &target),
-        source => fluidnc::move_path(&fluidnc::device_address(state)?, source, path, dir, new_name).await,
+        source => {
+            fluidnc::move_path(
+                &fluidnc::device_address(state)?,
+                source,
+                path,
+                dir,
+                new_name,
+            )
+            .await
+        }
     }
 }
 
@@ -298,7 +326,8 @@ pub(crate) async fn move_path(
         return Err(FsError::new("files.error.badPath", path));
     }
     if source == to_source && source != FsSource::Local {
-        return fluidnc::move_path(&fluidnc::device_address(state)?, source, path, to_dir, name).await;
+        return fluidnc::move_path(&fluidnc::device_address(state)?, source, path, to_dir, name)
+            .await;
     }
     if source == to_source && source == FsSource::Local {
         return local::move_path(path, to_dir);

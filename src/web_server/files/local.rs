@@ -12,7 +12,7 @@ use std::io;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
-use super::{base_name, normalize_path, split_dir_and_name, FsError, FileEntry, FileListResult};
+use super::{base_name, normalize_path, split_dir_and_name, FileEntry, FileListResult, FsError};
 
 /// Refuse to list directories with more entries than this; protects both the
 /// browser and the JSON payload from monster directories.
@@ -26,9 +26,7 @@ fn root() -> PathBuf {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-        });
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     configured.canonicalize().unwrap_or(configured)
 }
 
@@ -46,7 +44,11 @@ fn io_error(operation: &str, error: io::Error) -> FsError {
 fn jailed(rel: &str) -> Result<PathBuf, FsError> {
     let normalized = normalize_path(rel).ok_or_else(|| FsError::new("files.error.badPath", rel))?;
     let mut path = root();
-    for segment in normalized.trim_start_matches('/').split('/').filter(|s| !s.is_empty()) {
+    for segment in normalized
+        .trim_start_matches('/')
+        .split('/')
+        .filter(|s| !s.is_empty())
+    {
         path.push(segment);
     }
     let prefix = root();
@@ -74,7 +76,8 @@ fn existing(rel: &str) -> Result<PathBuf, FsError> {
 /// directory itself goes through [`existing`], then the name is appended.
 /// Guards mutations whose own target does not exist yet (create/rename dest).
 fn parented(rel: &str) -> Result<PathBuf, FsError> {
-    let (dir, name) = split_dir_and_name(rel).ok_or_else(|| FsError::new("files.error.badPath", rel))?;
+    let (dir, name) =
+        split_dir_and_name(rel).ok_or_else(|| FsError::new("files.error.badPath", rel))?;
     Ok(existing(dir)?.join(name))
 }
 

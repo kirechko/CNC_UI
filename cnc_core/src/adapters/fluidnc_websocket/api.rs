@@ -4,13 +4,12 @@
 //! configuration, program loading) delegate to inherent helpers in the
 //! sibling modules; the remaining methods are thin command transmitters.
 
-use super::{
-    ContinuousJog, FluidNcWebSocketAdapter,
-};
+use super::{ContinuousJog, FluidNcWebSocketAdapter};
 use crate::discovery::DiscoveredDevice;
 use crate::{
-    CncApi, CncEvent, CncResult, ControllerError, CoordinateSystem, JogRequest, MachineConfiguration,
-    MachineStatus, OverrideKind, ProgramSource, SpindleCommand, SpindleDirection,
+    CncApi, CncEvent, CncResult, ControllerError, CoordinateSystem, JogRequest,
+    MachineConfiguration, MachineStatus, OverrideKind, ProgramSource, SpindleCommand,
+    SpindleDirection,
 };
 use std::path::Path;
 use tokio::sync::{broadcast, watch};

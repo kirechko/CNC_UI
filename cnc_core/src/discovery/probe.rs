@@ -79,10 +79,7 @@ pub(super) async fn probe_fluidnc_websocket(
 }
 
 /// Probes one host over raw Telnet and extracts the FluidNC identity from `$I`.
-pub(super) async fn probe_fluidnc_telnet(
-    address: Ipv4Addr,
-    port: u16,
-) -> Option<FluidNcIdentity> {
+pub(super) async fn probe_fluidnc_telnet(address: Ipv4Addr, port: u16) -> Option<FluidNcIdentity> {
     let target = (address, port);
     let Ok(Ok(mut stream)) = timeout(DISCOVERY_PROBE_TIMEOUT, TcpStream::connect(target)).await
     else {
@@ -106,7 +103,12 @@ pub(super) async fn probe_fluidnc_telnet(
         }
         let mut payload = Vec::with_capacity(read);
         let mut replies = Vec::new();
-        parse_telnet_bytes(&chunk[..read], &mut telnet_state, &mut payload, &mut replies);
+        parse_telnet_bytes(
+            &chunk[..read],
+            &mut telnet_state,
+            &mut payload,
+            &mut replies,
+        );
         if !replies.is_empty()
             && timeout(DISCOVERY_PROBE_TIMEOUT, stream.write_all(&replies))
                 .await

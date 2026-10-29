@@ -131,7 +131,11 @@ impl CNCController {
         }
 
         let feed_rate = *self.xy_jog_speed.lock().unwrap();
-        self.enqueue(Command::JogContinuousXY(x_direction, y_direction, feed_rate));
+        self.enqueue(Command::JogContinuousXY(
+            x_direction,
+            y_direction,
+            feed_rate,
+        ));
     }
 
     pub fn cancel_jog(&self) {

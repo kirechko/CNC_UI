@@ -29,10 +29,67 @@ fn release_discovery_slot(guard: &std::sync::Arc<std::sync::atomic::AtomicBool>)
     guard.store(false, Ordering::Release);
 }
 
+/// Runs the GRBL serial scan and publishes the confirmed ports into
+/// `state.serial_machines`. The currently connected machine's port is never
+/// opened (probing asserts DTR/RTS and resets Arduino boards, which would
+/// interrupt a live control session); its previous record is kept so the
+/// dialog still shows the connected row. Serial results deliberately skip the
+/// SQLite endpoint cache: that cache seeds *network* priority targets, and a
+/// `/dev/...` path is not a resolvable host.
+async fn refresh_serial_machines(
+    state: &AppState,
+    sender: Option<
+        &tokio::sync::mpsc::Sender<Result<cnc_core::discovery::DiscoveredDevice, String>>,
+    >,
+) -> Vec<cnc_core::discovery::DiscoveredDevice> {
+    let connected_id = state.connected_machine_id();
+    let excluded: Vec<String> = connected_id.clone().into_iter().collect();
+
+    // Keep the connected port's record from the previous scan pass; all other
+    // stale entries are replaced by the fresh probe results below.
+    let mut devices: Vec<cnc_core::discovery::DiscoveredDevice> = state
+        .serial_machines
+        .lock()
+        .map(|previous| {
+            previous
+                .iter()
+                .filter(|device| connected_id.as_deref() == Some(device.id.as_str()))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+
+    match cnc_core::discovery::discover_grbl_stream(&excluded).await {
+        Ok(mut stream) => {
+            while let Some(device) = stream.recv().await {
+                if let Some(sender) = sender {
+                    if sender.send(Ok(device.clone())).await.is_err() {
+                        // SSE consumer disconnected; keep collecting locally.
+                    }
+                }
+                if !devices.iter().any(|listed| listed.id == device.id) {
+                    devices.push(device);
+                }
+            }
+        }
+        Err(error) => {
+            // A platform without serial enumeration (or a busy port manager)
+            // must not break the composite machine scan.
+            eprintln!("GRBL serial discovery failed: {}", error.message);
+        }
+    }
+
+    if let Ok(mut serial) = state.serial_machines.lock() {
+        *serial = devices.clone();
+    }
+    devices
+}
+
 /// Runs the whole machine search once and pushes every confirmed device to the
 /// optional SSE sink while returning the merged list. The emulator is probed
-/// first, then the FluidNC network scan prioritizes previously cached
-/// endpoints. Future scanners (serial COM ports, LinuxCNC) plug in here.
+/// first, then the fast GRBL serial scan, and finally the FluidNC network scan
+/// prioritizes previously cached endpoints. Future scanners (LinuxCNC) plug in
+/// here.
 async fn discover_all_machines(
     state: &AppState,
     sender: Option<
@@ -48,6 +105,14 @@ async fn discover_all_machines(
             let _ = sender.send(Ok(device.clone())).await;
         }
         found.push(device);
+    }
+
+    // Serial ports answer within ~2 s, so the GRBL row shows up long before
+    // the multi-second network sweep finishes.
+    for device in refresh_serial_machines(state, sender).await {
+        if !found.iter().any(|listed| listed.id == device.id) {
+            found.push(device);
+        }
     }
 
     let priority_targets = state.cached_discovery_endpoints().unwrap_or_default();
@@ -134,20 +199,19 @@ pub(crate) fn discovered_machines_response(
 pub(crate) async fn get_discovered_machines(
     State(state): State<SharedController>,
 ) -> Result<Json<DiscoveredMachinesResponse>, (StatusCode, String)> {
-    let payload = discovered_machines_response(
-        state.machine_snapshot(),
-        state.connected_machine_id(),
-    );
+    let payload =
+        discovered_machines_response(state.machine_snapshot(), state.connected_machine_id());
     if claim_discovery_slot(&state.discovery_in_flight) {
         let background_state = state.clone();
         tokio::spawn(async move {
             let devices = discover_all_machines(&background_state, None).await;
             // Only network devices persist in the registry; the emulator entry
-            // is recomputed live at every snapshot.
+            // is recomputed live at every snapshot and serial devices live in
+            // their own `serial_machines` store (already refreshed in the scan).
             if let Ok(mut registry) = background_state.machines.lock() {
                 *registry = devices
                     .into_iter()
-                    .filter(|device| device.protocol != "Emulator")
+                    .filter(|device| device.protocol != "Emulator" && device.protocol != "GRBL")
                     .collect();
             }
             release_discovery_slot(&background_state.discovery_in_flight);
@@ -212,7 +276,7 @@ pub(crate) async fn rediscover_machines(
         if let Ok(mut registry) = scan_state.machines.lock() {
             *registry = found
                 .iter()
-                .filter(|device| device.protocol != "Emulator")
+                .filter(|device| device.protocol != "Emulator" && device.protocol != "GRBL")
                 .cloned()
                 .collect();
         }
@@ -296,18 +360,24 @@ pub(crate) async fn select_machine(
             )
         })?;
 
-    let adapter = build_adapter_for_device(&device)
-        .map_err(|error| (StatusCode::BAD_GATEWAY, error))?;
-    let controller = CNCController::connect_with_api(adapter)
-        .map_err(|error| (StatusCode::BAD_GATEWAY, format!("{}: {}", error.code, error.message)))?;
+    let adapter =
+        build_adapter_for_device(&device).map_err(|error| (StatusCode::BAD_GATEWAY, error))?;
+    let controller = CNCController::connect_with_api(adapter).map_err(|error| {
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("{}: {}", error.code, error.message),
+        )
+    })?;
 
     // Remember what was loaded before the switch so the new controller can
     // resume with the same program (adapters keep no program between switches).
     let previous_program = {
-        let program = state
-            .program
-            .lock()
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "program lock poisoned".to_string()))?;
+        let program = state.program.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "program lock poisoned".to_string(),
+            )
+        })?;
         program.clone()
     };
 
@@ -344,7 +414,14 @@ pub(crate) async fn select_machine(
     // give it a short window to report the first successful round trip so
     // this response already marks the newly selected machine as connected.
     // A machine that is actually unreachable only costs the wait budget here.
-    let connect_deadline = std::time::Instant::now() + Duration::from_millis(1500);
+    // Serial GRBL needs a longer window: the first query also runs the startup
+    // handshake that waits for the Arduino boot banner (up to ~3.5 s).
+    let connect_deadline = std::time::Instant::now()
+        + Duration::from_millis(if device.protocol == "GRBL" {
+            5000
+        } else {
+            1500
+        });
     let connected_device_id = loop {
         if let Some(id) = state.connected_machine_id() {
             break Some(id);

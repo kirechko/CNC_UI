@@ -6,9 +6,7 @@
 //! every async adapter call is driven with `runtime.block_on` so the facade
 //! methods stay synchronous for the UI.
 
-use super::snapshot::{
-    error_alert, record_adapter_message, set_ui_alert, STATUS_POLL_INTERVAL,
-};
+use super::snapshot::{error_alert, record_adapter_message, set_ui_alert, STATUS_POLL_INTERVAL};
 use super::tracking::ProgramTracking;
 use super::{CncApi, Command, ControllerSnapshot};
 use crate::cnc_api::SpindleDirection as ApiSpindleDirection;
@@ -49,10 +47,7 @@ pub(super) fn api_worker(
                     crate::message_log::record(
                         "error",
                         "CNC/adapter",
-                        &format!(
-                            "Failed to stop motion: {}: {}",
-                            error.code, error.message
-                        ),
+                        &format!("Failed to stop motion: {}: {}", error.code, error.message),
                     );
                     set_ui_alert(&shared_status, &error.code, &error.message);
                 }
@@ -117,8 +112,7 @@ pub(super) fn api_worker(
                 let starts_program = matches!(command, Command::ProgramRun);
                 let stops_program =
                     matches!(command, Command::ProgramAbort | Command::LoadProgram(_));
-                let result =
-                    runtime.block_on(dispatch_command(&api, &shared_status, command));
+                let result = runtime.block_on(dispatch_command(&api, &shared_status, command));
 
                 match result {
                     Ok(()) => {
@@ -220,7 +214,8 @@ async fn dispatch_command(
             api.jog_continuous(axis, direction, feed_rate).await
         }
         Command::JogContinuousXY(x_direction, y_direction, feed_rate) => {
-            api.jog_continuous_xy(x_direction, y_direction, feed_rate).await
+            api.jog_continuous_xy(x_direction, y_direction, feed_rate)
+                .await
         }
         Command::JogCancel => api.cancel_jog().await,
     }
@@ -334,8 +329,7 @@ fn poll_status(
             let mut current = shared_status.lock().unwrap();
             current.machine = status;
             if reconnected {
-                current.machine_configuration =
-                    runtime.block_on(api.machine_configuration()).ok();
+                current.machine_configuration = runtime.block_on(api.machine_configuration()).ok();
             }
             if current
                 .ui_alert

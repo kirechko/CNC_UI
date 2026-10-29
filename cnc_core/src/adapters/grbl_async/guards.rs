@@ -3,7 +3,7 @@
 //! None of these functions touch the serial port.
 
 use super::GrblAdapter;
-use crate::{Axis, ControllerError, CncResult, CoordinateSystem};
+use crate::{Axis, CncResult, ControllerError, CoordinateSystem};
 
 impl GrblAdapter {
     /// GRBL 1.1 only moves linear X/Y/Z; rotary axes must be rejected early.
@@ -48,6 +48,35 @@ impl GrblAdapter {
     }
 
     /// Manual (UI-initiated) commands must not interleave with streaming.
+    /// Reports whether a streaming failure is only the rejection of an
+    /// *optional accessory* M-code that this firmware build does not support.
+    ///
+    /// Stock GRBL 1.1 builds compile coolant control out (`COOLANT_CONTROL`),
+    /// so `M7`/`M8`/`M9` answer `error:20` (unsupported command) even though
+    /// the program itself is fine. GRBL has already consumed the command and
+    /// returned the error reply, so the link stays synchronized and streaming
+    /// can safely continue with the next line. Spindle (`M3`/`M4`/`M5`) and
+    /// motion words are deliberately NOT tolerated: silently dropping `M3`
+    /// would cut with a stopped spindle, which is unsafe.
+    pub(super) fn is_tolerated_accessory_rejection(command: &str, error: &ControllerError) -> bool {
+        // Normalize `M7`, `M07`, `m7` to the numeric accessory code; anything
+        // with extra words (e.g. `G28 M7`) is not a bare accessory command.
+        let trimmed = command.trim();
+        let rest = match trimmed
+            .strip_prefix('M')
+            .or_else(|| trimmed.strip_prefix('m'))
+        {
+            Some(rest) => rest,
+            None => return false,
+        };
+        if !matches!(rest.trim_start_matches('0'), "7" | "8" | "9") || rest.is_empty() {
+            return false;
+        }
+        // Only the "unsupported command" (GRBL error 20) rejection qualifies;
+        // any other failure (alarm, timeout, io) must still abort streaming.
+        error.code == "gcode_error" && error.message.contains("(20)")
+    }
+
     pub(super) fn ensure_manual_command_allowed(program_streaming: bool) -> CncResult<()> {
         if program_streaming {
             return Err(ControllerError::new(
@@ -67,8 +96,9 @@ impl GrblAdapter {
             .is_some_and(|state| state.eq_ignore_ascii_case("Idle"))
     }
 
-    /// Program start is only safe from the Idle state; any other *valid*
-    /// state is refused with `motion_busy`, malformed ones with `protocol`.
+    /// Program start is only safe from the Idle or Check states (Check allows
+    /// the standard GRBL `$C` dry run); any other *valid* state is refused
+    /// with `motion_busy`, malformed ones with `protocol`.
     pub(super) fn ensure_controller_idle(status_response: &str) -> CncResult<()> {
         let state = status_response
             .strip_prefix('<')
@@ -82,7 +112,7 @@ impl GrblAdapter {
                 format!("unknown GRBL machine state: {state}"),
             ));
         }
-        if !state.eq_ignore_ascii_case("Idle") {
+        if !(state.eq_ignore_ascii_case("Idle") || state.eq_ignore_ascii_case("Check")) {
             return Err(ControllerError::new(
                 "motion_busy",
                 format!("cannot start a program while GRBL state is {state}"),
@@ -114,8 +144,32 @@ impl GrblAdapter {
         Ok(())
     }
 
+    /// Removes a trailing `;`-style line comment from one G-code line.
+    ///
+    /// Comments make programs tolerant for humans but hostile for the strict
+    /// ASCII validator and wasteful on the serial link: GRBL ignores anything
+    /// after `;` to end-of-line, yet non-ASCII comment text (e.g. Cyrillic)
+    /// would otherwise fail [`Self::validate_command`]. A `;` inside a
+    /// parenthesis comment is preserved, mirroring the scanner used by
+    /// [`Self::coordinate_system_select`]. Unterminated parentheses are not a
+    /// concern: GRBL ends every comment at line end anyway.
+    pub(super) fn strip_line_comment(line: &str) -> &str {
+        let mut in_parenthesis = false;
+        for (index, byte) in line.bytes().enumerate() {
+            match byte {
+                b'(' => in_parenthesis = true,
+                b')' => in_parenthesis = false,
+                b';' if !in_parenthesis => return &line[..index],
+                _ => {}
+            }
+        }
+        line
+    }
+
     /// Validates the whole program before any line is sent: size limit plus
     /// per-line [`Self::validate_command`], reporting the offending line.
+    /// `;` comments are stripped first so non-ASCII comment text never
+    /// reaches the controller.
     pub(super) fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
         if content.len() > super::MAX_PROGRAM_BYTES {
             return Err(ControllerError::new(
@@ -130,7 +184,7 @@ impl GrblAdapter {
         let mut lines = Vec::new();
 
         for (line_index, line) in content.lines().enumerate() {
-            let line = line.trim();
+            let line = Self::strip_line_comment(line.trim()).trim_end();
             if line.is_empty() {
                 continue;
             }

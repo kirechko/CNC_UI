@@ -1,7 +1,8 @@
 use crate::cnc_api::Axis;
 use crate::cnc_controller::SpindleDirection as UiSpindleDirection;
 use crate::web_server::{
-    load_program as load_program_into_state, AppState, LoadedProgram, LogEntry, StatusResponse,
+    load_program as load_program_into_state, AppState, LoadedProgram, LogEntry, MacroDefinition,
+    StatusResponse,
 };
 use serde::Serialize;
 use tauri::State;
@@ -131,6 +132,19 @@ fn get_program(state: State<'_, AppState>) -> Result<Option<LoadedProgram>, Stri
     Ok(program.clone())
 }
 
+/// Returns the complete user macro list to the desktop frontend.
+#[tauri::command]
+fn get_macros(state: State<'_, AppState>) -> Result<Vec<MacroDefinition>, String> {
+    state.list_macros()
+}
+
+/// Validates and atomically saves the complete user macro list from the desktop frontend.
+#[tauri::command]
+fn put_macros(state: State<'_, AppState>, macros: Vec<MacroDefinition>) -> Result<(), String> {
+    crate::web_server::validate_macros(&macros, desktop_language())?;
+    state.replace_macros(&macros)
+}
+
 #[tauri::command]
 fn load_program(
     state: State<'_, AppState>,
@@ -208,7 +222,11 @@ fn set_spindle(
 
     let status = controller.get_status_snapshot();
     if !status.machine.connected {
-        return Err(crate::i18n::translate(language, "api.error.noConnection", &[]));
+        return Err(crate::i18n::translate(
+            language,
+            "api.error.noConnection",
+            &[],
+        ));
     }
 
     let spindle = status
@@ -434,6 +452,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             log_message,
             execute_machine_command,
             get_program,
+            get_macros,
+            put_macros,
             load_program,
             start_program,
             pause_program,

@@ -2,7 +2,7 @@
 
 use super::{GrblAdapter, Session};
 use crate::{
-    toolpath::Toolpath, ControllerError, CncResult, CoordinateSystem, SpindleCommand,
+    toolpath::Toolpath, CncResult, ControllerError, CoordinateSystem, SpindleCommand,
     SpindleDirection,
 };
 use std::collections::HashMap;
@@ -42,6 +42,7 @@ impl GrblAdapter {
                 max_spindle_rpm: None,
                 continuous_jog: None,
                 rx_buffer: Vec::new(),
+                handshake_pending: true,
                 work_offsets: HashMap::new(),
                 protocol_poisoned: false,
                 program_streaming: false,

@@ -3,7 +3,7 @@
 
 use super::GrblAdapter;
 use crate::{
-    ControllerError, CncResult, CoordinateSystem, InterpreterState, MachineStatus, Position,
+    CncResult, ControllerError, CoordinateSystem, InterpreterState, MachineStatus, Position,
     SpindleCommand, SpindleStatus, TaskMode, TaskState, ToolpathProgress,
 };
 
@@ -200,11 +200,13 @@ impl GrblAdapter {
 
         let machine = machine_position
             .or_else(|| {
-                work_position.map(|work| [
-                    work[0] + offset[0],
-                    work[1] + offset[1],
-                    work[2] + offset[2],
-                ])
+                work_position.map(|work| {
+                    [
+                        work[0] + offset[0],
+                        work[1] + offset[1],
+                        work[2] + offset[2],
+                    ]
+                })
             })
             .unwrap_or([0.0; 3]);
         if machine.iter().any(|value| !value.is_finite()) {

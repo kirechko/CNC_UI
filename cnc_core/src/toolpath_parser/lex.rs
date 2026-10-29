@@ -15,11 +15,7 @@ pub(super) fn strip_comments(line: &str) -> String {
             _ => {}
         }
     }
-    without_parens
-        .split(';')
-        .next()
-        .unwrap_or("")
-        .to_string()
+    without_parens.split(';').next().unwrap_or("").to_string()
 }
 
 /// Reads `letter number` words from a stripped line, uppercasing the letter.

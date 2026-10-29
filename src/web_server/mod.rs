@@ -43,7 +43,8 @@ pub use server::run;
 // so `unused_imports` is allowed for builds that exclude the Tauri binary.
 #[allow(unused_imports)]
 pub(crate) use models::{
-    LatestLogMessages, LoadedProgram, LogEntry, LogPage, LogQuery, StatusResponse,
+    validate_macros, LatestLogMessages, LoadedProgram, LogEntry, LogPage, LogQuery,
+    MacroDefinition, MacroInvocation, StatusResponse,
 };
 #[allow(unused_imports)]
 pub(crate) use program::{load_program, ProgramError};
@@ -120,6 +121,43 @@ mod contract_tests {
     }
 
     #[test]
+    fn macro_definitions_preserve_frontend_metadata_names_and_defaults() {
+        let macro_definition: MacroDefinition = serde_json::from_str(
+            r#"{"id":"touch-off","name":"Touch off","description":"Probe","body":"G38.2 Z-5 F50","invocations":[{"controller":"LinuxCNC","mechanism":"M-code","command":"M101"}]}"#,
+        )
+        .expect("deserialize macro definition");
+        assert_eq!(macro_definition.id, "touch-off");
+        assert_eq!(macro_definition.invocations[0].command, "M101");
+
+        let encoded = serde_json::to_value(&macro_definition).expect("serialize macro definition");
+        assert_eq!(encoded["invocations"][0]["controller"], "LinuxCNC");
+        assert_eq!(encoded["invocations"][0]["mechanism"], "M-code");
+    }
+
+    #[test]
+    fn macro_validation_rejects_duplicate_or_unsafe_invocations() {
+        let valid = MacroDefinition {
+            id: "touch-off".into(),
+            name: "Touch off".into(),
+            description: String::new(),
+            body: "G38.2 Z-5 F50".into(),
+            invocations: vec![
+                MacroInvocation {
+                    controller: "LinuxCNC".into(),
+                    mechanism: "M-code".into(),
+                    command: "M101".into(),
+                },
+                MacroInvocation {
+                    controller: "linuxcnc".into(),
+                    mechanism: "M-code".into(),
+                    command: "M102".into(),
+                },
+            ],
+        };
+        assert!(validate_macros(&[valid], "en").is_err());
+    }
+
+    #[test]
     fn status_response_preserves_frontend_json_field_names() {
         let value = serde_json::to_value(StatusResponse::from(sample_status())).unwrap();
 
@@ -177,7 +215,10 @@ mod contract_tests {
         }))
         .unwrap();
         assert_eq!((jog.x_direction, jog.y_direction), (1, -1));
-        let _ = (ProgramError::client("x".into()), ProgramError::internal("y".into()));
+        let _ = (
+            ProgramError::client("x".into()),
+            ProgramError::internal("y".into()),
+        );
 
         let continuous_jog: ContinuousXyJogRequest = serde_json::from_value(serde_json::json!({
             "xDirection": 1,

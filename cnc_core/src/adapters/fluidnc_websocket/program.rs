@@ -7,7 +7,7 @@ use super::{
     normalized_program_lines, FluidNcWebSocketAdapter, FluidNcWebSocketConfig, Session,
     MAX_PROGRAM_BYTES,
 };
-use crate::{ControllerError, CncResult, CoordinateSystem};
+use crate::{CncResult, ControllerError, CoordinateSystem};
 use std::path::Path;
 
 impl FluidNcWebSocketAdapter {
@@ -153,8 +153,7 @@ impl FluidNcWebSocketAdapter {
                     "controller rejected program line",
                 );
             }
-            session.program_error =
-                Some(format!("FluidNC rejected a program line: error:{error}"));
+            session.program_error = Some(format!("FluidNC rejected a program line: error:{error}"));
             session.program_streaming = false;
             session.active_program_line = None;
             session.program_acknowledgements.clear();

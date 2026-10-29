@@ -102,7 +102,11 @@ impl AppState {
         language: &str,
     ) -> Result<(), String> {
         if !value.is_finite() || value.abs() > 100_000.0 {
-            return Err(crate::i18n::translate(language, "api.error.coordinateRange", &[]));
+            return Err(crate::i18n::translate(
+                language,
+                "api.error.coordinateRange",
+                &[],
+            ));
         }
 
         let system = parse_coordinate_system(key, language)?;
@@ -111,7 +115,11 @@ impl AppState {
             .lock()
             .map_err(|_| "controller lock poisoned".to_string())?;
         if !controller.get_status_snapshot().machine.connected {
-            return Err(crate::i18n::translate(language, "api.error.noConnection", &[]));
+            return Err(crate::i18n::translate(
+                language,
+                "api.error.noConnection",
+                &[],
+            ));
         }
 
         let command = format!(
@@ -132,7 +140,11 @@ impl AppState {
         language: &str,
     ) -> Result<(), String> {
         if !value.is_finite() || value.abs() > 100_000.0 {
-            return Err(crate::i18n::translate(language, "api.error.coordinateRange", &[]));
+            return Err(crate::i18n::translate(
+                language,
+                "api.error.coordinateRange",
+                &[],
+            ));
         }
 
         let system = parse_coordinate_system(key, language)?;
@@ -142,7 +154,11 @@ impl AppState {
             .map_err(|_| "controller lock poisoned".to_string())?;
         let status = controller.get_status_snapshot();
         if !status.machine.connected {
-            return Err(crate::i18n::translate(language, "api.error.noConnection", &[]));
+            return Err(crate::i18n::translate(
+                language,
+                "api.error.noConnection",
+                &[],
+            ));
         }
 
         let feed_rate = if status.machine.feed_rate.is_finite() && status.machine.feed_rate > 0.0 {
@@ -173,7 +189,11 @@ impl AppState {
             .lines()
             .any(|line| !line.split(';').next().unwrap_or("").trim().is_empty())
         {
-            return Err(crate::i18n::translate(language, "api.error.emptyProgram", &[]));
+            return Err(crate::i18n::translate(
+                language,
+                "api.error.emptyProgram",
+                &[],
+            ));
         }
 
         let path = temp_program_path();

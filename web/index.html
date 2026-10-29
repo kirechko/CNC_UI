@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="./css/message-log.css">
     <link rel="stylesheet" href="./css/misc-responsive.css">
     <link rel="stylesheet" href="./css/files.css">
+    <link rel="stylesheet" href="./css/macros.css">
     <link rel="stylesheet" href="./css/theme-dark.css">
     <link rel="stylesheet" href="./css/theme-light.css">
     <link rel="stylesheet" href="./css/theme-green.css">
@@ -502,10 +503,31 @@
             <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content" data-i18n="html.sidebar.files" data-i18n-title="html.sidebar.filesTitle" title="Show the file manager panel">FILES</button>
           </div>
           <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
-            <div class="sidebar-empty">
-              <strong id="sidebar-title" data-i18n="sidebar.files.title">File manager</strong>
-              <span id="sidebar-description" data-i18n="sidebar.files.description">File browsing and loading are not connected yet. Incremental axis control is available now.</span>
-            </div>
+            <div id="files-panel" class="sidebar-panel" role="region" aria-label="Files"></div>
+            <section id="macros-panel" class="sidebar-panel macros-panel" role="region" aria-label="Macros" hidden>
+              <div class="macros-toolbar">
+                <span class="macros-count" id="macros-count" aria-live="polite"></span>
+                <button class="macros-add-button" id="macro-add" type="button" data-i18n="macros.add">Add macro</button>
+              </div>
+              <div class="macro-list" id="macro-list" role="list" aria-live="polite"></div>
+              <form class="macro-editor" id="macro-editor" hidden>
+                <h3 class="macro-editor-title" id="macro-editor-title"></h3>
+                <label class="macro-field"><span data-i18n="macros.name">Name</span><input id="macro-name" type="text" maxlength="120" required></label>
+                <label class="macro-field"><span data-i18n="macros.description">Description</span><input id="macro-description" type="text" maxlength="1000"></label>
+                <label class="macro-field"><span data-i18n="macros.body">G-code body</span><textarea id="macro-body" rows="5" maxlength="65536" required></textarea></label>
+                <div class="macro-invocations-heading">
+                  <strong data-i18n="macros.invocations">Controller invocation metadata</strong>
+                  <button id="macro-invocation-add" type="button" data-i18n="macros.addInvocation">Add mapping</button>
+                </div>
+                <div class="macro-invocations" id="macro-invocations"></div>
+                <div class="macro-editor-actions">
+                  <button id="macro-save" type="submit" data-i18n="macros.save">Save</button>
+                  <button id="macro-cancel" type="button" data-i18n="common.cancel">Cancel</button>
+                </div>
+                <div class="macro-error" id="macro-error" role="alert" hidden></div>
+              </form>
+              <div class="macro-status" id="macro-status" role="status" aria-live="polite"></div>
+            </section>
           </div>
         </section>
 

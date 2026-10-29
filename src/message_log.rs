@@ -13,13 +13,18 @@ pub(crate) const SEVERITY_WARNING: &str = "warning";
 pub(crate) const SEVERITY_INFO: &str = "info";
 
 /// Severities that are persisted to the message log (informational messages are not stored here).
-pub(crate) const RECORDED_SEVERITIES: [&str; 3] = [SEVERITY_ALARM, SEVERITY_ERROR, SEVERITY_WARNING];
+pub(crate) const RECORDED_SEVERITIES: [&str; 3] =
+    [SEVERITY_ALARM, SEVERITY_ERROR, SEVERITY_WARNING];
 
 /// Every valid severity identifier accepted from the UI and API.
 // The emulator binary includes this module without the UI API, so it does not use this list.
 #[allow(dead_code)]
-pub(crate) const ALL_SEVERITIES: [&str; 4] =
-    [SEVERITY_ALARM, SEVERITY_ERROR, SEVERITY_WARNING, SEVERITY_INFO];
+pub(crate) const ALL_SEVERITIES: [&str; 4] = [
+    SEVERITY_ALARM,
+    SEVERITY_ERROR,
+    SEVERITY_WARNING,
+    SEVERITY_INFO,
+];
 
 /// Legacy Russian severity labels written by earlier versions, mapped to their new identifiers.
 const LEGACY_SEVERITY_MAP: [(&str, &str); 4] = [

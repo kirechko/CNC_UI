@@ -10,7 +10,7 @@
 //! continuous motion.
 
 use super::{ContinuousJog, GrblAdapter, Session};
-use crate::{Axis, ControllerError, CncResult};
+use crate::{Axis, CncResult, ControllerError};
 
 impl GrblAdapter {
     /// Builds an incremental single-axis jog command in millimeters.

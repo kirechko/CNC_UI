@@ -2,16 +2,97 @@
 //! facade and the streaming scheduler.
 
 use super::{GrblAdapter, Session};
-use crate::{ControllerError, CncResult};
-use std::collections::HashMap;
-use tokio::io::AsyncWriteExt;
+use crate::{CncResult, ControllerError};
+use std::{collections::HashMap, time::Instant};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 
 impl GrblAdapter {
+    /// Consumes the boot chatter GRBL emits when the serial port is opened.
+    ///
+    /// Opening the port on Linux asserts DTR/RTS, which resets most Arduino
+    /// boards: they print a banner (`Grbl 1.1h ['$' for help]`) plus assorted
+    /// `[MSG:...]`/`ALARM:` lines. Leftovers of that chatter would later be
+    /// misread as replies to real commands, so the handshake pings `?` until
+    /// the controller proves itself (banner line or `<...>` status report)
+    /// and then waits for the byte flow to go quiet, discarding every boot
+    /// message. It is best-effort by design: a board that never answers
+    /// (port busy, controller off) simply ends the handshake at the overall
+    /// deadline, and the regular error handling of the first real query then
+    /// reports the actual problem instead of poisoning the session here.
+    pub(super) async fn run_startup_handshake(session: &mut Session) {
+        session.handshake_pending = false;
+        session.rx_buffer.clear();
+
+        let deadline = Instant::now() + super::HANDSHAKE_TIMEOUT;
+        let mut last_ping = Instant::now();
+        let mut last_activity = Instant::now();
+        let mut confirmed = false;
+        let mut chunk = [0_u8; 256];
+
+        while Instant::now() < deadline {
+            // Ping while the controller has not proven itself yet. The
+            // realtime `?` byte needs no ACK, so a failed write is not fatal
+            // here: later status queries surface real I/O errors themselves.
+            if !confirmed && Instant::now() - last_ping >= super::HANDSHAKE_PING_INTERVAL {
+                let _ = session.port.write_all(b"?").await;
+                last_ping = Instant::now();
+            }
+
+            // Once confirmed only a short gap has to stay silent, so read in
+            // small windows and leave as soon as the flow stops.
+            let read_window = if confirmed {
+                super::HANDSHAKE_DRAIN_GAP
+            } else {
+                super::HANDSHAKE_PING_INTERVAL
+            };
+            let read_window = read_window.min(deadline.saturating_duration_since(Instant::now()));
+
+            match timeout(read_window, session.port.read(&mut chunk)).await {
+                // EOF or I/O failure: give up silently, the real query reports it.
+                Ok(Ok(0)) | Ok(Err(_)) => return,
+                Ok(Ok(n)) => {
+                    last_activity = Instant::now();
+                    session.rx_buffer.extend_from_slice(&chunk[..n]);
+                    // Parse and discard every whole line accumulated so far.
+                    loop {
+                        match Self::extract_line(&mut session.rx_buffer) {
+                            Ok(Some(line)) => {
+                                if (line.starts_with('<') && line.ends_with('>'))
+                                    || line.starts_with("Grbl ")
+                                {
+                                    confirmed = true;
+                                }
+                            }
+                            Ok(None) => break,
+                            Err(_) => {
+                                // Oversized or non-UTF-8 boot noise: drop it
+                                // so it can never leak into a later command.
+                                session.rx_buffer.clear();
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    // No bytes during this window.
+                    if confirmed && last_activity.elapsed() >= super::HANDSHAKE_DRAIN_GAP {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     /// Sends the realtime `?` request and returns the `<...>` status report
     /// line. Unlike `send_command`, a timeout here does not poison the
     /// protocol: a lost status reply does not desynchronize the ACK queue.
+    /// The first call after [`GrblAdapter::connect`] runs the startup
+    /// handshake because opening the port resets Arduino boards.
     pub(super) async fn query_status(session: &mut Session) -> CncResult<String> {
+        if session.handshake_pending {
+            Self::run_startup_handshake(session).await;
+        }
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
         if let Err(error) = session.port.write_all(b"?").await {
             session.protocol_poisoned = true;
@@ -54,6 +135,12 @@ impl GrblAdapter {
     /// A timeout poisons the protocol because the settings reply is a normal
     /// command transaction.
     pub(super) async fn query_settings(session: &mut Session) -> CncResult<HashMap<u16, f64>> {
+        // Same startup synchronization as the command path: `$$` is often the
+        // very first exchange (worker boot reads the machine configuration),
+        // and the pending boot chatter must not break the reply collection.
+        if session.handshake_pending {
+            Self::run_startup_handshake(session).await;
+        }
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
         if let Err(error) = session.port.write_all(b"$$\n").await {
             session.protocol_poisoned = true;

@@ -22,9 +22,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use super::super::state::AppState;
-use super::{
-    http_lite, join_path, normalize_path, FsError, FileEntry, FileListResult, FsSource,
-};
+use super::{http_lite, join_path, normalize_path, FileEntry, FileListResult, FsError, FsSource};
 
 /// Timeout for metadata-sized requests (listing, mkdir, delete, move).
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -149,7 +147,11 @@ fn remote_path(path: &str) -> Result<String, FsError> {
 }
 
 /// Lists one directory on a FluidNC volume via the action API.
-pub(crate) async fn list(address: &str, source: FsSource, path: &str) -> Result<FileListResult, FsError> {
+pub(crate) async fn list(
+    address: &str,
+    source: FsSource,
+    path: &str,
+) -> Result<FileListResult, FsError> {
     let dir = remote_path(path)?;
     let target = format!(
         "{}?action=list&filename=all&path={}",
@@ -160,14 +162,25 @@ pub(crate) async fn list(address: &str, source: FsSource, path: &str) -> Result<
         .await
         .map_err(transport_error)?;
     if response.status != 200 {
-        return Err(transport_error(format!("listing HTTP status {}", response.status)));
+        return Err(transport_error(format!(
+            "listing HTTP status {}",
+            response.status
+        )));
     }
     parse_list_json(&response.body, source, &dir)
 }
 
 /// Downloads one whole file through WebDAV `GET`.
-pub(crate) async fn read_bytes(address: &str, source: FsSource, path: &str) -> Result<Vec<u8>, FsError> {
-    let target = format!("{}{}", volume_prefix(source), http_lite::percent_encode(&remote_path(path)?));
+pub(crate) async fn read_bytes(
+    address: &str,
+    source: FsSource,
+    path: &str,
+) -> Result<Vec<u8>, FsError> {
+    let target = format!(
+        "{}{}",
+        volume_prefix(source),
+        http_lite::percent_encode(&remote_path(path)?)
+    );
     let response = http_lite::request(address, "GET", &target, &[], None, TRANSFER_TIMEOUT)
         .await
         .map_err(transport_error)?;
@@ -186,7 +199,11 @@ pub(crate) async fn write_bytes(
     path: &str,
     data: &[u8],
 ) -> Result<(), FsError> {
-    let target = format!("{}{}", volume_prefix(source), http_lite::percent_encode(&remote_path(path)?));
+    let target = format!(
+        "{}{}",
+        volume_prefix(source),
+        http_lite::percent_encode(&remote_path(path)?)
+    );
     let response = http_lite::request(
         address,
         "PUT",
@@ -208,7 +225,11 @@ pub(crate) async fn write_bytes(
 
 /// Creates one directory through WebDAV `MKCOL`.
 pub(crate) async fn make_dir(address: &str, source: FsSource, path: &str) -> Result<(), FsError> {
-    let target = format!("{}{}", volume_prefix(source), http_lite::percent_encode(&remote_path(path)?));
+    let target = format!(
+        "{}{}",
+        volume_prefix(source),
+        http_lite::percent_encode(&remote_path(path)?)
+    );
     let response = http_lite::request(address, "MKCOL", &target, &[], None, REQUEST_TIMEOUT)
         .await
         .map_err(transport_error)?;
@@ -222,7 +243,11 @@ pub(crate) async fn make_dir(address: &str, source: FsSource, path: &str) -> Res
 
 /// Deletes one file or directory through WebDAV `DELETE`.
 pub(crate) async fn remove(address: &str, source: FsSource, path: &str) -> Result<(), FsError> {
-    let target = format!("{}{}", volume_prefix(source), http_lite::percent_encode(&remote_path(path)?));
+    let target = format!(
+        "{}{}",
+        volume_prefix(source),
+        http_lite::percent_encode(&remote_path(path)?)
+    );
     let response = http_lite::request(address, "DELETE", &target, &[], None, REQUEST_TIMEOUT)
         .await
         .map_err(transport_error)?;
@@ -314,7 +339,8 @@ mod tests {
 
     #[test]
     fn list_json_accepts_numeric_usage_and_missing_sd() {
-        let numeric = br#"{"files":[],"path":"/","total":99,"used":1,"occupation":0,"status":"Ok"}"#;
+        let numeric =
+            br#"{"files":[],"path":"/","total":99,"used":1,"occupation":0,"status":"Ok"}"#;
         let list = parse_list_json(numeric, FsSource::Controller, "/").expect("parse");
         assert_eq!(list.total_bytes, Some(99));
         assert!(list.entries.is_empty());
@@ -326,7 +352,10 @@ mod tests {
 
     #[test]
     fn remote_paths_are_normalized_or_rejected() {
-        assert_eq!(remote_path("dir//sub/").as_deref().unwrap_or("?"), "/dir/sub");
+        assert_eq!(
+            remote_path("dir//sub/").as_deref().unwrap_or("?"),
+            "/dir/sub"
+        );
         assert!(matches!(
             remote_path("../x"),
             Err(e) if e.key == "files.error.badPath"

@@ -3,7 +3,7 @@
 //! acknowledgement loop. The `CncApi` trait implementation lives in `api.rs`.
 
 use super::{FluidNcWebSocketAdapter, Session, MAX_RESPONSE_LINE};
-use crate::{ControllerError, CncResult};
+use crate::{CncResult, ControllerError};
 use futures_util::{SinkExt, StreamExt};
 use std::time::{Duration, Instant};
 use tokio::time::timeout;

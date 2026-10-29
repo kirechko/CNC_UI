@@ -10,7 +10,7 @@ use crate::types::{
     Axis, CncEvent, CoordinateSystem, JogRequest, MachineConfiguration, MachineState,
     MachineStatus, OverrideKind, ProgramSource, SpindleCommand,
 };
-use crate::{discovery, ControllerError, CncResult};
+use crate::{discovery, CncResult, ControllerError};
 use std::path::Path;
 
 /// Return the coarse UI state represented by a controller status snapshot.

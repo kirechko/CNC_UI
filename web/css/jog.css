@@ -58,14 +58,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* On horizontal overflow the row must start-align so the excess goes to the
+     right (scrollable) instead of clipping the dial at the left panel edge.
+     Browsers without the `safe` keyword keep the plain `center` above. */
+  justify-content: safe center;
   gap: var(--panel-gap);
 }
 
-/* Dial container uses the fluid dial size so it shrinks before the right panel is hidden. */
+/* Dial container uses the fluid dial size; shrink is off because the canvas
+   inside keeps `var(--dial-size)` — a shrunken box with an unshrunken canvas
+   would let the dial stick out and be clipped. The size is adapted through
+   the `--dial-size` override written by jog-dial-fit.js instead. */
 .jog-dial-control {
   position: relative;
   display: grid;
-  flex: 0 1 var(--dial-size);
+  flex: 0 0 var(--dial-size);
   place-items: center;
 }
 
@@ -138,20 +145,20 @@
   gap: 3px;
 }
 
+/* calc() (not a percentage) because the flex row's cross-size is auto; jog-z-fit.js
+   later overrides this with an explicit pixel height anyway. */
 .jog-dial-z-steps {
   position: relative;
-  height: 92%;
+  height: calc(var(--dial-size) * 0.92);
   align-self: flex-end;
   margin-bottom: 4%;
   grid-template-rows: 12px repeat(4, minmax(0, 1fr)) 6px repeat(4, minmax(0, 1fr));
   gap: 2px;
 }
 
-.jog-dial-z-steps button {
-  min-height: 0;
-  transform: none;
-}
-
+/* Button appearance for the stepped Z column lives in the shared block near the
+   end of this file (`.jog-dial-z > button`): min-height must stay 0 so the rows
+   squeezed by jog-z-fit.js cannot make buttons overflow their tracks. */
 .jog-steps-dialog {
   width: min(340px, calc(100vw - 32px));
 }
@@ -194,28 +201,44 @@
   font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.jog-dial-z-steps .jog-dial-z-label {
+/* The label sits in a fixed 12px track in both Z columns, exactly like the
+   12px rotary header row, so Z and A–C step/continuous boxes line up. */
+.jog-dial-z-steps .jog-dial-z-label,
+.jog-dial-z-continuous .jog-dial-z-label {
   height: 12px;
   line-height: 12px;
 }
 
+/* Continuous Z column: same outer box as the stepped column (92% of the dial,
+   bottom-aligned, 4% footer margin) so the rotary A–C container — which always
+   mirrors this height — stays pixel-identical to Z in BOTH motion modes. calc()
+   on --dial-size is used instead of a percentage because the flex row has an
+   auto cross-size, where a percentage height would collapse to content. The
+   fixed 12px label track matches the rotary header track and the label track
+   of .jog-dial-z-steps, and gap 2px matches the rotary column gaps exactly:
+   button height works out to (columnHeight - 16) / 2 in both columns. */
 .jog-dial-z-continuous {
-  grid-template-rows: auto repeat(2, minmax(0, 1fr));
-}
-
-.jog-dial-z-continuous button {
-  min-height: 0;
-  font-size: var(--font-size-sm);
+  height: calc(var(--dial-size) * 0.92);
+  align-self: flex-end;
+  margin-bottom: 4%;
+  grid-template-rows: 12px repeat(2, minmax(0, 1fr));
+  gap: 2px;
 }
 
 .jog-dial-z[hidden] {
   display: none;
 }
 
-/* Rotary columns A–C: a flex row of narrow columns, same height as the Z column. */
+/* Rotary columns A–C: a flex row of narrow columns, same height as the Z column.
+   calc(var(--dial-size) * 0.92) mirrors the Z columns exactly (a percentage
+   height would be indefinite in the auto-sized flex row and collapse to
+   content). 92% of the dial keeps the A–C boxes pixel-identical to Z in both
+   motion modes; in stepped mode jog-z-fit.js overrides this with an explicit
+   pixel height equal to the Z column's, and in continuous mode it clears the
+   override so this rule rules again. */
 .jog-rotary-columns {
   display: flex;
-  height: var(--dial-size);
+  height: calc(var(--dial-size) * 0.92);
   gap: 4px;
   /* Same bottom alignment as the Z steps column (.jog-dial-z-steps). */
   align-self: flex-end;
@@ -271,39 +294,15 @@
   display: none;
 }
 
-.jog-rotary-step {
-  min-height: 0;
-  min-width: 0;
-  padding: 0 2px;
-  border: 1px solid var(--accent-border);
-  border-radius: 4px;
-  background: var(--bg-button);
-  color: var(--accent-text-bright);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.jog-rotary-step[data-direction="-1"] {
-  color: var(--accent-text-dim);
-}
-
-/* Continuous buttons of A–C: two buttons (▲ / ▼) filling the rows below the header. */
+/* Continuous buttons of A–C: two buttons (▲ / ▼) filling the rows below the header.
+   The 2px gap mirrors the continuous Z column so both columns compute the same
+   button height ((columnHeight - 16) / 2: header/label 12px + outer gap 2px). */
 .jog-rotary-continuous {
   grid-row: 2;
   display: grid;
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 3px;
+  gap: 2px;
   min-height: 0;
-}
-
-.jog-rotary-continuous button {
-  min-height: 0;
-  padding: 0 4px;
-  border-color: var(--accent-border);
-  color: var(--accent-text-bright);
-  font-size: var(--font-size-sm);
 }
 
 .jog-dial-z-label {
@@ -313,23 +312,69 @@
   text-align: center;
 }
 
-.jog-dial-z button {
+/* -------------------------------------------------------------------------
+ * ONE appearance for every button of the dial jog columns: stepped Z,
+ * stepped A–C and both continuous pairs. They used to diverge — Z captions
+ * were 12px regular on the raised surface with a 7px corner radius, A–C were
+ * 10px bold on --bg-button with a 4px radius and tighter padding — so the two
+ * columns did not read as the same control family. All visual properties now
+ * live in this single block; the per-column rules elsewhere only carry the
+ * grid geometry that jog-z-fit.js depends on (rows, gaps, label track).
+ *
+ * `min-height: 0` is essential: the fit script squeezes the grid rows, and any
+ * fixed minimum (the old 24px here) would push neighbouring buttons out of
+ * their tracks so they overlap.
+ * `box-sizing: border-box` keeps the 42px box identical for both columns.
+ * ---------------------------------------------------------------------- */
+.jog-dial-z > button,
+.jog-rotary-step,
+.jog-rotary-continuous > button {
+  box-sizing: border-box;
   min-width: 42px;
-  min-height: 24px;
+  min-height: 0;
   padding: 0 4px;
-  border-color: var(--accent-border);
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  background-color: var(--bg-button);
   color: var(--accent-text-bright);
-  font-size: var(--font-size-sm);
-  /* No scale: Z buttons must match the A–C step buttons exactly (vert.png requirement). */
+  cursor: pointer;
+  /* No scale: a dial button must never grow past the grid track it sits in. */
   transform: none;
+}
+
+/* Numeric step captions of Z and A–C: same type size, weight and leading. */
+.jog-dial-z.jog-dial-z-steps > button,
+.jog-rotary-step {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Continuous pairs show one arrow glyph, so they share a larger size. */
+.jog-dial-z.jog-dial-z-continuous > button,
+.jog-rotary-continuous > button {
+  font-size: var(--font-size-sm);
+}
+
+/* Negative-direction captions are dimmed in every column, not just in Z. */
+.jog-dial-z > button[data-direction="-1"],
+.jog-rotary-step[data-direction="-1"],
+.jog-rotary-continuous > button[data-direction="-1"] {
+  color: var(--accent-text-dim);
+}
+
+/* The global `button:hover` (base.css) is no more specific than the shared
+   block above, so the hover affordance has to be restated for these buttons;
+   without it the Z and A–C columns would react differently to the pointer. */
+.jog-dial-z > button:hover:not(:disabled),
+.jog-rotary-step:hover:not(:disabled),
+.jog-rotary-continuous > button:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  background-color: var(--surface-hover);
 }
 
 #jog-dial-panel:not([hidden]) {
   margin-top: -7px;
-}
-
-.jog-dial-z button[data-direction="-1"] {
-  color: var(--accent-text-dim);
 }
 
 .jog-dial-gap {

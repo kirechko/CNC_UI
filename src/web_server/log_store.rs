@@ -81,7 +81,14 @@ pub(crate) fn open_log() -> io::Result<Connection> {
                  last_seen_ms INTEGER NOT NULL
              );
              CREATE INDEX IF NOT EXISTS discovered_machine_cache_last_seen
-                 ON discovered_machine_cache(last_seen_ms DESC);",
+                 ON discovered_machine_cache(last_seen_ms DESC);
+             CREATE TABLE IF NOT EXISTS user_macros (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 description TEXT NOT NULL,
+                 body TEXT NOT NULL,
+                 invocations TEXT NOT NULL
+             );",
         )
         .map_err(|error| startup_error(format!("cannot initialize message log: {error}")))?;
     // Rewrite severities stored by older versions to the English identifiers.

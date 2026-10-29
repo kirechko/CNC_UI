@@ -114,7 +114,8 @@ fn build_request(
     headers: &[(&str, String)],
     body: Option<&[u8]>,
 ) -> Vec<u8> {
-    let mut text = format!("{method} {target} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n");
+    let mut text =
+        format!("{method} {target} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n");
     if let Some(data) = body {
         text.push_str(&format!("Content-Length: {}\r\n", data.len()));
     }
@@ -143,12 +144,14 @@ fn parse_response(raw: &[u8]) -> Result<HttpResponse, String> {
         .ok_or("missing status line")?;
     let body_start = header_end + 4;
     let rest = &raw[body_start.min(raw.len())..];
-    let chunked = head.lines().any(|line| {
-        line.starts_with("transfer-encoding:") && line.contains("chunked")
-    });
+    let chunked = head
+        .lines()
+        .any(|line| line.starts_with("transfer-encoding:") && line.contains("chunked"));
     let body = if chunked {
         decode_chunked(rest)?
-    } else if let Some(length) = header_value(&head, "content-length").and_then(|v| v.parse::<usize>().ok()) {
+    } else if let Some(length) =
+        header_value(&head, "content-length").and_then(|v| v.parse::<usize>().ok())
+    {
         // With `Connection: close` we normally read to EOF; trust EOF but
         // surface a short body so truncating middle-proxy bugs are visible.
         if rest.len() < length {
@@ -186,12 +189,15 @@ fn decode_chunked(mut data: &[u8]) -> Result<Vec<u8>, String> {
             .next()
             .unwrap_or("")
             .trim();
-        let size = usize::from_str_radix(size_text, 16).map_err(|_| format!("bad chunk size {size_text:?}"))?;
+        let size = usize::from_str_radix(size_text, 16)
+            .map_err(|_| format!("bad chunk size {size_text:?}"))?;
         if size == 0 {
             break;
         }
         if out.len() + size > MAX_RESPONSE_BYTES {
-            return Err(format!("chunked body larger than {MAX_RESPONSE_BYTES} bytes"));
+            return Err(format!(
+                "chunked body larger than {MAX_RESPONSE_BYTES} bytes"
+            ));
         }
         data = &data[line_end + 2..];
         if data.len() < size {
@@ -251,7 +257,8 @@ mod tests {
 
     #[test]
     fn decode_chunked_handles_size_extensions() {
-        let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3;ext=1\r\nabc\r\n0\r\n\r\n";
+        let raw =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3;ext=1\r\nabc\r\n0\r\n\r\n";
         let response = parse_response(raw).expect("parse");
         assert_eq!(response.body, b"abc");
     }
@@ -267,7 +274,8 @@ mod tests {
     fn parse_takes_whole_remainder_without_content_length() {
         // `Connection: close` means "read to EOF": an unknown-length body is
         // valid and must not be truncated at the first chunk-looking line.
-        let response = parse_response(b"HTTP/1.1 200 OK\r\nX-Note: none\r\n\r\n4\r\nnope").expect("parse");
+        let response =
+            parse_response(b"HTTP/1.1 200 OK\r\nX-Note: none\r\n\r\n4\r\nnope").expect("parse");
         assert_eq!(response.status, 200);
         assert_eq!(response.body, b"4\r\nnope");
     }

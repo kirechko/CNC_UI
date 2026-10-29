@@ -2,7 +2,7 @@
 //! the realtime-command escape hatch that never waits for an `ok`.
 
 use super::{GrblAdapter, Session};
-use crate::{ControllerError, CncResult};
+use crate::{CncResult, ControllerError};
 use std::time::Duration;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -131,11 +131,30 @@ impl GrblAdapter {
         Ok(())
     }
 
-    /// Writes one command line and waits for its `ok` acknowledgement.
+    /// Writes one command line and waits for its `ok` acknowledgement with
+    /// the default [`super::RESPONSE_TIMEOUT`]. See
+    /// [`Self::send_command_with_timeout`] for the full contract.
+    pub(super) async fn send_command(session: &mut Session, command: &str) -> CncResult<()> {
+        Self::send_command_with_timeout(session, command, super::RESPONSE_TIMEOUT).await
+    }
+
+    /// Writes one command line and waits `ack_timeout` for its `ok`.
     /// Startup banners and asynchronous status reports are skipped; an
     /// `error:`/`ALARM:` reply aborts immediately. A lost acknowledgement
-    /// poisons the protocol so later calls fail fast.
-    pub(super) async fn send_command(session: &mut Session, command: &str) -> CncResult<()> {
+    /// poisons the protocol so later calls fail fast. The extended budget is
+    /// used by program streaming and `$H`, where GRBL legitimately blocks the
+    /// ACK (full planner buffer / homing cycle) far past 3 seconds.
+    pub(super) async fn send_command_with_timeout(
+        session: &mut Session,
+        command: &str,
+        ack_timeout: Duration,
+    ) -> CncResult<()> {
+        // Handshake first: the boot banner may include `ALARM:` lines that a
+        // raw command exchange would otherwise misread as replies to the
+        // freshly written command.
+        if session.handshake_pending {
+            Self::run_startup_handshake(session).await;
+        }
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
         Self::validate_command(command)?;
 
@@ -152,21 +171,18 @@ impl GrblAdapter {
             return Err(ControllerError::new("io", error.to_string()));
         }
 
-        match timeout(super::RESPONSE_TIMEOUT, async {
+        match timeout(ack_timeout, async {
             loop {
-                let line = match Self::read_line(
-                    &mut session.port,
-                    &mut session.rx_buffer,
-                    super::RESPONSE_TIMEOUT,
-                )
-                .await
-                {
-                    Ok(line) => line,
-                    Err(error) => {
-                        session.protocol_poisoned = true;
-                        return Err(error);
-                    }
-                };
+                let line =
+                    match Self::read_line(&mut session.port, &mut session.rx_buffer, ack_timeout)
+                        .await
+                    {
+                        Ok(line) => line,
+                        Err(error) => {
+                            session.protocol_poisoned = true;
+                            return Err(error);
+                        }
+                    };
                 if line == "ok" {
                     if let Some(system) = Self::coordinate_system_select(command) {
                         session.active_coordinate_system = system;

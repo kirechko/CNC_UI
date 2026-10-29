@@ -58,11 +58,20 @@ pub async fn run() -> io::Result<()> {
             get(discovery::get_discovered_machines).post(discovery::rediscover_machines),
         )
         .route("/api/machines/select", post(discovery::select_machine))
-        .route("/api/log", get(handlers::get_log).post(handlers::post_log_message))
+        .route(
+            "/api/log",
+            get(handlers::get_log).post(handlers::post_log_message),
+        )
         .route("/api/command", post(handlers::post_machine_command))
-        .route("/api/command/cancel", post(handlers::cancel_machine_command))
+        .route(
+            "/api/command/cancel",
+            post(handlers::cancel_machine_command),
+        )
         .route("/api/command-history", get(handlers::get_command_history))
-        .route("/api/program", get(handlers::get_program).post(handlers::post_program))
+        .route(
+            "/api/program",
+            get(handlers::get_program).post(handlers::post_program),
+        )
         .route("/api/toolpath", get(handlers::get_toolpath))
         .route("/api/program/run", post(handlers::start_program))
         .route("/api/program/pause", post(handlers::pause_program))
@@ -76,13 +85,20 @@ pub async fn run() -> io::Result<()> {
         .route("/api/jog/continuous-xy", post(handlers::jog_continuous_xy))
         .route("/api/jog/cancel", post(handlers::jog_cancel))
         .route("/api/jog/speed", post(handlers::jog_speed))
-        .route("/api/position/select", post(handlers::select_coordinate_system))
+        .route(
+            "/api/position/select",
+            post(handlers::select_coordinate_system),
+        )
         .route("/api/position/zero", post(handlers::zero_all))
         .route("/api/position/zero-axis", post(handlers::zero_axis))
         .route("/api/position/home", post(handlers::home_axis))
         .route("/api/position/home-all", post(handlers::home_all))
         .route("/api/position/set", post(handlers::set_axis_work_value))
         .route("/api/position/go", post(handlers::go_to_axis_work_value))
+        .route(
+            "/api/macros",
+            get(handlers::get_macros).put(handlers::put_macros),
+        )
         .route("/api/files/sources", get(handlers::get_files_sources))
         .route("/api/files/list", get(handlers::get_files_list))
         .route("/api/files/content", get(handlers::get_files_content))
@@ -101,4 +117,3 @@ pub async fn run() -> io::Result<()> {
     eprintln!("Warning: web controls have no authentication; use only on a trusted network.");
     axum::serve(listener, app).await
 }
-

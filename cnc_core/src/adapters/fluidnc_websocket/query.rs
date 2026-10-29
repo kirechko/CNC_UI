@@ -6,7 +6,7 @@
 use super::{FluidNcWebSocketAdapter, Session, STATUS_TIMEOUT_LIMIT};
 use crate::discovery::{DiscoveredDevice, DiscoveryTransport};
 use crate::{
-    AxisConfiguration, AxisUnits, ControllerError, CncResult, MachineAxis, MachineConfiguration,
+    AxisConfiguration, AxisUnits, CncResult, ControllerError, MachineAxis, MachineConfiguration,
     SpindleConfiguration,
 };
 use std::{collections::HashMap, sync::atomic::Ordering, time::Instant};

@@ -31,10 +31,7 @@ pub use snapshot::{ControllerSnapshot, SpindleDirection};
 
 use crate::cnc_api::{Axis, CncApi, CoordinateSystem, SpindleCommand};
 use std::path::PathBuf;
-use std::sync::{
-    atomic::AtomicBool,
-    mpsc, Arc, Mutex,
-};
+use std::sync::{atomic::AtomicBool, mpsc, Arc, Mutex};
 
 /// One unit of work handed from the UI thread to the API worker thread.
 ///
@@ -84,4 +81,3 @@ pub struct CNCController {
     /// Set when the UI requests an immediate motion halt.
     motion_stop_requested: Arc<AtomicBool>,
 }
-

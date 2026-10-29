@@ -121,7 +121,10 @@ pub(crate) async fn get_files_sources(
     Query(query): Query<FilesGetQuery>,
     headers: HeaderMap,
 ) -> Json<Vec<files::FsSourceInfo>> {
-    Json(files::sources(&state, negotiate(query.lang.as_deref(), &headers)))
+    Json(files::sources(
+        &state,
+        negotiate(query.lang.as_deref(), &headers),
+    ))
 }
 
 /// `GET /api/files/list?source=&path=`: one directory listing.
@@ -157,8 +160,12 @@ pub(crate) async fn get_files_content(
             language,
         ));
     }
-    let content = String::from_utf8(data)
-        .map_err(|_| fail(FsError::new("files.error.binary", base_name(&path)), language))?;
+    let content = String::from_utf8(data).map_err(|_| {
+        fail(
+            FsError::new("files.error.binary", base_name(&path)),
+            language,
+        )
+    })?;
     Ok(Json(serde_json::json!({
         "name": base_name(&path),
         "content": content,
@@ -190,7 +197,12 @@ pub(crate) async fn get_files_download(
             format!("attachment; filename*=UTF-8''{filename}"),
         )
         .body(axum::body::Body::from(data))
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "download build failed".to_string()))
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "download build failed".to_string(),
+            )
+        })
 }
 
 /// `POST /api/files/mkdir` with `{source,path,name}`.
@@ -247,7 +259,13 @@ fn parse_transfer(
 ) -> Result<(&'static str, FsSource, String, FsSource, String), (StatusCode, String)> {
     let (language, source, path) = parse_mutation(body, headers)?;
     let destination = FsSource::parse(body.to_source.as_deref().unwrap_or(&body.source))
-        .ok_or_else(|| bad_request(language, "files.error.badSource", body.to_source.clone().unwrap_or_default()))?;
+        .ok_or_else(|| {
+            bad_request(
+                language,
+                "files.error.badSource",
+                body.to_source.clone().unwrap_or_default(),
+            )
+        })?;
     let to_dir = parse_path(body.to_dir.as_deref(), language)?;
     Ok((language, source, path, destination, to_dir))
 }
@@ -293,7 +311,15 @@ pub(crate) async fn post_files_upload(
     // with a localized `tooLarge` instead of the generic 413.
     let data = axum::body::to_bytes(request.into_body(), MAX_UPLOAD_BYTES)
         .await
-        .map_err(|_| fail(FsError::new("files.error.tooLarge", format!("{MAX_UPLOAD_BYTES} bytes max")), language))?;
+        .map_err(|_| {
+            fail(
+                FsError::new(
+                    "files.error.tooLarge",
+                    format!("{MAX_UPLOAD_BYTES} bytes max"),
+                ),
+                language,
+            )
+        })?;
     files::write_bytes(&state, source, &files::join_path(&dir, &name), &data)
         .await
         .map(|()| StatusCode::NO_CONTENT)

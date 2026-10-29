@@ -12,7 +12,7 @@ use crate::discovery::{
     FluidNcDiscoveryConfig,
 };
 use crate::{
-    machine_state, ControllerError, CncEvent, CncResult, CoordinateSystem, MachineState,
+    machine_state, CncEvent, CncResult, ControllerError, CoordinateSystem, MachineState,
     MachineStatus, SpindleCommand, SpindleDirection,
 };
 use std::{
@@ -215,7 +215,11 @@ impl FluidNcWebSocketAdapter {
             return Ok(());
         }
 
-        if self.discovery_enabled && self.auto_connected.load(std::sync::atomic::Ordering::SeqCst) {
+        if self.discovery_enabled
+            && self
+                .auto_connected
+                .load(std::sync::atomic::Ordering::SeqCst)
+        {
             return Err(ControllerError::new(
                 "disconnected",
                 "FluidNC connection was lost; reconnect manually",
@@ -226,10 +230,13 @@ impl FluidNcWebSocketAdapter {
             let url = self.url.clone().ok_or_else(|| {
                 ControllerError::new("connect", "FluidNC WebSocket URL is not configured")
             })?;
-            let (socket, _) = tokio::time::timeout(self.config.connect_timeout, connect_async(&url))
-                .await
-                .map_err(|_| ControllerError::new("timeout", "timed out connecting to FluidNC"))?
-                .map_err(|error| ControllerError::new("connect", error.to_string()))?;
+            let (socket, _) =
+                tokio::time::timeout(self.config.connect_timeout, connect_async(&url))
+                    .await
+                    .map_err(|_| {
+                        ControllerError::new("timeout", "timed out connecting to FluidNC")
+                    })?
+                    .map_err(|error| ControllerError::new("connect", error.to_string()))?;
             session.socket = Some(socket);
             tracing::info!(%url, "connected to configured FluidNC WebSocket");
             let _ = self.events.send(CncEvent::Connected);

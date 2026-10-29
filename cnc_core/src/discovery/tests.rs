@@ -3,12 +3,13 @@
 //! filtering (against `probe`) and per-transport device identity.
 
 use super::{
-    DiscoveredDevice, DiscoveryTransport, FluidNcIdentity, fluidnc_websocket_address,
+    fluidnc_websocket_address,
     probe::{
-        TELNET_DO, TELNET_DONT, TELNET_IAC, TELNET_WILL, TELNET_WONT, TelnetParseState,
-        fluidnc_identity, parse_telnet_bytes,
+        fluidnc_identity, parse_telnet_bytes, TelnetParseState, TELNET_DO, TELNET_DONT, TELNET_IAC,
+        TELNET_WILL, TELNET_WONT,
     },
-    targets::{Ipv4Cidr, discovery_targets},
+    targets::{discovery_targets, Ipv4Cidr},
+    DiscoveredDevice, DiscoveryTransport, FluidNcIdentity,
 };
 use std::net::Ipv4Addr;
 
@@ -80,9 +81,7 @@ fn identity_extracts_fluidnc_metadata_and_requires_complete_ack() {
         })
     );
     assert_eq!(
-        fluidnc_identity(
-            "[VER:4.1 FluidNC v4.1.1 (build 123)]\n[MSG:Machine:Test Router]\nok\n"
-        ),
+        fluidnc_identity("[VER:4.1 FluidNC v4.1.1 (build 123)]\n[MSG:Machine:Test Router]\nok\n"),
         Some(FluidNcIdentity {
             version: Some("4.1.1".into()),
             machine_name: Some("Test Router".into()),

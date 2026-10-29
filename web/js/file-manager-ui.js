@@ -1,6 +1,5 @@
-// File-manager panel UI: rendered lazily inside `#sidebar-content` (right
-// after the legacy `.sidebar-empty` placeholder) and shown only while the
-// FILES tab is active, so the MACROS tab keeps the original look. Provides
+// File-manager panel UI: rendered lazily inside `#files-panel` and displayed
+// only while the FILES tab is active. Provides
 // source chips (host / FluidNC flash / SD card), a path bar, folder listings
 // and per-entry actions: open, download, copy/cut+paste, rename, delete, plus
 // new-folder and upload controls.
@@ -40,8 +39,8 @@ import {
  * @param {object} app Shared application bag (`app.program`, `app.scene`).
  */
 export function initFileManager(app) {
-  const sidebar = document.querySelector("#sidebar-content");
-  if (!sidebar || document.querySelector("#file-manager")) return;
+  const filesPanel = document.querySelector("#files-panel");
+  if (!filesPanel || document.querySelector("#file-manager")) return;
 
   // Panel state: selected source + directory, the last listing, the pending
   // clipboard entry and a re-entrancy guard for all async operations.
@@ -90,7 +89,7 @@ export function initFileManager(app) {
   listBox.setAttribute("aria-live", "polite");
 
   root.append(chipsRow, pathBar, usageLine, actionRow, listBox);
-  sidebar.appendChild(root);
+  filesPanel.appendChild(root);
 
   /** Replaces the source chips; disabled chips cannot be selected. */
   function renderChips() {
@@ -400,25 +399,16 @@ export function initFileManager(app) {
     }
   }
 
-  // Visibility follows the sidebar tabs: both tabs share `#sidebar-content`,
-  // so the panel is hidden for MACROS and the placeholder keeps working.
-  const filesTab = document.querySelector("#files-tab");
-  const macrosTab = document.querySelector("#macros-tab");
-
-  /** Shows or hides the panel; showing triggers a fresh load. */
-  function setVisible(visible) {
-    root.hidden = !visible;
-    if (visible) refresh();
-  }
-
-  filesTab?.addEventListener("click", () => setVisible(true));
-  macrosTab?.addEventListener("click", () => setVisible(false));
+  // Refresh the listing whenever the shared tab controller activates FILES.
+  window.addEventListener("cnc-sidebar-tab-changed", (event) => {
+    if (event.detail?.tab === "files") refresh();
+  });
 
   // Re-render translated labels after a runtime locale switch; the backend
   // labels and error texts follow `lang` automatically on the next refresh.
   window.addEventListener("cnc-locale-changed", () => {
-    if (!root.hidden) refresh();
+    if (!filesPanel.hidden) refresh();
   });
 
-  setVisible(filesTab ? filesTab.getAttribute("aria-selected") === "true" : true);
+  if (!filesPanel.hidden) refresh();
 }

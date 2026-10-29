@@ -5,7 +5,7 @@
 //! the limits announced by the controller settings (`$$`).
 
 use super::GrblAdapter;
-use crate::{ControllerError, CncResult, SpindleCommand, SpindleDirection};
+use crate::{CncResult, ControllerError, SpindleCommand, SpindleDirection};
 
 impl GrblAdapter {
     /// Checks the requested RPM against the configured spindle range.

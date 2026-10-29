@@ -4,9 +4,9 @@
 //! of `state`; these handlers only parse the wire arguments and forward them
 //! to the matching `Emulator` methods.
 
-use crate::protocol::{api_error, WireError};
 use super::super::{axis_index, Emulator};
 use crate::cnc_api::*;
+use crate::protocol::{api_error, WireError};
 use serde_json::Value;
 
 /// Switch the active coordinate system (G54..G59.3).

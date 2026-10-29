@@ -150,7 +150,13 @@ fn locate_on_parsed_arc_reports_arc_distance() {
 
     // Arc midpoint at 45 degrees: 10 mm of line plus half of the quarter arc.
     let mid_angle = std::f64::consts::FRAC_PI_4;
-    let mid = toolpath.locate(&to_position([10.0 * mid_angle.cos(), -10.0 * mid_angle.sin(), 0.0])).unwrap();
+    let mid = toolpath
+        .locate(&to_position([
+            10.0 * mid_angle.cos(),
+            -10.0 * mid_angle.sin(),
+            0.0,
+        ]))
+        .unwrap();
     assert_eq!(mid.program_line, Some(2));
     let expected_mid = 10.0 + quarter_arc / 2.0;
     assert!(

@@ -165,16 +165,30 @@ export function initJogZFit({ steps, layout, boundary, dialCanvas, rotaryColumns
   function fit() {
     scheduled = false;
     // Skip while the Z column is not rendered (continuous mode or hidden panel).
-    if (steps.getClientRects().length === 0) return;
+    if (steps.getClientRects().length === 0) {
+      // Release the pixel height copied from the last stepped fit so the A–C
+      // container follows its CSS geometry (92% of --dial-size) instead of a
+      // stale value; otherwise Z and A–C would be mismatched in continuous mode.
+      if (rotaryColumns) rotaryColumns.style.removeProperty("height");
+      return;
+    }
 
     const available = boundary.getBoundingClientRect().bottom - layout.getBoundingClientRect().top;
     const fullHeight = dialCanvas.getBoundingClientRect().height * FULL_HEIGHT_RATIO;
+
+    // The column can never be taller than the dial, so the button budget is the
+    // SMALLER of the panel's free space and the dial-derived full height. When
+    // jog-dial-fit.js shrinks the dial horizontally (narrow panel), fullHeight
+    // drops below `available`; comparing only with `available` would keep all
+    // eight buttons in a box that is now too short for them, and the buttons
+    // (min-height 24px) would visually pile up on each other.
+    const budget = Math.min(available, fullHeight);
 
     // Find the smallest number of hidden buttons that lets the column fit.
     let chosen = SHRINK_ORDER.length;
     for (let hidden = 0; hidden <= SHRINK_ORDER.length; hidden += 1) {
       const counts = visibleCounts(hidden);
-      if (requiredHeight(counts.upper, counts.lower) <= available) {
+      if (requiredHeight(counts.upper, counts.lower) <= budget) {
         chosen = hidden;
         break;
       }

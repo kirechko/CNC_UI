@@ -141,8 +141,8 @@ impl EmAdapter {
 impl CncApi for EmAdapter {
     async fn status(&self) -> CncResult<MachineStatus> {
         let value = self.call("status", json!({})).await?;
-        let mut status: MachineStatus =
-            serde_json::from_value(value).map_err(|e| ControllerError::new("protocol", e.to_string()))?;
+        let mut status: MachineStatus = serde_json::from_value(value)
+            .map_err(|e| ControllerError::new("protocol", e.to_string()))?;
         // Progress is derived on the backend from the tool position and the parsed toolpath.
         // One coordinate frame is used everywhere: the work frame (active G54 etc.), in which
         // the G-code program is written. The machine position is converted once here, and the
@@ -164,7 +164,10 @@ impl CncApi for EmAdapter {
     /// (`emulator:unix_socket:<path>`), so the UI can highlight the emulator
     /// row of the machines dialog exactly like a FluidNC row.
     fn connected_device_id(&self) -> Option<String> {
-        Some(format!("emulator:unix_socket:{}", self.socket_path.display()))
+        Some(format!(
+            "emulator:unix_socket:{}",
+            self.socket_path.display()
+        ))
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {

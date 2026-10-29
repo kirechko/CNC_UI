@@ -45,7 +45,8 @@ impl ProgramTracking {
             return;
         }
         match interpreter_state {
-            crate::cnc_api::InterpreterState::Reading | crate::cnc_api::InterpreterState::Paused => {
+            crate::cnc_api::InterpreterState::Reading
+            | crate::cnc_api::InterpreterState::Paused => {
                 self.seen_running = true;
             }
             crate::cnc_api::InterpreterState::Idle if self.seen_running => self.stopped(),

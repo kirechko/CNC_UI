@@ -49,8 +49,21 @@ mod tests;
 
 /// How long a regular command waits for its `ok`/`error` acknowledgement.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
+/// Extended ACK budget for streamed program lines. GRBL only acknowledges a
+/// line once there is room in the planner buffer again, so a full buffer in
+/// front of a long feed move can delay the `ok` of the pending line far past
+/// the regular 3-second window. Treating that as a protocol failure would
+/// poison the session while the machine is simply executing a slow block.
+const PROGRAM_ACK_TIMEOUT: Duration = Duration::from_secs(45);
 /// How long the realtime `?` status request waits for a report line.
 const STATUS_TIMEOUT: Duration = Duration::from_secs(1);
+/// Overall budget for the startup handshake that synchronizes with GRBL after
+/// the serial port open (which toggles DTR/RTS and resets Arduino boards).
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(3500);
+/// How long the handshake waits for bytes between two realtime `?` pings.
+const HANDSHAKE_PING_INTERVAL: Duration = Duration::from_millis(500);
+/// Quiet period after which the boot-noise drain considers the port idle.
+const HANDSHAKE_DRAIN_GAP: Duration = Duration::from_millis(120);
 /// Largest accepted length of a single GRBL response line, in bytes.
 const MAX_RESPONSE_LINE: usize = 4096;
 /// GRBL accepts at most this many bytes per command line.
@@ -73,6 +86,12 @@ struct ContinuousJog {
 struct Session {
     port: SerialStream,
     rx_buffer: Vec<u8>,
+    /// True until the startup handshake (soft reset + banner/status sync) has
+    /// completed once. Opening the port toggles DTR/RTS, which resets most
+    /// Arduino-based GRBL boards and makes them emit a boot banner; deferring
+    /// the handshake to the first status query keeps `connect()` synchronous
+    /// and non-blocking for the runtime that hosts the adapter.
+    handshake_pending: bool,
     work_offsets: HashMap<CoordinateSystem, [f64; 3]>,
     protocol_poisoned: bool,
     program_streaming: bool,

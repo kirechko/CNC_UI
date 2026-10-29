@@ -5,9 +5,9 @@
 //! parent `discovery` module so external call paths stay unchanged.
 
 use super::{
-    DISCOVERY_MAX_PREFIX, DiscoveredDevice, DiscoveryTransport, FluidNcDiscoveryConfig,
     probe::{probe_fluidnc_telnet, probe_fluidnc_websocket},
-    targets::{Ipv4Cidr, default_route_gateway, discovery_targets, traced_private_networks},
+    targets::{default_route_gateway, discovery_targets, traced_private_networks, Ipv4Cidr},
+    DiscoveredDevice, DiscoveryTransport, FluidNcDiscoveryConfig, DISCOVERY_MAX_PREFIX,
 };
 use crate::{CncResult, ControllerError};
 use std::{

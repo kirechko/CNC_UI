@@ -6,8 +6,8 @@
 use super::{FluidNcWebSocketAdapter, Session};
 use crate::toolpath::ToolpathProgress;
 use crate::{
-    ControllerError, CncEvent, CncResult, InterpreterState, MachineStatus, Position,
-    SpindleStatus, TaskMode,
+    CncEvent, CncResult, ControllerError, InterpreterState, MachineStatus, Position, SpindleStatus,
+    TaskMode,
 };
 
 impl FluidNcWebSocketAdapter {
@@ -235,13 +235,12 @@ impl FluidNcWebSocketAdapter {
                     found
                 }
                 // No match in the window: keep the last reported part, update only the tool marker.
-                None => session.last_progress.map_or_else(
-                    ToolpathProgress::unavailable,
-                    |last| ToolpathProgress {
+                None => session
+                    .last_progress
+                    .map_or_else(ToolpathProgress::unavailable, |last| ToolpathProgress {
                         tool_position: Some(work_position.clone()),
                         ..last
-                    },
-                ),
+                    }),
             }
         } else {
             session.last_progress = None;

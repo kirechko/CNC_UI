@@ -1,7 +1,6 @@
 /* File-manager panel: source chips, path bar, volume usage line, action row
-   and the scrollable directory listing rendered inside `#sidebar-content` by
-   file-manager-ui.js. The panel occupies the FILES tab; `hidden` on the root
-   keeps the legacy placeholder alone in the MACROS tab. */
+   and the scrollable directory listing mounted inside `#files-panel` by
+   file-manager-ui.js. The sidebar controller shows this panel only on FILES. */
 .file-manager {
   display: flex;
   flex-direction: column;

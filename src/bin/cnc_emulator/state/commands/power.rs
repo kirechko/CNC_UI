@@ -4,9 +4,9 @@
 //! shared [`Emulator`] status struct. They are invoked only through the
 //! dispatcher in the parent `commands` module.
 
-use crate::protocol::{api_error, WireError};
 use super::super::Emulator;
 use crate::cnc_api::*;
+use crate::protocol::{api_error, WireError};
 use serde_json::Value;
 
 /// Power the virtual machine on: accept commands and clear any alarm gate.

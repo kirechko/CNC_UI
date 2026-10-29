@@ -40,7 +40,9 @@ fn dictionaries() -> &'static HashMap<&'static str, HashMap<String, String>> {
                 let parsed: HashMap<String, String> = match serde_json::from_str::<Value>(source) {
                     Ok(Value::Object(map)) => map
                         .into_iter()
-                        .filter_map(|(key, value)| value.as_str().map(|text| (key, text.to_string())))
+                        .filter_map(|(key, value)| {
+                            value.as_str().map(|text| (key, text.to_string()))
+                        })
                         .collect(),
                     _ => panic!("embedded locale {language} is not a JSON object"),
                 };
@@ -116,7 +118,10 @@ pub(crate) fn translate(language: &str, key: &str, params: &[(&str, String)]) ->
     let template = all
         .get(language)
         .and_then(|dictionary| dictionary.get(key))
-        .or_else(|| all.get(DEFAULT_LANGUAGE).and_then(|dictionary| dictionary.get(key)))
+        .or_else(|| {
+            all.get(DEFAULT_LANGUAGE)
+                .and_then(|dictionary| dictionary.get(key))
+        })
         .map(String::as_str)
         .unwrap_or(key);
 

@@ -1,0 +1,170 @@
+/* Macro CRUD panel layout and visual states. */
+.macros-panel[hidden] {
+  display: none;
+}
+
+.macros-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+  padding: 10px;
+  color: var(--text-primary);
+}
+
+.macros-toolbar,
+.macro-editor-actions,
+.macro-invocations-heading,
+.macro-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.macros-count,
+.macro-status,
+.macro-empty {
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+
+.macros-add-button,
+.macro-card-actions button,
+.macro-invocation-row button,
+.macro-editor-actions button,
+.macro-invocations-heading button {
+  padding: 5px 9px;
+  font-size: var(--font-size-sm);
+}
+
+.macro-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.macro-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-inset);
+}
+
+.macro-card-details {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.macro-card-name {
+  overflow-wrap: anywhere;
+}
+
+.macro-card-description,
+.macro-card-invocations {
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.macro-card-invocations {
+  margin: 2px 0 0;
+  padding-inline-start: 18px;
+}
+
+.macro-card-actions {
+  flex: none;
+}
+
+.macro-card-actions .macro-delete-button,
+.macro-invocation-row .macro-remove-invocation {
+  color: var(--danger, #e66);
+}
+
+.macro-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55%;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.macro-editor-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.macro-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+}
+
+.macro-field input,
+.macro-field textarea,
+.macro-invocation-row input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 12px var(--font-mono);
+}
+
+.macro-field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.macro-invocations-heading strong {
+  font-size: var(--font-size-sm);
+}
+
+.macro-invocations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.macro-invocation-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(75px, 1fr) minmax(70px, 1fr) auto;
+  gap: 5px;
+}
+
+.macro-invocation-row input {
+  font-size: 10px;
+}
+
+.macro-error {
+  color: var(--danger, #e66);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .macro-card {
+    flex-direction: column;
+  }
+
+  .macro-invocation-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

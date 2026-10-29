@@ -4,7 +4,7 @@
 //! Everything here is crate-internal: the public surface stays on the
 //! [`Toolpath`](super::Toolpath) methods so callers never see raw matches.
 
-use super::{PATH_TOLERANCE_MM, ToolpathProgress, ToolpathSegment};
+use super::{ToolpathProgress, ToolpathSegment, PATH_TOLERANCE_MM};
 
 /// Nearest-segment match: squared distance, segment reference and clamped fraction.
 pub(super) type SegmentMatch<'a> = (f64, &'a ToolpathSegment, f64);
@@ -51,11 +51,7 @@ pub(super) fn closest_fraction_on_segment(
     position: &crate::Position,
 ) -> (f64, f64) {
     let (ax, ay, az) = (segment.from.x, segment.from.y, segment.from.z);
-    let (dx, dy, dz) = (
-        segment.to.x - ax,
-        segment.to.y - ay,
-        segment.to.z - az,
-    );
+    let (dx, dy, dz) = (segment.to.x - ax, segment.to.y - ay, segment.to.z - az);
     let length_sq = dx * dx + dy * dy + dz * dz;
     let fraction = if length_sq <= 1e-12 {
         0.0

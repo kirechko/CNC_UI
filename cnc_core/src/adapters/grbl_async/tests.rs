@@ -8,7 +8,7 @@
 //! the sibling `status_tests` module.
 
 use super::*;
-use crate::SpindleDirection;
+use crate::{ControllerError, SpindleDirection};
 
 /// Shared fixture: a clockwise 1200 RPM spindle setpoint used by the
 /// status-parsing tests.
@@ -133,15 +133,17 @@ fn idle_detection_requires_an_exact_valid_state_name() {
 }
 
 #[test]
-fn program_streaming_continues_only_in_idle_or_run_states() {
-    for state in ["Idle", "Run", "idle", "run"] {
+fn program_streaming_continues_only_in_idle_run_or_check_states() {
+    // `Check` must keep streaming so the standard `$C` dry-run workflow
+    // (verify G-code without motion) can push the whole program through.
+    for state in ["Idle", "Run", "Check", "idle", "run", "check"] {
         assert!(
             GrblAdapter::should_stream_program(&format!("<{state}|MPos:0,0,0>")),
             "expected streaming in state {state}"
         );
     }
 
-    for state in ["Hold:0", "Door:1", "Jog", "Alarm:1", "Check"] {
+    for state in ["Hold:0", "Door:1", "Jog", "Alarm:1", "Sleep"] {
         assert!(
             !GrblAdapter::should_stream_program(&format!("<{state}|MPos:0,0,0>")),
             "expected streaming to pause in state {state}"
@@ -192,6 +194,46 @@ fn rejects_programs_over_the_size_limit() {
 
     assert_eq!(error.code, "bad_program");
     assert!(error.message.contains("size limit"));
+}
+
+#[test]
+fn unsupported_coolant_mcodes_are_skipped_during_streaming() {
+    let unsupported = ControllerError::new("gcode_error", "GRBL rejected command (20): M7");
+    // Bare coolant words (with or without zero padding) are optional firmware
+    // features on stock GRBL builds, so their rejection must not abort a cut.
+    for command in ["M7", "M8", "M9", "m7", "M08", " M9 "] {
+        assert!(
+            GrblAdapter::is_tolerated_accessory_rejection(command, &unsupported),
+            "`{command}` should be tolerated"
+        );
+    }
+    // Spindle and motion words are never tolerated, and only error 20 qualifies.
+    assert!(!GrblAdapter::is_tolerated_accessory_rejection(
+        "M3",
+        &unsupported
+    ));
+    assert!(!GrblAdapter::is_tolerated_accessory_rejection(
+        "M70",
+        &unsupported
+    ));
+    let alarm = ControllerError::new("alarm", "ALARM:1");
+    assert!(!GrblAdapter::is_tolerated_accessory_rejection("M7", &alarm));
+}
+
+#[test]
+fn program_lines_drop_semicolon_comments_before_validation() {
+    // `;` comments (even with non-ASCII text such as Cyrillic) are stripped
+    // host-side: GRBL ignores them anyway, and the strict ASCII validator must
+    // never see them, otherwise real-world programs fail to load.
+    let lines =
+        GrblAdapter::parse_program_lines("; Настройки\nG21 ; Миллиметры\nM7  ; охлаждение\nG0 X1")
+            .unwrap();
+    assert_eq!(lines, ["G21", "M7", "G0 X1"]);
+
+    // A `;` inside a parenthesis comment is not a line comment and stays, so
+    // the whole line still fails the ASCII check exactly like before.
+    let error = GrblAdapter::parse_program_lines("G0 X1 (a ; b ü)").unwrap_err();
+    assert_eq!(error.code, "bad_program");
 }
 
 #[test]

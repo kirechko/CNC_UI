@@ -2,7 +2,7 @@
 //! program file loading that feeds it.
 
 use super::{GrblAdapter, Session, MAX_PROGRAM_BYTES};
-use crate::{ControllerError, CncResult};
+use crate::{CncResult, ControllerError};
 use std::path::Path;
 use tokio::{fs, io::AsyncReadExt};
 
@@ -51,16 +51,20 @@ impl GrblAdapter {
         Ok(())
     }
 
-    /// Streaming may only continue while GRBL reports `Idle` or `Run`; other
-    /// states (Hold, Door, Alarm, Jog) pause the scheduler until the operator
-    /// releases the machine.
+    /// Streaming may only continue while GRBL reports `Idle`, `Run` or
+    /// `Check` (dry-run mode); other states (Hold, Door, Alarm, Jog) pause the
+    /// scheduler until the operator releases the machine. `Check` must be
+    /// included because a GRBL controller that stays in Check mode never
+    /// reports `Run` while a program is being verified without motion.
     pub(super) fn should_stream_program(status_response: &str) -> bool {
         status_response
             .strip_prefix('<')
             .and_then(|response| response.strip_suffix('>'))
             .and_then(|response| response.split('|').next())
             .is_some_and(|state| {
-                state.eq_ignore_ascii_case("Idle") || state.eq_ignore_ascii_case("Run")
+                state.eq_ignore_ascii_case("Idle")
+                    || state.eq_ignore_ascii_case("Run")
+                    || state.eq_ignore_ascii_case("Check")
             })
     }
 
@@ -82,7 +86,23 @@ impl GrblAdapter {
         }
 
         let line = session.program[index].clone();
-        if let Err(error) = Self::send_command(session, &line).await {
+        // Stop-and-wait over the serial link: GRBL acknowledges a motion line
+        // only once room appears in the planner buffer, so the wait can last
+        // as long as one buffered block. The extended program ACK budget keeps
+        // a slow controller from falsely poisoning the protocol.
+        if let Err(error) =
+            Self::send_command_with_timeout(session, &line, super::PROGRAM_ACK_TIMEOUT).await
+        {
+            // Unsupported coolant M-codes (stock GRBL without COOLANT_CONTROL)
+            // are skipped so the cut keeps running; everything else aborts.
+            if Self::is_tolerated_accessory_rejection(&line, &error) {
+                tracing::warn!(
+                    "GRBL rejected the optional accessory command `{line}` ({}); skipping it",
+                    error.message
+                );
+                session.current_line = (index + 1) as u32;
+                return Ok(());
+            }
             session.program_streaming = false;
             return Err(error);
         }

@@ -1,23 +1,18 @@
-import { t } from "./i18n.js";
-
 /**
- * Wires the sidebar tabs (files / macros) and switches the sidebar
- * title and description using translated strings.
+ * Wires the files/macros tabs and keeps the corresponding panel and ARIA state in sync.
  */
 export function initSidebarTabs() {
   const filesTab = document.querySelector("#files-tab");
   const macrosTab = document.querySelector("#macros-tab");
-  const sidebarTitle = document.querySelector("#sidebar-title");
-  const sidebarDescription = document.querySelector("#sidebar-description");
+  const filesPanel = document.querySelector("#files-panel");
+  const macrosPanel = document.querySelector("#macros-panel");
   const sidebarContent = document.querySelector("#sidebar-content");
 
-  if (!filesTab || !macrosTab || !sidebarTitle || !sidebarDescription || !sidebarContent) {
-    return;
-  }
+  if (!filesTab || !macrosTab || !filesPanel || !macrosPanel || !sidebarContent) return;
 
   /**
-   * Activates the given sidebar tab and updates ARIA state and texts.
-   * @param {"files" | "macros"} tab - Tab to show.
+   * Selects one sidebar view, updates accessibility state, and notifies the active panel.
+   * @param {"files" | "macros"} tab - The sidebar view to display.
    */
   function selectSidebarTab(tab) {
     const showFiles = tab === "files";
@@ -25,13 +20,13 @@ export function initSidebarTabs() {
     macrosTab.classList.toggle("active", !showFiles);
     filesTab.setAttribute("aria-selected", String(showFiles));
     macrosTab.setAttribute("aria-selected", String(!showFiles));
+    filesPanel.hidden = !showFiles;
+    macrosPanel.hidden = showFiles;
     sidebarContent.setAttribute("aria-labelledby", showFiles ? "files-tab" : "macros-tab");
-    sidebarTitle.textContent = showFiles ? t("sidebar.files.title") : t("sidebar.macros.title");
-    sidebarDescription.textContent = showFiles
-      ? t("sidebar.files.description")
-      : t("sidebar.macros.description");
+    window.dispatchEvent(new CustomEvent("cnc-sidebar-tab-changed", { detail: { tab } }));
   }
 
   filesTab.addEventListener("click", () => selectSidebarTab("files"));
   macrosTab.addEventListener("click", () => selectSidebarTab("macros"));
+  selectSidebarTab(filesTab.getAttribute("aria-selected") === "true" ? "files" : "macros");
 }

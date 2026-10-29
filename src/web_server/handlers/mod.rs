@@ -9,7 +9,9 @@
 mod console;
 mod control;
 mod files;
+mod macros;
 
 pub(crate) use console::*;
 pub(crate) use control::*;
 pub(crate) use files::*;
+pub(crate) use macros::*;

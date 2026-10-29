@@ -8,6 +8,7 @@
 //! - [`scan`]    - streaming scan orchestration and the public entry points;
 //! - [`targets`] - IPv4 target-set computation, gateway/route heuristics and CIDR math;
 //! - [`probe`]   - FluidNC identity probes over WebSocket and Telnet;
+//! - [`serial`]  - GRBL discovery over physical COM/serial ports;
 //! - [`tests`]   - unit tests (flat, `#[cfg(test)]` only).
 //!
 //! Public API names are re-exported here so external code keeps using
@@ -19,12 +20,19 @@ use std::net::Ipv4Addr;
 // Re-exported so `crate::discovery::discover_fluidnc_stream` and friends stay
 // valid after the implementation moved into the `scan` child module.
 pub use scan::{discover_fluidnc, discover_fluidnc_stream, fluidnc_websocket_address};
+// GRBL serial scanner entry points and the shared device-id/baud helpers,
+// re-exported so callers keep using `cnc_core::discovery::*` paths.
+pub use serial::{
+    discover_grbl, discover_grbl_stream, grbl_baud_rate, grbl_serial_device, grbl_serial_device_id,
+    parse_banner_version,
+};
 
 mod probe;
 mod scan;
+pub mod serial;
+mod targets;
 #[cfg(test)]
 mod tests;
-mod targets;
 
 /// Widest CIDR block the scanner is allowed to enumerate; anything broader
 /// (e.g. a whole /16) is rejected to keep a scan bounded. Shared by the CIDR

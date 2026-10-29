@@ -12,6 +12,7 @@ import { applyTranslations, loadLocale, resolveRequestedLocale, t } from "./i18n
 import { initUiMessageLogger } from "./ui-message-logger.js";
 import { initSidebarTabs } from "./sidebar.js";
 import { initFileManager } from "./file-manager-ui.js";
+import { initMacrosUi } from "./macros-ui.js";
 import { initPositionControls } from "./position-controls.js";
 import { createPositionReadoutUpdater } from "./position-readouts.js";
 import { initPositionAxisView } from "./position-axis-view.js";
@@ -164,12 +165,14 @@ app.jogMotion = initJogMotion(app, app.jog);
 // columns, speed/step dialog. Repaints the dial after both fits settle.
 app.jogDial = initJogDial(app, app.jog, app.jogMotion);
 
-// Files/messages sidebar tabs.
+// Files/macros sidebar tabs and their distinct panel contents.
 initSidebarTabs();
 
-// File manager panel inside the FILES tab: host filesystem browsing plus the
-// FluidNC controller and SD-card filesystems (open, upload, CRUD, transfers).
+// File manager panel inside FILES: host filesystem browsing plus FluidNC storage.
 initFileManager(app);
+
+// Persistent macro CRUD list and controller-specific invocation mappings.
+initMacrosUi();
 
 // Repaint the scene and the dial when the viewport changes size. The dial
 // check is lazy so this listener survives the handle-creation order below.

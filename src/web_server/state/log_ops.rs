@@ -44,7 +44,10 @@ impl AppState {
 
         if let Some((kind, message)) = alert {
             // Map controller state and alert kind to an internal severity identifier.
-            let severity = match (crate::web_server::models::status_state(status), kind.as_str()) {
+            let severity = match (
+                crate::web_server::models::status_state(status),
+                kind.as_str(),
+            ) {
                 ("ALARM", _) => crate::message_log::SEVERITY_ALARM,
                 (_, "axis_limit") => crate::message_log::SEVERITY_WARNING,
                 _ => crate::message_log::SEVERITY_ERROR,

@@ -4,10 +4,10 @@
 //! handlers only validate requests and switch the interpreter/task-mode
 //! state machine, plus the forced Z retract performed on abort.
 
-use crate::dynamics::{ActiveMove, Motion};
-use crate::protocol::{api_error, WireError};
 use super::super::Emulator;
 use crate::cnc_api::*;
+use crate::dynamics::{ActiveMove, Motion};
+use crate::protocol::{api_error, WireError};
 use serde_json::Value;
 
 /// Execute one line of G-code immediately in MDI mode.

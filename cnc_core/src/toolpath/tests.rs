@@ -196,7 +196,9 @@ fn locate_far_from_path_reports_no_traversed_distance() {
 #[test]
 fn locate_within_tolerance_still_reports_distance() {
     let toolpath = l_shaped_toolpath();
-    let progress = toolpath.locate(&pos(5.0, PATH_TOLERANCE_MM * 0.5, 0.0)).unwrap();
+    let progress = toolpath
+        .locate(&pos(5.0, PATH_TOLERANCE_MM * 0.5, 0.0))
+        .unwrap();
 
     assert_eq!(progress.program_line, Some(1));
     assert_close(progress.path_distance_mm.unwrap(), 5.0);

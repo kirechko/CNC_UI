@@ -5,10 +5,10 @@
 //! private [`begin_jog_deceleration`] helper converts an active continuous
 //! jog into a deceleration ramp so a stop request does not jerk the axis.
 
-use crate::dynamics::{ActiveMove, Motion};
-use crate::protocol::{api_error, WireError};
 use super::super::{axis_index, Emulator};
 use crate::cnc_api::*;
+use crate::dynamics::{ActiveMove, Motion};
+use crate::protocol::{api_error, WireError};
 use serde_json::Value;
 
 /// Perform one fixed-distance jog along a single axis.

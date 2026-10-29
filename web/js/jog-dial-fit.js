@@ -1,6 +1,7 @@
 /*
  * Shrinks the JOG dial instead of showing a scrollbar when the JOG panel is
- * squeezed vertically.
+ * squeezed vertically, and instead of clipping it when the panel is squeezed
+ * horizontally.
  *
  * Problem: `.jog-panel > .panel-body` is a scroll container (`overflow-y: auto`).
  * When the row splitter of the left column makes the JOG panel short, the dial
@@ -11,6 +12,14 @@
  * instead of scrolling, but never below half of its natural (viewport-based)
  * size. If even the halved dial does not fit, the native scrollbar remains as
  * the last-resort fallback.
+ *
+ * The same rule holds for the width. The dial is the leftmost item of
+ * `.jog-dial-layout`, so when the column splitter narrows the panel and the
+ * row (dial + Z column + rotary columns + gaps) no longer fits, the centered
+ * row is clipped at the LEFT panel edge — exactly the dial. The fit therefore
+ * also computes a horizontal cap (body content width minus the side items and
+ * gaps) and reduces `--dial-size` so the whole row always fits: the dial is
+ * never cut off, it just gets smaller (down to the same half-size floor).
  *
  * How the natural size is measured: `--dial-size` is defined on `:root` as a
  * fluid `clamp()`, and this module writes an override of the same variable on
@@ -136,10 +145,54 @@ export function initJogDialFit({ panel, body, dialPanel, dialCanvas, onDialResiz
   }
 
   /**
-   * One measuring pass: shrink the dial when the panel body overflows, grow it
-   * back (up to the natural size) when free space has appeared. A <0.5px
-   * difference is treated as "already exact", which makes the rAF/observer
-   * feedback loop with jog-z-fit.js converge instead of oscillating.
+   * Largest dial diameter that still fits the dial row horizontally: the
+   * content width of the panel body minus the side items of `.jog-dial-layout`
+   * (the Z column and, when shown, the rotary columns) and the flex gaps in
+   * front of them. Returns Infinity when nothing can be measured, which the
+   * fit treats as "no horizontal constraint".
+   *
+   * Only widths that do not depend on `--dial-size` are summed (the side
+   * columns are sized by their buttons' min-width), so the cap is stable and
+   * the rAF loop cannot oscillate around it.
+   * @returns {number} Diameter cap in CSS pixels.
+   */
+  function horizontalCap() {
+    const layout = dialPanel.querySelector(".jog-dial-layout");
+    if (!layout) return Number.POSITIVE_INFINITY;
+    const bodyStyle = getComputedStyle(body);
+    // `clientWidth` includes the padding, so subtract it to get the content box.
+    const available =
+      body.clientWidth -
+      (parseFloat(bodyStyle.paddingLeft) || 0) -
+      (parseFloat(bodyStyle.paddingRight) || 0);
+    if (!(available > 0)) return Number.POSITIVE_INFINITY;
+    const gap = parseFloat(getComputedStyle(layout).columnGap) || 0;
+    const control = dialCanvas.closest(".jog-dial-control");
+    let sideItems = 0;
+    let othersWidth = 0;
+    for (const child of layout.children) {
+      // The dial control itself is the item being sized — skip it.
+      if (child === control) continue;
+      const rect = child.getBoundingClientRect();
+      // Hidden columns (keys mode, continuous Z, no rotary axes) occupy no space.
+      if (child.hidden || rect.width <= 0) continue;
+      othersWidth += rect.width;
+      sideItems += 1;
+    }
+    // Every visible side item sits after the dial, so it adds one gap before it.
+    return available - othersWidth - gap * sideItems;
+  }
+
+  /**
+   * One measuring pass. Two constraints share the single dial diameter:
+   *  - horizontal: the row must fit the body content width, otherwise the
+   *    centered row overflows and the dial — the leftmost item — is clipped at
+   *    the panel edge;
+   *  - vertical: shrink the dial when the body content overflows, grow it back
+   *    when free space appears below the last block.
+   * Both clamp the result to [natural/2, natural]. A <0.5px difference is
+   * treated as "already exact", which makes the rAF/observer feedback loop
+   * with jog-z-fit.js converge instead of oscillating.
    * @returns {void}
    */
   function fit() {
@@ -153,22 +206,31 @@ export function initJogDialFit({ panel, body, dialPanel, dialCanvas, onDialResiz
     const natural = naturalSize();
     if (!(natural > 0)) return;
     const floor = natural * MIN_RATIO;
+    // Combined horizontal cap; Infinity (nothing measurable) keeps natural.
+    const cap = Math.max(floor, Math.min(natural, horizontalCap()));
 
     const current = dialCanvas.getBoundingClientRect().height;
     const overflow = contentOverflow();
 
+    // Horizontal constraint first: an over-wide row clips the dial's left edge
+    // immediately, while vertical overflow only adds a scrollbar.
+    if (cap < current - 0.5) {
+      applySize(cap);
+      return;
+    }
+
     if (overflow > 0.5) {
-      // Shrink by exactly the overflow, but never below half of natural.
-      const target = Math.max(floor, current - overflow);
+      // Shrink by exactly the overflow, but never below the floor or the cap.
+      const target = Math.max(floor, Math.min(cap, current - overflow));
       if (target < current - 0.5) applySize(target);
       return;
     }
 
     if (overrideActive && overflow < -0.5) {
-      // Slack available: grow toward the natural size; remove the override
-      // entirely once the dial is (nearly) back to its fluid value.
-      const target = Math.min(natural, current - overflow);
-      if (target >= natural - 0.5) clearOverride(true);
+      // Slack available: grow toward the allowed maximum (cap or natural);
+      // remove the override entirely once the dial is back to its fluid value.
+      const target = Math.min(cap, current - overflow);
+      if (cap >= natural - 0.5 && target >= natural - 0.5) clearOverride(true);
       else if (target > current + 0.5) applySize(target);
     }
   }

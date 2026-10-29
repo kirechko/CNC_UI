@@ -2,7 +2,11 @@
 //! `lib.rs`): adapter trait compliance, wire-format contract stability and
 //! backwards-compatible `Position` deserialization.
 
-use crate::adapters::{debug::{FluidNcAdapter, LinuxCncAdapter}, emulator::EmAdapter, grbl::GrblAdapter};
+use crate::adapters::{
+    debug::{FluidNcAdapter, LinuxCncAdapter},
+    emulator::EmAdapter,
+    grbl::GrblAdapter,
+};
 use crate::{api::CncApi, Axis, CoordinateSystem, JogRequest, Position};
 use std::path::Path;
 

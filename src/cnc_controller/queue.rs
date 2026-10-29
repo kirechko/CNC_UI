@@ -43,9 +43,7 @@ impl CNCController {
 
     /// Identifier of the device the current adapter reports as connected.
     pub fn connected_device_id(&self) -> Option<String> {
-        self.api
-            .as_ref()
-            .and_then(|api| api.connected_device_id())
+        self.api.as_ref().and_then(|api| api.connected_device_id())
     }
 
     /// Devices discovered by the current adapter (FluidNC scan results).
@@ -164,7 +162,8 @@ impl CNCController {
             ));
         }
 
-        self.command_cancel_requested.store(false, Ordering::Release);
+        self.command_cancel_requested
+            .store(false, Ordering::Release);
         let (reply_sender, reply_receiver) = std::sync::mpsc::channel();
         self.enqueue(Command::Execute(command.trim().to_string(), reply_sender));
 

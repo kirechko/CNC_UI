@@ -7,12 +7,12 @@
 //! (continuous jog, program streaming, guards, parsing) is factored into
 //! `pub(super)` helpers that live in the sibling modules.
 
-use super::{ContinuousJog, GrblAdapter, wait_for_command_cancellation};
+use super::{wait_for_command_cancellation, ContinuousJog, GrblAdapter};
 use crate::discovery::{DiscoveredDevice, DiscoveryTransport};
 use crate::{
-    Axis, AxisConfiguration, AxisUnits, CncApi, ControllerError, CncResult, CoordinateSystem,
-    InterpreterState, JogRequest, MachineAxis, MachineConfiguration, MachineStatus,
-    SpindleCommand, SpindleConfiguration, SpindleDirection, TaskMode, ToolpathProgress,
+    Axis, AxisConfiguration, AxisUnits, CncApi, CncResult, ControllerError, CoordinateSystem,
+    InterpreterState, JogRequest, MachineAxis, MachineConfiguration, MachineStatus, SpindleCommand,
+    SpindleConfiguration, SpindleDirection, TaskMode, ToolpathProgress,
 };
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -176,7 +176,10 @@ impl CncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
-        Self::send_command(&mut session, "$H").await
+        // GRBL pauses normal serial reads while the homing cycle runs and only
+        // acknowledges `$H` once every axis is found, which routinely exceeds
+        // the regular 3-second ACK window on real machines.
+        Self::send_command_with_timeout(&mut session, "$H", super::PROGRAM_ACK_TIMEOUT).await
     }
 
     async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()> {
@@ -194,10 +197,7 @@ impl CncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
-        let command = format!(
-            "G10 L20 P{} X0 Y0 Z0",
-            Self::coordinate_number(system)
-        );
+        let command = format!("G10 L20 P{} X0 Y0 Z0", Self::coordinate_number(system));
         Self::send_command(&mut session, &command).await?;
         // G10 L20 Pn updates the offset of the given system but does not select it.
         // Only select_coordinate_system() changes the active system.

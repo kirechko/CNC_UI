@@ -32,8 +32,7 @@ pub enum SpindleDirection {
 
 /// Poll cadence for the worker thread: FluidNC's WebSocket should not be
 /// flooded with realtime `?` queries faster than this.
-pub(super) const STATUS_POLL_INTERVAL: std::time::Duration =
-    std::time::Duration::from_millis(100);
+pub(super) const STATUS_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
 
 /// Maps a controller error code to the (kind, message) alert pair shown in the UI.
 pub(super) fn error_alert(code: &str, message: &str) -> (String, String) {
@@ -46,7 +45,11 @@ pub(super) fn error_alert(code: &str, message: &str) -> (String, String) {
 }
 
 /// Stores an alert into the shared snapshot (worker-side convenience).
-pub(super) fn set_ui_alert(shared_status: &Arc<Mutex<ControllerSnapshot>>, code: &str, message: &str) {
+pub(super) fn set_ui_alert(
+    shared_status: &Arc<Mutex<ControllerSnapshot>>,
+    code: &str,
+    message: &str,
+) {
     shared_status.lock().unwrap().ui_alert = Some(error_alert(code, message));
 }
 
@@ -55,7 +58,11 @@ pub(super) fn set_ui_alert(shared_status: &Arc<Mutex<ControllerSnapshot>>, code:
 /// `last_message` keeps the previously written severity+text key; FluidNC can
 /// emit the same alarm line on every status poll, and the journal should only
 /// contain the first occurrence.
-pub(super) fn record_adapter_message(last_message: &mut Option<String>, severity: &str, message: &str) {
+pub(super) fn record_adapter_message(
+    last_message: &mut Option<String>,
+    severity: &str,
+    message: &str,
+) {
     if message.trim().is_empty() {
         *last_message = None;
         return;

@@ -97,6 +97,107 @@ pub(crate) struct LoadedProgram {
     pub(crate) content: String,
 }
 
+/// One controller-specific way of invoking a user macro from G-code or a controller command.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MacroInvocation {
+    pub(crate) controller: String,
+    pub(crate) mechanism: String,
+    pub(crate) command: String,
+}
+
+/// User-defined macro program and all controller-specific invocation metadata.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MacroDefinition {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) body: String,
+    #[serde(default)]
+    pub(crate) invocations: Vec<MacroInvocation>,
+}
+
+/// Validates the complete macro set and returns a localized explanation on invalid input.
+pub(crate) fn validate_macros(macros: &[MacroDefinition], language: &str) -> Result<(), String> {
+    use std::collections::HashSet;
+
+    if macros.len() > 200 {
+        return Err(crate::i18n::translate(
+            language,
+            "macros.error.tooMany",
+            &[],
+        ));
+    }
+    let mut ids = HashSet::new();
+    for item in macros {
+        if item.id.is_empty()
+            || item.id.len() > 80
+            || !item
+                .id
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || "_-".contains(ch))
+            || !ids.insert(item.id.as_str())
+        {
+            return Err(crate::i18n::translate(
+                language,
+                "macros.error.invalidId",
+                &[],
+            ));
+        }
+        if item.name.trim().is_empty() || item.name.trim().len() > 120 {
+            return Err(crate::i18n::translate(
+                language,
+                "macros.error.invalidName",
+                &[],
+            ));
+        }
+        if item.description.len() > 1000
+            || item.body.trim().is_empty()
+            || item.body.len() > 65_536
+            || item
+                .body
+                .chars()
+                .any(|ch| ch.is_control() && !matches!(ch, '\n' | '\r' | '\t'))
+        {
+            return Err(crate::i18n::translate(
+                language,
+                "macros.error.invalidBody",
+                &[],
+            ));
+        }
+        if item.invocations.len() > 16 {
+            return Err(crate::i18n::translate(
+                language,
+                "macros.error.tooManyInvocations",
+                &[],
+            ));
+        }
+        let mut controllers = HashSet::new();
+        for invocation in &item.invocations {
+            let controller = invocation.controller.trim();
+            let mechanism = invocation.mechanism.trim();
+            let command = invocation.command.trim();
+            if controller.is_empty()
+                || controller.len() > 80
+                || mechanism.is_empty()
+                || mechanism.len() > 80
+                || command.is_empty()
+                || command.len() > 128
+                || command.chars().any(char::is_control)
+                || !controllers.insert(controller.to_ascii_lowercase())
+            {
+                return Err(crate::i18n::translate(
+                    language,
+                    "macros.error.invalidInvocation",
+                    &[],
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Parses a coordinate system key from the API.
 /// Unknown keys produce an error message translated into `language`.
 pub(crate) fn parse_coordinate_system(

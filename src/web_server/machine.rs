@@ -84,8 +84,9 @@ pub(crate) fn default_controller() -> std::io::Result<CNCController> {
 /// Constructs the adapter for a user-selected device. Emulator entries carry
 /// the Unix socket path in `endpoint`; FluidNC entries reuse the discovery
 /// adapter priority path so the worker keeps advertising the exact
-/// `connected_device_id` that the discovery list advertises. Other protocols
-/// are rejected until their scanners ship.
+/// `connected_device_id` that the discovery list advertises; GRBL entries
+/// carry the full serial device path (e.g. `/dev/ttyUSB0`) probed by the
+/// serial scanner. Other protocols are rejected until their scanners ship.
 pub(crate) fn build_adapter_for_device(
     device: &cnc_core::discovery::DiscoveredDevice,
 ) -> Result<Arc<dyn CncApi>, String> {
@@ -98,6 +99,18 @@ pub(crate) fn build_adapter_for_device(
             cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect_discovering_with_priority(
                 cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketConfig::default(),
                 vec![device.endpoint.clone()],
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
+        // The scanner stores the canonical full path in `endpoint`, while the
+        // adapter derives its `connected_device_id` from the device-node
+        // basename; both sides key on that basename, so the selected row
+        // highlights exactly like network machines do. The baud matches the
+        // scanner rate (`CNC_GRBL_BAUD` override, 115200 by default).
+        ("GRBL", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
+            cnc_core::adapters::grbl::GrblAdapter::connect(
+                &device.endpoint,
+                cnc_core::discovery::grbl_baud_rate(),
             )
             .map_err(|error| format!("{}: {}", error.code, error.message))?,
         ),
