@@ -2,10 +2,10 @@
 //! rescan stream and the runtime machine switch.
 //!
 //! The search is composite and adapter-independent: it probes the local
-//! emulator socket and scans the network for FluidNC controllers regardless
-//! of which adapter the controller currently uses. Only one scan runs at a
-//! time; the `discovery_in_flight` flag keeps a polling browser from stacking
-//! parallel network sweeps.
+//! emulator socket, scans serial ports for GRBL boards and sweeps the network
+//! for FluidNC controllers regardless of which adapter the controller
+//! currently uses. Only one scan runs at a time; the `discovery_in_flight`
+//! flag keeps a polling browser from stacking parallel network sweeps.
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -27,6 +27,23 @@ fn claim_discovery_slot(guard: &std::sync::Arc<std::sync::atomic::AtomicBool>) -
 /// Releases the background discovery slot so the next request may rescan.
 fn release_discovery_slot(guard: &std::sync::Arc<std::sync::atomic::AtomicBool>) {
     guard.store(false, Ordering::Release);
+}
+
+/// Adds or refreshes one device in the shared FluidNC registry immediately
+/// after it is confirmed by a probe. The whole registry used to be written
+/// only when the entire network sweep finished (~25-30 s), so any dialog
+/// snapshot taken mid-scan showed just the emulator and the serial GRBL row —
+/// the historical "FluidNC stopped being found" symptom. Incremental
+/// publishing lets concurrent GET snapshots and the relayed SSE stream below
+/// show FluidNC rows as soon as each device answers. The registry is still
+/// fully replaced at the end of every scan, which prunes stale entries.
+fn publish_registry_device(state: &AppState, device: &cnc_core::discovery::DiscoveredDevice) {
+    if let Ok(mut registry) = state.machines.lock() {
+        match registry.iter_mut().find(|listed| listed.id == device.id) {
+            Some(existing) => *existing = device.clone(),
+            None => registry.push(device.clone()),
+        }
+    }
 }
 
 /// Runs the GRBL serial scan and publishes the confirmed ports into
@@ -131,6 +148,10 @@ async fn discover_all_machines(
                         device.endpoint
                     );
                 }
+                // Publish each confirmed FluidNC into the shared registry
+                // right away: GET snapshots taken while this scan runs then
+                // already show the machine instead of only the emulator+GRBL.
+                publish_registry_device(state, &device);
                 if let Some(sender) = sender {
                     if sender.send(Ok(device.clone())).await.is_err() {
                         // SSE consumer disconnected; keep collecting locally.
@@ -246,12 +267,12 @@ pub(crate) async fn rediscover_machines(
     // Only one live scan runs at a time; a browser that retries must not stack
     // parallel network sweeps. The guard is released by the stream below.
     let claim_held = claim_discovery_slot(&state.discovery_in_flight);
-    if !claim_held || snapshot.is_empty() {
+    if snapshot.is_empty() {
         if claim_held {
             release_discovery_slot(&state.discovery_in_flight);
         }
-        // No scan possible (one already runs) or nothing is known yet: emit
-        // the current state as a complete event so the dialog still renders.
+        // Nothing is known yet: emit the current state as a complete event so
+        // the dialog still renders.
         let payload = discovered_machines_response(snapshot, connected_device_id);
         let event = Event::default()
             .event("complete")
@@ -261,6 +282,55 @@ pub(crate) async fn rediscover_machines(
             Box<dyn futures_util::Stream<Item = Result<Event, Infallible>> + Send>,
         > = Box::pin(stream::iter(vec![Ok(event)]));
         return Ok(Sse::new(events));
+    }
+
+    if !claim_held {
+        // Another scan already owns the slot. Answering with a single stale
+        // snapshot here was the "FluidNC is no longer found" symptom: mid-scan
+        // that snapshot contains only the emulator and the fast serial GRBL
+        // row, while the FluidNC probes may still be many seconds away.
+        // Instead, relay the shared registry — the running scanner publishes
+        // every confirmed device incrementally — until it releases the slot,
+        // then close with a final complete event. The deadline bounds the wait
+        // in case the scanner task ever panics and leaves the flag set.
+        let watch_state = state.clone();
+        let guard = state.discovery_in_flight.clone();
+        let deadline = std::time::Instant::now() + Duration::from_secs(90);
+        let events = async_stream::stream! {
+            let mut last_ids: Option<String> = None;
+            loop {
+                let devices = watch_state.machine_snapshot();
+                let ids = devices
+                    .iter()
+                    .map(|device| device.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join("|");
+                if last_ids.as_deref() != Some(ids.as_str()) {
+                    last_ids = Some(ids);
+                    let response = discovered_machines_response(
+                        devices,
+                        watch_state.connected_machine_id(),
+                    );
+                    let event =
+                        Event::default().event("machines").json_data(response.0).unwrap();
+                    yield Ok::<_, Infallible>(event);
+                }
+                if !guard.load(Ordering::Acquire) || std::time::Instant::now() >= deadline {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(400)).await;
+            }
+            let response = discovered_machines_response(
+                watch_state.machine_snapshot(),
+                watch_state.connected_machine_id(),
+            );
+            let event = Event::default().event("complete").json_data(response.0).unwrap();
+            yield Ok::<_, Infallible>(event);
+        };
+        let events: std::pin::Pin<
+            Box<dyn futures_util::Stream<Item = Result<Event, Infallible>> + Send>,
+        > = Box::pin(events);
+        return Ok(Sse::new(events).keep_alive(axum::response::sse::KeepAlive::default()));
     }
 
     let guard = state.discovery_in_flight.clone();
