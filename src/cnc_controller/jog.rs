@@ -20,11 +20,30 @@ impl CNCController {
         }
     }
 
-    /// Sets the shared jog feed for the rotary axes A, B and C.
+    /// Sets the jog feed for the rotary axes A, B and C at once. This is the
+    /// legacy entry point kept for the old "rotary" speed field; per-axis
+    /// controls (task) use [`Self::set_axis_jog_speed`].
     /// Non-finite or non-positive values are ignored.
     pub fn set_rotary_jog_speed(&self, speed: f64) {
         if speed.is_finite() && speed > 0.0 {
-            *self.rotary_jog_speed.lock().unwrap() = speed;
+            *self.a_jog_speed.lock().unwrap() = speed;
+            *self.b_jog_speed.lock().unwrap() = speed;
+            *self.c_jog_speed.lock().unwrap() = speed;
+        }
+    }
+
+    /// Sets the jog feed of one rotary axis (A, B or C). Non-finite or
+    /// non-positive values are ignored, mirroring the group setters.
+    pub fn set_axis_jog_speed(&self, axis: Axis, speed: f64) {
+        if !speed.is_finite() || speed <= 0.0 {
+            return;
+        }
+        match axis {
+            Axis::A => *self.a_jog_speed.lock().unwrap() = speed,
+            Axis::B => *self.b_jog_speed.lock().unwrap() = speed,
+            Axis::C => *self.c_jog_speed.lock().unwrap() = speed,
+            Axis::X | Axis::Y => self.set_xy_jog_speed(speed),
+            Axis::Z => self.set_z_jog_speed(speed),
         }
     }
 
@@ -62,12 +81,15 @@ impl CNCController {
     }
 
     /// Returns the configured jog feed for the given axis.
-    /// X and Y share the XY feed, Z has its own feed, and A, B and C share the rotary feed.
+    /// X and Y share the XY feed, Z has its own feed, and A, B and C have
+    /// independent rotary feeds (task: per-axis speed settings).
     pub(super) fn feed_for_axis(&self, axis: Axis) -> f64 {
         match axis {
             Axis::Z => *self.z_jog_speed.lock().unwrap(),
             Axis::X | Axis::Y => *self.xy_jog_speed.lock().unwrap(),
-            Axis::A | Axis::B | Axis::C => *self.rotary_jog_speed.lock().unwrap(),
+            Axis::A => *self.a_jog_speed.lock().unwrap(),
+            Axis::B => *self.b_jog_speed.lock().unwrap(),
+            Axis::C => *self.c_jog_speed.lock().unwrap(),
         }
     }
 

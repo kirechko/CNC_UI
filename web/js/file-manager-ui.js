@@ -16,7 +16,7 @@ import { invokeOrFetch } from "./api.js";
 import { parseObj } from "./obj.js";
 import { finalizeStockMesh, parseStl, parseThreeJsJson } from "./stock.js";
 import { setProgramEditorBaseline, setProgramEditorSaveTarget } from "./program-editor.js";
-import { dirOf, formatBytes, formatDate, iconButton, notify, notifyError, svg } from "./file-manager-widgets.js";
+import { dirOf, formatBytes, iconButton, notify, notifyError, svg } from "./file-manager-widgets.js";
 import {
   copyEntry,
   deleteEntry,
@@ -51,6 +51,10 @@ export function initFileManager(app) {
     listing: null,
     clipboard: null,
     busy: false,
+    // Last listing failure (task T17): rendered *in place of the files* so
+    // a missing/unmounted FluidNC SD card shows its status where the list
+    // would be, instead of only flashing a transient error toast.
+    listError: null,
   };
 
   const root = document.createElement("div");
@@ -134,11 +138,12 @@ export function initFileManager(app) {
     nameButton.title = entry.path;
     nameButton.addEventListener("click", () => openEntry(entry));
 
+    // Task T22: the list shows the file SIZE only — the modification date was
+    // dropped (FluidNC never reported it anyway, so the column was inconsistent
+    // between sources). Directories keep an empty meta cell.
     const meta = document.createElement("span");
     meta.className = "fm-entry-meta";
-    const parts = [entry.isDir ? "" : formatBytes(entry.size)];
-    if (entry.modifiedMs) parts.push(formatDate(entry.modifiedMs));
-    meta.textContent = parts.filter(Boolean).join(" · ");
+    meta.textContent = entry.isDir ? "" : formatBytes(entry.size);
 
     const actions = document.createElement("span");
     actions.className = "fm-entry-actions";
@@ -168,16 +173,25 @@ export function initFileManager(app) {
       usageLine.hidden = true;
       return;
     }
+    // Task T21: show the FREE space of the displayed file system. The backend
+    // now reports capacity for the local source too (statvfs), so the line is
+    // visible for local, controller flash and SD alike. Free = total - used.
     usageLine.hidden = listing.totalBytes == null;
     if (!usageLine.hidden) {
+      const total = listing.totalBytes ?? 0;
+      const used = listing.usedBytes ?? 0;
       usageLine.textContent = t("files.ui.usage", {
-        used: formatBytes(listing.usedBytes ?? 0),
-        total: formatBytes(listing.totalBytes ?? 0),
+        used: formatBytes(used),
+        total: formatBytes(total),
         percent: String(listing.occupationPercent ?? 0),
+        free: formatBytes(total >= used ? total - used : 0),
       });
     }
     if (!listing.entries.length) {
-      appendNote(listBox, t("files.ui.empty"));
+      // Task T17: a failed listing (e.g. "SD card not available", volume not
+      // mounted, no HTTP from the controller) replaces the empty-folder note
+      // with the concrete status message in the files area.
+      appendNote(listBox, state.listError || t("files.ui.empty"));
       return;
     }
     listing.entries.forEach((entry) => listBox.appendChild(renderEntry(entry)));
@@ -208,8 +222,10 @@ export function initFileManager(app) {
       }
       state.listing = await fetchList(state.source, state.path);
       state.path = state.listing.path;
+      state.listError = null;
     } catch (error) {
       state.listing = { path: state.path, entries: [] };
+      state.listError = error.message || String(error);
       notifyError(error);
     } finally {
       state.busy = false;

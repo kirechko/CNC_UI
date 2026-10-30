@@ -53,6 +53,142 @@
 
 .jog-step-row label, .jog-speed { color: var(--muted); font-size: 10px; }
 
+/* Rotary step selects (task: keypad A–C step lists). One wrapper block spans
+   both columns of the step row and lays the per-axis selects out side by side;
+   it is hidden entirely when the machine has no rotary axes. */
+.jog-rotary-step-selects[hidden] {
+  display: none;
+}
+
+.jog-rotary-step-selects {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: var(--panel-gap);
+}
+
+.jog-rotary-step-select {
+  display: grid;
+  gap: 5px;
+}
+
+.jog-rotary-step-select[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * Per-axis JOG feed-rate controls (task T24): one row between the dial and
+ * the spindle section; each visible axis group is a caption + a preset button
+ * that opens a dropdown of spindle-style presets plus a custom-edit line.
+ * ------------------------------------------------------------------------ */
+.jog-axis-speeds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+
+.jog-axis-speeds:empty {
+  display: none;
+}
+
+.jog-axis-speed {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+}
+
+.jog-axis-speed-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.jog-axis-speed-button {
+  box-sizing: border-box;
+  min-width: 52px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  background-color: var(--bg-button);
+  color: var(--accent-text-bright);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.jog-axis-speed-button:hover:not(:disabled) {
+  border-color: var(--accent-border-bright);
+}
+
+/* Preset dropdown: anchored to the group, scrolls with the panel body. */
+.jog-axis-speed-menu {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 2px;
+  min-width: 92px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 45%);
+}
+
+.jog-axis-speed-menu > button {
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+.jog-axis-speed-menu > button:hover {
+  background: var(--accent-soft-bg);
+  color: var(--accent-text);
+}
+
+.jog-axis-speed-edit {
+  display: grid;
+  gap: 3px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.jog-axis-speed-edit input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 22px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 11px var(--font-mono);
+}
+
+.jog-axis-speed-edit button {
+  min-height: 20px;
+  border: 1px solid var(--accent-border);
+  border-radius: 5px;
+  background: var(--btn-primary-bg);
+  color: var(--text-button);
+  font-size: 10px;
+  cursor: pointer;
+}
+
 /* Dial layout: dial and Z column are centered; gap scales with the viewport. */
 .jog-dial-layout {
   display: flex;
@@ -259,19 +395,19 @@
   min-width: 42px;
 }
 
+/* Rotary column header: plain text exactly like the Z column label
+   (.jog-dial-z-label) — it used to be a unit-toggle button, which made the
+   A–C columns read as a different control family. Only the fixed 12px row
+   geometry from jog-z-fit.js is kept here. */
 .jog-rotary-head {
   box-sizing: border-box;
   height: 12px;
   min-height: 12px;
   line-height: 10px;
-  padding: 0 4px;
-  border: 1px solid var(--accent-border);
-  border-radius: 4px;
-  background: var(--bg-button);
-  color: var(--accent-text-bright);
+  color: var(--muted);
   font-size: 10px;
   font-weight: 700;
-  cursor: pointer;
+  text-align: center;
 }
 
 .jog-rotary-col .jog-button.rotary {
@@ -410,6 +546,28 @@
   gap: var(--panel-gap);
 }
 
+/* Rotary keypad columns (task: A–C buttons in the button JOG mode). Each
+   axis gets a Z-sized +/− column; the whole row hides when the machine has
+   no rotary axes, exactly like the dial rotary columns. */
+.jog-keys-rotary {
+  display: flex;
+  gap: var(--panel-gap);
+}
+
+.jog-keys-rotary[hidden] {
+  display: none;
+}
+
+.jog-keys-rotary-col {
+  display: grid;
+  width: 48px;
+  gap: var(--panel-gap);
+}
+
+.jog-keys-rotary-col[hidden] {
+  display: none;
+}
+
 .jog-button {
   min-height: 42.75px;
   padding: 0;
@@ -442,7 +600,11 @@
 .jog-button.x:hover:not(:disabled) { border-color: var(--jog-x-border-hover); }
 .jog-button.z { border-color: var(--accent-border); }
 .jog-button.z:hover:not(:disabled) { border-color: var(--accent-border-bright); }
-/* Styled tooltip bubble: same font, rounded corners and stroke weight as the JOG Z buttons, light-gray text and border. */
+/* Keypad rotary buttons (A+/A− …): same accent family as the dial rotary
+   column buttons so both JOG modes read as the same control set. */
+.jog-button.rotary { border-color: var(--accent-border); }
+.jog-button.rotary:hover:not(:disabled) { border-color: var(--accent-border-bright); }
+/* Styled tooltip bubble: same font, rounded corners and stroke weight as the JOG Z buttons, light-gray text and border. While a modal dialog owns the hovered element, tooltips.js re-parents this fixed bubble INTO the dialog so it renders in the top layer above the window. */
 .app-tooltip {
   position: fixed;
   z-index: 10000;

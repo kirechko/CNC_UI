@@ -20,10 +20,14 @@
 //!                 position, `console` for commands/log/program endpoints).
 //! - `server`    — router assembly, address selection and the static-asset
 //!                 cache-control middleware.
+//! - `auth`      — optional HTTP Basic authorization for the web server
+//!                 (enabled by `CNC_UI_AUTH[_USER/_PASSWORD]`, disabled by
+//!                 `CNC_UI_AUTH=off` or when no credentials are configured).
 //!
 //! `src/tauri_app.rs` keeps importing through `crate::web_server::...`; the
 //! re-exports below preserve exactly the names of the old flat module.
 
+mod auth;
 mod discovery;
 mod files;
 mod handlers;

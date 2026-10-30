@@ -1,28 +1,50 @@
-// Macro-list and editor UI for reusable G-code routines and controller-specific invocation metadata.
+/**
+ * Macro panel UI: a compact list plus a large modal editor dialog.
+ *
+ * The sidebar panel (#macros-panel) renders one compact row per macro showing
+ * only the name; the description is surfaced as a tooltip hint (the shared
+ * styled-tooltip engine in tooltips.js renders the `title` attribute as a
+ * floating bubble). A single button per row opens #macro-dialog — a modal
+ * dialog modeled after the message-log dialog — where the G-code body
+ * textarea takes the dominant share of the space and the remaining fields
+ * (name, description, per-controller invocation mappings, save/delete
+ * actions) sit in compact rows around it.
+ */
 import { invokeOrFetch } from "./api.js";
 import { t } from "./i18n.js";
 
 /**
- * Initializes macro loading, list rendering, CRUD controls, and invocation-metadata editing.
+ * Initializes macro loading, compact list rendering, the dialog editor, and
+ * invocation-metadata editing.
  */
 export function initMacrosUi() {
+  // Compact list container and its surrounding panel chrome.
   const panel = document.querySelector("#macros-panel");
   const list = document.querySelector("#macro-list");
   const count = document.querySelector("#macros-count");
+  const panelStatus = document.querySelector("#macro-status");
+  const addButton = document.querySelector("#macro-add");
+
+  // The large modal editor dialog and every control it contains.
+  const dialog = document.querySelector("#macro-dialog");
   const editor = document.querySelector("#macro-editor");
-  const editorTitle = document.querySelector("#macro-editor-title");
+  const dialogTitle = document.querySelector("#macro-dialog-title");
   const nameInput = document.querySelector("#macro-name");
   const descriptionInput = document.querySelector("#macro-description");
   const bodyInput = document.querySelector("#macro-body");
   const invocationsBox = document.querySelector("#macro-invocations");
-  const errorBox = document.querySelector("#macro-error");
-  const status = document.querySelector("#macro-status");
-  const addButton = document.querySelector("#macro-add");
   const addInvocationButton = document.querySelector("#macro-invocation-add");
+  const deleteButton = document.querySelector("#macro-delete");
   const cancelButton = document.querySelector("#macro-cancel");
+  const closeDialogButton = document.querySelector("#macro-close");
+  const errorBox = document.querySelector("#macro-error");
+  const dialogStatus = document.querySelector("#macro-dialog-status");
 
-  if (!panel || !list || !count || !editor || !nameInput || !descriptionInput || !bodyInput ||
-      !invocationsBox || !errorBox || !status || !addButton || !addInvocationButton || !cancelButton) return;
+  // Abort early when the markup is absent (for example in a stripped Tauri build).
+  if (!panel || !list || !count || !panelStatus || !addButton || !dialog || !editor ||
+      !dialogTitle || !nameInput || !descriptionInput || !bodyInput || !invocationsBox ||
+      !addInvocationButton || !deleteButton || !cancelButton || !closeDialogButton ||
+      !errorBox || !dialogStatus) return;
 
   /** Holds the current server snapshot and the ID being edited, if any. */
   const state = { macros: [], editingId: null, busy: false };
@@ -38,6 +60,15 @@ export function initMacrosUi() {
   /** Creates a new unique macro identifier using the platform UUID generator when available. */
   function createMacroId() {
     return globalThis.crypto?.randomUUID?.() ?? `macro-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  /**
+   * Reports transient progress text in the visible surface: the dialog status
+   * line while the modal is open, otherwise the panel status line.
+   */
+  function setStatus(message) {
+    if (dialog.open) dialogStatus.textContent = message;
+    else panelStatus.textContent = message;
   }
 
   /** Builds one editable controller invocation mapping row. */
@@ -78,7 +109,11 @@ export function initMacrosUi() {
     return row;
   }
 
-  /** Renders the macro collection with edit and delete actions. */
+  /**
+   * Renders the compact macro list: one row per macro showing only the name,
+   * with the description exposed as a tooltip hint, plus a single button that
+   * opens the large editor dialog for that macro.
+   */
   function renderList() {
     list.replaceChildren();
     count.textContent = t("macros.count", { count: state.macros.length });
@@ -88,43 +123,35 @@ export function initMacrosUi() {
     }
 
     state.macros.forEach((macro) => {
-      const card = document.createElement("article");
-      card.className = "macro-card";
-      card.setAttribute("role", "listitem");
-      const details = document.createElement("div");
-      details.className = "macro-card-details";
-      details.append(textElement("strong", "macro-card-name", macro.name));
-      if (macro.description) details.append(textElement("span", "macro-card-description", macro.description));
-      if (macro.invocations?.length) {
-        const mappings = document.createElement("ul");
-        mappings.className = "macro-card-invocations";
-        macro.invocations.forEach((entry) => mappings.append(
-          textElement("li", "", `${entry.controller} · ${entry.mechanism}: ${entry.command}`),
-        ));
-        details.append(mappings);
+      const row = document.createElement("div");
+      row.className = "macro-row";
+      row.setAttribute("role", "listitem");
+
+      const name = textElement("span", "macro-row-name", macro.name);
+      // The description lives only in the tooltip hint to keep rows compact;
+      // tooltips.js turns `title` into the styled floating bubble.
+      if (macro.description) {
+        name.title = macro.description;
+        row.title = macro.description;
       }
 
-      const actions = document.createElement("div");
-      actions.className = "macro-card-actions";
-      const editButton = document.createElement("button");
-      editButton.type = "button";
-      editButton.textContent = t("macros.edit");
-      editButton.addEventListener("click", () => openEditor(macro));
-      const removeButton = document.createElement("button");
-      removeButton.type = "button";
-      removeButton.className = "macro-delete-button";
-      removeButton.textContent = t("macros.remove");
-      removeButton.addEventListener("click", () => removeMacro(macro.id));
-      actions.append(editButton, removeButton);
-      card.append(details, actions);
-      list.append(card);
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = "macro-row-open";
+      openButton.textContent = t("macros.edit");
+      openButton.title = t("macros.openTitle");
+      openButton.setAttribute("aria-label", `${t("macros.openTitle")}: ${macro.name}`);
+      openButton.addEventListener("click", () => openEditor(macro));
+
+      row.append(name, openButton);
+      list.append(row);
     });
   }
 
-  /** Opens the editor for a new macro or populates it from an existing definition. */
+  /** Opens the dialog editor for a new macro or populates it from an existing definition. */
   function openEditor(macro = null) {
     state.editingId = macro?.id ?? null;
-    editorTitle.textContent = t(macro ? "macros.editTitle" : "macros.addTitle");
+    dialogTitle.textContent = t(macro ? "macros.editTitle" : "macros.addTitle");
     nameInput.value = macro?.name ?? "";
     descriptionInput.value = macro?.description ?? "";
     bodyInput.value = macro?.body ?? "";
@@ -132,19 +159,23 @@ export function initMacrosUi() {
     (macro?.invocations ?? []).forEach((invocation) => invocationsBox.append(createInvocationRow(invocation)));
     errorBox.hidden = true;
     errorBox.textContent = "";
-    editor.hidden = false;
+    dialogStatus.textContent = "";
+    // Deleting only makes sense for a macro that already exists on the server.
+    deleteButton.hidden = state.editingId === null;
+    dialog.showModal();
     nameInput.focus();
   }
 
-  /** Closes the editor and clears transient validation feedback. */
+  /** Closes the dialog and clears transient validation feedback. */
   function closeEditor() {
-    editor.hidden = true;
+    if (dialog.open) dialog.close();
     errorBox.hidden = true;
     errorBox.textContent = "";
+    dialogStatus.textContent = "";
     state.editingId = null;
   }
 
-  /** Reads and validates the editor fields into the API's macro data shape. */
+  /** Reads and validates the dialog fields into the API's macro data shape. */
   function readEditorMacro() {
     const invocations = [...invocationsBox.querySelectorAll(".macro-invocation-row")].map((row) => {
       const [controller, mechanism, command] = row.querySelectorAll("input");
@@ -167,24 +198,29 @@ export function initMacrosUi() {
   async function persistMacros(nextMacros) {
     if (state.busy) return false;
     state.busy = true;
-    status.textContent = t("macros.saving");
+    setStatus(t("macros.saving"));
     try {
       await invokeOrFetch("put_macros", { macros: nextMacros }, "/api/macros", "PUT");
       state.macros = nextMacros;
       renderList();
-      status.textContent = t("macros.saved");
+      setStatus(t("macros.saved"));
       return true;
     } catch (error) {
-      errorBox.textContent = error?.message || t("macros.error.saveFailed");
-      errorBox.hidden = false;
-      status.textContent = "";
+      // Surface backend validation failures inside the dialog when it is open.
+      if (dialog.open) {
+        errorBox.textContent = error?.message || t("macros.error.saveFailed");
+        errorBox.hidden = false;
+        dialogStatus.textContent = "";
+      } else {
+        panelStatus.textContent = error?.message || t("macros.error.saveFailed");
+      }
       return false;
     } finally {
       state.busy = false;
     }
   }
 
-  /** Saves the current editor as a create or update operation. */
+  /** Saves the dialog contents as a create or update operation, then closes the dialog. */
   async function saveEditor(event) {
     event.preventDefault();
     if (!editor.reportValidity()) return;
@@ -201,26 +237,26 @@ export function initMacrosUi() {
     if (await persistMacros(nextMacros)) closeEditor();
   }
 
-  /** Removes one macro after an explicit confirmation and persists the remaining collection. */
-  async function removeMacro(id) {
-    const macro = state.macros.find((entry) => entry.id === id);
+  /** Removes the macro currently open in the dialog after an explicit confirmation. */
+  async function removeCurrentMacro() {
+    const macro = state.macros.find((entry) => entry.id === state.editingId);
     if (!macro || !window.confirm(t("macros.confirmRemove", { name: macro.name }))) return;
-    await persistMacros(state.macros.filter((entry) => entry.id !== id));
+    if (await persistMacros(state.macros.filter((entry) => entry.id !== macro.id))) closeEditor();
   }
 
   /** Loads the saved macro collection and reports backend failures in the panel. */
   async function loadMacros() {
     if (state.busy) return;
     state.busy = true;
-    status.textContent = t("macros.loading");
+    setStatus(t("macros.loading"));
     try {
       const result = await invokeOrFetch("get_macros", null, "/api/macros");
       state.macros = Array.isArray(result) ? result : [];
       renderList();
-      status.textContent = "";
+      setStatus("");
     } catch (error) {
       list.replaceChildren(textElement("p", "macro-error", error?.message || t("macros.error.loadFailed")));
-      status.textContent = "";
+      setStatus("");
     } finally {
       state.busy = false;
     }
@@ -229,8 +265,8 @@ export function initMacrosUi() {
   /** Reapplies translated labels to dynamically generated macro controls after a locale change. */
   function refreshLocalizedUi() {
     renderList();
-    if (!editor.hidden) {
-      editorTitle.textContent = t(state.editingId ? "macros.editTitle" : "macros.addTitle");
+    if (dialog.open) {
+      dialogTitle.textContent = t(state.editingId ? "macros.editTitle" : "macros.addTitle");
       invocationsBox.querySelectorAll(".macro-invocation-row").forEach((row) => {
         const [controller, mechanism, command] = row.querySelectorAll("input");
         controller.placeholder = t("macros.controllerPlaceholder");
@@ -246,8 +282,16 @@ export function initMacrosUi() {
 
   addButton.addEventListener("click", () => openEditor());
   addInvocationButton.addEventListener("click", () => invocationsBox.append(createInvocationRow()));
+  deleteButton.addEventListener("click", removeCurrentMacro);
   cancelButton.addEventListener("click", closeEditor);
+  closeDialogButton.addEventListener("click", closeEditor);
   editor.addEventListener("submit", saveEditor);
+  // ESC (and any other native dismissal) must reset transient editor state too.
+  dialog.addEventListener("close", () => {
+    errorBox.hidden = true;
+    errorBox.textContent = "";
+    state.editingId = null;
+  });
   window.addEventListener("cnc-sidebar-tab-changed", (event) => {
     if (event.detail?.tab === "macros") loadMacros();
   });

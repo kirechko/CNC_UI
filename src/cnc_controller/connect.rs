@@ -75,7 +75,11 @@ impl CNCController {
             emergency_stop,
             xy_jog_speed: Mutex::new(1000.0),
             z_jog_speed: Mutex::new(300.0),
-            rotary_jog_speed: Mutex::new(300.0),
+            // Per-axis rotary feeds (task); all three start at the legacy
+            // shared rotary default of 300.
+            a_jog_speed: Mutex::new(300.0),
+            b_jog_speed: Mutex::new(300.0),
+            c_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
             command_cancel_requested,
             motion_stop_requested,
@@ -131,7 +135,9 @@ impl CNCController {
             emergency_stop,
             xy_jog_speed: Mutex::new(1000.0),
             z_jog_speed: Mutex::new(300.0),
-            rotary_jog_speed: Mutex::new(300.0),
+            a_jog_speed: Mutex::new(300.0),
+            b_jog_speed: Mutex::new(300.0),
+            c_jog_speed: Mutex::new(300.0),
             spindle_speed_setpoint: Mutex::new(0.0),
             command_cancel_requested,
             motion_stop_requested,

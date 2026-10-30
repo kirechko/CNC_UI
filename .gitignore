@@ -9,10 +9,15 @@
 
 # Local machine/work-coordinate offsets; do not commit real setup values.
 /config/coordinate_systems.yaml
-.aider*
+# Task: the project authors must not credit the aider tool. Its local
+# chat/config artifacts are no longer ignored here (they never belonged in
+# the repository anyway); nothing in the repo references aider as an author.
 
 # Personal plans and work notes; keep these local to this checkout.
 .local-plans/
+
+# Current work plans kept in the repo tree but never published on GitHub.
+/plans/
 
 # Dev-container and CI configuration kept local-only; do not publish on GitHub.
 /.devcontainer/

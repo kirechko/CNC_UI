@@ -1,13 +1,27 @@
-//! Serial COM-port discovery for GRBL controllers.
+//! Serial COM-port discovery for GRBL and FluidNC controllers.
 //!
 //! The scanner enumerates the OS-visible serial ports and opens every
-//! plausible candidate at the GRBL line rate. A port is reported as a GRBL
-//! machine when the controller proves itself within a short budget:
+//! plausible candidate at the GRBL line rate. A port is reported as a machine
+//! when the controller proves itself within a short budget:
 //! * most Arduino boards reset when the OS asserts DTR/RTS during `open()`
 //!   and print a boot banner (`Grbl 1.1h ['$' for help]`), or
 //! * a board that does not reset on open (GRBL shields with the reset-cap
 //!   mod) still answers the realtime `?` byte with a `<State|...>` status
 //!   report, which is the 1.x pipe-separated format this adapter requires.
+//!
+//! Task: the same pass also recognizes **FluidNC on a COM port** (ESP32
+//! controllers plugged in over USB show up as `ttyUSB*`/`ttyACM*`). FluidNC
+//! speaks the GRBL-shaped realtime protocol, so recognition relies on its
+//! unmistakable text: the boot banner (`[Boot:FluidNC …]`) and the `$I`
+//! identity reply (`[VER:FluidNC v…]`) that the scanner requests once per
+//! port. When the captured banner also carries the controller's Wi-Fi
+//! address (`…IP:192.168.1.42]`), the device is registered under its
+//! *network* identity — `fluidnc:WebSocket:<ip>:80` — so selecting it in the
+//! machines dialog reuses the fully implemented WebSocket control path. A
+//! serial FluidNC without a discoverable IP is still listed (id
+//! `fluidnc:serial:<port>`) so the operator sees the machine; the adapter
+//! factory reports a clear error if it is selected, because serial control
+//! of FluidNC is not implemented.
 //!
 //! Anything else (plain UARTs, GPS NMEA streams, silent adapters) fails the
 //! probe and is not listed. Firmware versions older than GRBL 1.x are
@@ -19,11 +33,12 @@
 //! byte for byte while the `endpoint` field keeps the full path needed to
 //! reopen the port.
 
-use super::{DiscoveredDevice, DiscoveryTransport};
+use super::{DiscoveredDevice, DiscoveryTransport, FluidNcIdentity};
 use crate::CncResult;
 use std::{
     collections::HashSet,
     io::{Read, Write},
+    net::Ipv4Addr,
     path::Path,
     time::{Duration, Instant},
 };
@@ -109,6 +124,84 @@ pub fn grbl_serial_device_id(port_path: &str) -> String {
     format!("grbl:serial:{}", serial_port_label(port_path))
 }
 
+/// Discovery id of the *serial* FluidNC record a port would produce. Used to
+/// exclude the currently connected machine from probing, mirroring
+/// [`grbl_serial_device_id`] for the GRBL case.
+pub fn fluidnc_serial_device_id(port_path: &str) -> String {
+    format!("fluidnc:serial:{}", serial_port_label(port_path))
+}
+
+/// Detects a FluidNC boot/identity banner line and extracts the firmware
+/// version. Accepted shapes (from real `[Boot:...]`/`[VER:...]` output):
+/// `[VER:FluidNC@v1.3.11:Debug]`, `[Boot:FluidNC v1.3.11 build:...`, plus the
+/// `[MSG:Machine:...]` companion line. Returns `None` for any GRBL line.
+pub fn fluidnc_banner_version(line: &str) -> Option<String> {
+    let line = line.trim();
+    let inside = line.strip_prefix("[VER:")?;
+    if !inside.contains("FluidNC") {
+        return None;
+    }
+    // Version token: first word after "FluidNC", allowing a leading 'v' or
+    // '@' decorations the different build scripts emit.
+    let after = inside.split("FluidNC").nth(1)?;
+    let token = after
+        .trim_start_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.')
+        .split(|c: char| c == '@' || c == ':' || c == ']' || c == ' ' || c.is_ascii_whitespace())
+        .find(|part| !part.is_empty())?;
+    let cleaned = token.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.');
+    // Drop the cosmetic 'v' prefix, matching the network identity parser in
+    // `probe.rs::fluidnc_identity`, so both discovery paths report `1.3.11`.
+    let version = cleaned
+        .strip_prefix('v')
+        .or_else(|| cleaned.strip_prefix("version "))
+        .unwrap_or(cleaned);
+    (!version.is_empty()).then(|| version.to_string())
+}
+
+/// Builds the informational serial FluidNC record (no network identity).
+fn fluidnc_serial_device(port_path: &str, version: Option<String>) -> DiscoveredDevice {
+    let full_path =
+        std::fs::canonicalize(port_path).unwrap_or_else(|_| Path::new(port_path).to_path_buf());
+    DiscoveredDevice {
+        id: fluidnc_serial_device_id(port_path),
+        protocol: "FluidNC".into(),
+        machine_name: None,
+        version,
+        transport: DiscoveryTransport::Serial,
+        endpoint: full_path.to_string_lossy().into_owned(),
+    }
+}
+
+/// Extracts the first IPv4 address following an `IP` marker in a FluidNC boot
+/// stream (e.g. `[MSG:WiFi Connected, IP:192.168.1.42]` or `STA IP:...`).
+/// Scanning the accumulated banner (not arbitrary UDP noise) keeps false
+/// positives away: only text after an "IP" token qualifies.
+pub fn extract_fluidnc_ipv4(text: &str) -> Option<Ipv4Addr> {
+    let lower = text.to_ascii_lowercase();
+    let mut search_from = 0;
+    while let Some(found) = lower[search_from..].find("ip") {
+        let start = search_from + found + 2;
+        let candidate_start = lower[start..]
+            .find(|c: char| c.is_ascii_digit())
+            .map(|offset| start + offset)?;
+        // Skip "IP" mentions that are not immediately followed by a dotted quad.
+        if candidate_start - start > 4 {
+            search_from = start;
+            continue;
+        }
+        let rest = &text[candidate_start..];
+        let quad: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        if let Ok(address) = quad.parse::<Ipv4Addr>() {
+            return Some(address);
+        }
+        search_from = start;
+    }
+    None
+}
+
 /// Builds the machine-list record for a confirmed GRBL port. The `endpoint`
 /// is the canonical full path (the open target); the `id` follows the
 /// basename convention of `GrblAdapter::connected_device_id`, so a connected
@@ -164,13 +257,13 @@ fn list_serial_candidates() -> Vec<String> {
         .collect()
 }
 
-/// Blocking single-port GRBL probe (runs on `spawn_blocking`).
-/// Returns the discovery record when the controller proved itself; `None`
-/// for empty, busy, chatty or non-1.x ports.
+/// Blocking single-port GRBL/FluidNC probe (runs on `spawn_blocking`).
+/// Returns the discovery record when a supported controller proved itself;
+/// `None` for empty, busy, chatty or non-1.x ports.
 fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice> {
     // The probe holds the port only for the deadline window; a port owned by
     // a live adapter session fails the open (or resets the board) and is
-    // pre-excluded by the caller via `grbl_serial_device_id`.
+    // pre-excluded by the caller via the serial device ids.
     // `timeout` bounds the blocking read; POSIX serial reads then return
     // `Ok(0)` (or EAGAIN-mapped error) after the idle gap instead of hanging.
     let mut port = match tokio_serial::new(&port_path, baud)
@@ -179,7 +272,7 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
     {
         Ok(port) => port,
         // A port held by another process (or a permission error) simply is
-        // not a confirmed GRBL machine for this scan pass.
+        // not a confirmed machine for this scan pass.
         Err(_) => return None,
     };
     // Drop whatever was buffered before we connected; it is not an answer
@@ -187,29 +280,48 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
     let _ = port.clear(ClearBuffer::Input);
 
     let deadline = Instant::now() + SERIAL_PROBE_DEADLINE;
+    let mut collected: Vec<u8> = Vec::new();
     let mut buffer: Vec<u8> = Vec::new();
     let mut chunk = [0_u8; 256];
     let mut pings = 0_u32;
     let mut status_seen = false;
+    // FluidNC state captured while streaming (task: COM-port FluidNC
+    // detection). Any `[VER:FluidNC…]`/`[Boot:FluidNC…]` line marks the
+    // controller; the version is best-effort.
+    let mut fluidnc_seen = false;
+    let mut fluidnc_version: Option<String> = None;
 
     while Instant::now() < deadline {
         // The realtime `?` byte needs no line terminator and is answered
         // with one status report; a board that missed its boot banner on
-        // open still reveals itself here.
-        if port.write_all(b"?").and_then(|_| port.flush()).is_err() {
+        // open still reveals itself here. The first ping additionally
+        // requests the `$I` identity, which FluidNC answers with the
+        // `[VER:FluidNC …]` banner GRBL rejects with a plain error.
+        let request = if pings == 0 { b"?\n$I\n".as_slice() } else { b"?".as_slice() };
+        if port.write_all(request).and_then(|_| port.flush()).is_err() {
             return None;
         }
         pings += 1;
 
         match port.read(&mut chunk) {
             Ok(0) => {} // idle gap within the probe window: keep waiting
-            Ok(n) => buffer.extend_from_slice(&chunk[..n]),
+            Ok(n) => {
+                buffer.extend_from_slice(&chunk[..n]);
+                collected.extend_from_slice(&chunk[..n]);
+            }
             Err(_) if Instant::now() >= deadline => break,
             Err(_) => {}
         }
         if buffer.len() > SERIAL_PROBE_MAX_BUFFER {
-            // Chatty non-GRBL device; stop collecting and bail out.
+            // Chatty non-controller device; stop collecting and bail out.
             return None;
+        }
+        if collected.len() > SERIAL_PROBE_MAX_BUFFER {
+            // Trim the banner memory to the newest half; old text was already
+            // scanned on the previous passes.
+            let keep = SERIAL_PROBE_MAX_BUFFER / 2;
+            let cut = collected.len() - keep;
+            collected.drain(..cut);
         }
 
         // Evaluate every complete line received so far.
@@ -230,6 +342,37 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
                 }
                 return Some(grbl_serial_device(&port_path, Some(version)));
             }
+            // FluidNC identity/boot banner: unmistakable, checked before the
+            // ambiguous status line because FluidNC shares the GRBL status
+            // grammar (`<Idle|MPos:...>`).
+            if !fluidnc_seen {
+                if let Some(version) = fluidnc_banner_version(&line) {
+                    fluidnc_seen = true;
+                    fluidnc_version = Some(version);
+                } else if line.starts_with("[Boot:FluidNC") {
+                    fluidnc_seen = true;
+                }
+            }
+            // Once the identity appeared, convert it into a device record:
+            // prefer the network identity when the banner exposes an IP, so
+            // selecting the machine reuses the full FluidNC control path over
+            // WebSocket. Without an IP the serial record still lists the
+            // machine for visibility.
+            if fluidnc_seen {
+                let identity_text = String::from_utf8_lossy(&collected).into_owned();
+                return Some(match extract_fluidnc_ipv4(&identity_text) {
+                    Some(address) => DiscoveredDevice::fluidnc(
+                        address,
+                        super::DEFAULT_FLUIDNC_WEBSOCKET_PORT,
+                        DiscoveryTransport::WebSocket,
+                        FluidNcIdentity {
+                            version: fluidnc_version.clone(),
+                            machine_name: machine_name_of(&identity_text),
+                        },
+                    ),
+                    None => fluidnc_serial_device(&port_path, fluidnc_version.clone()),
+                });
+            }
             // A pipe-separated `<...|...>` report is the 1.x status grammar.
             if line.starts_with('<') && line.ends_with('>') && line.contains('|') {
                 status_seen = true;
@@ -246,11 +389,19 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
     status_seen.then(|| grbl_serial_device(&port_path, None))
 }
 
-/// Starts the serial scan and streams confirmed GRBL devices as probes
-/// finish. `excluded_ids` carries discovery ids (typically the currently
-/// connected machine) whose ports must not be opened — opening a port
-/// toggles DTR/RTS and resets Arduino boards, which would interrupt a live
-/// control session.
+/// Extracts the `[MSG:Machine:<name>]` value from a captured banner stream.
+fn machine_name_of(text: &str) -> Option<String> {
+    text.lines().find_map(|line| {
+        let value = line.trim().strip_prefix("[MSG:Machine:")?.strip_suffix(']')?;
+        (!value.trim().is_empty()).then(|| value.trim().to_string())
+    })
+}
+
+/// Starts the serial scan and streams confirmed GRBL and FluidNC devices as
+/// probes finish. `excluded_ids` carries discovery ids (typically the
+/// currently connected machine) whose ports must not be opened — opening a
+/// port toggles DTR/RTS and resets Arduino/ESP32 boards, which would
+/// interrupt a live control session.
 pub async fn discover_grbl_stream(
     excluded_ids: &[String],
 ) -> CncResult<mpsc::Receiver<DiscoveredDevice>> {
@@ -258,7 +409,10 @@ pub async fn discover_grbl_stream(
     let excluded: HashSet<String> = excluded_ids.iter().cloned().collect();
     let candidates: Vec<String> = candidates
         .into_iter()
-        .filter(|path| !excluded.contains(&grbl_serial_device_id(path)))
+        .filter(|path| {
+            !excluded.contains(&grbl_serial_device_id(path))
+                && !excluded.contains(&fluidnc_serial_device_id(path))
+        })
         .collect();
 
     let (sender, receiver) = mpsc::channel(candidates.len().max(1));
@@ -327,6 +481,37 @@ mod tests {
             None
         );
         assert_eq!(parse_banner_version("Grblby"), None);
+    }
+
+    #[test]
+    fn fluidnc_banner_version_reads_the_identity_token() {
+        assert_eq!(
+            fluidnc_banner_version("[VER:FluidNC@v1.3.11:Debug]").as_deref(),
+            Some("1.3.11")
+        );
+        assert_eq!(
+            fluidnc_banner_version("[VER:FluidNC 1.2.0]").as_deref(),
+            Some("1.2.0")
+        );
+        // GRBL banners and unrelated lines must not match.
+        assert_eq!(fluidnc_banner_version("Grbl 1.1h ['$' for help]"), None);
+        assert_eq!(fluidnc_banner_version("[MSG:Workspace:0]"), None);
+    }
+
+    #[test]
+    fn extract_fluidnc_ipv4_finds_the_address_after_the_ip_marker() {
+        let stream = "[Boot:FluidNC v1.3.11]\n[MSG:WiFi Connected, IP:192.168.1.42]\n";
+        assert_eq!(
+            extract_fluidnc_ipv4(stream),
+            Some("192.168.1.42".parse().unwrap())
+        );
+        // No IP in the banner text: the serial record path must be used.
+        assert_eq!(extract_fluidnc_ipv4("[VER:FluidNC@v1.3.11:Debug]\nok\n"), None);
+    }
+
+    #[test]
+    fn fluidnc_serial_device_id_follows_the_basename_convention() {
+        assert!(fluidnc_serial_device_id("/dev/ttyUSB1").starts_with("fluidnc:serial:ttyUSB1"));
     }
 
     #[test]

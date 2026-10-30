@@ -11,8 +11,10 @@
 import { formatJogStep, isValidJogStepValues } from "./jog-step-settings.js";
 import { t } from "./i18n.js";
 
-/** Default speeds; must match the server defaults in cnc_controller.rs. */
-export const JOG_SPEED_DEFAULTS = Object.freeze({ xy: 1000, z: 300, rotary: 300 });
+/** Default speeds; must match the server defaults in cnc_controller.rs.
+ *  `rotary` is the legacy shared A-C value; the per-axis a/b/c defaults
+ *  (task: individual speed controls per rotary axis) start from it. */
+export const JOG_SPEED_DEFAULTS = Object.freeze({ xy: 1000, z: 300, rotary: 300, a: 300, b: 300, c: 300 });
 
 /** Local storage key that keeps the speeds between page loads. */
 const STORAGE_KEY = "cnc-ui-jog-speeds";
@@ -42,16 +44,24 @@ export function isValidJogSpeed(value) {
 /**
  * Loads the stored speeds, falling back to the defaults for missing or invalid data.
  *
- * @returns {{xy: number, z: number, rotary: number}} Speed settings.
+ * The per-axis rotary speeds (a/b/c, task) are optional in storage: when a
+ * stored payload predates the feature, all three inherit the legacy shared
+ * `rotary` value so behavior stays identical after an upgrade.
+ *
+ * @returns {{xy: number, z: number, rotary: number, a: number, b: number, c: number}} Speed settings.
  */
 export function loadJogSpeeds() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
     if (stored && SPEED_KEYS.every((key) => isValidJogSpeed(Number(stored[key])))) {
+      const rotary = Number(stored.rotary);
       return {
         xy: Number(stored.xy),
         z: Number(stored.z),
-        rotary: Number(stored.rotary),
+        rotary,
+        a: isValidJogSpeed(Number(stored.a)) ? Number(stored.a) : rotary,
+        b: isValidJogSpeed(Number(stored.b)) ? Number(stored.b) : rotary,
+        c: isValidJogSpeed(Number(stored.c)) ? Number(stored.c) : rotary,
       };
     }
   } catch {
@@ -63,7 +73,7 @@ export function loadJogSpeeds() {
 /**
  * Saves the speeds to local storage. Failures are ignored; the values stay active until reload.
  *
- * @param {{xy: number, z: number, rotary: number}} values - Speed settings to store.
+ * @param {{xy: number, z: number, rotary: number, a?: number, b?: number, c?: number}} values - Speed settings to store.
  */
 export function saveJogSpeeds(values) {
   try {
@@ -76,7 +86,7 @@ export function saveJogSpeeds(values) {
 /**
  * Sends the speed settings to the server.
  *
- * @param {{xy?: number, z?: number, rotary?: number}} values - Speeds to apply.
+ * @param {{xy?: number, z?: number, rotary?: number, a?: number, b?: number, c?: number}} values - Speeds to apply.
  * @returns {Promise<void>} Resolves when the server accepted the values.
  * @throws {Error} When the request fails or the server rejects the values.
  */

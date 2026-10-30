@@ -21,6 +21,46 @@ export function initMachinesDialog({ refreshStatus }) {
   // guards against double clicks and concurrent switches in the machines dialog.
   let switchingMachine = false;
 
+  /**
+   * Groups discovered interfaces that belong to ONE physical machine.
+   *
+   * Task: the machines list must visually group the different interfaces of
+   * the same machine (FluidNC found over WebSocket and Telnet on one IP, or
+   * the same serial port reported by both scanners) and present them as
+   * subordinate variants of the parent machine, not as unrelated rows.
+   *
+   * The grouping key is:
+   *   1. the reported machine name (FluidNC `$I` "Machine:") when present —
+   *      identical across the interfaces of one controller;
+   *   2. otherwise the IP *host* of the address (the port differs per
+   *      transport: WebSocket 80 vs Telnet 23, but the host is the device);
+   *   3. otherwise the bare serial port name (`ttyUSB0`) — a COM port is a
+   *      single physical socket;
+   *   4. otherwise the whole id (singleton group).
+   *
+   * @param {Array<object>} machines - Payload `machines` array.
+   * @returns {Map<string, {name: string, entries: Array<object>}>} Ordered map
+   *   of group key to its interfaces (insertion order preserved).
+   */
+  function groupMachines(machines) {
+    const groups = new Map();
+    for (const machine of machines) {
+      const name = String(machine.machine_name || "").trim();
+      const address = String(machine.address || "");
+      const host = address.split(":")[0];
+      const serialTail = machine.transport === "serial"
+        ? address.split(/[/:]/).filter(Boolean).pop()
+        : "";
+      const key = name ? `name:${name.toLowerCase()}`
+        : host ? `host:${host}`
+        : serialTail ? `serial:${serialTail}`
+        : `id:${machine.id}`;
+      if (!groups.has(key)) groups.set(key, { name: name || host || serialTail || machine.id, entries: [] });
+      groups.get(key).entries.push(machine);
+    }
+    return groups;
+  }
+
   function renderDiscoveredMachines(payload) {
     machinesList.replaceChildren();
     const machines = Array.isArray(payload?.machines) ? payload.machines : [];
@@ -31,43 +71,66 @@ export function initMachinesDialog({ refreshStatus }) {
       machinesList.append(empty);
       return;
     }
-    for (const machine of machines) {
-      // Each row is a button: clicking it asks the backend to switch the active
-      // machine adapter to this device (POST /api/machines/select). The already
-      // connected row stays visible but disabled, and the list is frozen while
-      // a switch is in flight.
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = `machine-entry${machine.connected ? " connected" : ""}`;
-      row.dataset.machineId = machine.id || "";
-      row.disabled = Boolean(machine.connected);
-      row.title = machine.connected
-        ? t("ui.connected")
-        : t("ui.machines.connectTitle", { address: machine.address || machine.id });
-      const details = document.createElement("div");
-      details.className = "machine-entry-details";
-      const endpoint = document.createElement("span");
-      endpoint.className = "machine-entry-endpoint";
-      endpoint.textContent = machine.address;
-      const system = document.createElement("span");
-      system.className = "machine-entry-meta";
-      const identity = [machine.protocol, machine.version].filter(Boolean).join(" ");
-      const machineName = String(machine.machine_name || "").trim();
-      const endpointName = String(machine.address || "").split(/[/:]/).filter(Boolean).pop();
-      const transportName = machine.transport === "serial"
-        ? (endpointName || "serial")
-        : machine.transport || "";
-      system.textContent = [machineName, identity, transportName].filter(Boolean).join(" · ") || t("ui.machines.unidentified");
-      // Dedicated `machine-entry-state` class marks the status label ("Connected"
-      // / "Discovered") so connectDiscoveredMachine can find it reliably. The
-      // system meta span above shares `.machine-entry-meta`, so a plain
-      // `.machine-entry-meta:last-child` query would wrongly match it first.
-      const label = document.createElement("span");
-      label.className = "machine-entry-meta machine-entry-state";
-      label.textContent = machine.connected ? t("ui.connected") : t("ui.machines.discovered");
-      details.append(endpoint, system);
-      row.append(details, label);
-      machinesList.append(row);
+    for (const group of groupMachines(machines).values()) {
+      // A machine with several interfaces gets a parent header row (not a
+      // connect button — the interfaces below are what you actually pick);
+      // a single-interface machine keeps the old flat row layout exactly.
+      if (group.entries.length > 1) {
+        const header = document.createElement("div");
+        header.className = "machine-group";
+        const headerName = document.createElement("span");
+        headerName.className = "machine-group-name";
+        headerName.textContent = group.name;
+        const headerCount = document.createElement("span");
+        headerCount.className = "machine-group-count";
+        headerCount.textContent = t("ui.machines.interfaceCount", { count: group.entries.length });
+        header.append(headerName, headerCount);
+        machinesList.append(header);
+      }
+      for (const machine of group.entries) {
+        // Each row is a button: clicking it asks the backend to switch the
+        // active machine adapter to this device (POST /api/machines/select).
+        // The already connected row stays visible but disabled, and the list
+        // is frozen while a switch is in flight. Rows of a multi-interface
+        // group get `.machine-entry-sub` so CSS can indent them under the
+        // parent header.
+        const grouped = group.entries.length > 1;
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = `machine-entry${machine.connected ? " connected" : ""}${grouped ? " machine-entry-sub" : ""}`;
+        row.dataset.machineId = machine.id || "";
+        row.disabled = Boolean(machine.connected);
+        row.title = machine.connected
+          ? t("ui.connected")
+          : t("ui.machines.connectTitle", { address: machine.address || machine.id });
+        const details = document.createElement("div");
+        details.className = "machine-entry-details";
+        const endpoint = document.createElement("span");
+        endpoint.className = "machine-entry-endpoint";
+        endpoint.textContent = machine.address;
+        const system = document.createElement("span");
+        system.className = "machine-entry-meta";
+        const identity = [machine.protocol, machine.version].filter(Boolean).join(" ");
+        const machineName = String(machine.machine_name || "").trim();
+        const endpointName = String(machine.address || "").split(/[/:]/).filter(Boolean).pop();
+        const transportName = machine.transport === "serial"
+          ? (endpointName || "serial")
+          : machine.transport || "";
+        // Inside a group the transport is the differentiator; keep the name
+        // only for flat (single-interface) rows where it identifies the device.
+        const metaParts = grouped ? [identity, transportName] : [machineName, identity, transportName];
+        system.textContent = metaParts.filter(Boolean).join(" · ") || t("ui.machines.unidentified");
+        // Dedicated `machine-entry-state` class marks the status label ("Connected"
+        // / "Discovered") so connectDiscoveredMachine can find it reliably. The
+        // system meta span above shares `.machine-entry-meta`, so a plain
+        // `.machine-entry-meta:last-child` query would wrongly match it first.
+        const label = document.createElement("span");
+        label.className = "machine-entry-meta machine-entry-state";
+        label.textContent = machine.connected ? t("ui.connected") : t("ui.machines.discovered");
+        details.append(endpoint, system);
+        row.append(details, label);
+        machinesList.append(row);
+      }
     }
   }
 

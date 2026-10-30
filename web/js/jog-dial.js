@@ -11,6 +11,7 @@ import { initJogZFit } from "./jog-z-fit.js";
 import { initJogDialFit } from "./jog-dial-fit.js";
 import { initJogRotaryColumns } from "./jog-rotary-columns.js";
 import { initJogSpeedDialog, saveJogSpeeds, sendJogSpeeds } from "./jog-speed-dialog.js";
+import { initJogAxisSpeeds } from "./jog-axis-speeds.js";
 import { initJogDialInteraction } from "./jog-dial-interaction.js";
 import { renderJogDial as renderJogDialCanvas } from "./jog-dial-renderer.js";
 import { formatJogStep } from "./jog-step-settings.js";
@@ -101,8 +102,13 @@ export function initJogDial(app, ctx, jogMotion) {
   });
 
   // Rotary jog columns (A, B, C) to the right of the Z column. Each step button has a fixed distance.
+  // The same handle also drives the keypad rotary buttons and step selects
+  // (task: button JOG gains A–C when those axes exist) so all three groups
+  // share one machine-configuration visibility rule.
   const rotaryColumns = initJogRotaryColumns({
     container: document.querySelector("#jog-rotary-columns"),
+    keysContainer: document.querySelector("#jog-keys-rotary"),
+    stepSelectsContainer: document.querySelector("#jog-rotary-step-selects"),
   });
 
   // JOG speed settings: the dialog applies values through POST /api/jog/speed.
@@ -116,9 +122,18 @@ export function initJogDial(app, ctx, jogMotion) {
     getSteps: () => ({ xy: ctx.xySteps, z: ctx.zSteps }),
     async onApply({ speeds, steps }) {
       // Speeds go to the server first; if that fails, nothing else is changed.
-      await sendJogSpeeds(speeds);
-      ctx.speeds = speeds;
-      saveJogSpeeds(speeds);
+      // A legacy "rotary" change from the dialog re-synchronizes the per-axis
+      // rotary feeds (task): all three follow the shared value again.
+      const full = { ...speeds };
+      if (speeds.rotary !== undefined) {
+        full.a = speeds.rotary;
+        full.b = speeds.rotary;
+        full.c = speeds.rotary;
+      }
+      await sendJogSpeeds(full);
+      ctx.speeds = full;
+      saveJogSpeeds(full);
+      axisSpeeds.refresh();
 
       // Step groups are applied to the page and kept in local storage.
       ctx.xySteps = steps.xy;
@@ -140,6 +155,18 @@ export function initJogDial(app, ctx, jogMotion) {
   sendJogSpeeds(ctx.speeds).catch((error) => {
     ctx.feedback.textContent = t("common.errorPrefix", { message: error.message });
     ctx.feedback.className = "error";
+  });
+
+  // Per-axis feed-rate controls (task) between the dial and the spindle
+  // section. Their visibility follows the machine configuration exactly like
+  // the rotary columns, so status-panel.js calls render() with every poll;
+  // applying a speed updates the shared context and storage through ctx.
+  const axisSpeeds = initJogAxisSpeeds({
+    container: document.querySelector("#jog-axis-speeds"),
+    getSpeeds: () => ctx.speeds,
+    onSpeeds: (speeds) => {
+      ctx.speeds = speeds;
+    },
   });
 
   /**
@@ -302,6 +329,7 @@ export function initJogDial(app, ctx, jogMotion) {
     modeControls: jogModeControls,
     interaction: jogDialInteraction,
     rotaryColumns,
+    axisSpeeds,
     isDialVisible: () => !jogDialPanel.hidden,
   };
 }

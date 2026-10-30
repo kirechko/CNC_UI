@@ -131,8 +131,15 @@ fn build_request(
 }
 
 /// Splits one complete response buffer into status, headers and decoded body.
+///
+/// Task: FluidNC file access failed with "GET response: missing header
+/// terminator". espressif's HTTP stack does not always emit the RFC-mandated
+/// CRLF pairs: some builds terminate the header block (and chunk lines) with
+/// bare `\n`. The parser therefore accepts BOTH `\r\n\r\n` and `\n\n` as the
+/// header terminator and treats bare-LF chunk lines like CRLF ones.
 fn parse_response(raw: &[u8]) -> Result<HttpResponse, String> {
-    let header_end = find_header_end(raw).ok_or("missing header terminator")?;
+    let (header_end, terminator_len) =
+        find_header_end(raw).ok_or("missing header terminator")?;
     let head = std::str::from_utf8(&raw[..header_end])
         .map_err(|_| "non-UTF-8 response header")?
         .to_ascii_lowercase();
@@ -142,8 +149,8 @@ fn parse_response(raw: &[u8]) -> Result<HttpResponse, String> {
         .and_then(|line| line.split(' ').nth(1))
         .and_then(|code| code.trim().parse::<u16>().ok())
         .ok_or("missing status line")?;
-    let body_start = header_end + 4;
-    let rest = &raw[body_start.min(raw.len())..];
+    let body_start = (header_end + terminator_len).min(raw.len());
+    let rest = &raw[body_start..];
     let chunked = head
         .lines()
         .any(|line| line.starts_with("transfer-encoding:") && line.contains("chunked"));
@@ -164,9 +171,25 @@ fn parse_response(raw: &[u8]) -> Result<HttpResponse, String> {
     Ok(HttpResponse { status, body })
 }
 
-/// Position of the `\r\n\r\n` header terminator, if any.
-fn find_header_end(raw: &[u8]) -> Option<usize> {
-    raw.windows(4).position(|window| window == b"\r\n\r\n")
+/// Position and length of the header terminator: `\r\n\r\n` (2+2 bytes) or,
+/// for servers that emit bare LF, `\n\n` (1+1 bytes). The earliest match of
+/// either form wins; a mixed `\r\n\n` / `\n\r\n` is also covered because the
+/// scan looks at the raw byte windows directly.
+fn find_header_end(raw: &[u8]) -> Option<(usize, usize)> {
+    let crlf = raw
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .map(|index| (index, 4));
+    let lf = raw
+        .windows(2)
+        .position(|window| window == b"\n\n")
+        .map(|index| (index, 2));
+    match (crlf, lf) {
+        (Some(a), Some(b)) => Some(if a.0 <= b.0 { a } else { b }),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
 }
 
 /// Lowercased value of one header from the already-lowercased header block.
@@ -176,13 +199,15 @@ fn header_value<'a>(head: &'a str, name: &str) -> Option<&'a str> {
         .map(|line| line[name.len() + 1..].trim())
 }
 
-/// Decodes an HTTP chunked body: `hex-size [;ext]\r\n data \r\n` repeated
-/// until the zero-size chunk. Trailer headers after the last chunk are
-/// ignored (we never need them).
+/// Decodes an HTTP chunked body: `hex-size [;ext]<line-end> data <line-end>`
+/// repeated until the zero-size chunk. Line endings may be CRLF or bare LF —
+/// both are produced by different espressif AsyncWebServer revisions. Trailer
+/// headers after the last chunk are ignored (we never need them).
 fn decode_chunked(mut data: &[u8]) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     loop {
-        let line_end = find_line_end(data).ok_or("chunk size line missing")?;
+        let (line_end, line_terminator_len) =
+            find_line_end(data).ok_or("chunk size line missing")?;
         let size_text = std::str::from_utf8(&data[..line_end])
             .map_err(|_| "non-UTF-8 chunk size")?
             .split(';')
@@ -199,23 +224,41 @@ fn decode_chunked(mut data: &[u8]) -> Result<Vec<u8>, String> {
                 "chunked body larger than {MAX_RESPONSE_BYTES} bytes"
             ));
         }
-        data = &data[line_end + 2..];
+        data = &data[(line_end + line_terminator_len).min(data.len())..];
         if data.len() < size {
             return Err("chunk data truncated".to_string());
         }
         out.extend_from_slice(&data[..size]);
         data = &data[size..];
-        // Skip the CRLF after each chunk's payload.
+        // Skip the CRLF/LF after each chunk's payload.
         if data.starts_with(b"\r\n") {
             data = &data[2..];
+        } else if data.starts_with(b"\n") {
+            data = &data[1..];
         }
     }
     Ok(out)
 }
 
-/// Index of the next `\n` (the `\r` is stripped by the caller's trim).
-fn find_line_end(data: &[u8]) -> Option<usize> {
-    data.windows(2).position(|window| window == b"\r\n")
+/// Index and length of the next line terminator: `\r\n` (length 2) or a bare
+/// `\n` (length 1), whichever appears first.
+fn find_line_end(data: &[u8]) -> Option<(usize, usize)> {
+    let crlf = data.windows(2).position(|window| window == b"\r\n");
+    let lf = data.iter().position(|byte| *byte == b'\n');
+    match (crlf, lf) {
+        (Some(c), Some(l)) => {
+            if l == c + 1 {
+                Some((c, 2))
+            } else if c < l {
+                Some((c, 2))
+            } else {
+                Some((l, 1))
+            }
+        }
+        (Some(c), None) => Some((c, 2)),
+        (None, Some(l)) => Some((l, 1)),
+        (None, None) => None,
+    }
 }
 
 #[cfg(test)]
@@ -268,6 +311,23 @@ mod tests {
         assert!(parse_response(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\nabc").is_err());
         assert!(parse_response(b"garbage").is_err());
         assert!(parse_response(b"HTTP/1.1").is_err());
+    }
+
+    #[test]
+    fn parse_accepts_bare_lf_header_terminator() {
+        // espressif builds that emit LF-only line endings must not fail with
+        // "missing header terminator" (the reported FluidNC file error).
+        let raw = b"HTTP/1.1 200 OK\nContent-Length: 5\n\nhello";
+        let response = parse_response(raw).expect("parse LF headers");
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, b"hello");
+    }
+
+    #[test]
+    fn decode_chunked_accepts_bare_lf_lines() {
+        let raw = b"HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n4\nWiki\n5\npedia\n0\n\n";
+        let response = parse_response(raw).expect("parse LF chunked");
+        assert_eq!(response.body, b"Wikipedia");
     }
 
     #[test]

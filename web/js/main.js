@@ -16,6 +16,7 @@ import { initMacrosUi } from "./macros-ui.js";
 import { initPositionControls } from "./position-controls.js";
 import { createPositionReadoutUpdater } from "./position-readouts.js";
 import { initPositionAxisView } from "./position-axis-view.js";
+import { initPositionHeadingAlign } from "./position-heading-align.js";
 import { initJobControls } from "./job-control.js";
 import { initSpindleControls } from "./spindle-control.js";
 import { initCommandConsole } from "./command-console.js";
@@ -152,6 +153,19 @@ app.positionAxisView = initPositionAxisView({
   },
 });
 
+// Keep the heading controls (WPOS/MPOS buttons + coordinate-system select)
+// exactly above the coordinate columns of the axis rows on every horizontal
+// resize — tasks T06/T07. The aligner measures the rendered first axis row,
+// so it follows machine axis-count changes (T20) and WPOS/MPOS toggles too.
+app.positionHeadingAlign = initPositionHeadingAlign({
+  heading: document.querySelector(".position-panel-heading .section-heading"),
+  workToggle: document.querySelector("#wpos-toggle"),
+  machineToggle: document.querySelector("#mpos-toggle"),
+  coordinateSelect: document.querySelector("#coordinate-system"),
+  axesContainer: document.querySelector("#axis-rows"),
+  panel: document.querySelector(".position-panel-heading").closest(".panel"),
+});
+
 // Numeric work/machine readouts for every axis row.
 app.positionReadouts = createPositionReadoutUpdater(document.querySelector("#axis-rows"));
 
@@ -205,6 +219,8 @@ window.addEventListener("cnc-locale-changed", () => {
   // Axis rows (zero/home button titles and the clickable work-value tooltip)
   // are built with template strings, so re-apply their localized titles too.
   app.positionAxisView.refreshTitles();
+  // Per-axis jog speed controls (task) carry JS-assembled captions/tooltips.
+  app.jogDial.axisSpeeds?.refresh();
   // Dial idle tooltip + hint line, and the hovered variant, are assembled in
   // JS as well; clearHover() rewrites both from the fresh dictionary.
   app.jogDial.modeControls.refreshDialChrome(app.jog.motionMode === "incremental");

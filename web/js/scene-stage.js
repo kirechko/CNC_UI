@@ -4,12 +4,34 @@
 // cross-feature reads (status, connection, program) go through the shared
 // `app` bag so this module never touches another feature's private state.
 import { t } from "./i18n.js";
+import { themeAlpha, themeToken } from "./theme-colors.js";
 import { initSceneViewer } from "./scene-viewer.js";
 import { initToolAnimation } from "./tool-animation.js";
 import { initOrientationCube } from "./orientation-cube.js";
 import { initCameraControls } from "./camera-controls.js";
 import { initStockLoader } from "./stock-loader.js";
 import { initViewerToolbar } from "./viewer-toolbar.js";
+
+/**
+ * Paints the toolpath legend swatches from the active theme tokens.
+ *
+ * The trajectory renderer draws rapid moves with `--traj-rapid` (dashed) and
+ * feed/arc moves with `--traj-linear` / `--traj-arc`; the legend must show
+ * exactly those colors, so it reads the same tokens (task: 3D line color
+ * legend). Called once at stage creation and again on `cnc-theme-changed`.
+ *
+ * @returns {void}
+ */
+function paintLegendSwatches() {
+  const legend = document.querySelector("#viewer-legend");
+  if (!legend) return;
+  const rapid = legend.querySelector(".viewer-legend-swatch.rapid");
+  const linear = legend.querySelector(".viewer-legend-swatch.linear");
+  const arc = legend.querySelector(".viewer-legend-swatch.arc");
+  if (rapid) rapid.style.color = themeAlpha("--traj-rapid", 0.85);
+  if (linear) linear.style.background = themeToken("--traj-linear");
+  if (arc) arc.style.background = themeToken("--traj-arc");
+}
 
 /**
  * Creates the viewer stage and all of its sub-controllers.
@@ -90,6 +112,12 @@ export function initSceneStage(app) {
     camera.panY = 0;
     drawToolpath();
   }
+
+  // Legend colors follow the active theme now (task: 3D line color legend)
+  // and re-paint on every theme switch, in step with the canvas redraw that
+  // main.js already triggers for the same event.
+  paintLegendSwatches();
+  window.addEventListener("cnc-theme-changed", paintLegendSwatches);
 
   initCameraControls({
     canvas: trajectoryCanvas,

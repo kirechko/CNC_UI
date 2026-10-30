@@ -103,7 +103,9 @@ pub(crate) struct FileListResult {
     path: String,
     /// Entries sorted directories-first, then case-insensitive by name.
     entries: Vec<FileEntry>,
-    /// Volume capacity in bytes when the source reports it (FluidNC only).
+    /// Volume capacity in bytes when the source reports it (FluidNC footer or
+    /// the local file system via `statvfs` — task: show the free space of the
+    /// filesystem displayed in the FILES panel).
     total_bytes: Option<u64>,
     /// Used space in bytes when the source reports it.
     used_bytes: Option<u64>,

@@ -1,0 +1,43 @@
+# Rosetta host settings — example presets that must be present in the
+# application database from the first start (task: G83/G73 substitution for
+# grbl/FluidNC).
+#
+# The structure mirrors the core's capability-resolution rules
+# (`rosetta::ir::capability::Resolution`): when the loaded program uses a
+# construct the selected backend cannot execute, the host applies the rule
+# instead of failing. `ApplyTransform` names a transform kind registered in
+# `rosetta::transform::TransformRegistry`; `SubstituteMacro` runs a macro
+# through the generative expander (`CORE-M-04`).
+#
+# Seed semantics: the backend inserts one row per (backend, word) into the
+# `rosetta_settings` SQLite table when absent; user edits win over re-seeding.
+
+version: 1
+
+# Per-backend substitution presets for the canned drilling cycles. GRBL
+# (1.1) has no G73/G81/G82/G83/G85-G89 support at all, FluidNC supports them
+# only when the firmware was built with the cycle module — so the safe default
+# is to rewrite the cycle into plain rapid/linear moves before streaming.
+substitutions:
+  - backend: grbl
+    word: G83
+    resolution: substitute
+    macro: g83_peck_drill
+    # Flat fallback used when the macro source is unavailable: the host emits
+    # the peck drill as plain moves (rapid to R, feed to Q1, retract, repeat).
+    fallback: simple-moves
+  - backend: grbl
+    word: G73
+    resolution: substitute
+    macro: g83_peck_drill
+    fallback: simple-moves
+  - backend: fluidnc
+    word: G83
+    resolution: substitute
+    macro: g83_peck_drill
+    fallback: simple-moves
+  - backend: fluidnc
+    word: G73
+    resolution: substitute
+    macro: g83_peck_drill
+    fallback: simple-moves

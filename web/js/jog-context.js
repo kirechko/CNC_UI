@@ -22,6 +22,12 @@ export function createJogContext(app) {
   ];
   const distanceSelect = document.querySelector("#distance");
   const zDistanceSelect = document.querySelector("#distance-z");
+  // Per-axis step selects of the keypad rotary columns (task: A–C step lists
+  // in the button JOG mode). Missing elements are tolerated: the rotary axis
+  // then falls back to the XY select, exactly as before this feature.
+  const rotaryDistanceSelects = new Map(
+    ["A", "B", "C"].map((axis) => [axis, document.querySelector(`#distance-${axis.toLowerCase()}`)]),
+  );
   const positionDialog = document.querySelector("#position-dialog");
   const jogSpeedDialog = document.querySelector("#jog-speed-dialog");
 
@@ -37,6 +43,7 @@ export function createJogContext(app) {
     jogButtons,
     distanceSelect,
     zDistanceSelect,
+    rotaryDistanceSelects,
     positionDialog,
     jogSpeedDialog,
     xySteps: loadJogStepValues("cnc-ui-jog-steps-xy", legacyJogStepValues),

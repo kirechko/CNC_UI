@@ -1,0 +1,48 @@
+# Rosetta example macro — Z work-zero with a simple (single-surface) probe.
+#
+# Class: `reactive` (ТЗ №2 §2): the macro reads live machine state while it
+# runs, so the host must INTERPRET it step by step (not expand offline). The
+# `!wait { cond: !status probe_trig }` statement is the reactive primitive
+# that generative expansion refuses on purpose (`CORE-M-03`).
+meta:
+  id: z_probe_zero
+  name: Z zero (simple probe)
+  category: probing
+  class: reactive
+  require_confirm: false
+
+triggers:
+  # UI tile press; an M-code binding for LinuxCNC-style backends as well.
+  - { type: button, require_confirm: false }
+  - { type: mcode, code: 650 }
+
+params:
+  - { name: start_z, kind: number, default: !num 20.0, description: Safe Z above the workpiece }
+  - { name: probe_feed, kind: number, default: !num 100.0, description: Probe descent feed }
+  - { name: travel_feed, kind: number, default: !num 1000.0 }
+  - { name: retract, kind: number, default: !num 5.0, description: Retract after touch }
+  - { name: max_depth, kind: number, default: !num 30.0, description: Search distance }
+  - { name: system, kind: number, default: !num 1.0, description: G54.1 P index (1 = G54) }
+  - { name: offset, kind: number, default: !num 0.0, description: Tool length to add to zero }
+
+locals:
+  - { name: touched, kind: flag }
+
+body:
+  - !gcode { template: "G90 G21 G94" }
+  - !gcode { template: "G0 Z{start_z} F{travel_feed}" }
+  # Probe descent in incremental moves until the switch fires; G38.2 is the
+  # standard probe-toward word (GRBL/FluidNC/LinuxCNC all implement it).
+  - !gcode { template: "G91" }
+  - !gcode { template: "G38.2 Z-{max_depth} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  # Back off the overtravel, then measure the touched point precisely.
+  - !gcode { template: "G1 Z1.0 F{probe_feed}" }
+  - !gcode { template: "G38.2 Z-2.0 F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  # Work zero = current work Z (the probe is assumed to fire at Z=0 of the
+  # tool reference plane) minus the requested tool offset.
+  - !gcode { template: "G90" }
+  - !gcode { template: "G10 L20 P{system} Z{offset}" }
+  - !gcode { template: "G0 Z{retract} F{travel_feed}" }
+  - !return { value: !status pos.z }

@@ -179,6 +179,33 @@
                 <span data-i18n="html.position.homeAll" data-i18n-compact="html.position.homeAllShort">Home all</span>
               </button>
             </div>
+            <!-- Telemetry strip (task: show motion speeds with the current
+                 mode and spindle RPM below the Zero all / Home all buttons).
+                 Values are refreshed by status-panel.js on every poll; the
+                 whole row stays hidden until the first status arrives. -->
+            <div class="position-telemetry" id="position-telemetry" hidden>
+              <span class="telemetry-cell" id="telemetry-feed-cell">
+                <span class="telemetry-caption" data-i18n="html.position.telemetryFeed">Feed</span>
+                <span class="telemetry-value" id="telemetry-feed">—</span>
+                <span class="telemetry-value motion-mode" id="telemetry-mode">—</span>
+              </span>
+              <span class="telemetry-cell" id="telemetry-spindle-cell">
+                <span class="telemetry-caption" data-i18n="html.position.telemetrySpindle">Spindle</span>
+                <span class="telemetry-value" id="telemetry-spindle">—</span>
+              </span>
+              <!-- Coolant lamps (task: coolant indication): mist M7 / flood M8,
+                   lit while the corresponding telemetry bit is set. -->
+              <span class="telemetry-coolant" id="telemetry-coolant">
+                <span class="coolant-lamp mist" id="coolant-mist" data-i18n-title="html.position.coolantMistTitle" title="Mist coolant (M7/M9)" data-i18n-aria-label="html.position.coolantMist" aria-label="Mist coolant">
+                  <span class="coolant-dot" aria-hidden="true"></span>
+                  <span data-i18n="html.position.coolantMistShort">Mist</span>
+                </span>
+                <span class="coolant-lamp flood" id="coolant-flood" data-i18n-title="html.position.coolantFloodTitle" title="Flood coolant (M8/M9)" data-i18n-aria-label="html.position.coolantFlood" aria-label="Flood coolant">
+                  <span class="coolant-dot" aria-hidden="true"></span>
+                  <span data-i18n="html.position.coolantFloodShort">Flood</span>
+                </span>
+              </span>
+            </div>
           </div>
         </section>
 
@@ -244,6 +271,47 @@
                   <option value="100">100 mm</option>
                 </select>
               </div>
+              <!-- Step selects for the rotary axes (task: the keypad JOG must
+                   offer A–C buttons and step lists when those axes exist).
+                   Individual blocks are shown/hidden by jog-rotary-columns.js
+                   from the machine configuration, exactly like the dial
+                   rotary columns; captions and tooltips are localized there
+                   too because the axis letter is a runtime parameter. -->
+              <div class="jog-rotary-step-selects" id="jog-rotary-step-selects" hidden>
+                <div class="jog-rotary-step-select" data-rotary-step-select="A" hidden>
+                  <label for="distance-a">A STEP</label>
+                  <select id="distance-a" class="step-select">
+                    <option value="0.1">0.1°</option>
+                    <option value="1" selected>1°</option>
+                    <option value="5">5°</option>
+                    <option value="10">10°</option>
+                    <option value="45">45°</option>
+                    <option value="90">90°</option>
+                  </select>
+                </div>
+                <div class="jog-rotary-step-select" data-rotary-step-select="B" hidden>
+                  <label for="distance-b">B STEP</label>
+                  <select id="distance-b" class="step-select">
+                    <option value="0.1">0.1°</option>
+                    <option value="1" selected>1°</option>
+                    <option value="5">5°</option>
+                    <option value="10">10°</option>
+                    <option value="45">45°</option>
+                    <option value="90">90°</option>
+                  </select>
+                </div>
+                <div class="jog-rotary-step-select" data-rotary-step-select="C" hidden>
+                  <label for="distance-c">C STEP</label>
+                  <select id="distance-c" class="step-select">
+                    <option value="0.1">0.1°</option>
+                    <option value="1" selected>1°</option>
+                    <option value="5">5°</option>
+                    <option value="10">10°</option>
+                    <option value="45">45°</option>
+                    <option value="90">90°</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div class="jog-keys-layout">
@@ -267,6 +335,24 @@
               <div class="jog-keys-z" data-i18n-aria-label="html.jog.zAxisMovement" aria-label="Z axis movement">
                 <button class="jog-button z" data-axis="Z" data-direction="1" data-i18n-aria-label="html.jog.keyZPlus.aria" data-i18n-title="html.jog.keyZPlus.title" aria-label="Move Z plus" title="Move the Z axis in the positive direction">Z+</button>
                 <button class="jog-button z" data-axis="Z" data-direction="-1" data-i18n-aria-label="html.jog.keyZMinus.aria" data-i18n-title="html.jog.keyZMinus.title" aria-label="Move Z minus" title="Move the Z axis in the negative direction">Z−</button>
+              </div>
+              <!-- Rotary keypad columns (task): plain +/− buttons for A–C; the
+                       step comes from the selects above. Visibility follows the
+                       machine configuration exactly like the dial rotary
+                       columns. -->
+              <div class="jog-keys-rotary" id="jog-keys-rotary" hidden>
+                <div class="jog-keys-rotary-col" data-rotary-key="A" hidden>
+                  <button class="jog-button rotary" data-axis="A" data-direction="1">A+</button>
+                  <button class="jog-button rotary" data-axis="A" data-direction="-1">A−</button>
+                </div>
+                <div class="jog-keys-rotary-col" data-rotary-key="B" hidden>
+                  <button class="jog-button rotary" data-axis="B" data-direction="1">B+</button>
+                  <button class="jog-button rotary" data-axis="B" data-direction="-1">B−</button>
+                </div>
+                <div class="jog-keys-rotary-col" data-rotary-key="C" hidden>
+                  <button class="jog-button rotary" data-axis="C" data-direction="1">C+</button>
+                  <button class="jog-button rotary" data-axis="C" data-direction="-1">C−</button>
+                </div>
               </div>
             </div>
 
@@ -300,7 +386,10 @@
                 </div>
                 <div class="jog-rotary-columns" id="jog-rotary-columns" hidden>
                   <div class="jog-rotary-col" data-rotary-column="A" hidden>
-                    <button class="jog-rotary-head" type="button" data-rotary-unit-toggle="A" title="Switch units for axis A" aria-label="Axis A: switch units">A · °</button>
+                    <!-- Plain text header, exactly like the Z column label: the
+                         unit comes from the machine configuration (angular axes
+                         show °, linear axes mm) and is not user-toggleable. -->
+                    <span class="jog-rotary-head" aria-hidden="true">A · °</span>
                     <!-- The per-axis ARIA label for rotary columns is set by jog-rotary-columns.js with t("html.jog.rotary.stepsAria"). -->
                     <div class="jog-rotary-steps" data-rotary-steps="A" aria-label="Incremental axis A movement">
                       <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="100" aria-label="Move A plus 100" title="Move A plus 100">+100</button>
@@ -319,7 +408,8 @@
                     </div>
                   </div>
                   <div class="jog-rotary-col" data-rotary-column="B" hidden>
-                    <button class="jog-rotary-head" type="button" data-rotary-unit-toggle="B" title="Switch units for axis B" aria-label="Axis B: switch units">B · °</button>
+                    <!-- Plain text header (see axis A column above). -->
+                    <span class="jog-rotary-head" aria-hidden="true">B · °</span>
                     <div class="jog-rotary-steps" data-rotary-steps="B" aria-label="Incremental axis B movement">
                       <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="100" aria-label="Move B plus 100" title="Move B plus 100">+100</button>
                       <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="10" aria-label="Move B plus 10" title="Move B plus 10">+10</button>
@@ -337,7 +427,8 @@
                     </div>
                   </div>
                   <div class="jog-rotary-col" data-rotary-column="C" hidden>
-                    <button class="jog-rotary-head" type="button" data-rotary-unit-toggle="C" title="Switch units for axis C" aria-label="Axis C: switch units">C · °</button>
+                    <!-- Plain text header (see axis A column above). -->
+                    <span class="jog-rotary-head" aria-hidden="true">C · °</span>
                     <div class="jog-rotary-steps" data-rotary-steps="C" aria-label="Incremental axis C movement">
                       <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="100" aria-label="Move C plus 100" title="Move C plus 100">+100</button>
                       <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="10" aria-label="Move C plus 10" title="Move C plus 10">+10</button>
@@ -357,6 +448,13 @@
                 </div>
               </div>
             </div>
+        <!-- Per-axis JOG feed-rate controls (task: between the dial and the
+             spindle speed settings add XY/Z/A/B/C speed pickers with presets
+             generated by the spindle algorithm and an edit option). The row is
+             filled and its visibility driven by web/js/jog-axis-speeds.js from
+             the machine configuration. -->
+        <div class="jog-axis-speeds" id="jog-axis-speeds" role="group"
+             data-i18n-aria-label="html.jog.axisSpeedsAria" aria-label="Jog feed rates per axis group"></div>
         <section class="spindle-control">
             <div class="spindle-speed-control">
               <label for="spindle-speed" data-i18n="html.spindle.rpm">RPM</label>
@@ -476,6 +574,28 @@
               <strong data-i18n="html.viewer.emptyTitle">Toolpath viewer</strong>
               <span data-i18n="html.viewer.emptyText">Load a G-code file, or place test.gcode next to the app for automatic loading.</span>
             </div>
+            <!-- Toolpath color legend (task: explain the line colors in 3D).
+                 Colors are painted into the swatches by scene-stage.js from the
+                 same theme tokens the trajectory renderer uses, so the legend
+                 always matches the drawing; locale labels via data-i18n. -->
+            <div class="viewer-legend" id="viewer-legend"
+                 data-i18n-aria-label="html.viewer.legendAria"
+                 data-i18n-title="html.viewer.legendTitle"
+                 role="note" aria-label="Toolpath line color legend"
+                 title="What the toolpath line colors mean">
+              <span class="viewer-legend-item">
+                <span class="viewer-legend-swatch rapid" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendRapid">Rapid G0</span>
+              </span>
+              <span class="viewer-legend-item">
+                <span class="viewer-legend-swatch linear" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendLinear">Feed G1</span>
+              </span>
+              <span class="viewer-legend-item">
+                <span class="viewer-legend-swatch arc" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendArc">Arcs G2/G3</span>
+              </span>
+            </div>
           </div>
           <div class="viewer-footer">
             <div class="viewer-message-summary" aria-live="polite">
@@ -504,28 +624,15 @@
           </div>
           <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
             <div id="files-panel" class="sidebar-panel" role="region" aria-label="Files"></div>
+            <!-- Compact macro list: each row shows only the name; the description is surfaced
+                 as a tooltip hint (tooltips.js renders `title` as a styled bubble). A single
+                 button per row opens the large dialog editor defined further below. -->
             <section id="macros-panel" class="sidebar-panel macros-panel" role="region" aria-label="Macros" hidden>
               <div class="macros-toolbar">
                 <span class="macros-count" id="macros-count" aria-live="polite"></span>
-                <button class="macros-add-button" id="macro-add" type="button" data-i18n="macros.add">Add macro</button>
+                <button class="macros-add-button" id="macro-add" type="button" data-i18n="macros.add" data-i18n-title="macros.addTitle" title="Add macro">Add macro</button>
               </div>
               <div class="macro-list" id="macro-list" role="list" aria-live="polite"></div>
-              <form class="macro-editor" id="macro-editor" hidden>
-                <h3 class="macro-editor-title" id="macro-editor-title"></h3>
-                <label class="macro-field"><span data-i18n="macros.name">Name</span><input id="macro-name" type="text" maxlength="120" required></label>
-                <label class="macro-field"><span data-i18n="macros.description">Description</span><input id="macro-description" type="text" maxlength="1000"></label>
-                <label class="macro-field"><span data-i18n="macros.body">G-code body</span><textarea id="macro-body" rows="5" maxlength="65536" required></textarea></label>
-                <div class="macro-invocations-heading">
-                  <strong data-i18n="macros.invocations">Controller invocation metadata</strong>
-                  <button id="macro-invocation-add" type="button" data-i18n="macros.addInvocation">Add mapping</button>
-                </div>
-                <div class="macro-invocations" id="macro-invocations"></div>
-                <div class="macro-editor-actions">
-                  <button id="macro-save" type="submit" data-i18n="macros.save">Save</button>
-                  <button id="macro-cancel" type="button" data-i18n="common.cancel">Cancel</button>
-                </div>
-                <div class="macro-error" id="macro-error" role="alert" hidden></div>
-              </form>
               <div class="macro-status" id="macro-status" role="status" aria-live="polite"></div>
             </section>
           </div>
@@ -572,10 +679,46 @@
       </form>
     </dialog>
 
+    <!-- Large macro editor dialog (styled like the message-log dialog). The grid gives the
+         G-code body textarea the dominant share of the space; name, description, invocation
+         mappings and actions sit in compact rows around it. -->
+    <dialog class="macro-dialog" id="macro-dialog" aria-labelledby="macro-dialog-title">
+      <form class="macro-dialog-content" id="macro-editor">
+        <div class="macro-dialog-heading">
+          <h2 id="macro-dialog-title" data-i18n="macros.editTitle">Edit macro</h2>
+          <button type="button" id="macro-close" data-i18n="common.close" data-i18n-title="common.closeDialogTitle" title="Close the dialog">Close</button>
+        </div>
+        <div class="macro-dialog-fields">
+          <label class="macro-field"><span data-i18n="macros.name">Name</span><input id="macro-name" type="text" maxlength="120" required data-i18n-title="macros.nameTitle" title="Short name shown in the macro list" aria-label="Macro name"></label>
+          <label class="macro-field"><span data-i18n="macros.description">Description</span><input id="macro-description" type="text" maxlength="1000" data-i18n-title="macros.descriptionTitle" title="Description surfaced as a hint in the macro list" aria-label="Macro description"></label>
+        </div>
+        <label class="macro-field macro-body-field">
+          <span data-i18n="macros.body">G-code body</span>
+          <textarea id="macro-body" maxlength="65536" required spellcheck="false" data-i18n-placeholder="macros.bodyPlaceholder" placeholder="G-code commands, one per line" data-i18n-title="macros.bodyTitle" data-i18n-aria-label="macros.body" title="G-code executed by this macro" aria-label="G-code body"></textarea>
+        </label>
+        <div class="macro-invocations-heading">
+          <strong data-i18n="macros.invocations">Controller invocation metadata</strong>
+          <button id="macro-invocation-add" type="button" data-i18n="macros.addInvocation" data-i18n-title="macros.addInvocationTitle" title="Add a controller invocation mapping">Add mapping</button>
+        </div>
+        <div class="macro-invocations" id="macro-invocations"></div>
+        <div class="macro-editor-actions">
+          <div class="macro-editor-actions-left">
+            <button id="macro-delete" type="button" class="macro-delete-button" data-i18n="macros.remove" data-i18n-title="macros.removeTitle" title="Delete this macro">Delete</button>
+          </div>
+          <div class="macro-editor-actions-right">
+            <button id="macro-cancel" type="button" data-i18n="common.cancel" data-i18n-title="common.cancelTitle" title="Close without changes">Cancel</button>
+            <button id="macro-save" type="submit" data-i18n="macros.save" data-i18n-title="macros.saveTitle" title="Save the macro">Save</button>
+          </div>
+        </div>
+        <div class="macro-error" id="macro-error" role="alert" hidden></div>
+        <div class="macro-status" id="macro-dialog-status" role="status" aria-live="polite"></div>
+      </form>
+    </dialog>
+
     <dialog class="program-editor-dialog" id="program-editor-dialog">
       <section class="program-editor-content" aria-labelledby="program-editor-title">
         <div class="program-editor-heading">
-          <h2 id="program-editor-title" data-i18n="html.editor.title">G-code editor</h2>
+          <h2 id="program-editor-title" data-i18n="html.editor.title">Editor</h2>
           <button type="button" id="close-program-editor" data-i18n="common.close" data-i18n-title="html.editor.closeTitle" title="Close the editor">Close</button>
         </div>
         <div class="program-editor-toolbar">

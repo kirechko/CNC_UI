@@ -31,8 +31,10 @@ impl GrblAdapter {
                 port,
                 program: Vec::new(),
                 toolpath: Toolpath::default(),
+                last_progress: None,
                 program_name: None,
                 current_line: 0,
+                motion_mode: None,
                 active_coordinate_system: CoordinateSystem::G54,
                 spindle_command: SpindleCommand {
                     direction: SpindleDirection::Stopped,

@@ -157,7 +157,49 @@ export function initTooltips() {
   }
 
   /**
+   * Re-parents the bubble so it paints ABOVE a modal dialog.
+   *
+   * `showModal()` puts a <dialog> into the browser's *top layer*, which is
+   * rendered above all in-flow content regardless of z-index. A `position:
+   * fixed` tooltip appended to `document.body` therefore disappears behind
+   * the dialog (the "hints show under the window" bug in the macro editor,
+   * the program editor, the step-settings and the machines dialogs). While
+   * an open dialog owns the hovered element, the bubble must live INSIDE
+   * that dialog to join its top-layer rendering; coordinates stay
+   * viewport-relative because a fixed element keeps the viewport as its
+   * containing block (dialogs here use no transform/filter). On hide the
+   * bubble returns to `document.body` so the dialog's DOM (and its
+   * innerHTML-driven re-renders) never own the shared tooltip element.
+   *
+   * @param {HTMLElement} element - Anchor element currently hovered.
+   * @returns {void}
+   */
+  function attachBubbleToLayer(element) {
+    const dialog = element.closest("dialog[open]");
+    if (dialog && dialog !== bubble.parentElement) {
+      dialog.appendChild(bubble);
+    } else if (!dialog && bubble.parentElement !== document.body) {
+      document.body.appendChild(bubble);
+    }
+  }
+
+  /**
+   * Moves the bubble back to the document body after it was hosted by a dialog.
+   *
+   * @returns {void}
+   */
+  function detachBubbleFromLayer() {
+    if (bubble.parentElement !== document.body) {
+      document.body.appendChild(bubble);
+    }
+  }
+
+  /**
    * Positions the bubble above the element, or below it when there is no room above.
+   *
+   * Both flips are clamped to the viewport so the bubble never hangs beyond
+   * the bottom edge when the anchor sits near the screen bottom (a tooltip
+   * pushed under a dialog would otherwise land outside the visible area).
    *
    * @param {HTMLElement} element - Anchor element.
    * @returns {void}
@@ -166,7 +208,14 @@ export function initTooltips() {
     const anchor = element.getBoundingClientRect();
     const size = bubble.getBoundingClientRect();
     let top = anchor.top - size.height - OFFSET_PX;
-    if (top < EDGE_PX) top = anchor.bottom + OFFSET_PX;
+    if (top < EDGE_PX) {
+      // No room above: place below the anchor, but keep the whole bubble
+      // inside the viewport when the anchor is close to the bottom edge.
+      top = Math.min(anchor.bottom + OFFSET_PX, window.innerHeight - size.height - EDGE_PX);
+      // If the bubble still does not fit under the anchor (tall tooltip,
+      // short window), overlay the anchor's top area instead of clipping.
+      if (top < EDGE_PX) top = EDGE_PX;
+    }
     let left = anchor.left + anchor.width / 2 - size.width / 2;
     left = Math.min(Math.max(EDGE_PX, left), window.innerWidth - size.width - EDGE_PX);
     bubble.style.top = `${Math.round(top)}px`;
@@ -175,6 +224,10 @@ export function initTooltips() {
 
   /**
    * Hides the bubble and cancels a pending show.
+   *
+   * The bubble also leaves any dialog that hosted it (top-layer workaround
+   * in `attachBubbleToLayer`), so a closing dialog never takes the shared
+   * tooltip element with it.
    *
    * @returns {void}
    */
@@ -186,6 +239,7 @@ export function initTooltips() {
     bubble.hidden = true;
     if (activeElement) restoreTitle(activeElement);
     detachObserver();
+    detachBubbleFromLayer();
     activeElement = null;
   }
 
@@ -201,6 +255,9 @@ export function initTooltips() {
       const text = element.dataset.tooltipTitle;
       if (!text) return;
       bubble.textContent = text;
+      // Join the anchor's painting layer (modal dialog or body) BEFORE the
+      // first measurement so positionBubble sees the final containing block.
+      attachBubbleToLayer(element);
       bubble.hidden = false;
       positionBubble(element);
     }, SHOW_DELAY_MS);

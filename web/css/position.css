@@ -1,5 +1,19 @@
 /* POSITION panel: DRO header/axis rows, work/machine readouts, axis
    zero/home actions and the set-work-value dialog. */
+
+/* Task T20: on 5/6-axis machines the extra axis rows were "missing" because
+   the panel is clipped (.panel { overflow: hidden }) while its height is
+   pinned by the left-column row splitter (--left-top-row from a saved layout)
+   or by PANEL_MIN. The rows ARE rendered — they simply could not be seen.
+   Make the body scrollable so every configured axis row stays reachable at
+   any panel height. Unconstrained panels (auto track) never show the
+   scrollbar because the body then fits its content. */
+.panel:has(.position-panel-heading) > .panel-body {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .coordinate-select, .step-select {
   min-height: 31px;
   padding: 0 27px 0 9px;
@@ -25,20 +39,60 @@
   font-size: 10px;
 }
 
+/* -------------------------------------------------------------------------
+ * Heading alignment mode (tasks T06 + T07).
+ *
+ * web/js/position-heading-align.js measures the live `.axis-row` grid
+ * (columns: label | work coordinate | machine coordinate | zero | home)
+ * and positions the three heading controls in px directly over those
+ * columns:
+ *
+ *   • WPOS button  -> exactly above the work-coordinate column,
+ *   • MPOS button  -> exactly above the machine-coordinate column,
+ *   • G54 select   -> exactly above the zero+home button pair and EXACTLY
+ *     as wide as that pair (task: "the select must match the width of the
+ *     Set X Zero / Home X Zero pair of buttons").
+ *
+ * The measurement re-runs on every horizontal resize (panel splitter,
+ * window resize), when the axis rows are re-rendered for a different
+ * machine (T20: 3/4/5/6-axis configurations) and when WPOS/MPOS columns
+ * are shown/hidden — so the pairing holds at ANY panel width and in every
+ * display mode.
+ *
+ * Without the JS (script error, first frame before the rows exist) the
+ * static flex layout below stays active: fixed 54px toggles and a 57px
+ * select (25px + 7px gap + 25px = the zero/home pair width), so the header
+ * still looks correct and nothing breaks.
+ * ---------------------------------------------------------------------- */
+.section-heading.position-heading-aligned {
+  display: block;
+  position: relative;
+}
+
+.section-heading.position-heading-aligned > .position-mode-toggle,
+.section-heading.position-heading-aligned > .coordinate-select {
+  position: absolute;
+  /* left / top / width are assigned in px by position-heading-align.js. */
+}
+
 /* The G54–G59 dropdown must read as a WPOS/MPOS button: identical box (height,
    border, radius, background, font) with only a small down chevron near its
    right edge. In the default state both toggles carry `.active` (work AND
    machine columns shown), so the dropdown copies the ACTIVE button look:
    --accent-soft-bg fill, --accent-hover border, --accent-text caption.
    `appearance: none` removes the native OS chrome (including the built-in
-   arrow) so the chevron pseudo-element below is the sole decoration. */
+   arrow) so the chevron pseudo-element below is the sole decoration.
+
+   Static fallback width = the per-axis zero/home button pair (25px + 7px
+   gap + 25px = 57px); position-heading-align.js recomputes the exact pair
+   width live (task T06). */
 .position-panel-heading .coordinate-select {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  width: 74px;
-  min-width: 74px;
-  flex: 0 0 74px;
+  width: 57px;
+  min-width: 57px;
+  flex: 0 0 57px;
   min-height: 26px;
   padding: 0 16px 0 4px;
   border: 1px solid var(--accent-hover);
@@ -180,6 +234,7 @@
 .axis-label.z { color: var(--axis-z); }
 .axis-label.a { color: var(--axis-a); }
 .axis-label.b { color: var(--amber); }
+.axis-label.c { color: var(--axis-c, var(--violet, #a78bfa)); }
 
 .axis-value {
   overflow: hidden;
@@ -221,6 +276,7 @@
 .position-action.axis-z { color: var(--axis-z); }
 .position-action.axis-a { color: var(--axis-a); }
 .position-action.axis-b { color: var(--amber); }
+.position-action.axis-c { color: var(--axis-c, var(--violet, #a78bfa)); }
 
 /* Gap between the position action buttons scales with the viewport.
    `minmax(0, 1fr)` (instead of plain `1fr`) removes the automatic min-content
@@ -275,6 +331,94 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* -------------------------------------------------------------------------
+ * Telemetry strip below the Zero all / Home all buttons (task T12/T13):
+ * live feed/motion mode, spindle RPM and coolant state from the status
+ * snapshot. Three compact cells share one row; each cell is a caption
+ * (muted, uppercase) plus a monospace value. Hidden until the backend
+ * supplies the matching fields.
+ * ---------------------------------------------------------------------- */
+.position-telemetry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--panel-gap);
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.position-telemetry[hidden] {
+  display: none;
+}
+
+.telemetry-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.telemetry-caption {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.telemetry-value {
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Motion-mode chip: the current G-code modal group (G0/G1/G2/G3/Jog). */
+.telemetry-value.motion-mode {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* Coolant indicator lamps (task T13): dim when off, cyan/blue glow when on. */
+.telemetry-coolant {
+  display: flex;
+  gap: 6px;
+}
+
+.coolant-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  opacity: 0.45;
+}
+
+.coolant-lamp .coolant-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+
+.coolant-lamp.on {
+  opacity: 1;
+  color: var(--accent-bright);
+}
+
+.coolant-lamp.on .coolant-dot {
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.coolant-lamp.mist.on {
+  color: color-mix(in srgb, var(--accent-bright) 60%, white);
 }
 
 .position-meta {
@@ -345,4 +489,3 @@
 
 .position-dialog-actions button { min-height: 38px; font-size: 12px; }
 .position-dialog-actions .primary { border-color: var(--accent); background: var(--btn-primary-bg); }
-

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
 
+use super::auth::{self, AuthMode};
 use super::discovery;
 use super::handlers;
 use super::state::AppState;
@@ -48,6 +49,20 @@ pub async fn run() -> io::Result<()> {
     let bind = std::env::var(ADDRESS_ENV).unwrap_or_else(|_| DEFAULT_ADDRESS.to_string());
     let listener = TcpListener::bind(&bind).await?;
     let address = listener.local_addr()?;
+
+    // Task: simple authorization with a setting that disables it. The mode
+    // comes from the environment (`CNC_UI_AUTH[_USER/_PASSWORD]`); the
+    // middleware is installed only when enabled so the disabled case has no
+    // per-request cost at all.
+    let (auth_mode, auth_reason) = auth::auth_settings();
+    let auth_enabled = matches!(auth_mode, AuthMode::Enabled { .. });
+    if auth_enabled {
+        if let AuthMode::Enabled { username, .. } = &auth_mode {
+            eprintln!("Web server authorization: enabled for user '{username}' ({auth_reason}).");
+        }
+    } else {
+        eprintln!("Web server authorization: disabled ({auth_reason}); the UI is open on the network.");
+    }
 
     let static_files =
         ServeDir::new(WEB_ROOT).fallback(ServeFile::new(format!("{WEB_ROOT}/index.html")));
@@ -110,10 +125,23 @@ pub async fn run() -> io::Result<()> {
         .route("/api/files/copy", post(handlers::post_files_copy))
         .route("/api/files/upload", post(handlers::post_files_upload))
         .fallback_service(static_files)
-        .layer(middleware::from_fn(revalidate_static_assets))
-        .with_state(controller);
+        .layer(middleware::from_fn(revalidate_static_assets));
+
+    // Auth wraps everything (API + static assets). The mode is published to
+    // the process-wide auth static, and the middleware is installed only when
+    // enabled so the disabled case has no per-request cost at all.
+    let app = if auth_enabled {
+        auth::set_mode(auth_mode);
+        app.layer(middleware::from_fn(auth::require_auth))
+    } else {
+        auth::set_mode(auth_mode);
+        app
+    };
+    let app = app.with_state(controller);
 
     eprintln!("Web server listening on http://{address}");
-    eprintln!("Warning: web controls have no authentication; use only on a trusted network.");
+    if !auth_enabled {
+        eprintln!("Warning: web controls have no authentication; use only on a trusted network.");
+    }
     axum::serve(listener, app).await
 }

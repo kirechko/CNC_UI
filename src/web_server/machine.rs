@@ -95,6 +95,17 @@ pub(crate) fn build_adapter_for_device(
             cnc_core::adapters::emulator::EmAdapter::connect(&device.endpoint)
                 .map_err(|error| format!("{}: {}", error.code, error.message))?,
         ),
+        // FluidNC found on a COM port *without* a reported Wi-Fi address
+        // (task: serial FluidNC discovery lists it for visibility). Serial
+        // control of FluidNC is not implemented; selection fails with a clear
+        // message instead of opening the port and speaking GRBL to an ESP32.
+        ("FluidNC", cnc_core::discovery::DiscoveryTransport::Serial) => {
+            return Err(format!(
+                "FluidNC on the serial port `{}` is listed but not controllable yet; \
+                 give the controller a Wi-Fi address and reconnect it to the network",
+                device.endpoint
+            ));
+        }
         ("FluidNC", _) => Arc::new(
             cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect_discovering_with_priority(
                 cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketConfig::default(),

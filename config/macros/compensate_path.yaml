@@ -1,0 +1,25 @@
+# Rosetta example macro — tool-radius compensation of a path that contains
+# G41/G42/G40 for controllers without cutter-compensation support (GRBL).
+#
+# The compensation is a *geometry* operation over the whole trajectory, so it
+# lives in Rosetta Transform (ТЗ №3 §4Б `CutterCompBake`), and the macro is the
+# launcher: it asks the host to run the `CutterCompBake` transform over the
+# loaded program. The Phase-D stub in the transform engine currently answers
+# `RosettaError::Unsupported("D")` — the macro (and the DB seed) documents the
+# intended wiring and becomes operational as soon as Phase D lands.
+meta:
+  id: compensate_path
+  name: Bake G41/G42/G40 (GRBL)
+  category: path-modify
+  class: reactive
+  require_confirm: true
+
+triggers:
+  - { type: button, require_confirm: true }
+
+params:
+  - { name: radius, kind: number, default: !num 3.0, description: Cutter radius }
+  - { name: side, kind: number, default: !num 1.0, description: "1 = G41 left, -1 = G42 right" }
+
+body:
+  - !invoke_transform { id: CutterCompBake, args: [ !var radius, !var side ] }

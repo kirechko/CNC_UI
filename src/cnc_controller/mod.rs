@@ -73,8 +73,14 @@ pub struct CNCController {
     emergency_stop: mpsc::Sender<()>,
     xy_jog_speed: Mutex<f64>,
     z_jog_speed: Mutex<f64>,
-    /// Shared jog feed for the rotary axes A, B and C (mm/min or deg/min, depending on the axis).
-    rotary_jog_speed: Mutex<f64>,
+    /// Per-axis jog feeds for the rotary axes A, B and C (mm/min or deg/min,
+    /// depending on the axis). Task: the JOG panel gets independent speed
+    /// controls per axis group, so the former shared `rotary_jog_speed` is
+    /// split into three fields; the legacy "set rotary for all axes" entry
+    /// point keeps working by writing all three.
+    a_jog_speed: Mutex<f64>,
+    b_jog_speed: Mutex<f64>,
+    c_jog_speed: Mutex<f64>,
     spindle_speed_setpoint: Mutex<f64>,
     /// Set by `cancel_machine_command`; checked by adapters during long runs.
     command_cancel_requested: Arc<AtomicBool>,

@@ -7,7 +7,7 @@ default-run = "linuxcnc-ui"
 license = "GPL-3.0-or-later"
 
 [workspace]
-members = ["cnc_core"]
+members = ["cnc_core", "rosetta"]
 resolver = "2"
 
 [dependencies]
@@ -22,6 +22,8 @@ futures-util = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync"] }
 tower-http = { version = "0.5", features = ["fs"] }
 tauri = "2"
+# statvfs for the free-space line of the local FILES panel (Linux target).
+libc = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [build-dependencies]

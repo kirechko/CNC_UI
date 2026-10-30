@@ -106,6 +106,56 @@
   color: var(--accent-text);
 }
 
+/* -------------------------------------------------------------------------
+ * Toolpath color legend (task: "add the 3D line color legend"). A small
+ * frosted card at the bottom-left of the stage, under the orientation cube
+ * (top-right) and clear of the tool. Swatch colors are assigned by
+ * scene-stage.js from the live theme tokens, so the legend re-paints with
+ * the theme; the rules here only set the dashed pattern of the rapid swatch
+ * and the neutral chrome.
+ * ---------------------------------------------------------------------- */
+.viewer-legend {
+  position: absolute;
+  z-index: 2;
+  left: 10px;
+  bottom: 10px;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-page) 78%, transparent);
+  backdrop-filter: blur(4px);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.viewer-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.viewer-legend-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-secondary);
+}
+
+/* The rapid swatch mirrors the dashed gray stroke of rapid moves in the
+   renderer (drawSegmentPart); the background color comes from JS so it
+   tracks the theme token --traj-rapid. */
+.viewer-legend-swatch.rapid {
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed currentColor;
+}
+
 .empty-viewer {
   z-index: 1;
   display: grid;

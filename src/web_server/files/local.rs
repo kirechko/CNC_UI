@@ -9,7 +9,7 @@
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use super::{base_name, normalize_path, split_dir_and_name, FileEntry, FileListResult, FsError};
@@ -103,6 +103,47 @@ fn entry_at(dir_rel: &str, dent: &fs::DirEntry, metadata: &fs::Metadata) -> File
     }
 }
 
+/// Volume capacity of the file system hosting `dir`, in bytes.
+///
+/// Task: "show the free space of the filesystem displayed in the FILES
+/// panel". On Unix this is a plain `statvfs` call on the listed directory —
+/// the listed path always lives on the same volume as the jail root, but
+/// querying the actual directory is more correct when the root is a bind
+/// mount. `(total, used, occupation_percent)`; `None` when the call fails
+/// (e.g. the directory vanished between listing and stat) so the usage line
+/// simply stays hidden instead of showing bogus numbers.
+#[cfg(unix)]
+fn volume_capacity(dir: &Path) -> Option<(u64, u64, u8)> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = CString::new(dir.as_os_str().as_bytes()).ok()?;
+    // SAFETY: zeroed statvfs struct + a valid C string path; the call only
+    // writes into the struct and returns 0 on success.
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let result = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    if result != 0 {
+        return None;
+    }
+    let block = stat.f_frsize as u64;
+    let total = stat.f_blocks as u64 * block;
+    // `f_bfree` counts blocks reserved for root too, matching what `df`
+    // prints as "Used"; `f_bavail` (unprivileged free) is what the UI
+    // derives as "Free = total - used".
+    let free_superuser = stat.f_bfree as u64 * block;
+    if total == 0 {
+        return None;
+    }
+    let used = total.saturating_sub(free_superuser);
+    let percent = ((used as f64 / total as f64) * 100.0).round().clamp(0.0, 100.0) as u8;
+    Some((total, used, percent))
+}
+
+/// Non-Unix fallback: no capacity reporting (the project targets Linux).
+#[cfg(not(unix))]
+fn volume_capacity(_dir: &Path) -> Option<(u64, u64, u8)> {
+    None
+}
+
 /// Lists one directory inside the jail, sorted directories-first then by
 /// lowercased name for a stable, human-friendly order.
 pub(crate) fn list(rel: &str) -> Result<FileListResult, FsError> {
@@ -128,12 +169,15 @@ pub(crate) fn list(rel: &str) -> Result<FileListResult, FsError> {
             .cmp(&a.is_dir)
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
+    // Report the volume capacity of the listed directory so the FILES panel
+    // can show free space for the local source as well (task).
+    let capacity = volume_capacity(&dir);
     Ok(FileListResult {
         path: normalized,
         entries,
-        total_bytes: None,
-        used_bytes: None,
-        occupation_percent: None,
+        total_bytes: capacity.map(|(total, _, _)| total),
+        used_bytes: capacity.map(|(_, used, _)| used),
+        occupation_percent: capacity.map(|(_, _, percent)| percent),
     })
 }
 

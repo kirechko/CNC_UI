@@ -1,0 +1,56 @@
+# Rosetta example macro — drilling of a rectangular hole array with parameters.
+#
+# Class: `generative` (ТЗ №2 §2): the host expands it OFFLINE into flat G-code
+# before streaming, so the same file works on GRBL, FluidNC and the emulator
+# without any probing or live status reads. Params are overridable by the
+# caller (the macro UI dialog passes positional args).
+meta:
+  id: hole_array
+  name: Hole array
+  category: drilling
+  class: generative
+
+params:
+  - { name: x0, kind: number, default: !num 0.0, description: X of the first hole }
+  - { name: y0, kind: number, default: !num 0.0, description: Y of the first hole }
+  - { name: dx, kind: number, default: !num 10.0, description: Column pitch }
+  - { name: dy, kind: number, default: !num 10.0, description: Row pitch }
+  - { name: cols, kind: number, default: !num 3.0, description: Columns count }
+  - { name: rows, kind: number, default: !num 3.0, description: Rows count }
+  - { name: depth, kind: number, default: !num -5.0, description: Hole depth, negative Z }
+  - { name: feed, kind: number, default: !num 120.0, description: Plunge feed }
+  - { name: rapid, kind: number, default: !num 3000.0, description: Travel feed }
+
+locals:
+  - { name: hx, kind: number }
+  - { name: hy, kind: number }
+
+subs:
+  # One peck-drilled hole at the current {hx, hy}; kept as a subroutine so the
+  # expansion inlines it per array point (MAC generative path inlines calls).
+  - name: drill_one
+    body:
+      - !gcode { template: "G0 X{hx} Y{hy} F{rapid}" }
+      - !gcode { template: "G0 Z2.0" }
+      - !gcode { template: "G1 Z{depth} F{feed}" }
+      - !gcode { template: "G0 Z2.0" }
+
+body:
+  - !gcode { template: "G21 G90 G94" }
+  - !gcode { template: "G0 Z5.0 F{rapid}" }
+  - !foreach
+      var: r
+      iter: !range { start: !num 0.0, end: !bin { op: sub, lhs: !var rows, rhs: !num 1.0 } }
+      body:
+        - !foreach
+            var: c
+            iter: !range { start: !num 0.0, end: !bin { op: sub, lhs: !var cols, rhs: !num 1.0 } }
+            body:
+              - !set_var
+                  name: hx
+                  value: !bin { op: add, lhs: !var x0, rhs: !bin { op: mul, lhs: !var c, rhs: !var dx } }
+              - !set_var
+                  name: hy
+                  value: !bin { op: add, lhs: !var y0, rhs: !bin { op: mul, lhs: !var r, rhs: !var dy } }
+              - !call { name: drill_one }
+  - !gcode { template: "G0 Z10.0 F{rapid}" }

@@ -1,0 +1,17 @@
+[package]
+name = "rosetta"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Rosetta: one macro IR, one toolpath IR — portable CNC macro engine and program-transform engine (LinuxCNC, Klipper, GRBL, FluidNC, emulator)"
+
+# The crate is deliberately dependency-light (serde + YAML only) so the whole
+# `rosetta/` directory can be lifted out of this workspace into a standalone
+# repository without touching any other project code. No tokio: the engine is
+# synchronous and receives host capabilities (send/status/sleep) through the
+# `HostRuntime` trait, which the application later implements over its own
+# async controller. See README.md -> "Detaching".
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10"

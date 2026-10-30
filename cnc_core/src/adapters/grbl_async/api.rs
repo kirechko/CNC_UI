@@ -11,8 +11,8 @@ use super::{wait_for_command_cancellation, ContinuousJog, GrblAdapter};
 use crate::discovery::{DiscoveredDevice, DiscoveryTransport};
 use crate::{
     Axis, AxisConfiguration, AxisUnits, CncApi, CncResult, ControllerError, CoordinateSystem,
-    InterpreterState, JogRequest, MachineAxis, MachineConfiguration, MachineStatus, SpindleCommand,
-    SpindleConfiguration, SpindleDirection, TaskMode, ToolpathProgress,
+    InterpreterState, JogRequest, MachineAxis, MachineConfiguration, MachineStatus, Position,
+    SpindleCommand, SpindleConfiguration, SpindleDirection, TaskMode, ToolpathProgress,
 };
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -71,12 +71,62 @@ impl CncApi for GrblAdapter {
             session.current_line,
             session.program.len() as u32,
         )?;
+        // Task T12: replace the generic "G-code" motion mode the parser emits
+        // for the Run state with the precise modal group (G0/G1/G2/G3) the
+        // adapter last acknowledged into the planner. GRBL's '?' report does
+        // not carry it; the streamer/MDI remember what they sent.
+        if status.motion_mode.as_deref() == Some("G-code") {
+            if let Some(mode) = session.motion_mode.clone() {
+                status.motion_mode = Some(mode);
+            }
+        }
         status.max_spindle_rpm = session.max_spindle_rpm.unwrap_or(0.0);
-        // Progress is derived from the tool position on the parsed toolpath.
-        status.progress = session
-            .toolpath
-            .locate(&status.position)
-            .unwrap_or_else(ToolpathProgress::unavailable);
+        // Task: toolpath display for GRBL. The toolpath is parsed from the
+        // program text, i.e. it lives in the WORK frame of the active
+        // coordinate system, while the parsed status carries the MACHINE
+        // position. Locating the machine position on a work-frame path fails
+        // whenever the work offset is non-zero, so the traversed part of the
+        // path never highlighted. Subtract the work offset first, exactly
+        // like the FluidNC WebSocket adapter does.
+        let work_position = Position {
+            x: status.position.x - status.work_offset.x,
+            y: status.position.y - status.work_offset.y,
+            z: status.position.z - status.work_offset.z,
+            a: status.position.a - status.work_offset.a,
+            b: status.position.b - status.work_offset.b,
+            c: status.position.c - status.work_offset.c,
+        };
+        // GRBL acknowledges a line when it ENTERS the planner buffer, so
+        // `current_line` runs ahead of the physical tool. A plain `locate`
+        // would then jump the highlight onto later passes that cross the same
+        // coordinates. Forward-only search bounded by the acknowledged line
+        // keeps the traversed part monotonic, matching the FluidNC behavior.
+        status.progress = if session.program_streaming {
+            let floor = session
+                .last_progress
+                .and_then(|progress| progress.path_distance_mm)
+                .unwrap_or(0.0);
+            match session
+                .toolpath
+                .locate_forward(&work_position, floor, session.current_line)
+            {
+                Some(found) => {
+                    session.last_progress = Some(found);
+                    found
+                }
+                // No match in the window: keep the last reported part and only
+                // move the tool marker.
+                None => session
+                    .last_progress
+                    .map_or_else(ToolpathProgress::unavailable, |last| ToolpathProgress {
+                        tool_position: Some(work_position.clone()),
+                        ..last
+                    }),
+            }
+        } else {
+            session.last_progress = None;
+            ToolpathProgress::unavailable()
+        };
         if session.program_streaming && status.interpreter_state == InterpreterState::Idle {
             status.task_mode = TaskMode::Auto;
             status.interpreter_state = InterpreterState::Reading;
@@ -385,6 +435,11 @@ impl CncApi for GrblAdapter {
     /// Manual Data Input: fire one G-code line without awaiting a reply.
     async fn mdi(&self, command: &str) -> CncResult<()> {
         let mut session = self.session.lock().await;
+        // Remember the modal motion group of MDI moves for the telemetry
+        // indication (task T12); only plain motion words qualify.
+        if let Some(mode) = Self::motion_mode_of(command) {
+            session.motion_mode = Some(mode.to_string());
+        }
         Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::send_command(&mut session, command).await
@@ -442,6 +497,9 @@ impl CncApi for GrblAdapter {
         session.jog_chunk_active = false;
         Self::send_realtime(&mut session, 0x18).await?;
         session.current_line = 0;
+        // Soft reset rewinds the machine; the remembered traversed path is
+        // invalid from now on so the next run highlights from the start.
+        session.last_progress = None;
         Ok(())
     }
 

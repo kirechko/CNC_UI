@@ -26,6 +26,45 @@ export function createStatusPanel(app) {
   const axisRowsContainer = document.querySelector("#axis-rows");
   const coordinateSystem = document.querySelector("#coordinate-system");
 
+  // Telemetry strip under the Zero all / Home all buttons (task: show the
+  // current motion speed with mode indication and the spindle RPM from the
+  // status telemetry, plus the coolant states).
+  const telemetry = {
+    root: document.querySelector("#position-telemetry"),
+    feed: document.querySelector("#telemetry-feed"),
+    mode: document.querySelector("#telemetry-mode"),
+    spindle: document.querySelector("#telemetry-spindle"),
+    mist: document.querySelector("#coolant-mist"),
+    flood: document.querySelector("#coolant-flood"),
+  };
+
+  /**
+   * Mirrors the speed/mode/spindle/coolant telemetry of one status payload
+   * into the strip below the position actions.
+   *
+   * The strip is hidden while disconnected so stale numbers never linger
+   * after a link drop. `movement_speed` already prefers the jog feed over
+   * the program feed on the backend; `movement_mode` carries the modal group
+   * the controller reports (Jog / G0 / G1 / G2 / G3 / Homing / G-code).
+   * Coolant lamps light only while the corresponding bit is on.
+   *
+   * @param {object} status - Parsed `/api/status` payload.
+   * @param {boolean} connected - Live connection flag of the same poll.
+   * @returns {void}
+   */
+  function updateTelemetry(status, connected) {
+    if (!telemetry.root) return;
+    telemetry.root.hidden = !connected;
+    if (!connected) return;
+    const speed = Number(status.movement_speed);
+    telemetry.feed.textContent = Number.isFinite(speed) ? `${speed.toFixed(0)}` : "—";
+    telemetry.mode.textContent = status.movement_mode || "—";
+    const rpm = Number(status.spindle_rpm);
+    telemetry.spindle.textContent = Number.isFinite(rpm) ? `${rpm.toFixed(0)}` : "—";
+    telemetry.mist.classList.toggle("on", Boolean(status.mist_coolant));
+    telemetry.flood.classList.toggle("on", Boolean(status.flood_coolant));
+  }
+
   let latestStatus = null;
   let machineConnected = false;
   let statusRequestInFlight = false;
@@ -190,8 +229,11 @@ export function createStatusPanel(app) {
       // same machine configuration payload.
       app.positionAxisView.render(status.configuration);
       app.jogDial.rotaryColumns.render(status.configuration);
+      // Per-axis feed controls (task) mirror the same axis-presence rule.
+      app.jogDial.axisSpeeds?.render(status.configuration);
       app.positionAxisView.updateDisplay();
       coordinateSystem.value = status.coordinate_system || "g54";
+      updateTelemetry(status, machineConnected);
 
       app.messagePanel.refresh(status);
       app.positionReadouts(status);
@@ -211,6 +253,7 @@ export function createStatusPanel(app) {
       machineState = "DISCONNECTED";
       document.querySelector("#message").textContent = error.message;
       setJogEnabled(false);
+      updateTelemetry({}, false);
       app.jobControls.update({ connected: false, total_lines: 0, state: "DISCONNECTED" });
     } finally {
       statusRequestInFlight = false;

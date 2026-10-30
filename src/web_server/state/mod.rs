@@ -63,6 +63,20 @@ impl AppState {
             command_cancel_requested: Mutex::new(command_cancel_requested),
             motion_stop_requested: Mutex::new(motion_stop_requested),
         };
+        // Task: Rosetta example macros and substitution presets must already
+        // be in the database on the first start. Idempotent (INSERT OR IGNORE)
+        // so user edits are never rolled back; `CNC_UI_NO_SEED=1` skips it for
+        // tests that expect an empty panel.
+        if std::env::var_os("CNC_UI_NO_SEED").is_none() {
+            let connection = state
+                .log
+                .lock()
+                .map_err(|_| io::Error::other("database lock poisoned"))?;
+            if let Err(error) = seed::seed_if_absent(&connection) {
+                // Seeding is nice-to-have: log and keep booting.
+                eprintln!("Could not seed Rosetta examples: {error}");
+            }
+        }
         state.load_default_program();
         Ok(state)
     }
@@ -132,3 +146,4 @@ impl AppState {
 pub(crate) mod log_ops;
 pub(crate) mod macros;
 pub(crate) mod position;
+pub(crate) mod seed;

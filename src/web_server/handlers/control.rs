@@ -56,11 +56,19 @@ pub(crate) struct ContinuousXyJogRequest {
 /// Body of `POST /api/jog/speed`. Each field is optional so a single group
 /// can be updated. Values are feed rates in mm/min (rotary axes use the same
 /// unit as configured for the machine).
+///
+/// `rotary` is the legacy shared A–C field and stays supported; the per-axis
+/// `a`/`b`/`c` fields (task: per-axis jog speed controls) set individual
+/// rotary feeds. When both a `rotary` and per-axis value are present, the
+/// per-axis value wins for that axis.
 #[derive(Deserialize)]
 pub(crate) struct JogSpeedRequest {
     xy: Option<f64>,
     z: Option<f64>,
     rotary: Option<f64>,
+    a: Option<f64>,
+    b: Option<f64>,
+    c: Option<f64>,
 }
 
 /// Body of `POST /api/position/select` and `POST /api/position/zero`.
@@ -284,7 +292,7 @@ pub(crate) async fn jog_speed(
     State(state): State<SharedController>,
     Json(request): Json<JogSpeedRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let values = [request.xy, request.z, request.rotary];
+    let values = [request.xy, request.z, request.rotary, request.a, request.b, request.c];
     if values
         .iter()
         .flatten()
@@ -308,8 +316,19 @@ pub(crate) async fn jog_speed(
     if let Some(value) = request.z {
         controller.set_z_jog_speed(value);
     }
+    // Legacy group value applies to every rotary axis first; individual
+    // per-axis values (task) then override their own axis.
     if let Some(value) = request.rotary {
         controller.set_rotary_jog_speed(value);
+    }
+    for (axis, value) in [
+        (crate::cnc_api::Axis::A, request.a),
+        (crate::cnc_api::Axis::B, request.b),
+        (crate::cnc_api::Axis::C, request.c),
+    ] {
+        if let Some(value) = value {
+            controller.set_axis_jog_speed(axis, value);
+        }
     }
     Ok(StatusCode::OK)
 }

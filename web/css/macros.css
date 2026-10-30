@@ -1,4 +1,5 @@
-/* Macro CRUD panel layout and visual states. */
+/* Macro panel: compact name-only list rows (description as tooltip hint)
+   plus the large modal editor dialog whose G-code body dominates the area. */
 .macros-panel[hidden] {
   display: none;
 }
@@ -12,10 +13,7 @@
   color: var(--text-primary);
 }
 
-.macros-toolbar,
-.macro-editor-actions,
-.macro-invocations-heading,
-.macro-card-actions {
+.macros-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,88 +27,110 @@
   font-size: var(--font-size-sm);
 }
 
-.macros-add-button,
-.macro-card-actions button,
-.macro-invocation-row button,
-.macro-editor-actions button,
-.macro-invocations-heading button {
+.macros-add-button {
   padding: 5px 9px;
   font-size: var(--font-size-sm);
 }
 
+/* Compact list: every row is a single line with the macro name and one
+   button that opens the dialog editor. The description is only a `title`
+   hint rendered by the shared tooltip engine (tooltips.js). */
 .macro-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 4px;
   min-height: 0;
   overflow: auto;
 }
 
-.macro-card {
+.macro-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px;
+  padding: 5px 8px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--bg-inset);
 }
 
-.macro-card-details {
-  display: flex;
+.macro-row-name {
   flex: 1;
-  flex-direction: column;
-  gap: 4px;
   min-width: 0;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.macro-card-name {
-  overflow-wrap: anywhere;
-}
-
-.macro-card-description,
-.macro-card-invocations {
-  color: var(--muted);
-  font-size: var(--font-size-xs);
-  overflow-wrap: anywhere;
-}
-
-.macro-card-invocations {
-  margin: 2px 0 0;
-  padding-inline-start: 18px;
-}
-
-.macro-card-actions {
+.macro-row-open {
   flex: none;
+  padding: 4px 9px;
+  font-size: var(--font-size-sm);
 }
 
-.macro-card-actions .macro-delete-button,
-.macro-invocation-row .macro-remove-invocation {
-  color: var(--danger, #e66);
-}
-
-.macro-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 55%;
-  padding: 10px;
-  overflow: auto;
+/* Large macro editor dialog, chrome-styled like the message-log dialog. */
+.macro-dialog {
+  width: min(920px, calc(100vw - 28px));
+  height: min(760px, calc(100vh - 28px));
+  min-height: min(560px, calc(100vh - 28px));
+  max-height: min(760px, calc(100vh - 28px));
+  padding: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
 }
 
-.macro-editor-title {
+.macro-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+/* Grid layout: heading and footer keep their natural height, the G-code
+   body textarea (macro-body-field) is the single flexible row that soaks up
+   all remaining space, making it the largest element in the dialog. */
+.macro-dialog-content {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  /* Rows: heading, name/description fields, body (dominant flexible row),
+     invocations heading, invocations list, action buttons, error, status. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto auto auto;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.macro-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -14px -16px 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.macro-dialog-heading h2 {
   margin: 0;
-  font-size: var(--font-size-md);
+  font-size: 16px;
+}
+
+.macro-dialog-heading > button {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.macro-dialog-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
 }
 
 .macro-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
   color: var(--muted);
   font-size: var(--font-size-xs);
 }
@@ -128,12 +148,32 @@
   font: 12px var(--font-mono);
 }
 
-.macro-field textarea {
-  min-height: 90px;
-  resize: vertical;
+/* The body field is the flexible grid row: its textarea fills it entirely. */
+.macro-body-field {
+  min-height: 0;
+}
+
+.macro-body-field textarea {
+  flex: 1;
+  min-height: 120px;
+  resize: none;
+  line-height: 1.5;
+}
+
+.macro-invocations-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .macro-invocations-heading strong {
+  font-size: var(--font-size-sm);
+}
+
+.macro-invocations-heading button,
+.macro-editor-actions button {
+  padding: 5px 9px;
   font-size: var(--font-size-sm);
 }
 
@@ -141,6 +181,10 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* The invocation list scrolls inside the dialog so long mappings cannot
+     squeeze the body textarea. */
+  max-height: 150px;
+  overflow: auto;
 }
 
 .macro-invocation-row {
@@ -153,6 +197,27 @@
   font-size: 10px;
 }
 
+.macro-delete-button,
+.macro-invocation-row .macro-remove-invocation {
+  color: var(--danger, #e66);
+}
+
+.macro-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.macro-editor-actions-left,
+.macro-editor-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .macro-error {
   color: var(--danger, #e66);
   font-size: var(--font-size-xs);
@@ -160,8 +225,10 @@
 }
 
 @media (max-width: 520px) {
-  .macro-card {
-    flex-direction: column;
+  .macro-dialog {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
+    min-height: calc(100vh - 16px);
   }
 
   .macro-invocation-row {

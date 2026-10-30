@@ -274,6 +274,10 @@ pub(crate) struct StatusResponse {
     configuration: Option<MachineConfiguration>,
     movement_speed: f64,
     movement_mode: Option<String>,
+    /// Coolant states from machine telemetry (task: coolant indicators).
+    /// `#[serde(rename)]` keeps the camel-free snake_case style of the payload.
+    mist_coolant: bool,
+    flood_coolant: bool,
     spindle_rpm: f64,
     spindle_commanded_rpm: f64,
     spindle_enabled: bool,
@@ -333,6 +337,8 @@ impl From<ControllerSnapshot> for StatusResponse {
                 machine.feed_rate
             },
             movement_mode: machine.motion_mode,
+            mist_coolant: machine.mist_coolant_on,
+            flood_coolant: machine.flood_coolant_on,
             spindle_rpm: machine.spindle.actual_rpm,
             spindle_commanded_rpm: machine.spindle.commanded_rpm,
             spindle_enabled: machine.spindle.enabled,

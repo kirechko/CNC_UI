@@ -315,6 +315,50 @@ button:disabled {
 #machines-refresh.searching svg { animation: machines-refresh-spin 1s linear infinite; }
 @keyframes machines-refresh-spin { to { transform: rotate(360deg); } }
 .machines-list { display: grid; gap: 7px; max-height: min(50vh, 360px); overflow-y: auto; }
+
+/* Multi-interface machine grouping (task): a non-clickable parent header
+   names the physical device, its transport variants below are indented as
+   subordinate rows so the operator sees "one machine, several interfaces"
+   instead of two unrelated rows. */
+.machine-group {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.machine-group-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.machine-group-count { flex: 0 0 auto; }
+
+.machines-list .machine-entry-sub {
+  margin-left: 14px;
+  position: relative;
+}
+
+/* Small connector tick on the left of every subordinate interface row,
+   visually hanging it under the group header above. */
+.machines-list .machine-entry-sub::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-left: 1px solid var(--border-strong, var(--border));
+  border-radius: 1px;
+}
 /* Rows are buttons: clicking one switches the backend to that machine. The
    global button styling (border/hover/disabled) applies; these rules only
    shape the row layout and keep the mono endpoint typography. */

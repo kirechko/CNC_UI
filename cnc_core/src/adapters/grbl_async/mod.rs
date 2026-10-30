@@ -21,7 +21,7 @@
 //! * `tests`    - unit tests for commands, guards and the transport layer.
 //! * `status_tests` - unit tests for the realtime status-report parser.
 
-use crate::{toolpath::Toolpath, Axis, CoordinateSystem, SpindleCommand};
+use crate::{toolpath::Toolpath, Axis, CoordinateSystem, SpindleCommand, ToolpathProgress};
 use std::{
     collections::HashMap,
     sync::{
@@ -99,8 +99,19 @@ struct Session {
     program: Vec<String>,
     /// Parsed toolpath of the loaded program, used to report progress.
     toolpath: Toolpath,
+    /// Last forward-only toolpath progress reported while streaming. GRBL's
+    /// stop-and-wait acknowledgements let the planner run ahead of the
+    /// physical tool, so the traversed distance may only ever grow: keeping
+    /// the previous value lets the adapter freeze (not rewind) the highlight
+    /// when a position sample momentarily misses the path window. Mirrors the
+    /// FluidNC WebSocket adapter (`Session::last_progress`).
+    last_progress: Option<ToolpathProgress>,
     program_name: Option<String>,
     current_line: u32,
+    /// Modal motion group (G0/G1/G2/G3) of the last motion word the adapter
+    /// sent, used for the telemetry mode indication (task T12): GRBL's '?'
+    /// report does not expose it, so the adapter remembers what it streamed.
+    motion_mode: Option<String>,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
     min_spindle_rpm: Option<f64>,

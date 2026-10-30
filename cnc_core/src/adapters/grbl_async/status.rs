@@ -263,8 +263,13 @@ impl GrblAdapter {
             coordinate_systems: Vec::new(),
             feed_rate: if jogging { 0.0 } else { feed_rate },
             jog_rate: if jogging { feed_rate } else { 0.0 },
+            // The precise modal group (G0/G1/G2/G3) is unknown from the '?'
+            // report; the scheduler overwrites this with the remembered motion
+            // word while a program streams (task T12 in `status()`).
             motion_mode: if jogging {
                 Some("Jog".into())
+            } else if homing {
+                Some("Homing".into())
             } else if running {
                 Some("G-code".into())
             } else {

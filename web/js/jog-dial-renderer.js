@@ -5,7 +5,18 @@ import { themeAlpha, themeToken } from "./theme-colors.js";
  * Paints the circular JOG dial (four step rings around eight directions, or a
  * single solid ring in continuous mode). All sector colors come from theme
  * tokens (web/css/theme-*.css) so the dial follows the active UI theme.
+ *
+ * Sector separation (task): neighbors are drawn as FULL adjacent octants and
+ * separated by the per-sector stroke — a hairline of constant pixel width
+ * (`GAP_LINE_PX`) along each radial boundary. The previous design shrank every
+ * sector by a fixed angle (+/- 0.012 rad), which left an empty wedge that grew
+ * linearly with the radius: near the rim the gap was a wide background-colored
+ * slice, in the hub it vanished. A stroked boundary keeps the same thin line
+ * at every radius.
  */
+const GAP_LINE_PX = 1.5;
+/** Angular half-width of one of the eight dial sectors. */
+const SECTOR_HALF = Math.PI / 8;
 export function renderJogDial({
   canvas,
   context,
@@ -41,8 +52,9 @@ export function renderJogDial({
 
     for (let sector = 0; sector < 8; sector++) {
       const center = sector * Math.PI / 4;
-      const start = center - Math.PI / 8 + 0.012;
-      const end = center + Math.PI / 8 - 0.012;
+      // Full octant: shared edges, no angular inset (constant-width separators).
+      const start = center - SECTOR_HALF;
+      const end = center + SECTOR_HALF;
 
       context.beginPath();
       context.moveTo(cx, cy);
@@ -51,7 +63,7 @@ export function renderJogDial({
       context.fillStyle = directionColors[sector];
       context.fill();
       context.strokeStyle = dialStroke;
-      context.lineWidth = 1.5;
+      context.lineWidth = GAP_LINE_PX;
       context.stroke();
 
       if (hoveredSelection?.sector === sector) {
@@ -92,8 +104,9 @@ export function renderJogDial({
   for (let ring = 0; ring < 4; ring++) {
     for (let sector = 0; sector < 8; sector++) {
       const center = sector * Math.PI / 4;
-      const start = center - Math.PI / 8 + 0.012;
-      const end = center + Math.PI / 8 - 0.012;
+      // Full octants again: the boundary stroke is the constant-width gap line.
+      const start = center - SECTOR_HALF;
+      const end = center + SECTOR_HALF;
       const innerRadius = radius * inner[ring];
       const outerRadius = radius * inner[ring + 1];
       const color = sector % 4 === 0
@@ -109,7 +122,7 @@ export function renderJogDial({
       context.fillStyle = color;
       context.fill();
       context.strokeStyle = dialStroke;
-      context.lineWidth = 1.5;
+      context.lineWidth = GAP_LINE_PX;
       context.stroke();
 
       if (labels[sector] && ring === 3) {
@@ -149,8 +162,8 @@ export function renderJogDial({
     if (ring !== -1) {
       const sector = hoveredSelection.sector;
       const center = sector * Math.PI / 4;
-      const start = center - Math.PI / 8 + 0.012;
-      const end = center + Math.PI / 8 - 0.012;
+      const start = center - SECTOR_HALF;
+      const end = center + SECTOR_HALF;
       context.beginPath();
       context.arc(cx, cy, radius * inner[ring + 1], start, end);
       context.arc(cx, cy, radius * inner[ring], end, start, true);

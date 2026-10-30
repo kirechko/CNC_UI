@@ -29,6 +29,9 @@ export function initJogMotion(app, ctx) {
       let distance;
       if (button.dataset.distance) {
         distance = Number(button.dataset.distance);
+      } else if (ctx.rotaryDistanceSelects?.get(button.dataset.axis)) {
+        // Keypad rotary buttons (task): degrees come from the per-axis select.
+        distance = Number(ctx.rotaryDistanceSelects.get(button.dataset.axis).value);
       } else {
         const distanceSelect = button.dataset.axis === "Z"
           ? ctx.zDistanceSelect

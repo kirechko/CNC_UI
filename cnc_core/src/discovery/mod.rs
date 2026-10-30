@@ -23,8 +23,8 @@ pub use scan::{discover_fluidnc, discover_fluidnc_stream, fluidnc_websocket_addr
 // GRBL serial scanner entry points and the shared device-id/baud helpers,
 // re-exported so callers keep using `cnc_core::discovery::*` paths.
 pub use serial::{
-    discover_grbl, discover_grbl_stream, grbl_baud_rate, grbl_serial_device, grbl_serial_device_id,
-    parse_banner_version,
+    discover_grbl, discover_grbl_stream, fluidnc_serial_device_id, grbl_baud_rate,
+    grbl_serial_device, grbl_serial_device_id, parse_banner_version,
 };
 
 mod probe;
@@ -39,8 +39,11 @@ mod tests;
 /// math in `targets` and the gateway expansion in `scan`.
 const DISCOVERY_MAX_PREFIX: u8 = 24;
 
-/// Default FluidNC WebSocket port used when a discovery config is built.
-const DEFAULT_FLUIDNC_WEBSOCKET_PORT: u16 = 80;
+/// Default FluidNC WebSocket/HTTP port used when a discovery config is built.
+/// `pub(super)` so the serial scanner can register an ESP32 FluidNC board
+/// under its reported Wi-Fi address with the same port convention (task:
+/// FluidNC discovery over COM ports).
+pub(super) const DEFAULT_FLUIDNC_WEBSOCKET_PORT: u16 = 80;
 
 /// Default FluidNC Telnet port used when a discovery config is built.
 const DEFAULT_FLUIDNC_TELNET_PORT: u16 = 23;

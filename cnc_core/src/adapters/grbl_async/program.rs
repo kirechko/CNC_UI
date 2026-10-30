@@ -48,6 +48,8 @@ impl GrblAdapter {
         session.program_name = Some(name);
         session.current_line = 0;
         session.program_streaming = false;
+        // A fresh program invalidates any remembered traversed path.
+        session.last_progress = None;
         Ok(())
     }
 
@@ -108,8 +110,56 @@ impl GrblAdapter {
         }
 
         session.current_line = (index + 1) as u32;
+        // Task T12: remember the modal motion group of the acknowledged line
+        // so the status poll can show G0/G1/G2/G3 instead of the generic
+        // "G-code" (GRBL's '?' report does not expose the modal group).
+        if let Some(mode) = Self::motion_mode_of(&line) {
+            session.motion_mode = Some(mode.to_string());
+        }
         // Keep streaming active until the next Idle response:
         // a GRBL ACK means the line was received, not that the motion has finished.
         Ok(())
+    }
+
+    /// Extracts the modal motion group (G0/G1/G2/G3) of one G-code line:
+    /// the first explicit G-word with a code in {0, 1, 2, 3}. Lines that only
+    /// carry modal continuation (no G-word) return `None` and keep whatever
+    /// mode was in effect before. Parenthesis comments are skipped so
+    /// `(G1 roughing)` does not register.
+    pub(super) fn motion_mode_of(line: &str) -> Option<&'static str> {
+        let bytes = line.as_bytes();
+        let mut in_comment = false;
+        let mut index = 0;
+        while index < bytes.len() {
+            match bytes[index] {
+                b'(' => in_comment = true,
+                b')' => in_comment = false,
+                b';' if !in_comment => break,
+                b'G' | b'g' if !in_comment => {
+                    let mut end = index + 1;
+                    while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b'.') {
+                        end += 1;
+                    }
+                    if end > index + 1 {
+                        if let Ok(code) = line[index + 1..end].parse::<f64>() {
+                            let mode = match code {
+                                0.0 => "G0",
+                                1.0 => "G1",
+                                2.0 => "G2",
+                                3.0 => "G3",
+                                _ => {
+                                    index = end;
+                                    continue;
+                                }
+                            };
+                            return Some(mode);
+                        }
+                    }
+                    index = end;
+                }
+                _ => index += 1,
+            }
+        }
+        None
     }
 }

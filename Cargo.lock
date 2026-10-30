@@ -1932,6 +1932,7 @@ dependencies = [
  "axum",
  "cnc_core",
  "futures-util",
+ "libc",
  "rusqlite",
  "serde",
  "serde_json",
@@ -2831,6 +2832,14 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
+]
+
+[[package]]
+name = "rosetta"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_yaml_ng",
 ]
 
 [[package]]

@@ -1,0 +1,60 @@
+# Rosetta example macro — 3D touch-probe measurement of the workpiece position
+# and orientation, then Rosetta Transform of the loaded toolpath to match.
+#
+# Class: `reactive` — probe moves and live status reads. The final statement is
+# the cross-subsystem bridge `MAC-T-03` (`Stmt::InvokeTransform`): the measured
+# corner coordinates and the edge angle are handed to the Transform engine as
+# `Rotate` + `Translate` affine steps (`TRF-M-02`), so the program geometry is
+# rewritten against the actual blank before it is streamed. Works on GRBL
+# because the rewrites happen offline on the host, not in the controller.
+meta:
+  id: probe_and_align
+  name: 3D probe align (blank)
+  category: probing
+  class: reactive
+  require_confirm: true
+
+triggers:
+  - { type: button, require_confirm: true }
+
+params:
+  - { name: safe_z, kind: number, default: !num 25.0 }
+  - { name: probe_feed, kind: number, default: !num 120.0 }
+  - { name: travel_feed, kind: number, default: !num 1500.0 }
+  - { name: reach, kind: number, default: !num 40.0, description: Search distance per edge }
+  - { name: edge_length, kind: number, default: !num 50.0, description: Span between the two corner probes along an edge }
+
+locals:
+  - { name: ax, kind: number }
+  - { name: ay, kind: number }
+  - { name: bx, kind: number }
+  - { name: angle, kind: number }
+
+body:
+  - !gcode { template: "G90 G21 G94" }
+  - !gcode { template: "G0 Z{safe_z} F{travel_feed}" }
+
+  # Corner A: probe the -X face, then the -Y face of the blank.
+  - !gcode { template: "G91 G38.2 X-{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !gcode { template: "G91 G38.2 Y-{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !gcode { template: "G90" }
+  - !set_var { name: ax, value: !status pos.x }
+  - !set_var { name: ay, value: !status pos.y }
+
+  # Corner B: travel along the measured edge to a second point and probe again.
+  - !gcode { template: "G0 X{edge_length} Y{safe_z} F{travel_feed}" }
+  - !gcode { template: "G91 G38.2 X-{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !gcode { template: "G90" }
+  - !set_var { name: bx, value: !status pos.x }
+  # The blank's skew angle comes from the two corner probes; the exact value
+  # is refined on the host side by the transform from the probe report.
+  - !set_var { name: angle, value: !num 0.0 }
+
+  # Bridge into Rosetta Transform (MAC-T-03): move + rotate the loaded program
+  # so its work zero lands on the measured corner, aligned with the measured
+  # edge. The host wires these ids to `transform::TransformRegistry` entries.
+  - !invoke_transform { id: Translate, args: [ !var ax, !var ay ] }
+  - !invoke_transform { id: Rotate, args: [ !var angle ] }

@@ -4,6 +4,28 @@ A CNC control application built with Rust and Tauri. It provides a desktop inter
 
 The UI communicates with the selected backend through a project-specific CNC API (`cnc_core`). The emulator uses a local Unix-domain socket and a JSON protocol inspired by LinuxCNC; it is **not NML-compatible** and is not a replacement for a LinuxCNC controller.
 
+## Screenshots
+
+Characteristic screenshots live under [`docs/images/`](docs/images) and are
+embedded below as they are captured. Run [`scripts/take-screenshots.sh`](scripts/take-screenshots.sh)
+against a running `cnc-web` + `cnc-emulator` pair to (re)generate them; the
+script uses Playwright when available and prints manual capture instructions
+otherwise.
+
+![Main dashboard with jog dial and 3D viewer](docs/images/main-dashboard.png)
+
+*Machines dialog — grouped interfaces of the same controller:*
+![Machines dialog](docs/images/machines.png)
+
+*Macro editor — a seeded Rosetta example macro:*
+![Macro editor dialog](docs/images/macro-editor.png)
+
+*Program editor:*
+![Program editor](docs/images/program-editor.png)
+
+*Message log with filters:*
+![Message log with filters](docs/images/message-log.png)
+
 ## Features
 
 - Tauri desktop application and optional browser-based web interface (the same UI)
@@ -16,6 +38,8 @@ The UI communicates with the selected backend through a project-specific CNC API
 - Spindle speed and direction controls with telemetry display
 - Machine console with command history and a persistent message log (severity/source/date filters, pagination)
 - Localized interface (English, Russian, Chinese, Persian) and multiple color themes
+- Optional HTTP Basic authorization for the web server (`CNC_UI_AUTH[_USER/_PASSWORD]`;
+  disabled by default and switchable off with `CNC_UI_AUTH=off`)
 - Standalone emulator with simulated motion, spindle, coolant, homing, and soft limits
 - YAML configuration for emulator axis limits and dynamics
 
@@ -74,7 +98,15 @@ RUST_LOG=info cargo run --bin cnc-web
 
 Logs are written to stderr through `tracing`; `RUST_LOG` controls the verbosity (default `info`).
 
-The web server listens on `0.0.0.0:8080`; override it with `CNC_WEB_ADDRESS` (for example `CNC_WEB_ADDRESS=127.0.0.1:8021`) and open `http://localhost:8080` in a browser. The server has no authentication, so use it only on a trusted network.
+The web server listens on `0.0.0.0:8080`; override it with `CNC_WEB_ADDRESS` (for example `CNC_WEB_ADDRESS=127.0.0.1:8021`) and open `http://localhost:8080` in a browser.
+
+Authorization is disabled by default. Set credentials to protect the server with HTTP Basic auth over every route (API and UI):
+
+```bash
+CNC_UI_AUTH_USER=operator CNC_UI_AUTH_PASSWORD='secret' cargo run --bin cnc-web
+```
+
+`CNC_UI_AUTH=on` forces auth even without a configured password (a random one is printed to the log); `CNC_UI_AUTH=off` disables it explicitly. Without credentials the server stays open — use it only on a trusted network.
 
 To use a different emulator socket path for the UI, set `CNC_EMULATOR_SOCKET`:
 
@@ -181,9 +213,21 @@ The whole macro list is validated by the backend (size limits, unique ids, uniqu
 - The FluidNC WebSocket adapter has been verified only on a bench setup with a read-only status and settings cycle. Jog, homing, spindle, and program streaming must be validated on the target machine before use.
 - GRBL serial commands are not an emergency stop. Use the machine's hardware E-stop.
 - Macro invocation mappings are metadata only; assigning an M-code to a macro does not register it with a controller.
-- The web interface has no authentication. Do not expose it to untrusted networks or the public internet.
+- The web interface starts without authentication; enable it with `CNC_UI_AUTH_USER`/`CNC_UI_AUTH_PASSWORD` (single Basic credential pair) before exposing the port beyond a trusted network. Basic auth over plain HTTP protects against casual access only — it is not transport encryption.
 - This application is not a safety controller. Emulator and adapter behavior is intended for development and testing, not machine commissioning or safety validation.
 - Before operating a physical machine, independently validate the hardware, configuration, toolpaths, and machine behavior.
+
+## Documentation
+
+The user guide is available in every localized interface language under [`docs/`](docs):
+[`docs/user-guide.en.md`](docs/user-guide.en.md), [`docs/user-guide.ru.md`](docs/user-guide.ru.md),
+[`docs/user-guide.zh.md`](docs/user-guide.zh.md), [`docs/user-guide.fa.md`](docs/user-guide.fa.md).
+
+## Acknowledgments
+
+- [**FigCNC**](https://github.com/figamore/FigCNC) — many interesting ideas in
+  this project (workflow and control-panel concepts) were inspired by it.
+  Thanks to the FigCNC authors for publishing their work.
 
 ## License
 
