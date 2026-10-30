@@ -19,6 +19,8 @@
 # Current work plans kept in the repo tree but never published on GitHub.
 /plans/
 
-# Dev-container and CI configuration kept local-only; do not publish on GitHub.
+# Dev-container configuration kept local-only; do not publish on GitHub.
 /.devcontainer/
-/.github/
+# NOTE: .github/ is intentionally NOT ignored anymore — the release workflow
+# (.github/workflows/release.yml) must live on GitHub so pushing a v* tag
+# automatically builds the desktop bundles and publishes them as Release assets.

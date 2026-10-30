@@ -223,6 +223,21 @@ The user guide is available in every localized interface language under [`docs/`
 [`docs/user-guide.en.md`](docs/user-guide.en.md), [`docs/user-guide.ru.md`](docs/user-guide.ru.md),
 [`docs/user-guide.zh.md`](docs/user-guide.zh.md), [`docs/user-guide.fa.md`](docs/user-guide.fa.md).
 
+## Releases
+
+Desktop installers are published automatically to [GitHub Releases](https://github.com/kirechko/CNC_UI/releases) by the
+[release workflow](.github/workflows/release.yml): bump `version` in
+[`tauri.conf.json`](tauri.conf.json) (and `Cargo.toml`), then push a matching
+semver tag — the workflow builds Linux (.deb/.rpm/.AppImage/.tar.xz) and
+Windows (.msi/.exe) bundles and creates a draft release for review:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+Unsigned builds show a SmartScreen prompt on first Windows launch; code signing
+can be added later via `TAURI_SIGNING_*` secrets (see the workflow comments).
+
 ## Acknowledgments
 
 - [**FigCNC**](https://github.com/figamore/FigCNC) — many interesting ideas in
