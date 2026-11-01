@@ -1,10 +1,13 @@
 //! Provides a consistent emulator configuration for G-code unit tests.
 use super::super::config::{AxesConfig, AxisLimits, EmulatorConfig, SpindleConfig};
 use super::super::state::Emulator;
-use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position};
+use crate::cnc_api::{CoordinateSystem, CoordinateSystemOffset, Position, SpindleMode};
 use std::path::PathBuf;
 
+/// Builds a deterministic default-spindle emulator fixture for parser and G-code tests.
 pub fn test_emulator() -> Emulator {
+    // This fixture deliberately starts with a conventional spindle; laser-specific tests
+    // opt into an explicit LaserConfiguration so setup defaults cannot mask safety paths.
     let config = EmulatorConfig {
         axes: AxesConfig {
             x: AxisLimits {
@@ -32,6 +35,8 @@ pub fn test_emulator() -> Emulator {
             min_rpm: 500.0,
             max_rpm: 24_000.0,
             acceleration_rpm_per_sec: 1000.0,
+            mode: SpindleMode::Standard,
+            laser: None,
         },
     };
     let offsets = vec![CoordinateSystemOffset {
@@ -46,5 +51,6 @@ pub fn test_emulator() -> Emulator {
         },
     }];
 
+    // Tests share one known-zero G54 frame so assertions exercise parser behavior, not setup I/O.
     Emulator::new(config, PathBuf::from("unused-test-offsets.yaml"), offsets)
 }

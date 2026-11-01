@@ -3,6 +3,7 @@ use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
 use crate::cnc_api::*;
 
+/// Applies supported accessory, spindle/laser and program-control M words.
 pub(super) fn handle_m_word(
     emulator: &mut Emulator,
     value: f64,
@@ -10,8 +11,34 @@ pub(super) fn handle_m_word(
 ) -> Result<(), WireError> {
     match value as i32 {
         3 => emulator.set_spindle(SpindleDirection::Clockwise, None),
-        4 => emulator.set_spindle(SpindleDirection::CounterClockwise, None),
+        4 if emulator.status.spindle.mode == SpindleMode::Standard => {
+            emulator.set_spindle(SpindleDirection::CounterClockwise, None)
+        }
+        4 => {
+            let profile = emulator.config.spindle.laser.ok_or_else(|| {
+                api_error(
+                    "laser_unavailable",
+                    "M4 dynamic mode requires a laser profile",
+                )
+            })?;
+            if !profile.dynamic_power_supported {
+                return Err(api_error(
+                    "laser_mode_unsupported",
+                    "dynamic laser power is unavailable",
+                ));
+            }
+            emulator.status.spindle.mode = SpindleMode::LaserDynamic;
+            emulator.set_spindle(SpindleDirection::Clockwise, None);
+        }
         5 => emulator.set_spindle(SpindleDirection::Stopped, Some(0.0)),
+        106 => {
+            emulator.status.flood_coolant_on = true;
+            emulator.status.message = Some("Laser air assist ON (simulated)".into());
+        }
+        107 => {
+            emulator.status.flood_coolant_on = false;
+            emulator.status.message = Some("Laser air assist OFF (simulated)".into());
+        }
         7 => {
             emulator.status.mist_coolant_on = true;
             emulator.status.message = Some("Mist coolant ON (simulated)".into());
@@ -102,11 +129,38 @@ pub(super) fn select_current_tool(
     Ok(())
 }
 
-/// Applies a spindle direction/speed request while preserving the configured ramp behavior.
+/// Applies an output request, using a spindle ramp for RPM and immediate native S updates for laser power.
 pub(super) fn set_spindle(emulator: &mut Emulator, direction: SpindleDirection, rpm: Option<f64>) {
+    let maximum = emulator
+        .config
+        .spindle
+        .laser
+        .map(|laser| laser.max_power)
+        .unwrap_or(emulator.config.spindle.max_rpm);
     let requested_rpm = rpm
         .unwrap_or(emulator.status.spindle.commanded_rpm)
-        .clamp(0.0, emulator.config.spindle.max_rpm);
+        .clamp(0.0, maximum);
+
+    if emulator.status.spindle.mode != SpindleMode::Standard {
+        // Laser output switches immediately; a simulated spindle ramp would falsely
+        // imply that low-power test firing is delayed or safe to observe directly.
+        let power = if direction == SpindleDirection::Stopped {
+            0.0
+        } else {
+            requested_rpm
+        };
+        emulator.pending_spindle = None;
+        emulator.status.spindle.commanded_rpm = power;
+        emulator.status.spindle.actual_rpm = power;
+        emulator.status.spindle.laser_power = Some(power);
+        emulator.status.spindle.direction = if power > 0.0 {
+            SpindleDirection::Clockwise
+        } else {
+            SpindleDirection::Stopped
+        };
+        emulator.status.spindle.enabled = power > 0.0;
+        return;
+    }
 
     if direction == SpindleDirection::Stopped || requested_rpm <= 0.0 {
         emulator.pending_spindle = None;

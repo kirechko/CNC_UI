@@ -68,6 +68,7 @@ impl GrblAdapter {
                     direction: SpindleDirection::Stopped,
                     rpm: 0.0,
                 },
+                spindle_mode: crate::SpindleMode::Standard,
                 min_spindle_rpm: None,
                 max_spindle_rpm: None,
                 continuous_jog: None,

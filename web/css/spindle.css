@@ -1,5 +1,4 @@
-/* Spindle control: secondary buttons row, speed reading, slider row,
-   preset picker and direction buttons. */
+/* Spindle/laser output panel: range control, mode picker, presets and safety state. */
 .secondary-controls {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -150,6 +149,34 @@
   justify-content: space-between;
   color: var(--muted);
   font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.laser-mode-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.laser-mode-control select {
+  min-height: 30px;
+  color: var(--text-strong);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.spindle-control.laser-mode {
+  border-radius: 8px;
+}
+
+.spindle-control.laser-active {
+  outline: 2px solid #ef4444;
+  animation: laser-output-warning 900ms steps(2, end) infinite;
+}
+
+@keyframes laser-output-warning {
+  50% { outline-color: transparent; }
 }
 
 .spindle-actions {

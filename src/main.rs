@@ -1,7 +1,8 @@
-//! Unified command-line entry point for the CNC web, desktop, and optional emulator modes.
+//! Unified command-line entry point for FerroHUB web, desktop, and optional emulator modes.
 use cnc_core as cnc_api;
 mod cnc_controller;
 mod emulator;
+mod ferrohub;
 mod i18n;
 mod message_log;
 mod rosetta_host;
@@ -71,6 +72,7 @@ fn main() {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let options = match parse_args(std::env::args().skip(1)).map_err(std::io::Error::other)? {
         CliAction::Help => {
+            println!("{} — CNC machine control", ferrohub::PRODUCT_NAME);
             println!("Usage: cnc_ui [--web | --desktop] [--emu]");
             return Ok(());
         }

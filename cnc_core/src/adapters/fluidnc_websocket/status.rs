@@ -144,6 +144,8 @@ impl FluidNcWebSocketAdapter {
                 actual_rpm: spindle_rpm,
                 direction: session.spindle_command.direction,
                 enabled: spindle_rpm > 0.0 || session.spindle_command.rpm > 0.0,
+                mode: crate::SpindleMode::Standard,
+                laser_power: None,
             },
             mist_coolant_on: false,
             flood_coolant_on: false,

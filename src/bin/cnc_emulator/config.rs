@@ -1,6 +1,7 @@
 //! Loads and validates axis and spindle limits from the emulator configuration.
 use crate::cnc_api::{
-    Axis, AxisConfiguration, AxisUnits, MachineAxis, MachineConfiguration, SpindleConfiguration,
+    Axis, AxisConfiguration, AxisUnits, LaserConfiguration, MachineAxis, MachineConfiguration,
+    SpindleConfiguration, SpindleMode,
 };
 use serde::Deserialize;
 use std::fs;
@@ -34,13 +35,24 @@ pub(super) struct AxesConfig {
     pub(super) b: Option<AngularAxisLimits>,
 }
 
+/// Output-channel limits and optional laser behavior loaded from YAML.
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct SpindleConfig {
+    /// Conventional spindle minimum RPM (legacy range kept for backward-compatible YAML).
     pub(super) min_rpm: f64,
+    /// Conventional spindle maximum RPM (laser range comes from `laser.max_power`).
     pub(super) max_rpm: f64,
+    /// Simulated ramp rate for conventional spindle mode.
     pub(super) acceleration_rpm_per_sec: f64,
+    /// Machine output interpretation, defaulting to a conventional spindle.
+    #[serde(default)]
+    pub(super) mode: SpindleMode,
+    /// Optional native laser S-word limits and safety preferences.
+    #[serde(default)]
+    pub(super) laser: Option<LaserConfiguration>,
 }
 
+/// Top-level emulator setup loaded from the user-selected YAML file.
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct EmulatorConfig {
     pub(super) axes: AxesConfig,
@@ -48,6 +60,7 @@ pub(super) struct EmulatorConfig {
 }
 
 impl EmulatorConfig {
+    /// Exposes configured axes and output-channel limits through the shared CNC API model.
     pub(super) fn machine_configuration(&self) -> MachineConfiguration {
         let linear = |axis, limits: &AxisLimits| AxisConfiguration {
             axis,
@@ -80,16 +93,26 @@ impl EmulatorConfig {
             axes.push(angular(MachineAxis::B, limits));
         }
 
+        let (minimum, maximum) = self
+            .spindle
+            .laser
+            .map(|laser| (laser.min_power, laser.max_power))
+            .unwrap_or((self.spindle.min_rpm, self.spindle.max_rpm));
+        // Report the configured output range in the shared speed slots; `laser`
+        // separately labels those values as native power rather than RPM.
         MachineConfiguration {
             axes,
             spindle: SpindleConfiguration {
-                min_rpm: Some(self.spindle.min_rpm),
-                max_rpm: Some(self.spindle.max_rpm),
+                min_rpm: Some(minimum),
+                max_rpm: Some(maximum),
+                mode: self.spindle.mode,
+                laser: self.spindle.laser,
             },
             settings: Default::default(),
         }
     }
 
+    /// Returns axis identifiers that have valid travel and motion settings.
     pub(super) fn configured_axes(&self) -> Vec<Axis> {
         let mut axes = vec![Axis::X, Axis::Y];
         if self.axes.z.is_some() {
@@ -104,6 +127,7 @@ impl EmulatorConfig {
         axes
     }
 
+    /// Returns min/max travel, velocity, and acceleration for a configured axis.
     pub(super) fn axis_limits(&self, axis: Axis) -> (f64, f64, f64, f64) {
         match axis {
             Axis::X => (
@@ -146,6 +170,7 @@ impl EmulatorConfig {
         }
     }
 
+    /// Rejects non-finite or inconsistent axis, spindle, and laser profile values.
     pub(super) fn validate(&self) -> Result<(), String> {
         for (name, a) in [
             ("X", &self.axes.x),
@@ -212,20 +237,44 @@ impl EmulatorConfig {
             }
         }
 
+        let output_minimum = self
+            .spindle
+            .laser
+            .map_or(self.spindle.min_rpm, |laser| laser.min_power);
+        let output_maximum = self
+            .spindle
+            .laser
+            .map_or(self.spindle.max_rpm, |laser| laser.max_power);
         if !self.spindle.min_rpm.is_finite()
             || self.spindle.min_rpm < 0.0
             || !self.spindle.max_rpm.is_finite()
             || self.spindle.max_rpm <= 0.0
             || self.spindle.min_rpm > self.spindle.max_rpm
+            || !output_minimum.is_finite()
+            || output_minimum < 0.0
+            || !output_maximum.is_finite()
+            || output_maximum <= output_minimum
             || !self.spindle.acceleration_rpm_per_sec.is_finite()
             || self.spindle.acceleration_rpm_per_sec <= 0.0
         {
             return Err("invalid spindle configuration".into());
         }
+        if let Some(laser) = self.spindle.laser {
+            if self.spindle.mode == SpindleMode::Standard
+                || laser
+                    .pwm_frequency_hz
+                    .is_some_and(|frequency| !frequency.is_finite() || frequency <= 0.0)
+            {
+                return Err("invalid laser configuration or spindle mode".into());
+            }
+        } else if self.spindle.mode != SpindleMode::Standard {
+            return Err("laser mode requires a laser configuration".into());
+        }
         Ok(())
     }
 }
 
+/// Reads, deserializes, and validates one emulator YAML configuration.
 pub(super) fn load_config(path: &Path) -> Result<EmulatorConfig, String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;

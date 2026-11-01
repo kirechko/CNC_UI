@@ -22,9 +22,10 @@ pub use toolpath::{Toolpath, ToolpathProgress, ToolpathSegment};
 pub use toolpath_parser::parse_toolpath;
 pub use types::{
     Axis, AxisConfiguration, AxisUnits, CncEvent, CncResult, ControllerError, CoordinateSystem,
-    CoordinateSystemOffset, InterpreterState, JogRequest, MachineAxis, MachineConfiguration,
-    MachineState, MachineStatus, MotionKind, OverrideKind, Position, ProgramSource, SpindleCommand,
-    SpindleConfiguration, SpindleDirection, SpindleStatus, TaskMode, TaskState,
+    CoordinateSystemOffset, InterpreterState, JogRequest, LaserConfiguration, MachineAxis,
+    MachineConfiguration, MachineState, MachineStatus, MotionKind, OverrideKind, Position,
+    ProgramSource, SpindleCommand, SpindleConfiguration, SpindleDirection, SpindleMode,
+    SpindleStatus, TaskMode, TaskState,
 };
 
 #[cfg(test)]

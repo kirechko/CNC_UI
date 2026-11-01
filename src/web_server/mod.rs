@@ -47,8 +47,8 @@ pub use server::{run, run_with_shutdown};
 // so `unused_imports` is allowed for builds that exclude the Tauri binary.
 #[allow(unused_imports)]
 pub(crate) use models::{
-    validate_macros, LatestLogMessages, LoadedProgram, LogEntry, LogPage, LogQuery,
-    MacroDefinition, MacroInvocation, StatusResponse,
+    validate_macro_folder, validate_macros, LatestLogMessages, LoadedProgram, LogEntry, LogPage,
+    LogQuery, MacroDefinition, MacroFolder, MacroInvocation, StatusResponse,
 };
 #[allow(unused_imports)]
 pub(crate) use program::{load_program, ProgramError};
@@ -105,6 +105,8 @@ mod contract_tests {
                     actual_rpm: 0.0,
                     direction: crate::cnc_api::SpindleDirection::Stopped,
                     enabled: false,
+                    mode: crate::cnc_api::SpindleMode::Standard,
+                    laser_power: None,
                 },
                 probe_triggered: false,
                 probe_position: None,
@@ -145,12 +147,36 @@ mod contract_tests {
     }
 
     #[test]
+    fn macro_tags_round_trip_and_validation_rejects_duplicates() {
+        let macro_definition: MacroDefinition = serde_json::from_str(
+            r#"{"id":"tagged","name":"Tagged","description":"","body":"G0 X0","tags":["probe","zero"]}"#,
+        )
+        .expect("deserialize tagged macro");
+        assert_eq!(macro_definition.tags, vec!["probe", "zero"]);
+        let encoded = serde_json::to_value(&macro_definition).expect("serialize tagged macro");
+        assert_eq!(encoded["tags"], serde_json::json!(["probe", "zero"]));
+
+        let duplicate_tags = MacroDefinition {
+            id: "tagged".into(),
+            name: "Tagged".into(),
+            description: String::new(),
+            body: "G0 X0".into(),
+            tags: vec!["Probe".into(), "probe".into()],
+            folder_id: None,
+            invocations: Vec::new(),
+        };
+        assert!(validate_macros(&[duplicate_tags], "en").is_err());
+    }
+
+    #[test]
     fn macro_validation_rejects_duplicate_or_unsafe_invocations() {
         let valid = MacroDefinition {
             id: "touch-off".into(),
             name: "Touch off".into(),
             description: String::new(),
             body: "G38.2 Z-5 F50".into(),
+            tags: Vec::new(),
+            folder_id: None,
             invocations: vec![
                 MacroInvocation {
                     controller: "LinuxCNC".into(),

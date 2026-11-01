@@ -91,6 +91,8 @@ impl Emulator {
                     actual_rpm: 0.0,
                     direction: SpindleDirection::Stopped,
                     enabled: false,
+                    mode: config.spindle.mode,
+                    laser_power: (config.spindle.mode != SpindleMode::Standard).then_some(0.0),
                 },
                 loaded_program: None,
                 current_line: 0,

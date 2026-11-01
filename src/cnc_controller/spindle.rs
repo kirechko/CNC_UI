@@ -2,6 +2,7 @@
 //! direction commands queued for the worker.
 
 use super::{CNCController, Command, SpindleDirection};
+use crate::cnc_api::SpindleMode;
 use crate::cnc_api::{SpindleCommand, SpindleDirection as ApiSpindleDirection};
 
 // Spindle setters are wired through the Tauri commands only, so the axum
@@ -50,6 +51,11 @@ impl CNCController {
             SpindleDirection::Off => ApiSpindleDirection::Stopped,
         };
         self.enqueue(Command::Spindle(SpindleCommand { direction, rpm }));
+    }
+
+    /// Requests a laser mode change through the adapter worker.
+    pub fn set_laser_mode(&self, mode: SpindleMode) {
+        self.enqueue(Command::LaserMode(mode));
     }
 
     /// Enqueues a spindle stop command (S0 / M5 equivalent in the adapter).

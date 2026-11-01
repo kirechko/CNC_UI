@@ -31,6 +31,88 @@ pub(crate) struct LogMessageRequest {
     message: String,
 }
 
+/// Overlays normalized LinuxCNC bridge telemetry onto the controller snapshot for UI serialization.
+fn apply_linuxcnc_status(
+    snapshot: &mut crate::cnc_controller::ControllerSnapshot,
+    payload: &serde_json::Value,
+) {
+    let status = &mut snapshot.machine;
+    status.connected = payload
+        .get("connected")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true);
+    if let Some(position) = payload
+        .get("machine_pos")
+        .and_then(serde_json::Value::as_array)
+    {
+        let values: Vec<f64> = position
+            .iter()
+            .filter_map(serde_json::Value::as_f64)
+            .collect();
+        for (target, value) in [
+            (&mut status.position.x, values.first()),
+            (&mut status.position.y, values.get(1)),
+            (&mut status.position.z, values.get(2)),
+            (&mut status.position.a, values.get(3)),
+            (&mut status.position.b, values.get(4)),
+            (&mut status.position.c, values.get(5)),
+        ] {
+            if let Some(value) = value {
+                *target = *value;
+            }
+        }
+    }
+    if let Some(work) = payload
+        .get("work_pos")
+        .and_then(serde_json::Value::as_array)
+    {
+        let values: Vec<f64> = work.iter().filter_map(serde_json::Value::as_f64).collect();
+        for (target, value) in [
+            (&mut status.work_offset.x, values.first()),
+            (&mut status.work_offset.y, values.get(1)),
+            (&mut status.work_offset.z, values.get(2)),
+            (&mut status.work_offset.a, values.get(3)),
+            (&mut status.work_offset.b, values.get(4)),
+            (&mut status.work_offset.c, values.get(5)),
+        ] {
+            if let Some(value) = value {
+                *target = *value;
+            }
+        }
+    }
+    status.feed_rate = payload
+        .get("feed_rate")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(status.feed_rate);
+    status.homed = payload
+        .get("homed")
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            std::array::from_fn(|index| {
+                items
+                    .get(index)
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(status.homed);
+    status.task_state = if payload.get("estop").and_then(serde_json::Value::as_bool) == Some(true) {
+        crate::cnc_api::TaskState::Estop
+    } else if payload.get("enabled").and_then(serde_json::Value::as_bool) == Some(true) {
+        crate::cnc_api::TaskState::On
+    } else {
+        crate::cnc_api::TaskState::Off
+    };
+    status.current_line = payload
+        .get("current_line")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0) as u32;
+    status.loaded_program = payload
+        .get("file")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+}
+
 /// `GET /api/status`: the flat snapshot consumed by `web/js/main.js`, enriched
 /// with the latest log messages for the header chip.
 pub(crate) async fn get_status(
@@ -45,8 +127,37 @@ pub(crate) async fn get_status(
         })?;
         controller.get_status_snapshot()
     };
-    state.record_status(&status);
-    let connected_device_id = state.connected_machine_id();
+    let mut status = status;
+    // When a bridge is selected, its NML snapshot is authoritative; a failed
+    // refresh marks that remote connection down instead of showing emulator data.
+    let linuxcnc_endpoint = state
+        .linuxcnc_endpoint
+        .lock()
+        .ok()
+        .and_then(|value| value.clone());
+    if let Some(endpoint) = linuxcnc_endpoint.as_ref() {
+        match super::super::state::linuxcnc_bridge::request(
+            endpoint,
+            "status",
+            serde_json::json!({}),
+            state
+                .linuxcnc_request_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            std::time::Duration::from_millis(800),
+        ) {
+            Ok(payload) => apply_linuxcnc_status(&mut status, &payload),
+            Err(error) => {
+                status.machine.connected = false;
+                status.machine.message =
+                    Some(format!("LinuxCNC bridge unavailable: {}", error.message));
+            }
+        }
+    }
+    let connected_device_id = if let Some(endpoint) = linuxcnc_endpoint {
+        Some(format!("linuxcnc:{endpoint}"))
+    } else {
+        state.connected_machine_id()
+    };
     let devices = state.machine_snapshot();
     let mut response =
         StatusResponse::from(status).with_connection_info(&devices, connected_device_id.as_deref());
@@ -65,7 +176,7 @@ pub(crate) async fn get_status(
     Ok(Json(response))
 }
 
-/// `POST /api/command`: forwards one console command to the controller.
+/// `POST /api/command`: forwards one console command to the active controller or LinuxCNC bridge.
 pub(crate) async fn post_machine_command(
     State(state): State<SharedController>,
     Query(lang): Query<LangQuery>,
@@ -85,6 +196,31 @@ pub(crate) async fn post_machine_command(
         ));
     }
 
+    if let Some(endpoint) = state
+        .linuxcnc_endpoint
+        .lock()
+        .ok()
+        .and_then(|value| value.clone())
+    {
+        let result = super::super::state::linuxcnc_bridge::request(
+            &endpoint,
+            "mdi",
+            serde_json::json!({ "block": command }),
+            state
+                .linuxcnc_request_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            std::time::Duration::from_secs(30),
+        )
+        .map_err(|error| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("{}: {}", error.code, error.message),
+            )
+        })?;
+        return Ok(Json(MachineCommandResponse {
+            output: result.to_string(),
+        }));
+    }
     state
         .execute_command(command)
         .map(|output| Json(MachineCommandResponse { output }))
@@ -204,6 +340,58 @@ pub(crate) async fn start_program(
     headers: axum::http::HeaderMap,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let language = request_language(&lang, &headers);
+    if let Some(endpoint) = state
+        .linuxcnc_endpoint
+        .lock()
+        .ok()
+        .and_then(|value| value.clone())
+    {
+        // Upload then run ensures the remote interpreter opens exactly the loaded UI program.
+        let loaded = state
+            .program
+            .lock()
+            .ok()
+            .and_then(|value| value.clone())
+            .ok_or_else(|| (StatusCode::BAD_REQUEST, "no program loaded".to_string()))?;
+        let remote_name = loaded.name.clone();
+        let upload_id = state
+            .linuxcnc_request_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        tokio::task::spawn_blocking({
+            let endpoint = endpoint.clone();
+            let content = loaded.content.clone();
+            move || {
+                super::super::state::linuxcnc_bridge::request(
+                    &endpoint,
+                    "program_upload",
+                    serde_json::json!({"name":remote_name,"content":content}),
+                    upload_id,
+                    std::time::Duration::from_secs(30),
+                )
+            }
+        })
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?
+        .map_err(|error| (StatusCode::BAD_GATEWAY, error.message))?;
+        let run_endpoint = endpoint.clone();
+        let run_id = state
+            .linuxcnc_request_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let run_name = loaded.name;
+        tokio::task::spawn_blocking(move || {
+            super::super::state::linuxcnc_bridge::request(
+                &run_endpoint,
+                "program_run",
+                serde_json::json!({"name":run_name,"start_line":0}),
+                run_id,
+                std::time::Duration::from_secs(5),
+            )
+        })
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?
+        .map_err(|error| (StatusCode::BAD_GATEWAY, error.message))?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     state
         .start_loaded_program(language)
         .map(|_| StatusCode::ACCEPTED)
@@ -214,6 +402,29 @@ pub(crate) async fn start_program(
 pub(crate) async fn pause_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    if let Some(endpoint) = state
+        .linuxcnc_endpoint
+        .lock()
+        .ok()
+        .and_then(|value| value.clone())
+    {
+        super::super::state::linuxcnc_bridge::request(
+            &endpoint,
+            "program_pause",
+            serde_json::json!({}),
+            state
+                .linuxcnc_request_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            std::time::Duration::from_secs(5),
+        )
+        .map_err(|error| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("{}: {}", error.code, error.message),
+            )
+        })?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     let controller = state.controller.lock().map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -235,6 +446,29 @@ pub(crate) async fn pause_program(
 pub(crate) async fn resume_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    if let Some(endpoint) = state
+        .linuxcnc_endpoint
+        .lock()
+        .ok()
+        .and_then(|value| value.clone())
+    {
+        super::super::state::linuxcnc_bridge::request(
+            &endpoint,
+            "program_resume",
+            serde_json::json!({}),
+            state
+                .linuxcnc_request_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            std::time::Duration::from_secs(5),
+        )
+        .map_err(|error| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("{}: {}", error.code, error.message),
+            )
+        })?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     let controller = state.controller.lock().map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -256,6 +490,29 @@ pub(crate) async fn resume_program(
 pub(crate) async fn abort_program(
     State(state): State<SharedController>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    if let Some(endpoint) = state
+        .linuxcnc_endpoint
+        .lock()
+        .ok()
+        .and_then(|value| value.clone())
+    {
+        super::super::state::linuxcnc_bridge::request(
+            &endpoint,
+            "program_abort",
+            serde_json::json!({}),
+            state
+                .linuxcnc_request_id
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            std::time::Duration::from_secs(5),
+        )
+        .map_err(|error| {
+            (
+                StatusCode::BAD_GATEWAY,
+                format!("{}: {}", error.code, error.message),
+            )
+        })?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     let controller = state.controller.lock().map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,

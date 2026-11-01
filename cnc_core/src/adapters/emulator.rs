@@ -299,6 +299,21 @@ impl CncApi for EmAdapter {
             .await
     }
 
+    /// Changes the emulator's configured laser mode without enabling its output.
+    async fn set_laser_mode(&self, mode: SpindleMode) -> CncResult<()> {
+        let mode = match mode {
+            SpindleMode::LaserConstant => "constant",
+            SpindleMode::LaserDynamic => "dynamic",
+            SpindleMode::Standard => {
+                return Err(ControllerError::new(
+                    "bad_laser_mode",
+                    "standard mode is not a laser mode",
+                ));
+            }
+        };
+        self.unit("set_laser_mode", json!({ "mode": mode })).await
+    }
+
     async fn clear_error(&self) -> CncResult<()> {
         self.unit("clear_error", json!({})).await
     }

@@ -24,3 +24,6 @@
 # NOTE: .github/ is intentionally NOT ignored anymore — the release workflow
 # (.github/workflows/release.yml) must live on GitHub so pushing a v* tag
 # automatically builds the desktop bundles and publishes them as Release assets.
+
+__pycache__/
+*.py[cod]

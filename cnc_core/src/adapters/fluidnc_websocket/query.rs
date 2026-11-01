@@ -319,7 +319,12 @@ impl FluidNcWebSocketAdapter {
 
         Ok(MachineConfiguration {
             axes,
-            spindle: SpindleConfiguration { min_rpm, max_rpm },
+            spindle: SpindleConfiguration {
+                min_rpm,
+                max_rpm,
+                mode: crate::SpindleMode::Standard,
+                laser: None,
+            },
             settings,
         })
     }

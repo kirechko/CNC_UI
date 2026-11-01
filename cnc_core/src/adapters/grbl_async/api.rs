@@ -89,6 +89,7 @@ impl CncApi for GrblAdapter {
             session.work_offsets.get(&active_coordinate_system).copied(),
             active_coordinate_system,
             session.spindle_command,
+            session.spindle_mode,
             session.program_name.as_deref(),
             session.current_line,
             session.program.len() as u32,
@@ -201,6 +202,18 @@ impl CncApi for GrblAdapter {
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
         let mut session = self.session.lock().await;
         let settings = Self::query_settings(&mut session).await?;
+        // Stock GRBL $32 distinguishes only spindle vs laser constant-power mode;
+        // dynamic mode remains an explicit M4 G-code operation, not a $32 value.
+        let spindle_mode = if self.protocol == SerialProtocol::Grbl
+            && settings
+                .get(&32)
+                .is_some_and(|laser_mode| *laser_mode == 1.0)
+        {
+            crate::SpindleMode::LaserConstant
+        } else {
+            crate::SpindleMode::Standard
+        };
+        session.spindle_mode = spindle_mode;
         let travel = |number: u16| settings.get(&number).copied().filter(|value| *value > 0.0);
         let spindle_rpm =
             |number: u16| settings.get(&number).copied().filter(|value| *value >= 0.0);
@@ -238,9 +251,31 @@ impl CncApi for GrblAdapter {
             })
             .collect();
 
+        let spindle = if spindle_mode == crate::SpindleMode::Standard {
+            SpindleConfiguration {
+                min_rpm,
+                max_rpm,
+                mode: spindle_mode,
+                laser: None,
+            }
+        } else {
+            let maximum = max_rpm.unwrap_or(1000.0);
+            SpindleConfiguration {
+                min_rpm: Some(0.0),
+                max_rpm: Some(maximum),
+                mode: spindle_mode,
+                laser: Some(crate::LaserConfiguration {
+                    min_power: 0.0,
+                    max_power: maximum,
+                    pwm_frequency_hz: None,
+                    dynamic_power_supported: true,
+                    auto_shutoff_on_pause: true,
+                }),
+            }
+        };
         Ok(MachineConfiguration {
             axes,
-            spindle: SpindleConfiguration { min_rpm, max_rpm },
+            spindle,
             settings,
         })
     }
@@ -560,13 +595,12 @@ impl CncApi for GrblAdapter {
         Ok(())
     }
 
-    /// Applies the spindle setpoint as M3/M4/M5, respecting the RPM limits
-    /// previously read from the controller settings.
+    /// Applies a spindle RPM or native laser S setpoint, respecting controller settings.
     async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()> {
         if !command.rpm.is_finite() || command.rpm < 0.0 {
             return Err(ControllerError::new(
                 "bad_spindle",
-                "spindle RPM must be finite and non-negative",
+                "spindle speed or laser power must be finite and non-negative",
             ));
         }
 
@@ -575,13 +609,47 @@ impl CncApi for GrblAdapter {
         Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
         Self::validate_spindle_command(command, session.min_spindle_rpm, session.max_spindle_rpm)?;
+        if session.spindle_mode != crate::SpindleMode::Standard
+            && command.direction == SpindleDirection::CounterClockwise
+        {
+            return Err(ControllerError::new(
+                "laser_direction",
+                "laser output has no reverse direction",
+            ));
+        }
         let gcode = match command.direction {
             SpindleDirection::Stopped => "M5".to_owned(),
+            SpindleDirection::Clockwise
+                if session.spindle_mode == crate::SpindleMode::LaserDynamic =>
+            {
+                format!("M4 S{}", command.rpm)
+            }
             SpindleDirection::Clockwise => format!("M3 S{}", command.rpm),
             SpindleDirection::CounterClockwise => format!("M4 S{}", command.rpm),
         };
         Self::send_command(&mut session, &gcode).await?;
         session.spindle_command = command;
+        Ok(())
+    }
+
+    /// Changes GRBL `$32` between constant and dynamic laser behavior when the setting is available.
+    async fn set_laser_mode(&self, mode: crate::SpindleMode) -> CncResult<()> {
+        let value = match mode {
+            crate::SpindleMode::LaserConstant => 1,
+            crate::SpindleMode::LaserDynamic => 1,
+            crate::SpindleMode::Standard => 0,
+        };
+        let mut session = self.session.lock().await;
+        if session.protocol != SerialProtocol::Grbl {
+            return Err(ControllerError::new(
+                "unsupported",
+                "runtime laser mode is not detected for this FluidNC firmware",
+            ));
+        }
+        Self::ensure_manual_command_allowed(session.program_streaming)?;
+        Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
+        Self::send_command(&mut session, &format!("$32={value}")).await?;
+        session.spindle_mode = mode;
         Ok(())
     }
 

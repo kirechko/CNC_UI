@@ -196,6 +196,8 @@ struct Session {
     motion_mode: Option<String>,
     active_coordinate_system: CoordinateSystem,
     spindle_command: SpindleCommand,
+    /// Output interpretation inferred from `$32` for stock GRBL laser mode.
+    spindle_mode: crate::SpindleMode,
     min_spindle_rpm: Option<f64>,
     max_spindle_rpm: Option<f64>,
     continuous_jog: Option<ContinuousJog>,

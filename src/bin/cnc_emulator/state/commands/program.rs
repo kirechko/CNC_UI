@@ -70,6 +70,20 @@ pub(super) fn program_pause(emulator: &mut Emulator) -> Result<Value, WireError>
         && !emulator.stop_retract_active
     {
         emulator.status.interpreter_state = InterpreterState::Paused;
+        if emulator
+            .config
+            .spindle
+            .laser
+            .is_some_and(|laser| laser.auto_shutoff_on_pause)
+        {
+            // Stop output state in one transition: pause safety must not wait for the
+            // conventional spindle ramp-down simulator.
+            emulator.status.spindle.enabled = false;
+            emulator.status.spindle.commanded_rpm = 0.0;
+            emulator.status.spindle.actual_rpm = 0.0;
+            emulator.status.spindle.direction = SpindleDirection::Stopped;
+            emulator.status.spindle.laser_power = Some(0.0);
+        }
         emulator.status.message = Some("Program paused".into());
     }
     Ok(Value::Null)
@@ -100,12 +114,14 @@ pub(super) fn program_abort(emulator: &mut Emulator) -> Result<Value, WireError>
     emulator.status.feed_rate = 0.0;
     emulator.status.motion_mode = None;
 
-    // STOP forcibly turns the spindle off without performing a ramp-down.
+    // STOP forcibly turns the spindle/laser off without performing a ramp-down.
     emulator.pending_spindle = None;
     emulator.status.spindle.commanded_rpm = 0.0;
     emulator.status.spindle.actual_rpm = 0.0;
     emulator.status.spindle.direction = SpindleDirection::Stopped;
     emulator.status.spindle.enabled = false;
+    emulator.status.spindle.laser_power =
+        (emulator.status.spindle.mode != crate::cnc_api::SpindleMode::Standard).then_some(0.0);
     emulator.status.mist_coolant_on = false;
     emulator.status.flood_coolant_on = false;
 

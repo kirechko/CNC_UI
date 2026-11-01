@@ -1,0 +1,75 @@
+# Rosetta reactive macro — find a circular hole center with four calibrated
+# inner-wall touches and set the selected WCS XY zero. Inputs are user-owned,
+# so the macro uses the live current position offsets to calculate, not a guessed
+# origin. Verify the fixture, probe radius compensation and travel envelope first.
+meta:
+  id: hole_center_probe
+  name: Hole center (4-point probe)
+  category: probing
+  class: reactive
+  require_confirm: true
+
+triggers:
+  - { type: button, require_confirm: true }
+
+params:
+  - { name: safe_z, kind: number, default: !num 15.0, description: Clearance above the hole }
+  - { name: probe_feed, kind: number, default: !num 80.0, description: Slow probing feed }
+  - { name: travel_feed, kind: number, default: !num 800.0, description: Safe XY travel feed }
+  - { name: reach, kind: number, default: !num 15.0, description: Maximum approach distance to each wall }
+  - { name: system, kind: number, default: !num 1.0, description: G54 P index (1 = G54) }
+  - { name: center_x, kind: number, default: !num 0.0, description: Approximate hole center X in current work coordinates }
+  - { name: center_y, kind: number, default: !num 0.0, description: Approximate hole center Y in current work coordinates }
+
+locals:
+  - { name: x_left, kind: number }
+  - { name: x_right, kind: number }
+  - { name: y_front, kind: number }
+  - { name: y_back, kind: number }
+  - { name: measured_x, kind: number }
+  - { name: measured_y, kind: number }
+  - { name: old_x, kind: number }
+  - { name: old_y, kind: number }
+
+body:
+  - !gcode { template: "G90 G21 G94" }
+  - !gcode { template: "G0 Z{safe_z} F{travel_feed}" }
+  - !set_var { name: old_x, value: !status work.x }
+  - !set_var { name: old_y, value: !status work.y }
+
+  # Move outside the near wall, then probe inward. Probe state is awaited after
+  # every touch; no offset changes occur unless all four contacts succeed.
+  - !gcode { template: "G90 G0 X{center_x} Y{center_y}" }
+  - !gcode { template: "G90 G0 X{center_x}-{reach} Y{center_y}" }
+  - !gcode { template: "G91 G38.2 X{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !set_var { name: x_left, value: !status pos.x }
+
+  - !gcode { template: "G90 G0 X{center_x} Y{center_y}" }
+  - !gcode { template: "G90 G0 X{center_x}+{reach} Y{center_y}" }
+  - !gcode { template: "G91 G38.2 X-{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !set_var { name: x_right, value: !status pos.x }
+
+  - !gcode { template: "G90 G0 X{center_x} Y{center_y}-{reach}" }
+  - !gcode { template: "G91 G38.2 Y{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !set_var { name: y_front, value: !status pos.y }
+  - !gcode { template: "G90 G0 X{center_x} Y{center_y}+{reach}" }
+  - !gcode { template: "G91 G38.2 Y-{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !set_var { name: y_back, value: !status pos.y }
+
+  # Opposed wall midpoints cancel a calibrated probe ball radius.
+  - !set_var
+      name: measured_x
+      value: !bin { op: div, lhs: !bin { op: add, lhs: !var x_left, rhs: !var x_right }, rhs: !num 2.0 }
+  - !set_var
+      name: measured_y
+      value: !bin { op: div, lhs: !bin { op: add, lhs: !var y_front, rhs: !var y_back }, rhs: !num 2.0 }
+  - !gcode { template: "G90 G0 Z{safe_z} F{travel_feed}" }
+  # G10 L20 expects the desired work coordinate at the current location. Move
+  # to the measured center first so the command establishes a zero there.
+  - !gcode { template: "G90 G0 X{measured_x} Y{measured_y} F{travel_feed}" }
+  - !gcode { template: "G10 L20 P{system} X0 Y0" }
+  - !return { value: !list [ !var measured_x, !var measured_y ] }

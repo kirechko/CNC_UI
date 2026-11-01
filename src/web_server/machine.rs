@@ -81,6 +81,13 @@ pub(crate) fn build_adapter_for_device(
     device: &cnc_core::discovery::DiscoveredDevice,
 ) -> Result<Arc<dyn CncApi>, String> {
     let adapter: Arc<dyn CncApi> = match (device.protocol.as_str(), device.transport) {
+        ("Klipper", cnc_core::discovery::DiscoveryTransport::WebSocket) => {
+            let mut config = cnc_core::adapters::klipper::KlipperConfig::new(device.endpoint.clone());
+            config.api_key = std::env::var("CNC_KLIPPER_API_KEY").ok();
+            config.machine_id = Some(device.id.clone());
+            Arc::new(cnc_core::adapters::klipper::KlipperAdapter::connect(config)
+                .map_err(|error| format!("{}: {}", error.code, error.message))?)
+        }
         ("Emulator", cnc_core::discovery::DiscoveryTransport::TcpSocket) => Arc::new(
             cnc_core::adapters::emulator::EmAdapter::connect(device.endpoint.clone())
                 .map_err(|error| format!("{}: {}", error.code, error.message))?,

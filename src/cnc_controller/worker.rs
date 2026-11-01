@@ -203,7 +203,7 @@ async fn dispatch_command(
         }
         Command::Spindle(command) => {
             eprintln!(
-                "[Backend/Worker] sending spindle command to API: direction={:?}, rpm={:.0}",
+                "[Backend/Worker] sending spindle command to API: direction={:?}, rpm/power={:.0}",
                 command.direction, command.rpm
             );
             let result = api.set_spindle(command).await;
@@ -216,6 +216,7 @@ async fn dispatch_command(
             }
             result
         }
+        Command::LaserMode(mode) => api.set_laser_mode(mode).await,
         Command::JogIncrement(request) => api.jog_increment(request).await,
         Command::JogContinuous(axis, direction, feed_rate) => {
             api.jog_continuous(axis, direction, feed_rate).await

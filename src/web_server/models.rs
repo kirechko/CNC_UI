@@ -106,7 +106,17 @@ pub(crate) struct MacroInvocation {
     pub(crate) command: String,
 }
 
-/// User-defined macro program and all controller-specific invocation metadata.
+/// User-defined macro folder in the persistent folder hierarchy.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MacroFolder {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) parent_id: Option<String>,
+}
+
+/// User-defined macro program, folder placement, tags and invocation metadata.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MacroDefinition {
@@ -114,8 +124,35 @@ pub(crate) struct MacroDefinition {
     pub(crate) name: String,
     pub(crate) description: String,
     pub(crate) body: String,
+    /// User-defined keywords used by the macro search.
+    #[serde(default)]
+    pub(crate) tags: Vec<String>,
     #[serde(default)]
     pub(crate) invocations: Vec<MacroInvocation>,
+    /// `None` keeps legacy macros at the root folder.
+    #[serde(default)]
+    pub(crate) folder_id: Option<String>,
+}
+
+/// Validates folder ids/names and forbids self-parenting before persistence.
+pub(crate) fn validate_macro_folder(folder: &MacroFolder, language: &str) -> Result<(), String> {
+    if folder.id.is_empty()
+        || folder.id.len() > 80
+        || !folder
+            .id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || "_-".contains(ch))
+        || folder.name.trim().is_empty()
+        || folder.name.trim().len() > 120
+        || folder.parent_id.as_deref() == Some(folder.id.as_str())
+    {
+        return Err(crate::i18n::translate(
+            language,
+            "macros.folders.error.invalid",
+            &[],
+        ));
+    }
+    Ok(())
 }
 
 /// Validates the complete macro set and returns a localized explanation on invalid input.
@@ -163,6 +200,30 @@ pub(crate) fn validate_macros(macros: &[MacroDefinition], language: &str) -> Res
             return Err(crate::i18n::translate(
                 language,
                 "macros.error.invalidBody",
+                &[],
+            ));
+        }
+        if item.tags.len() > 32
+            || item.tags.iter().any(|tag| {
+                let trimmed = tag.trim();
+                trimmed.is_empty() || trimmed.len() > 40 || trimmed.chars().any(char::is_control)
+            })
+        {
+            return Err(crate::i18n::translate(
+                language,
+                "macros.error.invalidTags",
+                &[],
+            ));
+        }
+        let mut tags = HashSet::new();
+        if item
+            .tags
+            .iter()
+            .any(|tag| !tags.insert(tag.trim().to_lowercase()))
+        {
+            return Err(crate::i18n::translate(
+                language,
+                "macros.error.invalidTags",
                 &[],
             ));
         }
@@ -295,6 +356,9 @@ pub(crate) struct StatusResponse {
     spindle_direction: String,
     spindle_min_rpm: f64,
     spindle_max_rpm: f64,
+    spindle_mode: String,
+    laser_power: Option<f64>,
+    laser_mode_available: bool,
     current_line: u32,
     total_lines: u32,
     message: Option<String>,
@@ -337,6 +401,19 @@ impl From<ControllerSnapshot> for StatusResponse {
             .as_ref()
             .and_then(|configuration| configuration.spindle.max_rpm)
             .unwrap_or(machine.max_spindle_rpm);
+
+        let (spindle_mode, laser_mode_available) = status
+            .machine_configuration
+            .as_ref()
+            .map(|configuration| {
+                let mode = match configuration.spindle.mode {
+                    cnc_core::SpindleMode::Standard => "standard",
+                    cnc_core::SpindleMode::LaserConstant => "laser_constant",
+                    cnc_core::SpindleMode::LaserDynamic => "laser_dynamic",
+                };
+                (mode, configuration.spindle.laser.is_some())
+            })
+            .unwrap_or(("standard", false));
 
         let state = status_state_of(&machine);
 
@@ -381,6 +458,9 @@ impl From<ControllerSnapshot> for StatusResponse {
             .into(),
             spindle_min_rpm,
             spindle_max_rpm,
+            spindle_mode: spindle_mode.into(),
+            laser_power: machine.spindle.laser_power,
+            laser_mode_available,
             current_line: machine.current_line,
             total_lines: machine.total_lines,
             message: machine.message,

@@ -104,9 +104,8 @@ button:disabled {
   border-radius: 9px;
   background: var(--brand-bg);
   color: var(--accent-bright);
-  font-size: 18px;
-  font-weight: 800;
 }
+.brand-mark svg { width: 23px; height: 23px; }
 
 .brand-name { font-size: 14px; font-weight: 720; letter-spacing: 0.03em; }
 .brand-subtitle { margin-top: 2px; color: var(--muted); font-size: 10px; }

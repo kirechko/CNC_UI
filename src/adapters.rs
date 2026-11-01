@@ -32,6 +32,8 @@ fn debug_status() -> MachineStatus {
             actual_rpm: 0.0,
             direction: crate::cnc_api::SpindleDirection::Stopped,
             enabled: false,
+            mode: crate::cnc_api::SpindleMode::Standard,
+            laser_power: None,
         },
         mist_coolant_on: false,
         flood_coolant_on: false,

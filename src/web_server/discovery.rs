@@ -10,6 +10,7 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
+use std::net::ToSocketAddrs;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -133,6 +134,26 @@ pub(crate) async fn discover_all_machines(
     }
 
     let priority_targets = state.cached_discovery_endpoints().unwrap_or_default();
+    match cnc_core::adapters::klipper::discovery::discover(priority_targets.clone()).await {
+        Ok(devices) => {
+            for device in devices {
+                if let Err(error) = state.cache_discovered_endpoint(&device.endpoint) {
+                    eprintln!(
+                        "Could not persist Moonraker endpoint {}: {error}",
+                        device.endpoint
+                    );
+                }
+                publish_registry_device(state, &device);
+                if let Some(sender) = sender {
+                    let _ = sender.send(Ok(device.clone())).await;
+                }
+                if !found.iter().any(|listed| listed.id == device.id) {
+                    found.push(device);
+                }
+            }
+        }
+        Err(error) => eprintln!("Moonraker discovery failed: {}", error.message),
+    }
     let discovery_config = cnc_core::discovery::FluidNcDiscoveryConfig {
         explicit_targets: Vec::new(),
         priority_targets,
@@ -267,32 +288,35 @@ pub(crate) fn discovered_machines_response(
     machines: Vec<cnc_core::discovery::DiscoveredDevice>,
     connected_device_id: Option<String>,
 ) -> Json<DiscoveredMachinesResponse> {
+    // The live bridge endpoint is held by AppState, not the shared discovery registry;
+    // this snapshot conversion therefore only serializes scanner results.
     let connected_address = connected_device_id.as_ref().and_then(|id| {
         machines
             .iter()
             .find(|device| &device.id == id)
             .map(|device| device.endpoint.clone())
     });
+    let listed = machines
+        .into_iter()
+        .map(|device| DiscoveredMachine {
+            connected: connected_device_id.as_deref() == Some(device.id.as_str()),
+            id: device.id,
+            protocol: device.protocol,
+            machine_name: device.machine_name,
+            version: device.version,
+            transport: match device.transport {
+                cnc_core::discovery::DiscoveryTransport::WebSocket => "ws",
+                cnc_core::discovery::DiscoveryTransport::Telnet => "telnet",
+                cnc_core::discovery::DiscoveryTransport::Serial => "serial",
+                cnc_core::discovery::DiscoveryTransport::UnixSocket => "unix",
+                cnc_core::discovery::DiscoveryTransport::TcpSocket => "tcp",
+            }
+            .into(),
+            address: device.endpoint,
+        })
+        .collect::<Vec<_>>();
     Json(DiscoveredMachinesResponse {
-        machines: machines
-            .into_iter()
-            .map(|device| DiscoveredMachine {
-                connected: connected_device_id.as_deref() == Some(device.id.as_str()),
-                id: device.id,
-                protocol: device.protocol,
-                machine_name: device.machine_name,
-                version: device.version,
-                transport: match device.transport {
-                    cnc_core::discovery::DiscoveryTransport::WebSocket => "ws",
-                    cnc_core::discovery::DiscoveryTransport::Telnet => "telnet",
-                    cnc_core::discovery::DiscoveryTransport::Serial => "serial",
-                    cnc_core::discovery::DiscoveryTransport::UnixSocket => "unix",
-                    cnc_core::discovery::DiscoveryTransport::TcpSocket => "tcp",
-                }
-                .into(),
-                address: device.endpoint,
-            })
-            .collect(),
+        machines: listed,
         connected_address,
     })
 }
@@ -493,6 +517,59 @@ pub(crate) async fn rediscover_machines(
     Ok(Sse::new(events).keep_alive(axum::response::sse::KeepAlive::default()))
 }
 
+/// Connect to an explicitly entered LinuxCNC bridge at a host:port endpoint.
+async fn select_linuxcnc_bridge(
+    state: &std::sync::Arc<super::state::AppState>,
+    endpoint: String,
+) -> Result<Json<DiscoveredMachinesResponse>, (StatusCode, String)> {
+    let _: std::net::SocketAddr = endpoint
+        .to_socket_addrs()
+        .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?
+        .next()
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "LinuxCNC endpoint did not resolve".into(),
+            )
+        })?;
+    let token = std::env::var("LCNC_ADAPTER_TOKEN").ok();
+    // The capabilities payload seeds the bridge-specific flat status/configuration mapping.
+    let payload = super::state::linuxcnc_bridge::request(
+        &endpoint,
+        "connect",
+        serde_json::json!({ "client_name": "CNC_UI", "protocol_version": 1, "token": token }),
+        state.linuxcnc_request_id.fetch_add(1, Ordering::Relaxed),
+        Duration::from_secs(2),
+    )
+    .map_err(|error| (StatusCode::BAD_GATEWAY, error.message))?;
+    // Persist the endpoint only after the authenticated v1 connect handshake succeeds.
+    *state.linuxcnc_endpoint.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "LinuxCNC endpoint lock poisoned".into(),
+        )
+    })? = Some(endpoint.clone());
+    let _ = payload;
+    let controller = super::machine::default_controller()
+        .map_err(|error| (StatusCode::BAD_GATEWAY, error.to_string()))?;
+    state
+        .swap_controller(controller)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))?;
+    let device = DiscoveredMachine {
+        id: format!("linuxcnc:{endpoint}"),
+        protocol: "LinuxCNC".into(),
+        machine_name: Some("LinuxCNC bridge".into()),
+        version: None,
+        transport: "TCP".into(),
+        address: endpoint.clone(),
+        connected: true,
+    };
+    Ok(Json(DiscoveredMachinesResponse {
+        machines: vec![device],
+        connected_address: Some(endpoint),
+    }))
+}
+
 /// `POST /api/machines/select`: switches the backend to the machine whose
 /// discovery id the UI selected. Builds a fresh adapter, replaces the
 /// controller (the previous worker exits through its now-disconnected command
@@ -502,6 +579,9 @@ pub(crate) async fn select_machine(
     State(state): State<SharedController>,
     Json(request): Json<MachineSelectRequest>,
 ) -> Result<Json<DiscoveredMachinesResponse>, (StatusCode, String)> {
+    if let Some(endpoint) = request.id.strip_prefix("linuxcnc:") {
+        return select_linuxcnc_bridge(&state, endpoint.to_string()).await;
+    }
     let devices = state.machine_snapshot();
     let device = devices
         .iter()

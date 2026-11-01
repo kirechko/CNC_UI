@@ -27,10 +27,19 @@ axes:
 #    max_velocity_degrees_min: 3600.0
 #    acceleration_degrees_s2: 600.0
 
-# Spindle simulation settings.
-# RPM acceleration/deceleration rate.
+# Output channel defaults to a conventional spindle. Switch mode to
+# laser_constant or laser_dynamic and configure native S-word units to simulate a laser.
 spindle:
   min_rpm: 500.0
   max_rpm: 24000.0
   acceleration_rpm_per_sec: 3000.0
+  mode: standard
+  # Laser profile example (S values are controller-native PWM units):
+  # mode: laser_dynamic
+  # laser:
+  #   min_power: 0.0
+  #   max_power: 255.0
+  #   pwm_frequency_hz: 5000.0
+  #   dynamic_power_supported: true
+  #   auto_shutoff_on_pause: true
 

@@ -87,7 +87,13 @@ pub(crate) fn open_log() -> io::Result<Connection> {
                  name TEXT NOT NULL,
                  description TEXT NOT NULL,
                  body TEXT NOT NULL,
-                 invocations TEXT NOT NULL
+                 invocations TEXT NOT NULL,
+                 tags TEXT NOT NULL DEFAULT '[]'
+             );
+             CREATE TABLE IF NOT EXISTS macro_folders (
+                 id TEXT PRIMARY KEY,
+                 name TEXT NOT NULL,
+                 parent_id TEXT
              );",
         )
         .map_err(|error| startup_error(format!("cannot initialize message log: {error}")))?;

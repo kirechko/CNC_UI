@@ -83,6 +83,79 @@ fn incremental_jog_motion_ramps_up_under_configured_acceleration() {
     assert!((movement.velocity_mm_min() - 60.0).abs() < 1e-6);
 }
 
+/// Laser-profile fixture used to validate immediate S-value telemetry and safety limits.
+fn laser_emulator() -> super::super::Emulator {
+    let mut emulator = test_emulator();
+    emulator.config.spindle.mode = crate::cnc_api::SpindleMode::LaserConstant;
+    emulator.config.spindle.laser = Some(crate::cnc_api::LaserConfiguration {
+        min_power: 0.0,
+        max_power: 255.0,
+        pwm_frequency_hz: Some(5000.0),
+        dynamic_power_supported: true,
+        auto_shutoff_on_pause: true,
+    });
+    emulator.status.spindle.mode = crate::cnc_api::SpindleMode::LaserConstant;
+    emulator.status.spindle.laser_power = Some(0.0);
+    emulator
+}
+
+/// Ensures laser commands bypass spindle acceleration and report native S power immediately.
+#[test]
+fn laser_output_uses_immediate_native_power_and_m5_is_fail_closed() {
+    let mut emulator = laser_emulator();
+    // Emulator API requests use immediate adapter commands, whereas G-code S alone
+    // is modal and intentionally does not enable output. Exercise the M3 state path directly.
+    emulator.set_spindle(crate::cnc_api::SpindleDirection::Clockwise, Some(40.0));
+    assert!(emulator.status.spindle.enabled);
+    assert_eq!(emulator.status.spindle.actual_rpm, 40.0);
+    assert_eq!(emulator.status.spindle.laser_power, Some(40.0));
+    emulator.set_spindle(crate::cnc_api::SpindleDirection::Stopped, Some(0.0));
+    assert!(!emulator.status.spindle.enabled);
+    assert_eq!(emulator.status.spindle.laser_power, Some(0.0));
+}
+
+/// Rejects an S value above the explicit laser PWM range before changing output state.
+#[test]
+fn laser_output_rejects_out_of_range_power_without_emitting() {
+    let mut emulator = laser_emulator();
+    assert!(emulator.execute_gcode("S256").is_err());
+    assert!(!emulator.status.spindle.enabled);
+    assert_eq!(emulator.status.spindle.laser_power, Some(0.0));
+}
+
+/// Verifies pause, program abort, and E-stop force laser output telemetry off.
+#[test]
+fn laser_output_shuts_off_on_pause_abort_and_estop() {
+    let mut emulator = laser_emulator();
+    emulator.set_spindle(crate::cnc_api::SpindleDirection::Clockwise, Some(30.0));
+    emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Reading;
+    emulator
+        .handle(Request {
+            method: "program_pause".into(),
+            args: serde_json::json!({}),
+        })
+        .unwrap();
+    assert!(!emulator.status.spindle.enabled);
+    assert_eq!(emulator.status.spindle.laser_power, Some(0.0));
+    emulator.set_spindle(crate::cnc_api::SpindleDirection::Clockwise, Some(20.0));
+    emulator
+        .handle(Request {
+            method: "program_abort".into(),
+            args: serde_json::json!({}),
+        })
+        .unwrap();
+    assert!(!emulator.status.spindle.enabled);
+    emulator.set_spindle(crate::cnc_api::SpindleDirection::Clockwise, Some(10.0));
+    emulator
+        .handle(Request {
+            method: "estop".into(),
+            args: serde_json::json!({}),
+        })
+        .unwrap();
+    assert!(!emulator.status.spindle.enabled);
+    assert_eq!(emulator.status.spindle.laser_power, Some(0.0));
+}
+
 #[test]
 fn spindle_ramps_to_commanded_speed_and_reports_telemetry() {
     let mut emulator = test_emulator();

@@ -27,9 +27,31 @@
   font-size: var(--font-size-sm);
 }
 
+.macros-folder-add,
 .macros-add-button {
   padding: 5px 9px;
   font-size: var(--font-size-sm);
+}
+
+.macro-search-field {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+}
+
+.macro-search-field input,
+#macro-tags {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 12px var(--font-mono);
 }
 
 /* User-selected macro shortcuts are separate from the controller invocation metadata below. */
@@ -41,6 +63,9 @@
   padding-bottom: 7px;
   border-bottom: 1px solid var(--border);
 }
+
+.macro-folder-actions { display: flex; justify-content: flex-end; }
+.macro-folder-delete { padding: 3px 7px; font-size: var(--font-size-xs); color: var(--danger, #e66); }
 
 .macro-buttons-heading {
   display: flex;
@@ -98,6 +123,24 @@
 .macro-button-picker label { color: var(--muted); font-size: var(--font-size-sm); }
 .macro-button-picker select { width: 100%; }
 .macro-button-picker-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Folder browsing controls provide a breadcrumb and immediate child-directory list. */
+.macro-breadcrumb,
+.macro-folder-list {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.macro-breadcrumb button,
+.macro-folder-entry {
+  padding: 4px 8px;
+  font-size: var(--font-size-sm);
+}
+
+.macro-folder-entry { text-align: left; }
 
 /* Compact list: every row is a single line with the macro name and one
    button that opens the dialog editor. The description is only a `title`

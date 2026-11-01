@@ -154,6 +154,8 @@ impl GrblAdapter {
                 actual_rpm,
                 direction: session.spindle_command.direction,
                 enabled: actual_rpm > 0.0 || session.spindle_command.rpm > 0.0,
+                mode: crate::cnc_api::SpindleMode::Standard,
+                laser_power: None,
             },
             mist_coolant_on: false,
             flood_coolant_on: false,

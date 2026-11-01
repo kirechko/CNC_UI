@@ -111,6 +111,7 @@ impl GrblAdapter {
         cached_work_offset: Option<[f64; 6]>,
         active_coordinate_system: CoordinateSystem,
         spindle_command: SpindleCommand,
+        spindle_mode: crate::SpindleMode,
         program_name: Option<&str>,
         current_line: u32,
         total_lines: u32,
@@ -316,8 +317,15 @@ impl GrblAdapter {
             spindle: SpindleStatus {
                 commanded_rpm: spindle_command.rpm,
                 actual_rpm,
-                direction: spindle_command.direction,
+                direction: if spindle_command.direction == crate::SpindleDirection::Stopped {
+                    crate::SpindleDirection::Stopped
+                } else {
+                    crate::SpindleDirection::Clockwise
+                },
                 enabled: actual_rpm > 0.0 || spindle_command.rpm > 0.0,
+                mode: spindle_mode,
+                laser_power: (spindle_mode != crate::SpindleMode::Standard)
+                    .then_some(spindle_command.rpm),
             },
             mist_coolant_on: false,
             flood_coolant_on: false,

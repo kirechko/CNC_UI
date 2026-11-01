@@ -15,6 +15,8 @@ use super::models::LoadedProgram;
 use crate::cnc_controller::CNCController;
 use crate::rosetta_host::run::RunRegistry;
 
+pub(crate) mod linuxcnc_bridge;
+
 /// Shared backend state: controller handle, loaded program, message-log
 /// database, discovery registry and the cancellation flags of the *current*
 /// controller worker pair.
@@ -44,6 +46,10 @@ pub(crate) struct AppState {
     pub(crate) motion_stop_requested: Mutex<Arc<AtomicBool>>,
     /// Active and recent Rosetta macro runs (log tailing, cancel, guards).
     pub(crate) macro_runs: RunRegistry,
+    /// Endpoint of the active standalone LinuxCNC bridge, if selected.
+    pub(crate) linuxcnc_endpoint: Mutex<Option<String>>,
+    /// Monotonic correlation id source for LinuxCNC bridge requests.
+    pub(crate) linuxcnc_request_id: std::sync::atomic::AtomicU64,
 }
 
 impl AppState {
@@ -66,6 +72,8 @@ impl AppState {
             command_cancel_requested: Mutex::new(command_cancel_requested),
             motion_stop_requested: Mutex::new(motion_stop_requested),
             macro_runs: RunRegistry::new(),
+            linuxcnc_endpoint: Mutex::new(None),
+            linuxcnc_request_id: std::sync::atomic::AtomicU64::new(1),
         };
         // Rosetta integration (T26 §3.2): the optional `rosetta_yaml` column
         // is added before anything reads or writes macro rows.
@@ -80,6 +88,7 @@ impl AppState {
                 .lock()
                 .map_err(|_| io::Error::other("database lock poisoned"))?;
             crate::rosetta_host::registry::ensure_schema(&connection).map_err(io::Error::other)?;
+            macros::ensure_folder_schema(&connection).map_err(io::Error::other)?;
         }
         if std::env::var_os("CNC_UI_NO_SEED").is_none() {
             let connection = state

@@ -1,19 +1,13 @@
-//! The shared asynchronous control API ([`CncApi`]) implemented by every CNC
-//! backend adapter, plus the [`machine_state`] classifier that maps a detailed
-//! [`MachineStatus`] snapshot onto the coarse UI state used in events.
-//!
-//! The trait lives in one file because Rust allows a single trait definition
-//! and each adapter keeps a single `impl CncApi` block (see the adapter
-//! modules); splitting the trait across files is not possible.
+//! Shared asynchronous CNC control API and coarse controller-state classification.
 
 use crate::types::{
     Axis, CncEvent, CoordinateSystem, JogRequest, MachineConfiguration, MachineState,
-    MachineStatus, OverrideKind, ProgramSource, SpindleCommand,
+    MachineStatus, OverrideKind, ProgramSource, SpindleCommand, SpindleMode,
 };
 use crate::{discovery, CncResult, ControllerError};
 use std::path::Path;
 
-/// Return the coarse UI state represented by a controller status snapshot.
+/// Converts detailed controller telemetry into the coarse UI state.
 pub fn machine_state(status: &MachineStatus) -> MachineState {
     use crate::types::{InterpreterState, TaskState};
     if !status.connected {
@@ -22,7 +16,7 @@ pub fn machine_state(status: &MachineStatus) -> MachineState {
         || status
             .message
             .as_deref()
-            .is_some_and(|m| m.starts_with("ALARM:"))
+            .is_some_and(|message| message.starts_with("ALARM:"))
     {
         MachineState::Alarm
     } else if status.homing {
@@ -44,18 +38,20 @@ pub fn machine_state(status: &MachineStatus) -> MachineState {
     }
 }
 
-/// Shared asynchronous control API implemented by CNC backends.
+/// Shared async control API implemented by CNC backend adapters.
 #[async_trait::async_trait]
 pub trait CncApi: Send + Sync {
-    /// Query the controller and return its most recent complete status.
+    /// Returns a nonblocking reference to adapter-specific behavior for backend integrations.
+    fn klipper_adapter(&self) -> Option<&crate::adapters::klipper::KlipperAdapter> {
+        None
+    }
+    /// Returns the latest complete controller state.
     async fn status(&self) -> CncResult<MachineStatus>;
-
-    /// Return endpoints found by automatic discovery, if this adapter supports it.
+    /// Returns cached discovered devices.
     fn discovered_devices(&self) -> Vec<discovery::DiscoveredDevice> {
         Vec::new()
     }
-
-    /// Start a discovery pass and stream each result as it is found.
+    /// Starts a streaming device discovery pass.
     async fn rediscover_devices_stream(
         &self,
         _priority_targets: Vec<String>,
@@ -68,8 +64,7 @@ pub trait CncApi: Send + Sync {
         }
         Ok(receiver)
     }
-
-    /// Run a new device discovery pass, if supported by this adapter.
+    /// Collects all devices yielded by the discovery stream.
     async fn rediscover_devices(&self) -> CncResult<Vec<discovery::DiscoveredDevice>> {
         let mut receiver = self.rediscover_devices_stream(Vec::new()).await?;
         let mut devices = Vec::new();
@@ -78,28 +73,23 @@ pub trait CncApi: Send + Sync {
         }
         Ok(devices)
     }
-
-    /// Stable identifier of the endpoint currently used by this adapter, when known.
+    /// Stable id of the selected endpoint.
     fn connected_device_id(&self) -> Option<String> {
         None
     }
-
-    /// Return a nonblocking copy of the most recently published status, when supported.
+    /// Returns last status without network activity.
     fn last_status(&self) -> Option<MachineStatus> {
         None
     }
-
-    /// Subscribe to status snapshot changes, when supported by the adapter.
+    /// Subscribes to status changes.
     fn subscribe_status(&self) -> Option<tokio::sync::watch::Receiver<MachineStatus>> {
         None
     }
-
-    /// Subscribe to adapter events, when supported by the adapter.
+    /// Subscribes to backend events.
     fn subscribe_events(&self) -> Option<tokio::sync::broadcast::Receiver<CncEvent>> {
         None
     }
-
-    /// Load a path or inline program. The default supports existing path-based adapters only.
+    /// Loads a path or inline program where supported.
     async fn load_program_source(&self, source: ProgramSource) -> CncResult<()> {
         match source {
             ProgramSource::Path(path) => self.load_program(&path).await,
@@ -109,8 +99,15 @@ pub trait CncApi: Send + Sync {
             )),
         }
     }
-
-    /// Set a feed, spindle, or rapid override as a percentage.
+    /// Selects a runtime laser mode when supported.
+    async fn set_laser_mode(&self, mode: SpindleMode) -> CncResult<()> {
+        let _ = mode;
+        Err(ControllerError::new(
+            "unsupported",
+            "runtime laser mode selection is not supported by this adapter",
+        ))
+    }
+    /// Sets a supported override percentage.
     async fn set_override(&self, kind: OverrideKind, value: f64) -> CncResult<()> {
         let _ = (kind, value);
         Err(ControllerError::new(
@@ -118,24 +115,32 @@ pub trait CncApi: Send + Sync {
             "overrides are not supported by this adapter",
         ))
     }
-
+    /// Returns controller configuration where available.
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
         Err(ControllerError::new(
             "unsupported",
             "machine configuration is not available for this adapter",
         ))
     }
-
+    /// Enables controller outputs where available.
     async fn power_on(&self) -> CncResult<()>;
+    /// Disables controller outputs where available.
     async fn power_off(&self) -> CncResult<()>;
+    /// Requests emergency stop.
     async fn estop(&self) -> CncResult<()>;
+    /// Homes all axes or the specified axis.
     async fn home(&self, axis: Option<Axis>) -> CncResult<()>;
+    /// Selects the active work coordinate system.
     async fn select_coordinate_system(&self, system: CoordinateSystem) -> CncResult<()>;
+    /// Zeros all work coordinates in one WCS.
     async fn set_work_zero(&self, system: CoordinateSystem) -> CncResult<()>;
+    /// Zeros one work coordinate.
     async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()>;
+    /// Performs one incremental jog.
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()>;
+    /// Performs continuous single-axis jogging.
     async fn jog_continuous(&self, axis: Axis, direction: i8, feed_rate: f64) -> CncResult<()>;
-
+    /// Performs coordinated continuous XY jogging when supported.
     async fn jog_continuous_xy(
         &self,
         x_direction: i8,
@@ -148,21 +153,18 @@ pub trait CncApi: Send + Sync {
             "coordinated continuous XY jog is not supported by this adapter",
         ))
     }
-
+    /// Cancels jogging when the controller supports it.
     async fn cancel_jog(&self) -> CncResult<()> {
         Err(ControllerError::new(
             "unsupported",
             "jog cancellation is not supported by this adapter",
         ))
     }
-
-    /// Stop the current controlled motion without performing an emergency stop.
+    /// Stops controlled motion without emergency stop.
     async fn stop_motion(&self) -> CncResult<()> {
         self.cancel_jog().await
     }
-
-    /// Execute a controller command and return its text response when one is available.
-    /// Adapters may support G-code and adapter-specific commands here.
+    /// Executes one controller command with a cooperative cancellation token.
     async fn execute_command(
         &self,
         command: &str,
@@ -183,13 +185,20 @@ pub trait CncApi: Send + Sync {
         }
         Ok("Command accepted by the controller.".into())
     }
-
+    /// Executes manual data input.
     async fn mdi(&self, command: &str) -> CncResult<()>;
+    /// Loads a program from a host path.
     async fn load_program(&self, path: &Path) -> CncResult<()>;
+    /// Starts a loaded program.
     async fn program_run(&self, start_line: u32) -> CncResult<()>;
+    /// Pauses program execution.
     async fn program_pause(&self) -> CncResult<()>;
+    /// Resumes program execution.
     async fn program_resume(&self) -> CncResult<()>;
+    /// Cancels program execution.
     async fn program_abort(&self) -> CncResult<()>;
+    /// Controls spindle or laser output.
     async fn set_spindle(&self, command: SpindleCommand) -> CncResult<()>;
+    /// Clears a controller alarm or shutdown.
     async fn clear_error(&self) -> CncResult<()>;
 }

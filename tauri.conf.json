@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CNC UI",
+  "productName": "FerroHUB",
   "version": "0.1.0",
   "identifier": "com.kirechko.cnc-ui",
   "build": {
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "CNC UI",
+        "title": "FerroHUB",
         "width": 1200,
         "height": 800
       }

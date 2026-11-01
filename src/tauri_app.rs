@@ -141,6 +141,30 @@ fn get_macros(state: State<'_, AppState>) -> Result<Vec<MacroDefinition>, String
     state.list_macros()
 }
 
+/// Returns macro folders for desktop tree navigation.
+#[tauri::command]
+fn get_macro_folders(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::web_server::MacroFolder>, String> {
+    state.list_macro_folders()
+}
+
+/// Creates a macro folder in the desktop application.
+#[tauri::command]
+fn create_macro_folder(
+    state: State<'_, AppState>,
+    folder: crate::web_server::MacroFolder,
+) -> Result<(), String> {
+    crate::web_server::validate_macro_folder(&folder, desktop_language())?;
+    state.create_macro_folder(&folder)
+}
+
+/// Deletes a macro folder when it is empty.
+#[tauri::command]
+fn delete_macro_folder(state: State<'_, AppState>, folder_id: String) -> Result<(), String> {
+    state.delete_macro_folder(&folder_id)
+}
+
 /// Validates and atomically saves the complete user macro list from the desktop frontend.
 #[tauri::command]
 fn put_macros(state: State<'_, AppState>, macros: Vec<MacroDefinition>) -> Result<(), String> {
@@ -278,6 +302,8 @@ fn set_spindle(
     rpm: f64,
     enabled: bool,
     direction: String,
+    power: Option<f64>,
+    mode: Option<String>,
 ) -> Result<(), String> {
     let controller = state
         .controller
@@ -290,7 +316,17 @@ fn set_spindle(
     }
 
     let language = desktop_language();
-    if !rpm.is_finite() {
+    let status = controller.get_status_snapshot();
+    let spindle = status
+        .machine_configuration
+        .as_ref()
+        .map(|configuration| &configuration.spindle)
+        .ok_or_else(|| {
+            crate::i18n::translate(language, "api.error.spindleConfigUnavailable", &[])
+        })?;
+    let is_laser = spindle.mode != crate::cnc_api::SpindleMode::Standard;
+    let value = if is_laser { power.unwrap_or(rpm) } else { rpm };
+    if !value.is_finite() {
         return Err(crate::i18n::translate(
             language,
             "api.error.spindleSpeedFinite",
@@ -298,7 +334,6 @@ fn set_spindle(
         ));
     }
 
-    let status = controller.get_status_snapshot();
     if !status.machine.connected {
         return Err(crate::i18n::translate(
             language,
@@ -307,17 +342,28 @@ fn set_spindle(
         ));
     }
 
-    let spindle = status
-        .machine_configuration
-        .as_ref()
-        .map(|configuration| &configuration.spindle)
-        .ok_or_else(|| {
-            crate::i18n::translate(language, "api.error.spindleConfigUnavailable", &[])
-        })?;
-    let minimum = spindle.min_rpm.unwrap_or(0.0);
-    let maximum = spindle.max_rpm.unwrap_or(status.machine.max_spindle_rpm);
+    if let Some(mode) = mode.as_deref() {
+        let desired = match mode {
+            "constant" => crate::cnc_api::SpindleMode::LaserConstant,
+            "dynamic" => crate::cnc_api::SpindleMode::LaserDynamic,
+            _ => return Err("mode must be constant or dynamic".into()),
+        };
+        controller.set_laser_mode(desired);
+    }
+    let (minimum, maximum) = if is_laser {
+        let laser = spindle
+            .laser
+            .as_ref()
+            .ok_or_else(|| "laser config unavailable".to_string())?;
+        (laser.min_power, laser.max_power)
+    } else {
+        (
+            spindle.min_rpm.unwrap_or(0.0),
+            spindle.max_rpm.unwrap_or(status.machine.max_spindle_rpm),
+        )
+    };
 
-    if maximum <= 0.0 || rpm < minimum || rpm > maximum {
+    if maximum <= 0.0 || value < minimum || value > maximum {
         return Err(crate::i18n::translate(
             language,
             "api.error.spindleRange",
@@ -340,8 +386,36 @@ fn set_spindle(
         }
     };
 
-    controller.set_spindle_speed(rpm);
+    if is_laser && direction == UiSpindleDirection::Ccw {
+        return Err("laser output does not support reverse direction".into());
+    }
+    controller.set_spindle_speed(value);
     controller.set_spindle_direction(direction);
+    Ok(())
+}
+
+/// Selects a laser power mode through the adapter worker.
+#[tauri::command]
+fn set_laser_mode(state: State<'_, AppState>, mode: String) -> Result<(), String> {
+    let mode = match mode.as_str() {
+        "constant" => crate::cnc_api::SpindleMode::LaserConstant,
+        "dynamic" => crate::cnc_api::SpindleMode::LaserDynamic,
+        _ => return Err("mode must be constant or dynamic".into()),
+    };
+    let controller = state
+        .controller
+        .lock()
+        .map_err(|_| "controller lock poisoned".to_string())?;
+    let snapshot = controller.get_status_snapshot();
+    let laser = snapshot
+        .machine_configuration
+        .as_ref()
+        .and_then(|configuration| configuration.spindle.laser)
+        .ok_or_else(|| "laser is not configured on this machine".to_string())?;
+    if mode == crate::cnc_api::SpindleMode::LaserDynamic && !laser.dynamic_power_supported {
+        return Err("dynamic laser power is not supported by this machine".into());
+    }
+    controller.set_laser_mode(mode);
     Ok(())
 }
 
@@ -531,6 +605,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             execute_machine_command,
             get_program,
             get_macros,
+            get_macro_folders,
+            create_macro_folder,
+            delete_macro_folder,
             put_macros,
             run_macro,
             get_macro_run_status,
@@ -540,11 +617,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             transform_apply,
             load_program,
             start_program,
+            set_laser_mode,
             pause_program,
             resume_program,
             abort_program,
             jog,
             set_spindle,
+            set_laser_mode,
             jog_continuous,
             jog_continuous_xy,
             cancel_jog,

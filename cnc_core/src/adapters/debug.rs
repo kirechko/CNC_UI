@@ -35,6 +35,8 @@ fn debug_status() -> MachineStatus {
             actual_rpm: 0.0,
             direction: SpindleDirection::Stopped,
             enabled: false,
+            mode: crate::SpindleMode::Standard,
+            laser_power: None,
         },
         mist_coolant_on: false,
         flood_coolant_on: false,
@@ -73,7 +75,7 @@ macro_rules! debug_adapter {
 
         #[async_trait::async_trait]
         impl CncApi for $adapter {
-            async fn status(&self) -> CncResult<MachineStatus> {
+                    async fn status(&self) -> CncResult<MachineStatus> {
                 Ok(debug_status())
             }
 

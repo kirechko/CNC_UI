@@ -74,6 +74,8 @@ impl LinuxCncApi for GrblAdapter {
                         .get(&31)
                         .is_none_or(|minimum| minimum <= maximum)
                 }),
+                mode: crate::cnc_api::SpindleMode::Standard,
+                laser: None,
             },
         })
     }

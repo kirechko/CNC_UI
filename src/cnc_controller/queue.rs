@@ -24,8 +24,8 @@ impl CNCController {
     /// senders drop); the message is journalled so the UI can surface it.
     pub(super) fn enqueue(&self, command: Command) {
         let description = describe_command(&command);
-        let source = if matches!(command, Command::Spindle(_)) {
-            "spindle"
+        let source = if matches!(command, Command::Spindle(_) | Command::LaserMode(_)) {
+            "spindle/laser"
         } else {
             "UI command"
         };
@@ -56,7 +56,7 @@ impl CNCController {
     }
 
     /// Clone of the underlying adapter, used by the discovery endpoints to
-    /// stream live rescans without touching the command queue.
+    /// stream live rescans and by backend-specific remote file handlers.
     pub fn discovery_api(&self) -> Option<std::sync::Arc<dyn crate::cnc_api::CncApi>> {
         self.api.clone()
     }
@@ -321,6 +321,7 @@ fn describe_command(command: &Command) -> String {
                 format!("Spindle: counter-clockwise start, {:.0} RPM", command.rpm)
             }
         },
+        Command::LaserMode(mode) => format!("Laser mode: {mode:?}"),
         Command::JogIncrement(request) => format!(
             "Jog: axis {:?}, direction {:+}, distance {:.3}, feed {:.3}",
             request.axis,

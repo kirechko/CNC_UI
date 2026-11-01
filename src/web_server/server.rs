@@ -3,7 +3,7 @@
 
 use axum::http::{header, HeaderValue};
 use axum::middleware;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::Router;
 use std::io;
 use std::sync::Arc;
@@ -107,6 +107,7 @@ where
         .route("/api/program/abort", post(handlers::abort_program))
         .route("/api/jog", post(handlers::jog))
         .route("/api/spindle", post(handlers::set_spindle))
+        .route("/api/laser/mode", post(handlers::set_laser_mode))
         .route("/api/reset-alarm", post(handlers::post_reset_alarm))
         .route("/api/jog/xy", post(handlers::jog_xy))
         .route("/api/jog/continuous", post(handlers::jog_continuous))
@@ -126,6 +127,14 @@ where
         .route(
             "/api/macros",
             get(handlers::get_macros).put(handlers::put_macros),
+        )
+        .route(
+            "/api/macro-folders",
+            get(handlers::get_macro_folders).post(handlers::post_macro_folder),
+        )
+        .route(
+            "/api/macro-folders/:folder_id",
+            delete(handlers::delete_macro_folder),
         )
         // Rosetta integration (T26): macro runs with log tailing, the
         // capability validator and the transform preview/apply pair.

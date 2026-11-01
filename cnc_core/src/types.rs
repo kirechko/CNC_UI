@@ -136,12 +136,46 @@ pub struct AxisConfiguration {
     pub steps_per_unit: Option<f64>,
 }
 
+/// Describes whether the machine output is a conventional spindle or a laser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SpindleMode {
+    /// Conventional spindle controlled by speed and direction.
+    #[default]
+    Standard,
+    /// Laser output with constant commanded power while enabled.
+    LaserConstant,
+    /// Laser output whose power follows feed-rate changes in the controller.
+    LaserDynamic,
+}
+
+/// PWM and power limits for a laser-capable machine.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct LaserConfiguration {
+    /// Minimum accepted laser power in the controller's native S units.
+    pub min_power: f64,
+    /// Maximum accepted laser power in the controller's native S units.
+    pub max_power: f64,
+    /// PWM carrier frequency when reported by the controller.
+    pub pwm_frequency_hz: Option<f64>,
+    /// Whether the controller supports dynamic laser power mode.
+    pub dynamic_power_supported: bool,
+    /// Whether the adapter should turn off the laser when a program is paused.
+    pub auto_shutoff_on_pause: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SpindleConfiguration {
     /// Minimum spindle speed in RPM.
     pub min_rpm: Option<f64>,
     /// Maximum spindle speed in RPM.
     pub max_rpm: Option<f64>,
+    /// Output interpretation; defaults to a conventional spindle for old configs.
+    #[serde(default)]
+    pub mode: SpindleMode,
+    /// Laser-specific output settings; absent for conventional spindle machines.
+    #[serde(default)]
+    pub laser: Option<LaserConfiguration>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -172,14 +206,23 @@ pub struct Position {
     pub c: f64,
 }
 
+/// Live spindle/laser output state shared by adapters and the UI.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpindleStatus {
-    /// Commanded spindle speed.
+    /// Commanded spindle speed, or the raw laser S-word power value.
     pub commanded_rpm: f64,
-    /// Actual spindle speed; the emulator may simply repeat commanded_rpm.
+    /// Actual spindle speed, or reported laser PWM/power when available.
     pub actual_rpm: f64,
+    /// Output direction; laser adapters report clockwise when emitting.
     pub direction: SpindleDirection,
+    /// Whether the spindle or laser output is enabled.
     pub enabled: bool,
+    /// Selected interpretation of the shared output channel.
+    #[serde(default)]
+    pub mode: SpindleMode,
+    /// Laser power in native S units; `None` for non-laser machines.
+    #[serde(default)]
+    pub laser_power: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

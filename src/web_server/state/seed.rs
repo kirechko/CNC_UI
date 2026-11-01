@@ -194,6 +194,7 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
             },
         ]
     };
+    // Seed the hole-center tile as an inert pointer; only the parameterized YAML is executable.
     vec![
         MacroDefinition {
             id: "hole_array".into(),
@@ -202,7 +203,9 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
                           (x0,y0,dx,dy,cols,rows,depth,feed,rapid). Source: config/macros/hole_array.yaml"
                 .into(),
             body: HOLE_ARRAY_BODY.into(),
+            tags: vec!["array".into(), "generative".into()],
             invocations: invocations(651),
+            folder_id: None,
         },
         MacroDefinition {
             id: "z_probe_zero".into(),
@@ -211,7 +214,9 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
                           Source: config/macros/z_probe_zero.yaml"
                 .into(),
             body: Z_PROBE_ZERO_BODY.into(),
+            tags: vec!["probe".into(), "zero".into()],
             invocations: invocations(650),
+            folder_id: None,
         },
         MacroDefinition {
             id: "probe_and_align".into(),
@@ -221,7 +226,18 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
                           Source: config/macros/probe_and_align.yaml"
                 .into(),
             body: PROBE_ALIGN_BODY.into(),
+            tags: vec!["probe".into(), "alignment".into()],
             invocations: invocations(652),
+            folder_id: None,
+        },
+        MacroDefinition {
+            id: "hole_center_probe".into(),
+            name: "Hole center (4-point probe)".into(),
+            description: "Reactive four-wall probe macro. The full parameterized sequence is config/macros/hole_center_probe.yaml; the seeded UI entry is an inert link rather than executable G-code.".into(),
+            body: "; See config/macros/hole_center_probe.yaml for the parameterized, safety-confirmed probing sequence.\n; No motion is emitted from this database seed entry.".into(),
+            tags: vec!["probe".into(), "hole".into()],
+            invocations: invocations(655),
+            folder_id: None,
         },
         MacroDefinition {
             id: "compensate_path".into(),
@@ -230,7 +246,9 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
                           without G41/G42 (Transform CutterCompBake). Source: config/macros/compensate_path.yaml"
                 .into(),
             body: COMPENSATE_BODY.into(),
+            tags: vec!["toolpath".into(), "compensation".into()],
             invocations: invocations(653),
+            folder_id: None,
         },
         MacroDefinition {
             id: "g83_peck_drill".into(),
@@ -239,7 +257,9 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
                           rewritten as plain rapid/linear moves."
                 .into(),
             body: PECK_DRILL_BODY.into(),
+            tags: vec!["drilling".into(), "substitution".into()],
             invocations: invocations(654),
+            folder_id: None,
         },
     ]
 }
@@ -248,6 +268,7 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
 /// the style of the surrounding state module; the caller logs but never fails
 /// startup because of seed problems.
 pub(crate) fn seed_if_absent(connection: &Connection) -> Result<(), String> {
+    super::macros::ensure_folder_schema(connection)?;
     // The settings table is created here rather than in `log_store`: it only
     // exists to carry Rosetta presets and must appear exactly once per DB.
     connection
@@ -265,9 +286,17 @@ pub(crate) fn seed_if_absent(connection: &Connection) -> Result<(), String> {
             .map_err(|error| format!("cannot encode seed invocations: {error}"))?;
         connection
             .execute(
-                "INSERT OR IGNORE INTO user_macros (id, name, description, body, invocations)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![item.id, item.name, item.description, item.body, invocations],
+                "INSERT OR IGNORE INTO user_macros (id, name, description, body, invocations, tags)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![
+                    item.id,
+                    item.name,
+                    item.description,
+                    item.body,
+                    invocations,
+                    serde_json::to_string(&item.tags)
+                        .map_err(|error| format!("cannot encode seed tags: {error}"))?
+                ],
             )
             .map_err(|error| format!("cannot seed macro {}: {error}", item.id))?;
     }
@@ -300,7 +329,8 @@ mod tests {
                      name TEXT NOT NULL,
                      description TEXT NOT NULL,
                      body TEXT NOT NULL,
-                     invocations TEXT NOT NULL
+                     invocations TEXT NOT NULL,
+                     tags TEXT NOT NULL DEFAULT '[]'
                  );",
             )
             .expect("schema");

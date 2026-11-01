@@ -1,6 +1,6 @@
-# CNC UI
+# FerroHUB
 
-A CNC control application built with Rust and Tauri. It provides a desktop interface and an optional browser-based web interface, plus a standalone software emulator for development and testing without a physical machine.
+FerroHUB is a CNC control application built with Rust and Tauri. It provides a desktop interface and an optional browser-based web interface, plus a standalone software emulator for development and testing without a physical machine. The crate, executable, environment variables, and existing data directory still use their legacy `cnc_ui` / `CNC_UI` identifiers; this branding update does not migrate those technical names.
 
 The UI communicates with the selected backend through a project-specific CNC API (`cnc_core`). The emulator uses a loopback TCP endpoint and a JSON protocol inspired by LinuxCNC; it is **not NML-compatible** and is not a replacement for a LinuxCNC controller.
 
@@ -47,12 +47,13 @@ and grayscale dashboards.
 
 ## Features
 
-- Tauri desktop application and optional browser-based web interface (the same UI)
-- Machine discovery and live switching: FluidNC controllers on the LAN (WebSocket/Telnet probes) or on serial COM ports, and GRBL 1.1 boards on serial COM ports, all listed in one machines dialog (the interfaces of one physical machine are grouped under a shared header)
+- FerroHUB desktop application (Tauri) and optional browser-based web interface (the same UI)
+- Machine discovery and live switching: FluidNC controllers on the LAN (WebSocket/Telnet probes) or serial ports, GRBL 1.1 boards on serial ports, and Klipper via Moonraker/mDNS, all listed in one machines dialog
+- LinuxCNC companion bridge (`lcnc_adapter/`) with manual endpoint selection; this integration is partial and must be validated on a LinuxCNC sim/target before machine use
 - XY/Z/rotary jog controls with dial and key-pad modes, incremental and continuous movement, per-axis configurable speeds
 - G-code program upload, toolpath visualization in a 3D scene (stock, projection toggle, fit), and run/pause/resume/abort controls with line tracking
 - File manager: browse the host filesystem and the FluidNC flash/SD storage over the controller's HTTP/WebDAV server, open G-code/stock/text files, upload, download, rename, move, copy, delete
-- User macros: add/edit/delete named macro definitions with per-controller invocation metadata (e.g. an `M6xx` mapping for LinuxCNC-style backends or a custom command for FluidNC); stored persistently in SQLite
+- User macros: add/edit/delete and run named macros through the Rosetta engine, with dry-run/live modes, cancellation, logs, capability validation, and transform preview/apply; definitions and settings are stored in SQLite
 - Position readouts, work-coordinate selection (`G54`–`G59.3`), zeroing and homing controls
 - Spindle speed and direction controls with telemetry display
 - Machine console with command history and a persistent message log (severity/source/date filters, pagination)
@@ -135,18 +136,21 @@ or `~/.local/state/cnc_ui/messages.sqlite3` by default. Set `CNC_UI_LOG_DB` to o
 
 The desktop and web interfaces share the browser-based UI in `web/` (plain ES modules). The Tauri application embeds this interface and exposes backend commands through `invoke`; the web mode serves the same files through Axum and mirrors every command as a JSON API endpoint (`/api/...`). The frontend helper `invokeOrFetch` picks the transport automatically.
 
-UI commands are handled by `CNCController`, which queues commands on a worker thread and maintains a cached status snapshot. The worker talks to adapters implementing the shared `CncApi` trait from the `cnc_core` crate:
+UI commands are handled by `CNCController`, which queues commands on a worker thread and maintains a cached status snapshot. Adapters implementing the shared `CncApi` trait live in `cnc_core`:
 
-- `EmAdapter` — the local emulator over TCP and a JSON protocol;
-- FluidNC WebSocket adapter — status/jog/spindle/program over the controller's WebSocket;
-- GRBL 1.1 adapter — serial line-based protocol with realtime commands and stop-and-wait program streaming;
-- debug placeholder adapters for backends that do not control real machines.
+- Emulator — local TCP/JSON development backend;
+- FluidNC — WebSocket over LAN and GRBL-family serial protocol over USB;
+- GRBL 1.1 — serial line protocol, realtime commands, and paced program streaming;
+- Klipper — Moonraker adapter discovered over mDNS, with controller/file operations subject to Moonraker capabilities;
+- LinuxCNC — companion Python bridge in `lcnc_adapter/`, selectable by a manually entered endpoint; not yet a fully integrated/production-verified `CncApi` path.
+
+Debug adapters are test/development placeholders and do not represent additional supported machine controllers. Feature availability differs by adapter; unsupported operations should report errors rather than be assumed portable.
 
 ## Backend selection
 
 There is no adapter configuration file. The backend always starts with the local emulator adapter (`127.0.0.1:8765` by default, overridable through `CNC_EMULATOR_ADDRESS`); the adapter connects lazily, so the UI boots cleanly even when the emulator process is absent and recovers as soon as it appears.
 
-All discovered machines — the local emulator, FluidNC controllers found on the network or on a COM port, and GRBL boards detected on serial ports — are listed in the machines dialog and are selected (switched between) by clicking a row. When one machine is reachable through several interfaces (e.g. the same FluidNC on a COM port and on Wi-Fi), the dialog groups the rows under a single machine header. Discovery can be re-run at any time; the result cache persists in the SQLite database.
+Discovered machines — the local emulator, Klipper instances advertised over mDNS, FluidNC controllers found on the network or serial port, and GRBL boards detected on serial ports — are listed in the machines dialog and selected by clicking a row. LinuxCNC bridge endpoints are entered manually and are not discovered. When one machine is reachable through several interfaces (e.g. FluidNC over serial and Wi-Fi), the dialog groups rows under a single machine header. Discovery can be re-run at any time; the result cache persists in SQLite.
 
 ## FluidNC over WebSocket
 
@@ -208,19 +212,21 @@ These values are specific to the machine/setup and are ignored by Git to avoid c
 
 The UI and emulator expose the LinuxCNC-style work-coordinate systems `G54`–`G59.3`. Work coordinates are distinct from machine coordinates; machine-coordinate travel limits are checked independently.
 
-## Macros
+## Macros and Rosetta
 
-The MACROS tab in the right sidebar manages user-defined macros. Each macro has a name, description, G-code body, and a list of per-controller invocation mappings (controller kind, mechanism, command), for example an `M6xx` code for a LinuxCNC-style backend or a named event for FluidNC.
+The MACROS tab manages named macros, folders, tags, descriptions, G-code bodies, and controller invocation metadata. Rosetta is integrated: macros can be run in dry-run mode (default) or live mode, execution logs are polled, and active runs can be cancelled. Dry-run does not move the machine, but it is not a substitute for validating the generated program and setup before a live run.
 
-Macros are executed through the Rosetta engine (T26): the ▶ button of each row opens the run dialog, which starts a dry run by default (motion commands are recorded without moving the machine, ТЗ №2 §9.4) or a live run against the connected controller, tails the engine log and cancels cooperatively via the shared machine Stop flag. Programs stored as flat G-code are projected into the Rosetta Macro IR; an optional `rosetta_yaml` column may carry the canonical YAML IR source instead. The viewer toolbar additionally offers capability validation of the loaded program (`/api/program/validate`) and the transform preview dialog («was / became» diff with operator confirmation, `/api/program/transform/preview` + `apply`).
+First-start examples are seeded from YAML sources under `config/macros/` as editable flat G-code projections. They include a parameterized hole array, Z probing, probe-and-align, cutter-compensation transform launcher, and a peck-drilling example. Some examples describe host-side transforms or require controller/probe capabilities; a visible example is not proof that every backend can execute it. The capability validator and transform preview/apply flow report unsupported operations and require confirmation where applicable. Macro invocation mappings are metadata; they do not automatically register commands with controller firmware.
 
-The whole macro list is validated by the backend (size limits, unique ids, unique controller per macro) and stored atomically in the shared SQLite database. In desktop mode macros are saved through Tauri commands; in the browser they go through `GET/PUT /api/macros`.
+## LinuxCNC bridge status
+
+The optional Python companion in `lcnc_adapter/` runs on the LinuxCNC host and exposes a JSON-lines TCP bridge to the UI. Manual endpoint selection and bridge handshake/status/MDI paths exist; the bridge also implements machine and program commands. The Rust/UI integration is still partial, the wire contract and capability propagation need final verification, `program_validate` on the companion is minimal, and LinuxCNC simulation/integration tests are outstanding. See [`lcnc_adapter/README.md`](lcnc_adapter/README.md) and [`plans/LinuxCNC_adapter.md`](plans/LinuxCNC_adapter.md). Do not treat this as production-qualified LinuxCNC support.
 
 ## Safety and limitations
 
 - The emulator is software only and does not control a physical machine.
 - The emulator TCP API is project-specific, is not NML, and is not compatible with arbitrary LinuxCNC clients. Keep its listener bound to loopback unless remote access is intentionally required and protected by a trusted network boundary.
-- The LinuxCNC, `linux_cnc`, and `fluid_nc` placeholder adapters are debug stubs and do not control real machines.
+- Debug placeholder adapters do not control real machines. LinuxCNC is a separate partial companion-bridge integration, not a verified native adapter.
 - The FluidNC WebSocket adapter has been verified only on a bench setup with a read-only status and settings cycle. Jog, homing, spindle, and program streaming must be validated on the target machine before use.
 - GRBL serial commands are not an emergency stop. Use the machine's hardware E-stop.
 - Macro invocation mappings are metadata only; assigning an M-code to a macro does not register it with a controller.

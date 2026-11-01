@@ -7,6 +7,7 @@ use super::motion;
 use super::parser::parse_words;
 use crate::cnc_api::Axis;
 
+/// Parses and executes one G-code line against the emulator state, validating its words before motion.
 pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), WireError> {
     let words = parse_words(line);
     let mut motion_code = None;
@@ -48,16 +49,29 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
             'F' if value.is_finite() && value > 0.0 => emulator.program_feed_mm_min = value,
             'F' => return Err(api_error("bad_feed", "F must be positive and finite")),
             'S' if value.is_finite() && value >= 0.0 => {
-                if value > emulator.config.spindle.max_rpm {
+                let maximum = emulator
+                    .config
+                    .spindle
+                    .laser
+                    .map(|laser| laser.max_power)
+                    .unwrap_or(emulator.config.spindle.max_rpm);
+                if value > maximum {
+                    let unit =
+                        if emulator.config.spindle.mode == crate::cnc_api::SpindleMode::Standard {
+                            "RPM"
+                        } else {
+                            "laser power"
+                        };
                     return Err(api_error(
                         "spindle_limit",
-                        format!(
-                            "S{value:.0} exceeds maximum {:.0} RPM",
-                            emulator.config.spindle.max_rpm
-                        ),
+                        format!("S{value:.0} exceeds configured maximum {maximum:.0} {unit}"),
                     ));
                 }
+                // S is modal; in laser mode it updates PWM telemetry even while M5 keeps emission disabled.
                 emulator.status.spindle.commanded_rpm = value;
+                if emulator.status.spindle.mode != crate::cnc_api::SpindleMode::Standard {
+                    emulator.status.spindle.laser_power = Some(value);
+                }
             }
             'S' => {
                 return Err(api_error(
@@ -103,6 +117,20 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
     }
 
     if dwell {
+        // A zero-power pause is safer at the motion boundary; configured laser
+        // profiles may intentionally preserve output only when auto-shutoff is disabled.
+        if emulator
+            .config
+            .spindle
+            .laser
+            .is_some_and(|laser| laser.auto_shutoff_on_pause)
+        {
+            emulator.status.spindle.enabled = false;
+            emulator.status.spindle.commanded_rpm = 0.0;
+            emulator.status.spindle.actual_rpm = 0.0;
+            emulator.status.spindle.direction = crate::cnc_api::SpindleDirection::Stopped;
+            emulator.status.spindle.laser_power = Some(0.0);
+        }
         let seconds = p_word
             .filter(|value| value.is_finite() && *value >= 0.0)
             .ok_or_else(|| {
@@ -118,6 +146,7 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
     }
 
     if motion_code == Some(38) {
+        // A G38.2 line is a stateful probe cycle; never run it with latent laser output enabled.
         let requested = [x_word, y_word, z_word, a_word, b_word];
         let (index, distance) = requested
             .iter()
@@ -131,6 +160,19 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
             ));
         }
         let start = emulator.position_array()[index];
+        if emulator.status.spindle.mode != crate::cnc_api::SpindleMode::Standard
+            && emulator
+                .config
+                .spindle
+                .laser
+                .is_some_and(|laser| laser.auto_shutoff_on_pause)
+        {
+            emulator.status.spindle.enabled = false;
+            emulator.status.spindle.commanded_rpm = 0.0;
+            emulator.status.spindle.actual_rpm = 0.0;
+            emulator.status.spindle.direction = crate::cnc_api::SpindleDirection::Stopped;
+            emulator.status.spindle.laser_power = Some(0.0);
+        }
         emulator.status.probe_triggered = false;
         emulator.status.probe_position = None;
         let target = if emulator.absolute_mode {

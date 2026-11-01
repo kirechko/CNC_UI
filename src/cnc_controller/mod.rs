@@ -30,7 +30,7 @@ mod worker;
 pub use queue::ControllerHandle;
 pub use snapshot::{ControllerSnapshot, SpindleDirection};
 
-use crate::cnc_api::{Axis, CncApi, CoordinateSystem, SpindleCommand};
+use crate::cnc_api::{Axis, CncApi, CoordinateSystem, SpindleCommand, SpindleMode};
 use std::path::PathBuf;
 use std::sync::{atomic::AtomicBool, mpsc, Arc, Mutex};
 
@@ -54,6 +54,7 @@ enum Command {
     Mdi(String),
     Execute(String, mpsc::Sender<crate::cnc_api::CncResult<String>>),
     Spindle(SpindleCommand),
+    LaserMode(SpindleMode),
     JogIncrement(crate::cnc_api::JogRequest),
     JogContinuous(Axis, i8, f64),
     JogContinuousXY(i8, i8, f64),

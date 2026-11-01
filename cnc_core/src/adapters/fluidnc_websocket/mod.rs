@@ -186,6 +186,8 @@ fn disconnected_status() -> MachineStatus {
             actual_rpm: 0.0,
             direction: SpindleDirection::Stopped,
             enabled: false,
+            mode: crate::SpindleMode::Standard,
+            laser_power: None,
         },
         mist_coolant_on: false,
         flood_coolant_on: false,

@@ -29,7 +29,7 @@ use serde_json::Value;
 // dispatcher body below keeps calling them by their bare names.
 use axes::{home, select_coordinate_system, set_axis_work_zero, set_work_zero};
 use jog::{jog_cancel, jog_continuous, jog_continuous_xy, jog_increment, stop_motion};
-use power::{clear_error, power_off, power_on, set_spindle};
+use power::{clear_error, power_off, power_on, set_laser_mode, set_spindle};
 use program::{load_program, mdi, program_abort, program_pause, program_resume, program_run};
 
 /// Route one decoded wire request to the matching command implementation.
@@ -38,6 +38,7 @@ use program::{load_program, mdi, program_abort, program_pause, program_resume, p
 /// each command validates and deserializes the fields it needs. Only the two
 /// read-only queries (`status`, `machine_configuration`) are answered here
 /// because they never mutate emulator state.
+/// Dispatches queries and validated commands to the state, power, motion, and program modules.
 pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value, WireError> {
     let args = request.args;
     match request.method.as_str() {
@@ -66,6 +67,7 @@ pub(super) fn handle(emulator: &mut Emulator, request: Request) -> Result<Value,
         "program_resume" => program_resume(emulator),
         "program_abort" => program_abort(emulator),
         "set_spindle" => set_spindle(emulator, args),
+        "set_laser_mode" => set_laser_mode(emulator, args),
         "clear_error" => clear_error(emulator),
         _ => Err(api_error(
             "unknown_method",

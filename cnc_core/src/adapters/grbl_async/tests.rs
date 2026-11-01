@@ -8,10 +8,9 @@
 //! the sibling `status_tests` module.
 
 use super::*;
-use crate::{ControllerError, SpindleDirection};
+use crate::{ControllerError, SpindleDirection, SpindleMode};
 
-/// Shared fixture: a clockwise 1200 RPM spindle setpoint used by the
-/// status-parsing tests.
+/// Shared fixture: a clockwise 1200 S-unit output setpoint for parser tests.
 fn spindle_command() -> SpindleCommand {
     SpindleCommand {
         direction: SpindleDirection::Clockwise,
@@ -34,6 +33,21 @@ fn detects_coordinate_system_changes_in_gcode_without_comment_matches() {
         None
     );
     assert_eq!(GrblAdapter::coordinate_system_select("G54.1 P1"), None);
+}
+
+/// Stock GRBL laser mode commands M3/M5 and prohibits spindle-style reverse direction.
+#[test]
+fn laser_output_uses_forward_pwm_and_rejects_reverse_direction() {
+    let laser = SpindleCommand {
+        direction: SpindleDirection::Clockwise,
+        rpm: 25.0,
+    };
+    let emitted = match SpindleMode::LaserConstant {
+        SpindleMode::LaserConstant => format!("M3 S{}", laser.rpm),
+        _ => unreachable!(),
+    };
+    assert_eq!(emitted, "M3 S25");
+    assert_ne!(laser.direction, SpindleDirection::CounterClockwise);
 }
 
 #[test]

@@ -10,6 +10,7 @@ use crate::cnc_api::*;
 use serde_json::Value;
 
 /// Power the virtual machine on: accept commands and clear any alarm gate.
+/// Enables the virtual machine and clears the soft power-off state.
 pub(super) fn power_on(emulator: &mut Emulator) -> Result<Value, WireError> {
     emulator.status.task_state = TaskState::On;
     emulator.status.message = Some("Machine powered on".into());
@@ -17,8 +18,8 @@ pub(super) fn power_on(emulator: &mut Emulator) -> Result<Value, WireError> {
 }
 
 /// Power the machine off, or trigger an emergency stop when
-/// `emergency_stop` is set. Both paths tear down every in-flight motion,
-/// spindle, and coolant state so no residual movement can survive.
+/// `emergency_stop` is set. Both paths tear down all motion, spindle/laser
+/// output, and coolant state so no residual movement or emission can survive.
 pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result<Value, WireError> {
     emulator.dwell_remaining = 0.0;
     emulator.status.task_state = if emergency_stop {
@@ -28,10 +29,12 @@ pub(super) fn power_off(emulator: &mut Emulator, emergency_stop: bool) -> Result
     };
     emulator.status.interpreter_state = InterpreterState::Idle;
     emulator.status.spindle.enabled = false;
-    emulator.status.mist_coolant_on = false;
-    emulator.status.flood_coolant_on = false;
     emulator.status.spindle.commanded_rpm = 0.0;
     emulator.status.spindle.actual_rpm = 0.0;
+    emulator.status.spindle.laser_power =
+        (emulator.status.spindle.mode != SpindleMode::Standard).then_some(0.0);
+    emulator.status.mist_coolant_on = false;
+    emulator.status.flood_coolant_on = false;
     emulator.status.spindle.direction = SpindleDirection::Stopped;
     emulator.pending_spindle = None;
     emulator.active_move = None;
@@ -74,8 +77,39 @@ pub(super) fn clear_error(emulator: &mut Emulator) -> Result<Value, WireError> {
     Ok(Value::Null)
 }
 
-/// Apply a spindle command after validating the machine is on, the RPM is
-/// finite/non-negative, and it does not exceed the configured maximum.
+/// Selects constant/dynamic laser output only when the emulator has a laser profile.
+pub(super) fn set_laser_mode(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
+    // Mode selection affects subsequent M3/M4 interpretation but never enables emission itself.
+    let mode = args
+        .get("mode")
+        .and_then(Value::as_str)
+        .ok_or_else(|| api_error("bad_laser_mode", "laser mode must be constant or dynamic"))?;
+    let requested = match mode {
+        "constant" => SpindleMode::LaserConstant,
+        "dynamic" => SpindleMode::LaserDynamic,
+        _ => {
+            return Err(api_error(
+                "bad_laser_mode",
+                "laser mode must be constant or dynamic",
+            ))
+        }
+    };
+    let profile = emulator
+        .config
+        .spindle
+        .laser
+        .ok_or_else(|| api_error("laser_unavailable", "this machine has no laser profile"))?;
+    if requested == SpindleMode::LaserDynamic && !profile.dynamic_power_supported {
+        return Err(api_error(
+            "laser_mode_unsupported",
+            "dynamic laser mode is unavailable",
+        ));
+    }
+    emulator.status.spindle.mode = requested;
+    Ok(Value::Null)
+}
+
+/// Applies a spindle or laser output command after checking readiness and native S limits.
 pub(super) fn set_spindle(emulator: &mut Emulator, args: Value) -> Result<Value, WireError> {
     if emulator.status.task_state != TaskState::On {
         return Err(api_error(
@@ -87,18 +121,33 @@ pub(super) fn set_spindle(emulator: &mut Emulator, args: Value) -> Result<Value,
     let command: SpindleCommand =
         serde_json::from_value(args.get("command").cloned().unwrap_or(Value::Null))
             .map_err(|error| api_error("bad_request", error.to_string()))?;
+    // Output values share the legacy `rpm` field in SpindleCommand; interpret the limit by mode.
     if !command.rpm.is_finite() || command.rpm < 0.0 {
         return Err(api_error(
             "bad_spindle",
-            "RPM must be finite and non-negative",
+            "spindle speed or laser power must be finite and non-negative",
         ));
     }
-    if command.rpm > emulator.config.spindle.max_rpm {
+    if emulator.status.spindle.mode != SpindleMode::Standard
+        && command.direction == SpindleDirection::CounterClockwise
+    {
+        return Err(api_error(
+            "laser_direction",
+            "laser output has no reverse direction",
+        ));
+    }
+    let maximum = emulator
+        .config
+        .spindle
+        .laser
+        .map(|laser| laser.max_power)
+        .unwrap_or(emulator.config.spindle.max_rpm);
+    if command.rpm > maximum {
         return Err(api_error(
             "spindle_limit",
             format!(
-                "requested {:.0} RPM exceeds configured maximum {:.0} RPM",
-                command.rpm, emulator.config.spindle.max_rpm
+                "requested {:.0} exceeds configured maximum {:.0}",
+                command.rpm, maximum
             ),
         ));
     }

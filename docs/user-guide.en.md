@@ -1,10 +1,11 @@
-# CNC UI — User Guide
+# FerroHUB — User Guide
 
-CNC UI is a control panel for CNC machines with two interchangeable frontends:
+FerroHUB is a control panel for CNC machines with two interchangeable frontends:
 a desktop application (Tauri) and the same interface served by a built-in web
-server to any browser on your network. It talks to FluidNC controllers over the
-network, GRBL 1.1 boards over serial COM ports, and ships with a full software
-emulator so you can learn the interface safely, without hardware.
+server to any browser on your network. It supports FluidNC over network and
+serial, GRBL 1.1 over serial, Klipper through Moonraker, and includes a software
+emulator for learning and development. A LinuxCNC companion bridge is available
+as a partial integration; see the adapter status below before attempting to use it.
 
 > **Safety first.** This application is not a safety controller. Before running
 > a physical machine, independently verify the wiring, limits switches, feeds,
@@ -47,15 +48,16 @@ for trusted-lab use, set them on any shared network.
 
 ## 2. Choosing a machine
 
-The header chip with the connection state opens the **Machines dialog**. The
-list always contains:
+The header chip with the connection state opens the **Machines dialog**. It lists:
 
-* the local **emulator** (shown only while the emulator process is running);
+* the local **emulator** (while its process is running);
+* **Klipper** machines advertising Moonraker over mDNS (`_moonraker._tcp.local.`);
 * **GRBL** boards found on serial ports (`ttyUSB*`, `ttyACM*`, `ttyS*`, `COMn`);
 * **FluidNC** controllers found on the network (WebSocket :80 and Telnet :23
-  probes confirmed by the `$I` identity reply), and FluidNC boards plugged in
-  over USB (recognized from the boot banner; when the banner reports a Wi-Fi
-  address, the machine appears under its network identity).
+  probes confirmed by `$I`), and USB-connected FluidNC boards recognized from
+  their boot banner;
+* **LinuxCNC** is not automatically discovered. The companion bridge is selected
+  by manually entering an endpoint and remains a partial, unverified integration.
 
 Machines with several reachable interfaces are grouped: a small header names
 the physical machine and its transports hang below as indented variants —
@@ -111,7 +113,9 @@ are built) plus an **edit** line for an arbitrary value. Values are stored
 locally and pushed to the controller; the legacy dialog button (sliders icon)
 still edits XY/Z and the shared rotary speed.
 
-The **Stop** square button (dial center and keypad) cancels all jog motion.
+The **Stop** square button (dial center and keypad) cancels all jog motion. For
+Klipper, continuous jog is emulated as short queued segments; one segment may
+finish after release because Moonraker/Klipper has no jog-cancel command.
 
 ## 5. Spindle
 
@@ -137,33 +141,40 @@ spindle. The panel mirrors the commanded and actual RPM from telemetry.
 
 ## 7. FILES panel
 
-Three sources (when connected to FluidNC): **host files** (jailed to
-`CNC_UI_FILES_ROOT`), **controller flash**, and **SD card**. The panel shows
+Three sources (when connected to FluidNC or Klipper): **host files** (jailed to
+`CNC_UI_FILES_ROOT`), **controller files** (`gcodes` for Klipper), and the
+secondary remote root (FluidNC SD card or Klipper `config`). The panel shows
 free/used space of the displayed file system, file sizes in the list, and —
 when an SD card is missing or not mounted — its status in place of the file
-list. Navigation, upload/download, mkdir/rename/move/copy/delete behave the
-same for all three sources.
+list. Navigation, upload/download, rename/move/copy/delete are available on
+remote roots where the firmware API supports them. Klipper's `config` root
+contains machine configuration; edit it only with the printer safely idle.
 
-## 8. MACROS panel
+### Klipper safety and configuration
 
-Create, edit, delete named G-code macros with per-controller invocation
-metadata (e.g. `M650` on LinuxCNC-style backends, a named event on FluidNC).
-The database ships **pre-seeded Rosetta example macros** so the panel is not
-empty on the first start:
+Klipper's M3/M4/M5 support is macro- or pin-based, not native spindle control.
+Laser output is set to zero on pause, cancel, and E-stop when the Moonraker
+connection is available. Configure `maximum_mcu_duration` as a firmware-side
+watchdog on the output pin: the UI cannot send a safety command after a network
+failure. Dynamic power synchronized with movement requires `[pwm_tool]`; plain
+`[output_pin]` is not synchronized with the motion queue. Always keep a physical
+E-stop accessible; FerroHUB is not a safety device.
 
-| Macro | Purpose |
-|---|---|
-| Hole array | generative rectangular hole pattern with parameters |
-| Z zero (simple probe) | touch-probe work zero with `G38.2` + `G10 L20` |
-| 3D probe align (blank) | measure the blank corner/edge and align the toolpath (Transform rotate+translate) |
-| Bake G41/G42/G40 (GRBL) | cutter-compensation bake launcher (Transform phase D) |
-| Peck drill (simple moves) | G83/G73 substitution target for grbl/fluidnc |
+## 8. MACROS panel and Rosetta
 
-The canonical sources of these examples are the Macro-IR YAML files under
-`config/macros/`; substitution presets live in `config/rosetta.yaml` and in the
-`rosetta_settings` table (G83/G73 → peck-drill macro on grbl and fluidnc).
-Execution of macros through the Rosetta engine is planned; today the panel
-manages definitions and metadata.
+The panel manages named macros, folders, tags, descriptions, G-code bodies and
+controller invocation metadata. Rosetta execution is implemented: macros can
+run in dry-run mode (default) or live mode; execution logs are available and
+active runs can be cancelled. Dry-run does not move the machine, but it is not a
+replacement for checking the program, workholding and setup before live use.
+
+First-start examples are seeded from Macro-IR YAML sources in `config/macros/`
+as editable flat G-code: a parameterized hole array, Z probing, probe-and-align,
+a cutter-compensation transform launcher, and peck drilling. Some examples
+require probing or host-side transforms and are not portable to every controller.
+The viewer also provides program capability validation and transform
+preview/apply. Invocation mappings are metadata only: assigning an M-code or
+event does not register it with controller firmware.
 
 ## 9. Message log
 
@@ -178,13 +189,33 @@ The gear button opens interface settings: **theme** (dark, light, green, gray)
 and **language** (English, Русский, 中文, فارسی). Layout choices — column and
 panel heights — are remembered per browser.
 
-## 11. Keyboard and accessibility
+## 11. Adapter status and limitations
+
+- **FluidNC**: network WebSocket and USB serial transports are supported; file
+  exchange is available through the network HTTP endpoint, not serial alone.
+- **GRBL 1.1**: serial sender with status, jogging, coordinate operations,
+  spindle control and paced program streaming; firmware options affect features.
+- **Klipper**: Moonraker discovery and adapter support. Jog cancellation,
+  coordinate systems, spindle/laser and file operations follow Moonraker and
+  firmware capabilities. A queued jog segment may finish after release.
+- **LinuxCNC**: optional Python companion in `lcnc_adapter/`, selected by a
+  manually entered endpoint. UI integration is partial; the bridge's program
+  validation is minimal and LinuxCNC simulation/target integration tests remain
+  outstanding. It is not production-qualified.
+- **Emulator**: development/test backend with a limited G-code subset; it is not
+  a full LinuxCNC interpreter or a safety simulator.
+
+Debug placeholder backends do not control real machines. Feature parity across
+adapters is not implied; heed unsupported-operation errors and validate on the
+target machine.
+
+## 12. Keyboard and accessibility
 
 While the JOG panel has focus: arrow keys drive X/Y, PageUp/PageDown drive Z,
 hold `Ctrl` for continuous mode; every control carries a styled tooltip and an
 accessible label in the active language.
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 * **"GET response: missing header terminator"** while browsing FluidNC files —
   fixed in current builds (the parser now accepts LF-only HTTP responses);

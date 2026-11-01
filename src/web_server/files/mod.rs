@@ -22,6 +22,7 @@
 
 mod fluidnc;
 mod http_lite;
+mod klipper;
 mod local;
 
 // Re-exported so the HTTP handlers can percent-encode download file names
@@ -211,13 +212,13 @@ pub(crate) fn base_name(path: &str) -> &str {
 
 /// Lists the sources available for the current connection state.
 pub(crate) fn sources(state: &AppState, language: &str) -> Vec<FsSourceInfo> {
-    let fluidnc_ready = fluidnc::device_address(state).is_ok();
+    let remote_ready = fluidnc::device_address(state).is_ok() || klipper::is_connected(state);
     [FsSource::Local, FsSource::Controller, FsSource::Sd]
         .into_iter()
         .map(|source| FsSourceInfo {
             id: source.as_str(),
             label: crate::i18n::translate(language, source.label_key(), &[]),
-            available: source == FsSource::Local || fluidnc_ready,
+            available: source == FsSource::Local || remote_ready,
         })
         .collect()
 }
@@ -234,6 +235,7 @@ pub(crate) async fn list(
 ) -> Result<FileListResult, FsError> {
     match source {
         FsSource::Local => local::list(path),
+        source if klipper::is_connected(state) => klipper::list(state, source, path).await,
         source => fluidnc::list(&fluidnc::device_address(state)?, source, path).await,
     }
 }
@@ -246,6 +248,7 @@ pub(crate) async fn read_bytes(
 ) -> Result<Vec<u8>, FsError> {
     match source {
         FsSource::Local => local::read_bytes(path),
+        source if klipper::is_connected(state) => klipper::read_bytes(state, source, path).await,
         source => fluidnc::read_bytes(&fluidnc::device_address(state)?, source, path).await,
     }
 }
@@ -259,6 +262,9 @@ pub(crate) async fn write_bytes(
 ) -> Result<(), FsError> {
     match source {
         FsSource::Local => local::write_bytes(path, data),
+        source if klipper::is_connected(state) => {
+            klipper::write_bytes(state, source, path, data).await
+        }
         source => fluidnc::write_bytes(&fluidnc::device_address(state)?, source, path, data).await,
     }
 }
@@ -271,6 +277,10 @@ pub(crate) async fn make_dir(
 ) -> Result<(), FsError> {
     match source {
         FsSource::Local => local::mkdir(path),
+        _source if klipper::is_connected(state) => Err(FsError::new(
+            "files.error.badPath",
+            "Moonraker directory creation is not supported by the current adapter API",
+        )),
         source => fluidnc::make_dir(&fluidnc::device_address(state)?, source, path).await,
     }
 }
@@ -283,6 +293,7 @@ pub(crate) async fn remove_path(
 ) -> Result<(), FsError> {
     match source {
         FsSource::Local => local::remove(path),
+        source if klipper::is_connected(state) => klipper::remove(state, source, path).await,
         source => fluidnc::remove(&fluidnc::device_address(state)?, source, path).await,
     }
 }
@@ -299,6 +310,9 @@ pub(crate) async fn rename_path(
     let target = join_path(dir, new_name);
     match source {
         FsSource::Local => local::rename(path, &target),
+        source if klipper::is_connected(state) => {
+            klipper::move_path(state, source, path, dir, new_name).await
+        }
         source => {
             fluidnc::move_path(
                 &fluidnc::device_address(state)?,
@@ -328,6 +342,9 @@ pub(crate) async fn move_path(
         return Err(FsError::new("files.error.badPath", path));
     }
     if source == to_source && source != FsSource::Local {
+        if klipper::is_connected(state) {
+            return klipper::move_path(state, source, path, to_dir, name).await;
+        }
         return fluidnc::move_path(&fluidnc::device_address(state)?, source, path, to_dir, name)
             .await;
     }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Localized document title; applyTranslations() re-applies it on every locale switch. -->
-    <title data-i18n="app.title">CNC UI — Jog</title>
+    <title data-i18n="app.title">FerroHUB — Jog</title>
     <!-- Application stylesheets, split from the former app.css/themes.css.
          Order preserves the original cascade: base chrome -> layout -> panels ->
          theme token overrides (dark :root first, then [data-theme] overrides). -->
@@ -39,9 +39,14 @@
   <body>
     <header class="app-header">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">C</div>
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img" focusable="false">
+            <path d="M7 7h18v4H11v10h14v4H7z" fill="currentColor"></path>
+            <path d="M14 13h11v4H14z" fill="currentColor"></path>
+          </svg>
+        </div>
         <div>
-          <div class="brand-name">CNC UI</div>
+          <div class="brand-name">FerroHUB</div>
           <div class="brand-subtitle" data-i18n="html.brand.subtitle">Machine control</div>
         </div>
       </div>
@@ -456,9 +461,17 @@
              the machine configuration. -->
         <div class="jog-axis-speeds" id="jog-axis-speeds" role="group"
              data-i18n-aria-label="html.jog.axisSpeedsAria" aria-label="Jog feed rates per axis group"></div>
-        <section class="spindle-control">
+        <!-- Shared output panel; laser-only controls remain hidden for standard spindle profiles. -->
+        <section class="spindle-control" id="spindle-control">
+            <div class="laser-mode-control" id="laser-mode-control" hidden>
+              <label for="laser-mode" data-i18n="html.spindle.mode">Laser mode</label>
+              <select id="laser-mode" data-i18n-aria-label="html.spindle.mode" aria-label="Laser power mode">
+                <option value="constant" data-i18n="html.spindle.constantPower">Constant power</option>
+                <option value="dynamic" data-i18n="html.spindle.dynamicPower">Dynamic power</option>
+              </select>
+            </div>
             <div class="spindle-speed-control">
-              <label for="spindle-speed" data-i18n="html.spindle.rpm">RPM</label>
+              <label for="spindle-speed-slider" id="spindle-value-label" data-i18n="html.spindle.rpm">RPM</label>
               <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" data-i18n-title="html.spindle.sliderTitle" data-i18n-aria-label="html.spindle.slider" title="Drag to set the spindle speed in RPM" aria-label="Spindle speed slider">
               <div class="spindle-speed-picker">
                 <button class="spindle-step-button" id="spindle-step" type="button" data-i18n-title="html.spindle.presetTitle" data-i18n-aria-label="html.spindle.presetAria" title="Pick a preset spindle speed" aria-label="Set spindle speed; open preset list" aria-haspopup="listbox" aria-expanded="false">0</button>
@@ -643,9 +656,19 @@
             <section id="macros-panel" class="sidebar-panel macros-panel" role="region" aria-label="Macros" hidden>
               <div class="macros-toolbar">
                 <span class="macros-count" id="macros-count" aria-live="polite"></span>
+                <button class="macros-folder-add" id="macro-folder-add" type="button" data-i18n="macros.folders.add" data-i18n-title="macros.folders.addTitle" title="Create a folder">New folder</button>
                 <button class="macros-add-button" id="macro-add" type="button" data-i18n="macros.add" data-i18n-title="macros.addTitle" title="Add macro">Add macro</button>
               </div>
+              <label class="macro-search-field">
+                <span data-i18n="macros.search">Search macros</span>
+                <input id="macro-search" type="search" autocomplete="off" data-i18n-placeholder="macros.searchPlaceholder" placeholder="Name, description, tags, or G-code">
+              </label>
+              <nav class="macro-breadcrumb" id="macro-breadcrumb" aria-label="Macro folder path"></nav>
+              <div class="macro-folder-list" id="macro-folder-list" role="list" aria-label="Folders"></div>
               <section class="macro-buttons-section" aria-labelledby="macro-buttons-title">
+                <div class="macro-folder-actions">
+                  <button class="macro-folder-delete" id="macro-folder-delete" type="button" hidden data-i18n="macros.folders.delete" title="Delete the selected empty folder">Delete folder</button>
+                </div>
                 <div class="macro-buttons-heading">
                   <strong id="macro-buttons-title" data-i18n="macros.buttons.title">Macro buttons</strong>
                   <button class="macro-button-add" id="macro-button-add" type="button" data-i18n="macros.buttons.add" data-i18n-title="macros.buttons.addTitle" title="Add a macro button">Add button</button>
@@ -721,7 +744,9 @@
         </div>
         <div class="macro-dialog-fields">
           <label class="macro-field"><span data-i18n="macros.name">Name</span><input id="macro-name" type="text" maxlength="120" required data-i18n-title="macros.nameTitle" title="Short name shown in the macro list" aria-label="Macro name"></label>
+          <label class="macro-field"><span data-i18n="macros.folders.placement">Folder</span><select id="macro-folder-select"></select></label>
           <label class="macro-field"><span data-i18n="macros.description">Description</span><input id="macro-description" type="text" maxlength="1000" data-i18n-title="macros.descriptionTitle" title="Description surfaced as a hint in the macro list" aria-label="Macro description"></label>
+          <label class="macro-field"><span data-i18n="macros.tags">Tags</span><input id="macro-tags" type="text" maxlength="1400" data-i18n-placeholder="macros.tagsPlaceholder" placeholder="probe, zero, toolpath" data-i18n-title="macros.tagsTitle" title="Comma-separated search tags"></label>
         </div>
         <label class="macro-field macro-body-field">
           <span data-i18n="macros.body">G-code body</span>

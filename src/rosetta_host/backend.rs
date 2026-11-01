@@ -15,6 +15,7 @@ pub fn backend_from_device_id(device_id: Option<&str>) -> BackendType {
     match device_id {
         Some(id) if id.starts_with("grbl:") => BackendType::Grbl,
         Some(id) if id.starts_with("fluidnc:") => BackendType::FluidNc,
+        Some(id) if id.starts_with("klipper:") => BackendType::Klipper,
         // LinuxCNC control is not wired yet, but the namespace is reserved so
         // the mapping stays forward-compatible with the NML adapter.
         Some(id) if id.starts_with("linuxcnc:") => BackendType::LinuxCnc,
@@ -51,6 +52,10 @@ mod tests {
         assert_eq!(
             backend_from_device_id(Some("fluidnc:WebSocket:192.168.1.5:80")),
             BackendType::FluidNc
+        );
+        assert_eq!(
+            backend_from_device_id(Some("klipper:printer")),
+            BackendType::Klipper
         );
         assert_eq!(
             backend_from_device_id(Some("emulator:tcp_socket:127.0.0.1:8765")),

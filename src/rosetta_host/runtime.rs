@@ -277,6 +277,8 @@ mod tests {
                     actual_rpm: 0.0,
                     direction: SpindleDirection::Stopped,
                     enabled: false,
+                    mode: crate::cnc_api::SpindleMode::Standard,
+                    laser_power: None,
                 },
                 probe_triggered: false,
                 probe_position: None,
