@@ -51,6 +51,7 @@ export function initFileManager(app) {
     listing: null,
     clipboard: null,
     busy: false,
+    refreshPending: false,
     // Last listing failure (task T17): rendered *in place of the files* so
     // a missing/unmounted FluidNC SD card shows its status where the list
     // would be, instead of only flashing a transient error toast.
@@ -207,7 +208,12 @@ export function initFileManager(app) {
 
   /** Fetches sources + current directory and re-renders the whole panel. */
   async function refresh() {
-    if (state.busy) return;
+    if (state.busy) {
+      // Keep refresh requests that arrive during an in-flight fetch; the active
+      // controller may have changed while that response was being assembled.
+      state.refreshPending = true;
+      return;
+    }
     state.busy = true;
     renderChips();
     renderListing();
@@ -232,6 +238,10 @@ export function initFileManager(app) {
       renderChips();
       renderListing();
       pasteButton.disabled = !state.clipboard;
+      if (state.refreshPending) {
+        state.refreshPending = false;
+        void refresh();
+      }
     }
   }
 
@@ -418,6 +428,16 @@ export function initFileManager(app) {
   // Refresh the listing whenever the shared tab controller activates FILES.
   window.addEventListener("cnc-sidebar-tab-changed", (event) => {
     if (event.detail?.tab === "files") refresh();
+  });
+
+  // The active controller can change while FILES remains visible. Refresh its
+  // source availability immediately rather than waiting for a tab round-trip.
+  window.addEventListener("cnc-machine-changed", () => {
+    state.source = "local";
+    state.path = "/";
+    state.listing = null;
+    state.listError = null;
+    refresh();
   });
 
   // Re-render translated labels after a runtime locale switch; the backend

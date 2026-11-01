@@ -48,8 +48,8 @@ and grayscale dashboards.
 ## Features
 
 - FerroHUB desktop application (Tauri) and optional browser-based web interface (the same UI)
-- Machine discovery and live switching: FluidNC controllers on the LAN (WebSocket/Telnet probes) or serial ports, GRBL 1.1 boards on serial ports, and Klipper via Moonraker/mDNS, all listed in one machines dialog
-- LinuxCNC companion bridge (`lcnc_adapter/`) with manual endpoint selection; this integration is partial and must be validated on a LinuxCNC sim/target before machine use
+- Machine discovery and live switching: FluidNC controllers on the LAN (WebSocket/Telnet probes) or serial ports, GRBL 1.1 boards on serial ports, and experimental Klipper via Moonraker/mDNS, all listed in one machines dialog
+- Experimental LinuxCNC companion bridge (`lcnc_adapter/`) with manual endpoint selection
 - XY/Z/rotary jog controls with dial and key-pad modes, incremental and continuous movement, per-axis configurable speeds
 - G-code program upload, toolpath visualization in a 3D scene (stock, projection toggle, fit), and run/pause/resume/abort controls with line tracking
 - File manager: browse the host filesystem and the FluidNC flash/SD storage over the controller's HTTP/WebDAV server, open G-code/stock/text files, upload, download, rename, move, copy, delete
@@ -62,6 +62,22 @@ and grayscale dashboards.
   disabled by default and switchable off with `CNC_UI_AUTH=off`)
 - Standalone emulator with simulated motion, spindle, coolant, homing, and soft limits
 - YAML configuration for emulator axis limits and dynamics
+
+## Release downloads
+
+Version 0.1.0 is distributed for Linux and Windows x86_64. GitHub release assets
+include Linux `.deb`, `.rpm`, `.AppImage`, and `.tar.xz` packages, plus Windows
+`.msi` and `.exe` installers. Linux desktop builds require compatible WebKitGTK
+runtime libraries; Windows desktop builds require Microsoft WebView2. Installers
+are unsigned, so Windows may show a SmartScreen warning.
+
+### Experimental controller adapters — not tested
+
+The LinuxCNC bridge and Klipper/Moonraker adapter are experimental and have not
+been tested against real LinuxCNC or Klipper machines. Do not use these adapters
+for production machine control. Validate them on a simulator or isolated test
+machine before use. Controller behavior and safety must always be checked on the
+specific target setup.
 
 ## Requirements
 
@@ -141,8 +157,8 @@ UI commands are handled by `CNCController`, which queues commands on a worker th
 - Emulator — local TCP/JSON development backend;
 - FluidNC — WebSocket over LAN and GRBL-family serial protocol over USB;
 - GRBL 1.1 — serial line protocol, realtime commands, and paced program streaming;
-- Klipper — Moonraker adapter discovered over mDNS, with controller/file operations subject to Moonraker capabilities;
-- LinuxCNC — companion Python bridge in `lcnc_adapter/`, selectable by a manually entered endpoint; not yet a fully integrated/production-verified `CncApi` path.
+- Klipper — experimental Moonraker adapter discovered over mDNS; not tested on real Klipper hardware;
+- LinuxCNC — experimental companion Python bridge in `lcnc_adapter/`, selectable by a manually entered endpoint; not tested on a LinuxCNC simulator or machine.
 
 Debug adapters are test/development placeholders and do not represent additional supported machine controllers. Feature availability differs by adapter; unsupported operations should report errors rather than be assumed portable.
 

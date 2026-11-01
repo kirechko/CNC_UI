@@ -94,9 +94,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         RunMode::Web => run_web(),
         RunMode::Desktop => run_desktop(),
     };
-    let emulator_result = emulator.map_or(Ok(()), emulator::EmulatorHandle::shutdown);
-    frontend_result?;
-    emulator_result.map_err(std::io::Error::other)?;
+    if let Some(emulator) = emulator {
+        emulator.request_shutdown();
+        frontend_result?;
+        emulator.join().map_err(std::io::Error::other)?;
+    } else {
+        frontend_result?;
+    }
     Ok(())
 }
 
@@ -106,7 +110,7 @@ fn run_web() -> Result<(), Box<dyn std::error::Error>> {
         .enable_all()
         .build()?;
     runtime.block_on(async {
-        web_server::run_with_shutdown(async {
+        web_server::server::run_with_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })
         .await

@@ -26,9 +26,6 @@ impl FluidNcWebSocketAdapter {
         }
     }
 
-    /// Hook for tracing raw binary replies (kept as a no-op in release builds).
-    pub(super) fn trace_binary_response(_payload: &[u8]) {}
-
     /// Send one text frame, appending the newline FluidNC expects, and drop the
     /// session if the write itself fails.
     pub(super) async fn send_text(&self, session: &mut Session, text: &str) -> CncResult<()> {

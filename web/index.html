@@ -52,11 +52,11 @@
       </div>
 
       <div class="header-status">
+        <span class="header-connection-info" id="connection-info" aria-live="polite"></span>
         <button class="machine-chip connection-chip connection-chip-button" id="connection-machines-button" type="button" aria-haspopup="dialog" aria-controls="machines-dialog" data-i18n-title="html.machines.showTitle" title="Show discovered machines">
           <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
           <span id="connection" data-i18n="ui.connecting">Connecting…</span>
         </button>
-        <span class="header-connection-info" id="connection-info" aria-live="polite"></span>
         <div class="machine-chip header-state" id="state">—</div>
         <button class="header-settings-button" id="ui-settings-button" type="button" aria-haspopup="dialog" aria-controls="ui-settings-dialog" data-i18n-title="html.settings.title" data-i18n-aria-label="html.settings.title" title="Interface settings" aria-label="Interface settings">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -150,8 +150,8 @@
           <div class="panel-heading position-panel-heading">
             <span class="panel-title" data-i18n="html.panel.position">POSITION</span>
             <div class="section-heading">
-              <button class="position-mode-toggle active" id="wpos-toggle" type="button" data-i18n-title="html.position.wposTitle" title="Show work coordinates" aria-pressed="true">WPOS</button>
-              <button class="position-mode-toggle" id="mpos-toggle" type="button" data-i18n-title="html.position.mposTitle" title="Show machine coordinates" aria-pressed="false">MPOS</button>
+              <button class="position-mode-toggle active" id="wpos-toggle" type="button" data-i18n-title="html.position.wposTitle" title="Show work coordinates" aria-pressed="true"><span class="position-toggle-full">WPOS</span><span class="position-toggle-short" aria-hidden="true">W</span></button>
+              <button class="position-mode-toggle" id="mpos-toggle" type="button" data-i18n-title="html.position.mposTitle" title="Show machine coordinates" aria-pressed="false"><span class="position-toggle-full">MPOS</span><span class="position-toggle-short" aria-hidden="true">M</span></button>
               <select id="coordinate-system" class="coordinate-select" data-i18n-title="html.position.coordinateSystemTitle" data-i18n-aria-label="html.position.coordinateSystem" title="Pick the coordinate system (G54–G59) used for zeroing and work offsets" aria-label="Coordinate system">
               <option value="g54">G54</option>
               <option value="g55">G55</option>

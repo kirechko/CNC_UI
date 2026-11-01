@@ -1,6 +1,6 @@
 # Automatic GitHub Releases for new versions.
 #
-# Trigger: push a tag named `v<semver>` (e.g. `v0.2.0`), or run the workflow
+# Trigger: push a tag named `v<semver>` (e.g. `v0.1.0`), or run the workflow
 # manually (workflow_dispatch) to re-publish the current `tauri.conf.json`
 # version. tauri-action builds the Tauri desktop app on each platform, creates
 # (or updates) the Release for that tag and attaches every produced bundle:
@@ -8,7 +8,9 @@
 #   Linux (ubuntu-22.04): .deb, .rpm, .AppImage, .tar.xz  (Tauri defaults)
 #   Windows (windows-latest): .msi and NSIS .exe installers
 #
-# Releases start as DRAFTS: review the assets, then press "Publish release".
+# Releases start as DRAFTS: review the Linux/Windows installers and explicitly
+# include portable Linux/Windows archives before publishing, then review the
+# experimental-adapter warning and click "Publish release".
 # Set the draft flag to false below to publish instantly. Unsigned builds —
 # SmartScreen warnings are expected on Windows until code signing is
 # configured (see the commented TAURI_SIGNING_* inputs at the bottom).
@@ -17,9 +19,8 @@ name: Release
 on:
   push:
     tags:
-      # Only semver tags trigger a release build.
-      - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
+      # GitHub tag filters use glob syntax (not regular expressions).
+      - "v*"
   workflow_dispatch: {}
 
 permissions:
@@ -83,14 +84,26 @@ jobs:
           # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
-          releaseName: "CNC UI v__VERSION__"
+          releaseName: "FerroHUB v__VERSION__"
           releaseBody: |
-            Desktop builds of CNC UI v__VERSION__.
+            FerroHUB v__VERSION__ — CNC control UI and software emulator.
 
-            Installers live in the Assets list below. Pick the package that
-            matches your system (.deb/.rpm/.AppImage/.tar.xz for Linux,
-            .msi/.exe for Windows). Builds are unsigned: expect a SmartScreen
-            prompt on first launch.
-          releaseDraft: true
+            ## Downloads
+            - Linux x86_64: `.deb`, `.rpm`, `.AppImage`, and `.tar.xz` packages
+            - Windows x86_64: `.msi` and `.exe` installers
+
+            Builds are unsigned. Windows may show a SmartScreen warning on first
+            launch. Linux desktop builds require compatible WebKitGTK runtime
+            libraries; Windows desktop builds require the Microsoft WebView2 runtime.
+
+            ## Experimental integrations — not tested
+            The LinuxCNC bridge and Klipper/Moonraker adapter are experimental
+            and have not been tested against real LinuxCNC or Klipper machines.
+            Do not use them to control production machinery. Validate functionality
+            and safety on a simulator or an isolated test machine before any use.
+
+            FluidNC and GRBL support also require validation on the specific target
+            machine before operation. Always verify machine behavior safely.
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

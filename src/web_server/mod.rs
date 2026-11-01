@@ -35,10 +35,8 @@ mod log_store;
 mod machine;
 mod models;
 mod program;
-mod server;
+pub(crate) mod server;
 mod state;
-
-pub use server::{run, run_with_shutdown};
 
 // Re-exports for `src/tauri_app.rs`: the Tauri desktop commands share the same
 // models and state operations as the axum handlers, so the names exported by

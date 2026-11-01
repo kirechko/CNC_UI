@@ -153,6 +153,7 @@ pub(crate) async fn get_status(
             }
         }
     }
+    state.record_status(&status);
     let connected_device_id = if let Some(endpoint) = linuxcnc_endpoint {
         Some(format!("linuxcnc:{endpoint}"))
     } else {

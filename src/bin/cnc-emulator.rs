@@ -17,7 +17,9 @@ fn main() {
         .next()
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from("config/emulator.yaml"));
-    if let Err(error) = emulator::run_at(&address, &config_path, || false) {
+    let result =
+        emulator::EmulatorHandle::start(address, config_path).and_then(|worker| worker.join());
+    if let Err(error) = result {
         eprintln!("{error}");
         std::process::exit(1);
     }

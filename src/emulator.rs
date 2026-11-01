@@ -4,8 +4,6 @@ use crate::cnc_api;
 mod config;
 #[path = "bin/cnc_emulator/gcode.rs"]
 mod gcode;
-#[path = "message_log.rs"]
-mod message_log;
 #[path = "bin/cnc_emulator/state.rs"]
 mod state;
 use state::Emulator;
@@ -135,9 +133,13 @@ impl EmulatorHandle {
         }
     }
 
-    /// Signals shutdown and joins the worker, returning any worker failure.
-    pub fn shutdown(mut self) -> Result<(), String> {
+    /// Requests worker shutdown; joining is kept separate for standalone and embedded callers.
+    pub fn request_shutdown(&self) {
         self.stop.store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    /// Joins the worker and returns any worker failure.
+    pub fn join(mut self) -> Result<(), String> {
         self.join_worker()
     }
 
@@ -155,25 +157,9 @@ impl EmulatorHandle {
 impl Drop for EmulatorHandle {
     /// Requests shutdown and prevents the worker from being detached on early returns.
     fn drop(&mut self) {
-        self.stop.store(true, std::sync::atomic::Ordering::Release);
+        self.request_shutdown();
         let _ = self.join_worker();
     }
-}
-
-/// Starts the standalone emulator using its conventional environment and config defaults.
-pub fn run() -> Result<(), String> {
-    let address =
-        std::env::var("CNC_EMULATOR_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8765".to_string());
-    run_at(&address, Path::new("config/emulator.yaml"), || false)
-}
-
-/// Runs the emulator until the supplied stop predicate reports shutdown.
-pub fn run_at(
-    address: &str,
-    config_path: &Path,
-    should_stop: impl Fn() -> bool,
-) -> Result<(), String> {
-    run_at_with_ready(address, config_path, should_stop, || {})
 }
 
 /// Runs the emulator and notifies the owner after its configuration and listener are ready.
@@ -344,7 +330,8 @@ mod worker_tests {
             "emulator should accept and process a protocol request"
         );
 
-        handle.shutdown().expect("stop emulator worker");
+        handle.request_shutdown();
+        handle.join().expect("stop emulator worker");
         drop(client);
         assert!(
             TcpStream::connect_timeout(&socket_address, Duration::from_millis(100)).is_err(),

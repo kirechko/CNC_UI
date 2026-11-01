@@ -169,6 +169,11 @@ export function initMachinesDialog({ refreshStatus }) {
       // Pull the status of the newly selected machine immediately; the regular
       // status poller then keeps tracking it.
       await refreshStatus();
+      // Machine-specific capabilities (including file-system sources) may have
+      // changed; notify panels that cache data from the active controller.
+      window.dispatchEvent(new CustomEvent("cnc-machine-changed", {
+        detail: { machineId },
+      }));
     } catch (error) {
       // Restore the previous rendering and surface the failure inside the list.
       if (label) label.textContent = restoreLabel;

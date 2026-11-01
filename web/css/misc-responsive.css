@@ -117,22 +117,9 @@
 }
 
 /*
- * Vertical reduction, applied in this order as the window gets shorter:
- * 1. panels and the dial shrink fluidly (clamp/vh rules above);
- * 2. axis C row is hidden, then B, then A;
- * 3. the JOG panel is hidden last.
+ * Short viewports keep all configured POSITION axes available. The panel body
+ * scrolls vertically, so rotary axes must not be hidden by height breakpoints.
  */
-@media (max-height: 820px) {
-  .axis-row[data-axis="C" i] { display: none; }
-}
-
-@media (max-height: 760px) {
-  .axis-row[data-axis="B" i] { display: none; }
-}
-
-@media (max-height: 700px) {
-  .axis-row[data-axis="A" i] { display: none; }
-}
 
 /*
  * Further vertical reduction inside the JOG panel.

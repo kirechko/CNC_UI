@@ -43,13 +43,8 @@ async fn revalidate_static_assets(
     response
 }
 
-/// Binds the axum router and serves the UI + JSON API forever.
-pub async fn run() -> io::Result<()> {
-    run_with_shutdown(std::future::pending()).await
-}
-
 /// Serves the UI and API until the supplied future signals application shutdown.
-pub async fn run_with_shutdown<F>(shutdown: F) -> io::Result<()>
+pub(crate) async fn run_with_shutdown<F>(shutdown: F) -> io::Result<()>
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {

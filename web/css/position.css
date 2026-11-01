@@ -27,17 +27,14 @@
   min-width: 0;
   flex: 1;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 8px;
 }
 
 .position-panel-heading .position-mode-toggle {
-  /* Same horizontal size as the coordinate-system select (57px = the
-     per-axis zero/home button pair, 25 + 7 + 25) so the three heading
-     controls form a uniform group; position-heading-align.js recomputes
-     the exact shared width from the live row geometry. */
-  width: 57px;
-  min-width: 57px;
-  flex: 0 0 57px;
+  /* Static fallback size; JS measures and places the controls once axis rows exist. */
+  width: 48px;
+  min-width: 0;
+  flex: 0 1 48px;
   min-height: 26px;
   padding: 0 3px;
   font-size: 10px;
@@ -48,18 +45,16 @@
  *
  * web/js/position-heading-align.js measures the live `.axis-row` grid
  * (columns: label | work coordinate | machine coordinate | zero | home)
- * and lays the three heading controls out as ONE right-aligned group of
- * IDENTICAL boxes over the coordinate area:
+ * and right-aligns compact WPOS/MPOS controls to their coordinate columns,
+ * with the coordinate-system selector spanning the zero/home button pair:
  *
  *   [ WPOS ] [ MPOS ] [ G54 ]
  *
- *   • every control is exactly as wide as the per-axis zero+home button
- *     pair, so WPOS, MPOS and the coordinate select always match each
- *     other (task: "the select must match the width of the Set X Zero /
- *     Home X Zero pair of buttons" and "WPOS/MPOS must match the select"),
- *   • the group's right edge is flush with the right edge of the VISIBLE
- *     coordinate columns (machine column when shown, otherwise work), so
- *     on any panel resize the buttons track that edge as one unit.
+ *   • WPOS and MPOS stay within the available heading width while their right
+ *     edges remain aligned with their live coordinate columns;
+ *   • the coordinate selector ends at the right edge of the zero/home pair;
+ *   • the 8px grid gaps match the doubled 4px heading gap, while each control's
+ *     right edge remains aligned with its corresponding live column.
  *
  * The measurement re-runs on every horizontal resize (panel splitter,
  * window resize), when the axis rows are re-rendered for a different
@@ -68,8 +63,8 @@
  * display mode.
  *
  * Without the JS (script error, first frame before the rows exist) the
- * static flex layout below stays active: three identical 57px controls
- * (25px + 7px gap + 25px = the zero/home pair width) pushed to the right
+ * static flex layout below stays active: three controls with doubled 8px gaps
+ * pushed to the right
  * edge of the heading by `justify-content: flex-end`, so the header still
  * looks correct and nothing breaks.
  * ---------------------------------------------------------------------- */
@@ -82,11 +77,8 @@
 .section-heading.position-heading-aligned > .coordinate-select {
   position: absolute;
   /* left / top / width are assigned in px by position-heading-align.js.
-     The JS-computed width must be able to shrink below the static fallback
-     min-width: on narrow panels the three identical boxes may need less than
-     57px each to stay flush with the coordinate column edge, so the static
-     min-width/flex hints are cancelled here (the JS side clamps to a
-     readable 34px floor instead). */
+     The measured widths shrink to fit the space left of the coordinate select
+     and are cancelled from the static flex sizing below. */
   min-width: 0;
   flex: none;
 }
@@ -99,16 +91,16 @@
    `appearance: none` removes the native OS chrome (including the built-in
    arrow) so the chevron pseudo-element below is the sole decoration.
 
-   Static fallback width = the per-axis zero/home button pair (25px + 7px
-   gap + 25px = 57px); position-heading-align.js recomputes the exact pair
-   width live (task T06). */
+   Static fallback width = the per-axis zero/home button pair (25px + 8px
+   gap + 25px = 58px); position-heading-align.js measures the exact pair
+   width live. */
 .position-panel-heading .coordinate-select {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  width: 57px;
-  min-width: 57px;
-  flex: 0 0 57px;
+  width: 58px;
+  min-width: 58px;
+  flex: 0 0 58px;
   min-height: 26px;
   padding: 0 16px 0 4px;
   border: 1px solid var(--accent-hover);
@@ -152,7 +144,7 @@
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 25px 25px;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
 .axis-row.both,
@@ -185,6 +177,26 @@
   font-size: 10px;
   font-weight: 700;
 }
+
+.position-toggle-short { display: none; }
+
+.position-mode-toggle.position-toggle-compact {
+  min-width: 0;
+  padding-inline: 1px;
+  overflow: hidden;
+  font-size: 10px;
+}
+
+.position-mode-toggle.position-toggle-compact .position-toggle-full {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.position-mode-toggle.position-toggle-compact .position-toggle-short { display: inline; }
 
 .position-mode-toggle.active {
   border-color: var(--accent-hover);

@@ -3,7 +3,7 @@
  *
  * Tasks covered:
  *   • T07 — "on horizontal resize of the Position panel the WPOS and MPOS
- *     buttons must stay exactly above their coordinate columns";
+ *     buttons must stay right-aligned with their coordinate columns";
  *   • T06 — "the coordinate-system select must be as wide as the Set X Zero /
  *     Home X Zero button pair".
  *
@@ -12,15 +12,11 @@
  * padding), so the two grids have different content boxes and their tracks
  * drift apart as soon as the panel is resized. CSS subgrid cannot bridge
  * them without restructuring the panel DOM. Instead this module measures the
- * REAL, rendered geometry of the first axis row and lays the three heading
- * controls out in px as ONE right-aligned group of identical boxes:
- *
- *   [ WPOS ] [ MPOS ] [ G54 ]
- *
- *   every control is exactly as wide as the row's zero + home button pair
- *   (so WPOS/MPOS/select always match each other), and the group's right
- *   edge is flush with the right edge of the coordinate columns (the home
- *   button) — resizing the panel slides the whole group along that edge.
+ * REAL, rendered geometry of the first axis row and positions each heading
+ * control over its corresponding grid track: WPOS over work coordinates,
+ * MPOS over machine coordinates, and the coordinate-system selector over the
+ * zero/home action pair. Their right edges therefore remain aligned when the
+ * panel is resized; the row's 8px grid gap matches the doubled 4px heading gap.
  *
  * The measurement re-runs on every event that can change the geometry:
  * window resize, panel splitter drags (ResizeObserver on the panel), the axis
@@ -59,14 +55,10 @@ export function initPositionHeadingAlign({
   axesContainer,
   panel,
 }) {
-  // Widths the controls must never drop below, so a very narrow panel keeps
-  // readable captions instead of collapsing the buttons to a few pixels.
-  const MIN_TOGGLE_WIDTH = 34;
+  // The coordinate-system control must remain wide enough to show G54–G59.3.
   const MIN_SELECT_WIDTH = 40;
-  // Horizontal gap between the heading controls; matches the 4px gap of the
-  // static flex fallback in position.css so the group spacing is consistent
-  // in aligned and fallback modes alike.
-  const GROUP_GAP = 4;
+  // Keep the heading controls separated by the doubled 8px grid gap.
+  const GROUP_GAP = 8;
 
   let resizeObserver = null;
   let mutationObserver = null;
@@ -105,13 +97,11 @@ export function initPositionHeadingAlign({
    * Coordinates are converted from viewport space (getBoundingClientRect) to
    * the heading's own offset-parent space, so the absolute placement is
    * correct in both LTR and RTL layouts without special casing. The caller
-   * (refresh) has already computed the final shared width and left edge, so
-   * this function performs no clamping — that keeps all three controls
-   * pixel-identical in size.
+   * supplies the width measured from the corresponding live row track.
    *
    * @param {HTMLElement} control - The heading control to move.
    * @param {number} leftViewport - Left edge of the control, viewport px.
-   * @param {number} width - Final control width, viewport px (shared by all).
+   * @param {number} width - Final control width, viewport px.
    * @param {number} headingTop - Top of the heading content box, viewport px.
    * @param {number} headingHeight - Height available for centering, viewport px.
    * @returns {void}
@@ -125,7 +115,8 @@ export function initPositionHeadingAlign({
   }
 
   /**
-   * Measures the reference row and repositions all three heading controls.
+   * Measures the reference row and aligns each heading control to its matching
+   * coordinate/action grid track, with a shared-group fallback for hidden columns.
    *
    * Falls back to the static layout (removes ALIGNED_CLASS) when the rows do
    * not exist yet, so nothing is ever positioned over an empty panel.
@@ -136,6 +127,8 @@ export function initPositionHeadingAlign({
     const row = referenceRow();
     if (!row) {
       heading.classList.remove(ALIGNED_CLASS);
+      workToggle.classList.remove("position-toggle-compact");
+      machineToggle.classList.remove("position-toggle-compact");
       workToggle.style.left = workToggle.style.top = workToggle.style.width = "";
       machineToggle.style.left = machineToggle.style.top = machineToggle.style.width = "";
       coordinateSelect.style.left = coordinateSelect.style.top = coordinateSelect.style.width = "";
@@ -146,16 +139,16 @@ export function initPositionHeadingAlign({
 
     const rowRect = row.getBoundingClientRect();
     const headingRect = heading.getBoundingClientRect();
+    const workValue = childOf(row, ".axis-value.work");
+    const machineValue = childOf(row, ".axis-value.machine");
+    const workRect = workValue?.getBoundingClientRect();
+    const machineRect = machineValue?.getBoundingClientRect();
 
     const zeroButton = childOf(row, "[data-zero-axis]");
     const homeButton = childOf(row, "[data-home-axis]");
 
-    // Reference span of the right-hand action column: from the left edge of the
-    // zero button to the right edge of the home one (57px for the default
-    // 25 + gap 7 + 25 grid). That span defines BOTH the shared control width
-    // and the right edge the whole heading group aligns to. When the axis has
-    // no buttons (unsupported axis renders <span> placeholders) fall back to
-    // the tail of the row, so the group still hugs the coordinate column area.
+    // Selector anchor: the combined zero/home button pair. Its 8px grid gap
+    // matches the doubled heading-control spacing.
     let groupRight = rowRect.right;
     let pairWidth = MIN_SELECT_WIDTH;
     if (zeroButton && homeButton) {
@@ -166,25 +159,84 @@ export function initPositionHeadingAlign({
       pairWidth = Math.max(MIN_SELECT_WIDTH, Math.round(groupRight - pairLeft));
     }
 
-    // Uniform width for the three controls: the zero/home pair width, but
-    // never wider than what actually fits between the heading's left content
-    // edge and the alignment anchor. Keeping all three identical is the
-    // requirement ("WPOS and MPOS must be the same size as the coordinate
-    // system select"); clamping only kicks in on extremely narrow panels.
+    const workVisible = Boolean(workRect && workRect.width > 0);
+    const machineVisible = Boolean(machineRect && machineRect.width > 0);
     const contentLeft =
       headingRect.left + parseFloat(getComputedStyle(heading).paddingLeft || "0");
-    const available = groupRight - contentLeft - GROUP_GAP * 2;
-    const width = Math.max(MIN_TOGGLE_WIDTH, Math.min(pairWidth, Math.floor(available / 3)));
+    const selectLeft = groupRight - pairWidth;
+    const toggleAvailable = Math.max(
+      1,
+      selectLeft - contentLeft - GROUP_GAP * 2,
+    );
+    const toggleWidthLimit = Math.max(1, Math.min(pairWidth, Math.floor(toggleAvailable / 2)));
 
-    // Lay the group out right-to-left so its right edge is always flush with
-    // the coordinate column edge: [ WPOS ] [ MPOS ] [ G54 ].
-    const selectLeft = groupRight - width;
-    const machineLeft = selectLeft - GROUP_GAP - width;
-    const workLeft = machineLeft - GROUP_GAP - width;
+    /** Bounds one compact heading toggle to its measured coordinate track. */
+    function toggleGeometry(trackRect) {
+      const right = trackRect.right;
+      const width = Math.max(1, Math.min(
+        toggleWidthLimit,
+        trackRect.width,
+        right - contentLeft,
+      ));
+      return { left: right - width, width };
+    }
 
-    place(workToggle, workLeft, width, headingRect.top, headingRect.height);
-    place(machineToggle, machineLeft, width, headingRect.top, headingRect.height);
-    place(coordinateSelect, selectLeft, width, headingRect.top, headingRect.height);
+    let workGeometry;
+    let machineGeometry;
+    if (workVisible && machineVisible) {
+      workGeometry = toggleGeometry(workRect);
+      machineGeometry = toggleGeometry(machineRect);
+    } else if (workVisible) {
+      // The WPOS control stays pinned to the visible work-coordinate edge even
+      // when the MPOS value column is collapsed out of the grid.
+      workGeometry = toggleGeometry(workRect);
+      const machineWidth = Math.max(1, Math.min(
+        toggleWidthLimit,
+        workGeometry.left - contentLeft - GROUP_GAP,
+      ));
+      machineGeometry = {
+        left: workGeometry.left - GROUP_GAP - machineWidth,
+        width: machineWidth,
+      };
+    } else if (machineVisible) {
+      machineGeometry = toggleGeometry(machineRect);
+      const workWidth = Math.max(1, Math.min(
+        toggleWidthLimit,
+        machineGeometry.left - contentLeft - GROUP_GAP,
+      ));
+      workGeometry = {
+        left: machineGeometry.left - GROUP_GAP - workWidth,
+        width: workWidth,
+      };
+    } else {
+      const width = toggleWidthLimit;
+      machineGeometry = { left: selectLeft - GROUP_GAP - width, width };
+      workGeometry = {
+        left: machineGeometry.left - GROUP_GAP - width,
+        width,
+      };
+    }
+
+    for (const [control, geometry] of [
+      [workToggle, workGeometry],
+      [machineToggle, machineGeometry],
+    ]) {
+      control.classList.toggle("position-toggle-compact", geometry.width < 40);
+      place(
+        control,
+        geometry.left,
+        geometry.width,
+        headingRect.top,
+        headingRect.height,
+      );
+    }
+    place(
+      coordinateSelect,
+      selectLeft,
+      pairWidth,
+      headingRect.top,
+      headingRect.height,
+    );
   }
 
   /**

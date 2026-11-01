@@ -24,5 +24,5 @@ async fn main() -> std::io::Result<()> {
         )
         .with_writer(std::io::stderr)
         .init();
-    web_server::run().await
+    web_server::server::run_with_shutdown(std::future::pending()).await
 }
