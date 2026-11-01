@@ -13,6 +13,8 @@ import { initUiMessageLogger } from "./ui-message-logger.js";
 import { initSidebarTabs } from "./sidebar.js";
 import { initFileManager } from "./file-manager-ui.js";
 import { initMacrosUi } from "./macros-ui.js";
+import { initMacroRun } from "./macro-run.js";
+import { initTransformPreview } from "./transform-preview.js";
 import { initPositionControls } from "./position-controls.js";
 import { createPositionReadoutUpdater } from "./position-readouts.js";
 import { initPositionAxisView } from "./position-axis-view.js";
@@ -187,6 +189,17 @@ initFileManager(app);
 
 // Persistent macro CRUD list and controller-specific invocation mappings.
 initMacrosUi();
+
+// Rosetta macro runner (T26): the ▶ buttons of the macro rows dispatch
+// `cnc-macro-run`; this dialog tails the engine log and cancels runs.
+initMacroRun();
+
+// Rosetta capability validator + transform preview dialog. Reads the loaded
+// program lazily and reloads the viewer through the program panel API.
+initTransformPreview({
+  getProgram: () => app.program.getProgram(),
+  showProgram: (name, content) => app.program.showProgram(name, content),
+});
 
 // Repaint the scene and the dial when the viewport changes size. The dial
 // check is lazy so this listener survives the handle-creation order below.

@@ -107,7 +107,7 @@ async fn refresh_serial_machines(
 /// first, then the fast GRBL serial scan, and finally the FluidNC network scan
 /// prioritizes previously cached endpoints. Future scanners (LinuxCNC) plug in
 /// here.
-async fn discover_all_machines(
+pub(crate) async fn discover_all_machines(
     state: &AppState,
     sender: Option<
         &tokio::sync::mpsc::Sender<Result<cnc_core::discovery::DiscoveredDevice, String>>,
@@ -176,6 +176,90 @@ async fn discover_all_machines(
         }
     }
     found
+}
+
+/// Scans on backend startup, connects to the first discovered device, and
+/// finishes publishing the complete scan result without blocking HTTP startup.
+pub(crate) async fn discover_and_connect_first(state: std::sync::Arc<AppState>) {
+    if !claim_discovery_slot(&state.discovery_in_flight) {
+        return;
+    }
+
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(32);
+    let scan_state = state.clone();
+    let scanner = tokio::spawn(async move {
+        let found = discover_all_machines(&scan_state, Some(&sender)).await;
+        if let Ok(mut registry) = scan_state.machines.lock() {
+            *registry = found
+                .into_iter()
+                .filter(|device| device.protocol != "Emulator" && device.protocol != "GRBL")
+                .collect();
+        }
+        release_discovery_slot(&scan_state.discovery_in_flight);
+    });
+
+    let mut connected_first_machine = false;
+    while let Some(result) = receiver.recv().await {
+        let Ok(device) = result else {
+            continue;
+        };
+        if connected_first_machine {
+            continue;
+        }
+
+        let Ok(adapter) = build_adapter_for_device(&device) else {
+            continue;
+        };
+        let Ok(controller) = CNCController::connect_with_api(adapter) else {
+            continue;
+        };
+        if let Err(error) = state.swap_controller(controller) {
+            eprintln!(
+                "Could not connect to discovered machine {}: {error}",
+                device.endpoint
+            );
+            continue;
+        }
+        connected_first_machine = true;
+
+        // Startup discovery may replace the default emulator controller after
+        // AppState has already loaded the default program. Restore that program
+        // on the newly selected adapter so the viewer and machine stay in sync.
+        let previous_program = state
+            .program
+            .lock()
+            .ok()
+            .and_then(|program| program.clone());
+        if let Some(program) = previous_program {
+            let path = super::state::position::temp_program_path();
+            let result = std::fs::write(&path, &program.content)
+                .map_err(|error| error.to_string())
+                .and_then(|()| {
+                    state
+                        .controller
+                        .lock()
+                        .map_err(|_| "controller lock poisoned".to_string())?
+                        .load_program(&path)
+                        .map_err(|error| format!("{}: {}", error.code, error.message))
+                });
+            if let Err(error) = result {
+                eprintln!(
+                    "Could not reload program `{}` on the startup-selected machine: {error}",
+                    program.name
+                );
+            }
+        }
+
+        eprintln!(
+            "Connected to first discovered CNC machine: {}",
+            device.endpoint
+        );
+    }
+
+    if let Err(error) = scanner.await {
+        eprintln!("Initial machine discovery task failed: {error}");
+        release_discovery_slot(&state.discovery_in_flight);
+    }
 }
 
 /// Serializes the device list into the JSON contract of the machines dialog.
@@ -486,12 +570,14 @@ pub(crate) async fn select_machine(
     // A machine that is actually unreachable only costs the wait budget here.
     // Serial GRBL needs a longer window: the first query also runs the startup
     // handshake that waits for the Arduino boot banner (up to ~3.5 s).
-    let connect_deadline = std::time::Instant::now()
-        + Duration::from_millis(if device.protocol == "GRBL" {
-            5000
-        } else {
-            1500
-        });
+    // Serial GRBL *and* serial FluidNC (task: FluidNC over a COM port) share
+    // the same driver family, whose first query also runs the startup
+    // handshake waiting for the boot banner (up to ~3.5 s).
+    let serial_family = device.protocol == "GRBL"
+        || (device.protocol == "FluidNC"
+            && device.transport == cnc_core::discovery::DiscoveryTransport::Serial);
+    let connect_deadline =
+        std::time::Instant::now() + Duration::from_millis(if serial_family { 5000 } else { 1500 });
     let connected_device_id = loop {
         if let Some(id) = state.connected_machine_id() {
             break Some(id);

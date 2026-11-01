@@ -13,8 +13,8 @@
 use crate::error::{RosettaError, RosettaResult};
 use crate::ir::toolpath::{Code, SegmentKind, Toolpath};
 use crate::transform::model::{
-    region_between_marks_unsupported, CoordSystem, MacroExpander, Region, Transform,
-    TransformKind, TransformReport,
+    region_between_marks_unsupported, CoordSystem, MacroExpander, Region, Transform, TransformKind,
+    TransformReport,
 };
 
 /// Executor for the structural family. Not `Debug` because it holds a trait
@@ -46,9 +46,10 @@ impl Transform for StructuralTransform<'_> {
             return Err(region_between_marks_unsupported(start, end));
         }
         match &self.kind {
-            TransformKind::FeedSpeedOverride { feed_factor, speed_factor } => {
-                feed_speed_override(toolpath, region, *feed_factor, *speed_factor)
-            }
+            TransformKind::FeedSpeedOverride {
+                feed_factor,
+                speed_factor,
+            } => feed_speed_override(toolpath, region, *feed_factor, *speed_factor),
             TransformKind::CoordSystemRemap { from, to } => {
                 coord_system_remap(toolpath, region, *from, *to)
             }
@@ -77,8 +78,11 @@ impl StructuralTransform<'_> {
             kind: "macro expander bridge".into(),
             id: to.to_owned(),
         })?;
-        let mut report =
-            TransformReport { affected_segments: 0, affected_lines: Vec::new(), notes: Vec::new() };
+        let mut report = TransformReport {
+            affected_segments: 0,
+            affected_lines: Vec::new(),
+            notes: Vec::new(),
+        };
         for frame in &mut toolpath.codes {
             if !selects_line(region, frame.line) || !frame.mentions(&from.code()) {
                 continue;
@@ -86,7 +90,9 @@ impl StructuralTransform<'_> {
             // TRF-M-05: idempotency — a frame already substituted is skipped
             // so running the step twice changes nothing.
             if frame.substitute.is_some() {
-                report.notes.push(format!("line {} already substituted", frame.line));
+                report
+                    .notes
+                    .push(format!("line {} already substituted", frame.line));
                 continue;
             }
             let lines = expander.expand(to, from, frame)?;
@@ -98,7 +104,10 @@ impl StructuralTransform<'_> {
             frame.substitute = Some(lines);
             report.affected_lines.push(frame.line);
         }
-        report.notes.push(format!("substituted {} cycle line(s)", report.affected_lines.len()));
+        report.notes.push(format!(
+            "substituted {} cycle line(s)",
+            report.affected_lines.len()
+        ));
         Ok(report)
     }
 }
@@ -111,13 +120,20 @@ fn feed_speed_override(
     feed_factor: f64,
     speed_factor: f64,
 ) -> RosettaResult<TransformReport> {
-    if feed_factor <= 0.0 || speed_factor <= 0.0 || !feed_factor.is_finite() || !speed_factor.is_finite() {
+    if feed_factor <= 0.0
+        || speed_factor <= 0.0
+        || !feed_factor.is_finite()
+        || !speed_factor.is_finite()
+    {
         return Err(RosettaError::Validation {
             reason: "feed/speed factors must be positive finite numbers".into(),
         });
     }
-    let mut report =
-        TransformReport { affected_segments: 0, affected_lines: Vec::new(), notes: Vec::new() };
+    let mut report = TransformReport {
+        affected_segments: 0,
+        affected_lines: Vec::new(),
+        notes: Vec::new(),
+    };
     for segment in &mut toolpath.segments {
         if !selects_segment(region, segment.id, segment.line) {
             continue;
@@ -171,8 +187,11 @@ fn coord_system_remap(
             notes: vec!["remapped to the same system: no-op".into()],
         });
     }
-    let mut report =
-        TransformReport { affected_segments: 0, affected_lines: Vec::new(), notes: Vec::new() };
+    let mut report = TransformReport {
+        affected_segments: 0,
+        affected_lines: Vec::new(),
+        notes: Vec::new(),
+    };
     for frame in &mut toolpath.codes {
         if !selects_line(region, frame.line) {
             continue;
@@ -200,8 +219,11 @@ fn strip_unsupported(
     region: &Region,
     codes: &[Code],
 ) -> RosettaResult<TransformReport> {
-    let mut report =
-        TransformReport { affected_segments: 0, affected_lines: Vec::new(), notes: Vec::new() };
+    let mut report = TransformReport {
+        affected_segments: 0,
+        affected_lines: Vec::new(),
+        notes: Vec::new(),
+    };
     let mut dropped_lines: Vec<usize> = Vec::new();
     for frame in &mut toolpath.codes {
         if !selects_line(region, frame.line) {
@@ -210,7 +232,10 @@ fn strip_unsupported(
         let before = frame.codes.len();
         // Remember whether a *cycle* code is among the removed ones before
         // mutating: only then do the move lines below lose their meaning.
-        let removed_cycle = frame.codes.iter().any(|code| is_cycle(code) && codes.contains(code));
+        let removed_cycle = frame
+            .codes
+            .iter()
+            .any(|code| is_cycle(code) && codes.contains(code));
         frame.codes.retain(|code| !codes.contains(code));
         if frame.codes.len() != before {
             touch(&mut report, frame.line);
@@ -222,7 +247,9 @@ fn strip_unsupported(
     if !dropped_lines.is_empty() {
         let lines = &dropped_lines;
         let removed = toolpath.segments.len();
-        toolpath.segments.retain(|segment| !lines.contains(&segment.line));
+        toolpath
+            .segments
+            .retain(|segment| !lines.contains(&segment.line));
         report.affected_segments = removed - toolpath.segments.len();
         report.notes.push(format!(
             "dropped {} segment(s) on stripped cycle lines {:?}",
@@ -302,7 +329,9 @@ pub fn executor<'a>(
 ) -> Box<dyn Transform + 'a> {
     use crate::transform::affine::AffineTransform;
     match kind.family() {
-        crate::transform::model::TransformFamily::Affine => Box::new(AffineTransform::new(kind.clone())),
+        crate::transform::model::TransformFamily::Affine => {
+            Box::new(AffineTransform::new(kind.clone()))
+        }
         crate::transform::model::TransformFamily::Structural => {
             Box::new(StructuralTransform::new(kind.clone(), expander))
         }
@@ -328,8 +357,16 @@ mod tests {
             cycle: CycleCode,
             frame: &crate::ir::toolpath::CodeFrame,
         ) -> RosettaResult<Vec<String>> {
-            let z = frame.words.iter().find(|(l, _)| *l == 'Z').map(|(_, v)| *v).unwrap_or(0.0);
-            Ok(vec![format!("({macro_id} emulate {cycle:?})"), format!("G1 Z{z}")])
+            let z = frame
+                .words
+                .iter()
+                .find(|(l, _)| *l == 'Z')
+                .map(|(_, v)| *v)
+                .unwrap_or(0.0);
+            Ok(vec![
+                format!("({macro_id} emulate {cycle:?})"),
+                format!("G1 Z{z}"),
+            ])
         }
     }
 
@@ -339,27 +376,42 @@ mod tests {
             .parse("G1 X1 F200\nG4 P500\nM3 S10000\n")
             .unwrap();
         let tf = StructuralTransform::new(
-            TransformKind::FeedSpeedOverride { feed_factor: 0.5, speed_factor: 2.0 },
+            TransformKind::FeedSpeedOverride {
+                feed_factor: 0.5,
+                speed_factor: 2.0,
+            },
             None,
         );
         tf.apply(&mut tp, &Region::Whole).unwrap();
         assert_eq!(tp.segments[0].feed, Some(100.0));
         assert_eq!(tp.segments[1].feed, Some(500.0)); // dwell untouched
         let spindle = &tp.codes[2];
-        assert_eq!(spindle.words.iter().find(|(l, _)| *l == 'S').unwrap().1, 20000.0);
+        assert_eq!(
+            spindle.words.iter().find(|(l, _)| *l == 'S').unwrap().1,
+            20000.0
+        );
     }
 
     #[test]
     fn coord_remap_rewrites_g54_to_g56() {
         let mut tp = GcodeIo::new().parse("G54 G0 X1\nG54 G1 Z-1\n").unwrap();
         let tf = StructuralTransform::new(
-            TransformKind::CoordSystemRemap { from: CoordSystem::G54, to: CoordSystem::G56 },
+            TransformKind::CoordSystemRemap {
+                from: CoordSystem::G54,
+                to: CoordSystem::G56,
+            },
             None,
         );
         let report = tf.apply(&mut tp, &Region::Whole).unwrap();
         assert_eq!(report.affected_lines, vec![1, 2]);
-        assert!(tp.codes.iter().all(|f| !f.mentions(&CoordSystem::G54.code())));
-        assert!(tp.codes.iter().all(|f| f.mentions(&CoordSystem::G56.code())));
+        assert!(tp
+            .codes
+            .iter()
+            .all(|f| !f.mentions(&CoordSystem::G54.code())));
+        assert!(tp
+            .codes
+            .iter()
+            .all(|f| f.mentions(&CoordSystem::G56.code())));
     }
 
     #[test]
@@ -388,7 +440,10 @@ mod tests {
     fn cycle_substitute_without_bridge_fails() {
         let mut tp = GcodeIo::new().parse("G83 Z-10\n").unwrap();
         let tf = StructuralTransform::new(
-            TransformKind::CycleSubstitute { from: CycleCode::G83, to: "x".into() },
+            TransformKind::CycleSubstitute {
+                from: CycleCode::G83,
+                to: "x".into(),
+            },
             None,
         );
         let error = tf.apply(&mut tp, &Region::Whole).unwrap_err();
@@ -399,7 +454,9 @@ mod tests {
     fn strip_removes_mcodes_and_keeps_geometry() {
         let mut tp = GcodeIo::new().parse("M6\nG0 X5\n").unwrap();
         let tf = StructuralTransform::new(
-            TransformKind::StripUnsupported { codes: vec![Code::M(6)] },
+            TransformKind::StripUnsupported {
+                codes: vec![Code::M(6)],
+            },
             None,
         );
         let report = tf.apply(&mut tp, &Region::Whole).unwrap();

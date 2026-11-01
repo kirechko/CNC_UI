@@ -19,11 +19,11 @@ Start the emulator first (unless you connect to real hardware):
 
 ```bash
 cargo run --bin cnc-emulator          # reads config/emulator.yaml
-cargo run --bin linuxcnc-ui           # the desktop window
+cargo run --bin cnc_ui           # the desktop window
 ```
 
-The desktop app connects to the emulator automatically through a local socket
-(`/tmp/linuxcnc-ui-emulator.sock`, override with `CNC_EMULATOR_SOCKET`).
+The desktop app connects to the emulator over TCP at `127.0.0.1:8765`. Set
+`CNC_EMULATOR_ADDRESS` to override the endpoint for both processes.
 
 ### 1.2 Web interface
 
@@ -38,8 +38,8 @@ Open `http://<host>:8080` in a browser. Options (environment variables):
 | `CNC_WEB_ADDRESS` | bind address:port | `0.0.0.0:8080` |
 | `CNC_UI_AUTH_USER` + `CNC_UI_AUTH_PASSWORD` | enable HTTP Basic auth | disabled |
 | `CNC_UI_AUTH=on` / `off` | force auth on (random password is logged) / explicitly off | auto |
-| `CNC_UI_LOG_DB` | SQLite database location | `~/.local/state/linuxcnc-ui/messages.sqlite3` |
-| `CNC_EMULATOR_SOCKET` | emulator socket path | `/tmp/linuxcnc-ui-emulator.sock` |
+| `CNC_UI_LOG_DB` | SQLite database location | `~/.local/state/cnc_ui/messages.sqlite3` |
+| `CNC_EMULATOR_ADDRESS` | emulator TCP endpoint | `127.0.0.1:8765` |
 
 Authorization protects the whole web UI with one username/password pair; the
 browser shows a login dialog on the first request. Leave the credentials unset

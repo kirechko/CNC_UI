@@ -48,8 +48,8 @@
 //!   O-words frontend, Klipper/Jinja2 emitter, CutterCompBake, regions by marks.
 
 pub mod error;
-pub mod ir;
 pub mod io;
+pub mod ir;
 pub mod macro_engine;
 pub mod transform;
 pub mod util;

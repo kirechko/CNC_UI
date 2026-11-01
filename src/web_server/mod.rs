@@ -38,7 +38,7 @@ mod program;
 mod server;
 mod state;
 
-pub use server::run;
+pub use server::{run, run_with_shutdown};
 
 // Re-exports for `src/tauri_app.rs`: the Tauri desktop commands share the same
 // models and state operations as the axum handlers, so the names exported by
@@ -52,6 +52,8 @@ pub(crate) use models::{
 };
 #[allow(unused_imports)]
 pub(crate) use program::{load_program, ProgramError};
+#[allow(unused_imports)]
+pub(crate) use state::rosetta_ops::{json_args_to_values, PreviewReport, ValidationReport};
 pub(crate) use state::AppState;
 
 use std::sync::Arc;
@@ -104,6 +106,10 @@ mod contract_tests {
                     direction: crate::cnc_api::SpindleDirection::Stopped,
                     enabled: false,
                 },
+                probe_triggered: false,
+                probe_position: None,
+                selected_tool: None,
+                current_tool: None,
                 mist_coolant_on: false,
                 flood_coolant_on: false,
                 jog_rate: 0.0,
@@ -167,6 +173,7 @@ mod contract_tests {
 
         for field in [
             "connected",
+            "connection_info",
             "state",
             "x",
             "y",
@@ -198,9 +205,31 @@ mod contract_tests {
             assert!(value.get(field).is_some(), "missing frontend field {field}");
         }
 
+        assert_eq!(value["connection_info"], serde_json::Value::Null);
         assert_eq!(value["coordinate_system"], "g59_1");
         assert_eq!(value["x"], 1.0);
         assert_eq!(value["machine_x"], 11.0);
+    }
+
+    /// Verifies active discovery metadata is serialized in the header status payload.
+    #[test]
+    fn status_response_includes_active_connection_metadata() {
+        let device = cnc_core::discovery::DiscoveredDevice {
+            id: "fluidnc:Telnet:192.168.4.190:23".into(),
+            protocol: "FluidNC".into(),
+            machine_name: Some("CNC Router".into()),
+            version: Some("3.9.5".into()),
+            transport: cnc_core::discovery::DiscoveryTransport::Telnet,
+            endpoint: "192.168.4.190:23".into(),
+        };
+        let response = StatusResponse::from(sample_status())
+            .with_connection_info(&[device], Some("fluidnc:Telnet:192.168.4.190:23"));
+        let value = serde_json::to_value(response).expect("serialize status response");
+
+        assert_eq!(value["connection_info"]["machine_name"], "CNC Router");
+        assert_eq!(value["connection_info"]["protocol"], "FluidNC");
+        assert_eq!(value["connection_info"]["transport"], "Telnet");
+        assert_eq!(value["connection_info"]["address"], "192.168.4.190:23");
     }
 
     #[test]

@@ -81,7 +81,14 @@ pub struct Point3 {
 impl Point3 {
     /// Construct a point with only the linear axes addressed.
     pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Point3 { x, y, z, a: None, b: None, c: None }
+        Point3 {
+            x,
+            y,
+            z,
+            a: None,
+            b: None,
+            c: None,
+        }
     }
 
     /// The planar projection used by affine XY transforms.

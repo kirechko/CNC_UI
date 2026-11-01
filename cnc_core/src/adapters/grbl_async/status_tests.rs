@@ -47,7 +47,7 @@ fn parses_machine_position_and_derives_work_offset() {
 fn reuses_cached_work_offset_when_grbl_omits_wco() {
     let status = GrblAdapter::parse_status(
         "<Idle|WPos:1.000,2.000,3.000|FS:0,0>",
-        Some([9.0, 18.0, 27.0]),
+        Some([9.0, 18.0, 27.0, 0.0, 0.0, 0.0]),
         CoordinateSystem::G54,
         spindle_command(),
         None,
@@ -116,12 +116,24 @@ fn rejects_coordinate_systems_not_supported_by_grbl() {
 #[test]
 fn rejects_rotary_axes_for_grbl_jog() {
     for axis in [Axis::A, Axis::B] {
-        let error = GrblAdapter::ensure_supported_axis(axis).unwrap_err();
+        let error = GrblAdapter::ensure_supported_axis(SerialProtocol::Grbl, axis).unwrap_err();
         assert_eq!(error.code, "unsupported_axis");
     }
 
     for axis in [Axis::X, Axis::Y, Axis::Z] {
-        assert!(GrblAdapter::ensure_supported_axis(axis).is_ok());
+        assert!(GrblAdapter::ensure_supported_axis(SerialProtocol::Grbl, axis).is_ok());
+    }
+}
+
+/// Task (FluidNC over a COM port): the same driver on FluidNC firmware must
+/// accept all six axes, so jog/zero guards cannot reject rotary words.
+#[test]
+fn fluidnc_serial_protocol_accepts_rotary_axes() {
+    for axis in [Axis::X, Axis::Y, Axis::Z, Axis::A, Axis::B, Axis::C] {
+        assert!(
+            GrblAdapter::ensure_supported_axis(SerialProtocol::FluidNc, axis).is_ok(),
+            "{axis:?} should be jog-able on serial FluidNC"
+        );
     }
 }
 
@@ -237,7 +249,10 @@ fn rejects_malformed_reported_coordinate_fields() {
 fn rejects_overflow_when_deriving_offsets_or_machine_positions() {
     for (response, cached_offset) in [
         ("<Idle|MPos:1e308,0,0|WPos:-1e308,0,0|FS:0,0>", None),
-        ("<Idle|WPos:1e308,0,0|FS:0,0>", Some([1e308, 0.0, 0.0])),
+        (
+            "<Idle|WPos:1e308,0,0|FS:0,0>",
+            Some([1e308, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        ),
     ] {
         let error = GrblAdapter::parse_status(
             response,
@@ -387,6 +402,45 @@ fn rejects_malformed_status_and_non_finite_coordinates() {
     )
     .is_err());
 
-    assert!(GrblAdapter::parse_triplet("1,NaN,3").is_none());
-    assert!(GrblAdapter::parse_triplet("1,2").is_none());
+    assert!(GrblAdapter::parse_position_tuple("1,NaN,3").is_none());
+    assert!(GrblAdapter::parse_position_tuple("1,2").is_none());
+    // Six components (FluidNC) are the maximum; a seventh must be rejected.
+    assert!(GrblAdapter::parse_position_tuple("1,2,3,4,5,6,7").is_none());
+}
+
+/// Task (FluidNC over a COM port): a 6-component MPos report from FluidNC
+/// firmware must populate the rotary slots of the status snapshot instead of
+/// failing the triplet grammar the old GRBL-only parser required.
+#[test]
+fn parses_six_axis_fluidnc_status_report() {
+    let status = GrblAdapter::parse_status(
+        "<Idle|MPos:1.0,2.0,3.0,4.0,5.0,6.0|FS:0,0>",
+        None,
+        CoordinateSystem::G54,
+        spindle_command(),
+        None,
+        0,
+        0,
+    )
+    .unwrap();
+
+    assert_eq!(status.position.a, 4.0);
+    assert_eq!(status.position.b, 5.0);
+    assert_eq!(status.position.c, 6.0);
+}
+
+/// The axis-count heuristic that seeds `machine_configuration` must report
+/// the component width of the first position field (3 for GRBL, up to 6 for
+/// serial FluidNC) and stay silent on position-less reports.
+#[test]
+fn reported_axis_count_follows_position_field_width() {
+    assert_eq!(
+        GrblAdapter::reported_axis_count("<Idle|MPos:1,2,3|FS:0,0>"),
+        Some(3)
+    );
+    assert_eq!(
+        GrblAdapter::reported_axis_count("<Idle|WPos:1,2,3,4,5|FS:0,0>"),
+        Some(5)
+    );
+    assert_eq!(GrblAdapter::reported_axis_count("<Idle|FS:0,0>"), None);
 }

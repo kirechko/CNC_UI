@@ -103,6 +103,11 @@ impl Default for FluidNcWebSocketConfig {
 
 type FluidNcSocket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
+enum FluidNcConnection {
+    WebSocket(FluidNcSocket),
+    Telnet(TcpStream),
+}
+
 #[derive(Clone, Copy)]
 struct ContinuousJog {
     x: i8,
@@ -112,8 +117,9 @@ struct ContinuousJog {
 }
 
 struct Session {
-    socket: Option<FluidNcSocket>,
+    socket: Option<FluidNcConnection>,
     rx_buffer: Vec<u8>,
+    telnet_parse_state: TelnetParseState,
     work_offset: Option<[f64; 6]>,
     reported_axis_count: usize,
     active_coordinate_system: CoordinateSystem,
@@ -135,6 +141,15 @@ struct Session {
     /// Last progress reported while a program was streaming. Used as the
     /// forward-only floor for the next search; cleared when no program runs.
     last_progress: Option<ToolpathProgress>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TelnetParseState {
+    Data,
+    Iac,
+    Negotiation(u8),
+    Subnegotiation,
+    SubnegotiationIac,
 }
 
 fn device_id_host(id: &str) -> Option<std::net::Ipv4Addr> {
@@ -177,6 +192,10 @@ fn disconnected_status() -> MachineStatus {
         jog_rate: 0.0,
         motion_mode: None,
         max_spindle_rpm: 0.0,
+        probe_triggered: false,
+        probe_position: None,
+        selected_tool: None,
+        current_tool: None,
         loaded_program: None,
         current_line: 0,
         total_lines: 0,
@@ -190,6 +209,7 @@ fn disconnected_status() -> MachineStatus {
 /// Asynchronous FluidNC WebSocket CNC adapter.
 pub struct FluidNcWebSocketAdapter {
     url: Option<String>,
+    telnet_endpoint: Option<String>,
     discovery_enabled: bool,
     config: FluidNcWebSocketConfig,
     discovered_devices: Arc<RwLock<Vec<DiscoveredDevice>>>,

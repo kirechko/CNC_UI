@@ -35,9 +35,9 @@ use crate::ir::macro_ir::{MacroId, Value};
 use crate::macro_engine::runtime::{CancellationToken, HostRuntime, MacroLogLine, RunOutcome};
 
 pub use registry::{MacroRef, MacroRegistry};
-pub use runtime::{DryRunRuntime, EmitRuntime, MachineState, HostRuntime as HostRuntimeTrait};
-pub use safety::{SafetyReport, prestart as prestart_check};
-pub use triggers::{TriggerEvent, find_trigger};
+pub use runtime::{DryRunRuntime, EmitRuntime, HostRuntime as HostRuntimeTrait, MachineState};
+pub use safety::{prestart as prestart_check, SafetyReport};
+pub use triggers::{find_trigger, TriggerEvent};
 
 /// Cross-subsystem entry point the core and the transform engine call to run
 /// a registered macro by id (`MAC-T-02` / `TRF-M-02`).
@@ -72,8 +72,7 @@ pub struct Invoker<'a> {
     pub backend: crate::ir::capability::BackendType,
     /// Host-provided transform bridge: `(transform id, args) -> result`.
     /// `None` disables `Stmt::InvokeTransform` for this invoker.
-    pub transform:
-        Option<&'a mut dyn FnMut(&str, Vec<Value>) -> RosettaResult<Option<Value>>>,
+    pub transform: Option<&'a mut dyn FnMut(&str, Vec<Value>) -> RosettaResult<Option<Value>>>,
 }
 
 impl<'a> Invoker<'a> {
@@ -85,7 +84,12 @@ impl<'a> Invoker<'a> {
         backend: crate::ir::capability::BackendType,
         transform: Option<&'a mut dyn FnMut(&str, Vec<Value>) -> RosettaResult<Option<Value>>>,
     ) -> Self {
-        Invoker { registry, matrix, backend, transform }
+        Invoker {
+            registry,
+            matrix,
+            backend,
+            transform,
+        }
     }
 }
 

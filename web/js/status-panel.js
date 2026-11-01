@@ -23,6 +23,7 @@ export function createStatusPanel(app) {
   const connectionChip = document.querySelector(".connection-chip");
   const connectionDot = document.querySelector("#connection-dot");
   const state = document.querySelector("#state");
+  const connectionInfo = document.querySelector("#connection-info");
   const axisRowsContainer = document.querySelector("#axis-rows");
   const coordinateSystem = document.querySelector("#coordinate-system");
 
@@ -63,6 +64,28 @@ export function createStatusPanel(app) {
     telemetry.spindle.textContent = Number.isFinite(rpm) ? `${rpm.toFixed(0)}` : "—";
     telemetry.mist.classList.toggle("on", Boolean(status.mist_coolant));
     telemetry.flood.classList.toggle("on", Boolean(status.flood_coolant));
+  }
+
+  /**
+   * Displays the active controller identity and endpoint beside the connection chip.
+   * Clear the metadata on disconnect so a stale endpoint is never mistaken for live.
+   * @param {object|null|undefined} info - Active connection metadata from the backend.
+   * @param {boolean} connected - Whether the current status poll has a live link.
+   * @returns {void}
+   */
+  function updateConnectionInfo(info, connected) {
+    if (!connectionInfo) return;
+    if (!connected || !info) {
+      connectionInfo.textContent = "";
+      connectionInfo.title = "";
+      connectionInfo.hidden = true;
+      return;
+    }
+    const identity = info.machine_name || info.protocol || "CNC";
+    const details = [identity, info.transport, info.address].filter(Boolean);
+    connectionInfo.textContent = details.join(" · ");
+    connectionInfo.title = details.join(" — ");
+    connectionInfo.hidden = false;
   }
 
   let latestStatus = null;
@@ -136,6 +159,7 @@ export function createStatusPanel(app) {
       machineConnected = Boolean(status.connected);
       machineState = status.state || "DISCONNECTED";
       connection.textContent = machineConnected ? t("ui.connected") : t("ui.noLink");
+      updateConnectionInfo(status.connection_info, machineConnected);
       app.clock.update(status);
       connectionDot.classList.toggle("online", machineConnected);
       connectionDot.classList.toggle("offline", !machineConnected);
@@ -245,6 +269,7 @@ export function createStatusPanel(app) {
       machineConnected = false;
       app.scene.clearTool();
       connection.textContent = t("ui.connectionError");
+      updateConnectionInfo(null, false);
       connectionDot.classList.remove("online");
       connectionDot.classList.add("offline");
       connectionChip.classList.remove("connection-online");

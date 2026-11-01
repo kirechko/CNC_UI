@@ -27,6 +27,7 @@ mod spindle;
 mod tracking;
 mod worker;
 
+pub use queue::ControllerHandle;
 pub use snapshot::{ControllerSnapshot, SpindleDirection};
 
 use crate::cnc_api::{Axis, CncApi, CoordinateSystem, SpindleCommand};
@@ -39,7 +40,7 @@ use std::sync::{atomic::AtomicBool, mpsc, Arc, Mutex};
 /// block until the machine answers; everything else is fire-and-forget.
 #[derive(Debug)]
 enum Command {
-    LoadProgram(PathBuf),
+    LoadProgram(PathBuf, mpsc::Sender<crate::cnc_api::CncResult<()>>),
     ProgramRun,
     ProgramPause,
     ProgramResume,

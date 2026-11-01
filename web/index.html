@@ -51,6 +51,7 @@
           <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
           <span id="connection" data-i18n="ui.connecting">Connecting…</span>
         </button>
+        <span class="header-connection-info" id="connection-info" aria-live="polite"></span>
         <div class="machine-chip header-state" id="state">—</div>
         <button class="header-settings-button" id="ui-settings-button" type="button" aria-haspopup="dialog" aria-controls="ui-settings-dialog" data-i18n-title="html.settings.title" data-i18n-aria-label="html.settings.title" title="Interface settings" aria-label="Interface settings">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -526,6 +527,20 @@
 
               <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
 
+              <!-- Rosetta capability check (T26 §3.4): scans the loaded program
+                   against the connected backend and offers the preview dialog
+                   when automatic resolutions exist. -->
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.rosettaGroup" aria-label="Program analysis">
+                <button class="toolbar-button toolbar-icon-button" id="validate-program" type="button" data-i18n-aria-label="html.viewer.validateAria" data-i18n-title="html.viewer.validateTitle" aria-label="Validate program for the connected controller" title="Validate program for the connected controller">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3 4 6v6c0 4.4 3.2 7.9 8 9 4.8-1.1 8-4.6 8-9V6l-8-3Z"></path>
+                    <path d="m9 12 2 2 4-4.5"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
+
               <input id="stock-file" type="file" accept=".stl,.obj,.json,model/stl,model/obj,application/json" hidden>
               <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.stockGroup" aria-label="Stock">
                 <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" data-i18n-aria-label="html.viewer.stockToggle" data-i18n-title="html.viewer.stockToggle" aria-label="Show/hide stock" title="Show/hide stock" aria-pressed="true">
@@ -624,14 +639,30 @@
           </div>
           <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
             <div id="files-panel" class="sidebar-panel" role="region" aria-label="Files"></div>
-            <!-- Compact macro list: each row shows only the name; the description is surfaced
-                 as a tooltip hint (tooltips.js renders `title` as a styled bubble). A single
-                 button per row opens the large dialog editor defined further below. -->
+            <!-- The macro panel separates quick-run button assignments from the editable macro list. -->
             <section id="macros-panel" class="sidebar-panel macros-panel" role="region" aria-label="Macros" hidden>
               <div class="macros-toolbar">
                 <span class="macros-count" id="macros-count" aria-live="polite"></span>
                 <button class="macros-add-button" id="macro-add" type="button" data-i18n="macros.add" data-i18n-title="macros.addTitle" title="Add macro">Add macro</button>
               </div>
+              <section class="macro-buttons-section" aria-labelledby="macro-buttons-title">
+                <div class="macro-buttons-heading">
+                  <strong id="macro-buttons-title" data-i18n="macros.buttons.title">Macro buttons</strong>
+                  <button class="macro-button-add" id="macro-button-add" type="button" data-i18n="macros.buttons.add" data-i18n-title="macros.buttons.addTitle" title="Add a macro button">Add button</button>
+                </div>
+                <div class="macro-buttons-list" id="macro-buttons-list" role="list" aria-live="polite"></div>
+              </section>
+              <dialog class="macro-button-picker" id="macro-button-picker" aria-labelledby="macro-button-picker-title">
+                <form method="dialog" id="macro-button-picker-form">
+                  <h2 id="macro-button-picker-title" data-i18n="macros.buttons.chooseTitle">Choose a macro</h2>
+                  <label for="macro-button-picker-select" data-i18n="macros.buttons.choosePrompt">Select a macro to add:</label>
+                  <select id="macro-button-picker-select" required></select>
+                  <div class="macro-button-picker-actions">
+                    <button type="submit" value="cancel" data-i18n="common.cancel">Cancel</button>
+                    <button type="submit" value="add" class="primary" data-i18n="macros.buttons.add">Add button</button>
+                  </div>
+                </form>
+              </dialog>
               <div class="macro-list" id="macro-list" role="list" aria-live="polite"></div>
               <div class="macro-status" id="macro-status" role="status" aria-live="polite"></div>
             </section>
@@ -881,6 +912,58 @@
           <button type="button" id="message-log-text-close" data-i18n="common.close" data-i18n-title="common.closeDialogTitle" title="Close the dialog">Close</button>
         </div>
         <textarea id="message-log-text" readonly data-i18n-title="html.log.textTitle" data-i18n-aria-label="html.log.textAria" title="Current log page" aria-label="Text of the current log page"></textarea>
+      </section>
+    </dialog>
+
+    <!-- Rosetta macro runner (T26): appears from the ▶ button of every macro
+         row. Dry-run is checked by default per ТЗ №2 §9.4; the live log tails
+         GET /api/macros/run/{id} every second while the run is active. -->
+    <dialog class="macro-run-dialog" id="macro-run-dialog" aria-labelledby="macro-run-title">
+      <section class="macro-run-content">
+        <div class="macro-run-heading">
+          <h2 id="macro-run-title" data-i18n="macros.run.title">Run macro</h2>
+          <button type="button" id="macro-run-close" data-i18n="common.close" data-i18n-title="common.closeDialogTitle" title="Close the dialog">Close</button>
+        </div>
+        <p class="macro-run-subtitle" id="macro-run-macro">—</p>
+        <label class="macro-run-field"><input type="checkbox" id="macro-run-dry" checked data-i18n-title="macros.run.dryTitle" title="Record motion commands without moving the machine">
+          <span data-i18n="macros.run.dry">Dry run (no motion)</span></label>
+        <div class="macro-run-actions">
+          <button type="button" id="macro-run-start" class="primary" data-i18n="macros.run.start" data-i18n-title="macros.run.startTitle" title="Start the macro run">Run</button>
+          <button type="button" id="macro-run-cancel" data-i18n="macros.run.stop" data-i18n-title="macros.run.stopTitle" title="Cancel the running macro" disabled>Stop</button>
+          <span class="macro-run-state" id="macro-run-state" role="status" aria-live="polite"></span>
+        </div>
+        <div class="macro-run-log" id="macro-run-log" role="log" aria-live="polite"></div>
+        <p class="macro-run-error" id="macro-run-error" role="alert" hidden></p>
+      </section>
+    </dialog>
+
+    <!-- Rosetta transform preview (T26 §3.3): the «was / became» diff with
+         the plan trace; Apply re-runs the gated pipeline and reloads the
+         program, Cancel leaves the buffer untouched. -->
+    <dialog class="transform-dialog" id="transform-dialog" aria-labelledby="transform-title">
+      <section class="transform-content">
+        <div class="transform-heading">
+          <h2 id="transform-title" data-i18n="transform.title">Adapt program for the controller</h2>
+          <button type="button" id="transform-close" data-i18n="common.close" data-i18n-title="common.closeDialogTitle" title="Close the dialog">Close</button>
+        </div>
+        <p class="transform-summary" id="transform-summary" role="status" aria-live="polite">—</p>
+        <div class="transform-diff">
+          <div class="transform-column">
+            <h3 data-i18n="transform.was">Original</h3>
+            <pre id="transform-source" class="transform-code"></pre>
+          </div>
+          <div class="transform-column">
+            <h3 data-i18n="transform.became">Becomes</h3>
+            <pre id="transform-output" class="transform-code"></pre>
+          </div>
+        </div>
+        <ul class="transform-traces" id="transform-traces"></ul>
+        <div class="transform-actions">
+          <button type="button" id="transform-apply" class="primary" data-i18n="transform.apply" data-i18n-title="transform.applyTitle" title="Apply the plan and reload the program">Apply</button>
+          <button type="button" id="transform-cancel" data-i18n="common.cancel" data-i18n-title="transform.cancelTitle" title="Keep the original program">Cancel</button>
+          <span class="transform-state" id="transform-state" role="status" aria-live="polite"></span>
+        </div>
+        <p class="transform-error" id="transform-error" role="alert" hidden></p>
       </section>
     </dialog>
 

@@ -1,19 +1,29 @@
 //! Pure validation and guard helpers: everything that decides whether an
-//! operation is supported by GRBL 1.1 or allowed by the current motion state.
-//! None of these functions touch the serial port.
+//! operation is supported by the GRBL line protocol (stock GRBL 1.1 or
+//! FluidNC firmware — task: FluidNC over COM port) or allowed by the current
+//! motion state. None of these functions touch the serial port.
 
-use super::GrblAdapter;
+use super::{GrblAdapter, SerialProtocol};
 use crate::{Axis, CncResult, ControllerError, CoordinateSystem};
 
 impl GrblAdapter {
-    /// GRBL 1.1 only moves linear X/Y/Z; rotary axes must be rejected early.
-    pub(super) fn ensure_supported_axis(axis: Axis) -> CncResult<()> {
+    /// Stock GRBL 1.1 only moves linear X/Y/Z, so rotary axes are rejected
+    /// early. FluidNC firmware drives up to six axes (X/Y/Z/A/B/C) and is
+    /// therefore checked family-first (task: FluidNC over a COM port): an A/B/C
+    /// jog on a serial FluidNC must reach the controller, on GRBL it must not.
+    pub(super) fn ensure_supported_axis(protocol: SerialProtocol, axis: Axis) -> CncResult<()> {
         match axis {
             Axis::X | Axis::Y | Axis::Z => Ok(()),
-            Axis::A | Axis::B | Axis::C => Err(ControllerError::new(
-                "unsupported_axis",
-                format!("GRBL 1.1 does not support the {axis:?} rotary axis"),
-            )),
+            Axis::A | Axis::B | Axis::C => {
+                if protocol == SerialProtocol::FluidNc {
+                    Ok(())
+                } else {
+                    Err(ControllerError::new(
+                        "unsupported_axis",
+                        format!("GRBL 1.1 does not support the {axis:?} rotary axis"),
+                    ))
+                }
+            }
         }
     }
 
@@ -167,10 +177,14 @@ impl GrblAdapter {
     }
 
     /// Validates the whole program before any line is sent: size limit plus
-    /// per-line [`Self::validate_command`], reporting the offending line.
-    /// `;` comments are stripped first so non-ASCII comment text never
-    /// reaches the controller.
-    pub(super) fn parse_program_lines(content: &str) -> CncResult<Vec<String>> {
+    /// per-line [`Self::validate_command_with_limit`] under the target
+    /// firmware's line budget (GRBL 80 / FluidNC 250 bytes), reporting the
+    /// offending line. `;` comments are stripped first so non-ASCII comment
+    /// text never reaches the controller.
+    pub(super) fn parse_program_lines(
+        content: &str,
+        protocol: SerialProtocol,
+    ) -> CncResult<Vec<String>> {
         if content.len() > super::MAX_PROGRAM_BYTES {
             return Err(ControllerError::new(
                 "bad_program",
@@ -189,16 +203,18 @@ impl GrblAdapter {
                 continue;
             }
 
-            Self::validate_command(line).map_err(|error| {
-                ControllerError::new(
-                    "bad_program",
-                    format!(
-                        "invalid GRBL program line {}: {}",
-                        line_index + 1,
-                        error.message
-                    ),
-                )
-            })?;
+            Self::validate_command_with_limit(line, protocol.max_command_length()).map_err(
+                |error| {
+                    ControllerError::new(
+                        "bad_program",
+                        format!(
+                            "invalid GRBL program line {}: {}",
+                            line_index + 1,
+                            error.message
+                        ),
+                    )
+                },
+            )?;
             lines.push(line.to_owned());
         }
 

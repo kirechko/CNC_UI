@@ -18,6 +18,9 @@ impl GrblAdapter {
     pub(super) async fn reset_after_command_cancellation(session: &mut Session) -> CncResult<()> {
         session.protocol_poisoned = true;
         session.program_streaming = false;
+        // Same reason as in `program_abort`: the reset discards any unacked
+        // planner block, so its future reply must not be awaited.
+        session.pending_ack = None;
         session.continuous_jog = None;
         session.jog_chunk_active = false;
         session.current_line = 0;
@@ -101,9 +104,12 @@ impl GrblAdapter {
         Ok(())
     }
 
-    /// Rejects anything GRBL cannot accept on a single line: newlines,
-    /// non-printable bytes or overly long commands.
-    pub(super) fn validate_command(command: &str) -> CncResult<()> {
+    /// Rejects anything the GRBL line protocol cannot accept on a single
+    /// line: newlines or non-printable bytes. The per-family length limit is
+    /// checked separately by [`Self::validate_command`] (and enforced by
+    /// [`Self::send_command_with_timeout`]) because FluidNC accepts longer
+    /// lines than GRBL (task: FluidNC over COM port).
+    fn validate_command_syntax(command: &str) -> CncResult<()> {
         if command.contains(['\n', '\r']) {
             return Err(ControllerError::new(
                 "bad_command",
@@ -116,15 +122,27 @@ impl GrblAdapter {
                 "GRBL commands must contain printable ASCII characters only",
             ));
         }
+        Ok(())
+    }
 
+    /// Syntax + family-specific length validation of one command line.
+    /// [`Self::validate_command_with_limit`] applies the default GRBL limit;
+    /// the write path re-checks against the session's firmware family.
+    pub(super) fn validate_command(command: &str) -> CncResult<()> {
+        Self::validate_command_with_limit(command, super::MAX_COMMAND_LENGTH)
+    }
+
+    /// [`Self::validate_command`] with an explicit line-length budget, used
+    /// for FluidNC lines (250 bytes vs GRBL's 80). `pub(super)` so the
+    /// program loader in `guards.rs` validates lines under the same family
+    /// limit the write path enforces.
+    pub(super) fn validate_command_with_limit(command: &str, max_len: usize) -> CncResult<()> {
+        Self::validate_command_syntax(command)?;
         let command = command.trim();
-        if command.len() > super::MAX_COMMAND_LENGTH {
+        if command.len() > max_len {
             return Err(ControllerError::new(
                 "bad_command",
-                format!(
-                    "GRBL command exceeds the {}-byte line limit",
-                    super::MAX_COMMAND_LENGTH
-                ),
+                format!("command exceeds the {max_len}-byte line limit"),
             ));
         }
 
@@ -156,7 +174,9 @@ impl GrblAdapter {
             Self::run_startup_handshake(session).await;
         }
         Self::ensure_protocol_usable(session.protocol_poisoned)?;
-        Self::validate_command(command)?;
+        // The line-length budget is family-specific: GRBL caps at 80 bytes,
+        // FluidNC at 250 (task: FluidNC over COM port).
+        Self::validate_command_with_limit(command, session.protocol.max_command_length())?;
 
         if command.trim().is_empty() {
             return Ok(());

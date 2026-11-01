@@ -1,11 +1,11 @@
-//! Implements the CNC API client using a persistent Unix-socket connection.
+//! Implements the CNC API client using a persistent TCP connection.
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 
@@ -31,13 +31,13 @@ struct RemoteError {
 }
 
 struct ApiConnection {
-    reader: BufReader<UnixStream>,
+    reader: BufReader<TcpStream>,
 }
 
-/// Emulator adapter: maps the shared CNC API onto requests sent over a Unix socket.
+/// Emulator adapter: maps the shared CNC API onto requests sent over TCP.
 /// Uses the emulator's own JSON protocol rather than NML.
 pub struct EmAdapter {
-    socket_path: PathBuf,
+    address: String,
     timeout: Duration,
     connection: Mutex<Option<ApiConnection>>,
     /// Parsed toolpath of the last successfully loaded program, used to report progress.
@@ -45,27 +45,26 @@ pub struct EmAdapter {
 }
 
 impl EmAdapter {
-    /// Creates an adapter for the emulator socket at `path`; the connection is opened lazily.
-    pub fn connect(path: impl AsRef<Path>) -> CncResult<Self> {
-        let path = path.as_ref().to_path_buf();
+    /// Creates an adapter for the emulator TCP endpoint; the connection is opened lazily.
+    pub fn connect(address: impl Into<String>) -> CncResult<Self> {
         Ok(Self {
-            socket_path: path,
+            address: address.into(),
             timeout: Duration::from_secs(3),
             connection: Mutex::new(None),
             toolpath: Mutex::new(Toolpath::default()),
         })
     }
 
-    #[allow(dead_code)]
-    pub fn socket_path(&self) -> &Path {
-        &self.socket_path
+    /// Returns the configured emulator TCP endpoint in `host:port` form.
+    pub fn address(&self) -> &str {
+        &self.address
     }
 
     async fn call(&self, method: &str, args: Value) -> CncResult<Value> {
         let mut slot = self.connection.lock().await;
 
         if slot.is_none() {
-            let stream = timeout(self.timeout, UnixStream::connect(&self.socket_path))
+            let stream = timeout(self.timeout, TcpStream::connect(&self.address))
                 .await
                 .map_err(|_| ControllerError::new("timeout", "timed out connecting to emulator"))?
                 .map_err(|error| ControllerError::new("connect", error.to_string()))?;
@@ -159,15 +158,9 @@ impl CncApi for EmAdapter {
         Ok(status)
     }
 
-    /// Stable identifier of the emulator socket this adapter targets. It must
-    /// match the id minted by the web-server machine probe
-    /// (`emulator:unix_socket:<path>`), so the UI can highlight the emulator
-    /// row of the machines dialog exactly like a FluidNC row.
+    /// Stable identifier of the emulator TCP endpoint, shared with the web-server probe.
     fn connected_device_id(&self) -> Option<String> {
-        Some(format!(
-            "emulator:unix_socket:{}",
-            self.socket_path.display()
-        ))
+        Some(format!("emulator:tcp_socket:{}", self.address))
     }
 
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {

@@ -9,7 +9,8 @@
 //! credentials are cached for the origin.
 //!
 //! Configuration (environment variables, read once at startup by
-//! [`auth_settings`]):
+//! [`auth_settings`]); deployments can set the variables in their service environment
+//! or exported shell before launching the web binary:
 //!
 //! * `CNC_UI_AUTH` — `off`/`none`/`0` disables the check even when
 //!   credentials are configured; `on`/`1` forces it on. Absent/other values
@@ -78,28 +79,15 @@ const BASE64_ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu
 /// look-alike characters `0`/`O` and `1`/`l`/`I` are dropped for readability.
 const PASSWORD_ALPHABET: &[u8] = b"abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/// Generates 24 random alphanumeric characters from the OS entropy source.
+/// Generates 24 random alphanumeric characters using the platform OS entropy source.
 ///
 /// Used as a fallback password when auth is forced on without a configured
-/// password; the operator reads it from the startup log. Falls back to a
-/// time-derived filler only if `/dev/urandom` cannot be read (never on the
-/// supported Linux targets).
+/// password; the operator reads it from the startup log.
 fn random_password() -> String {
-    use std::io::Read;
+    use rand::RngCore;
 
     let mut bytes = [0_u8; 24];
-    let filled = std::fs::File::open("/dev/urandom")
-        .and_then(|mut file| file.read_exact(&mut bytes))
-        .is_ok();
-    if !filled {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|value| value.subsec_nanos())
-            .unwrap_or(0x5EED_u32);
-        for (index, byte) in bytes.iter_mut().enumerate() {
-            *byte = (nanos >> (index % 24)) as u8;
-        }
-    }
+    rand::thread_rng().fill_bytes(&mut bytes);
     bytes
         .iter()
         .map(|byte| PASSWORD_ALPHABET[(*byte as usize) % PASSWORD_ALPHABET.len()] as char)
@@ -272,8 +260,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
         let (longer, shorter) = if a.len() > b.len() { (a, b) } else { (b, a) };
         let mut diff = (longer.len() ^ shorter.len()) as u8;
         for (index, byte) in longer.iter().enumerate() {
-            diff |= byte
-                .wrapping_add(0)
+            diff |= byte.wrapping_add(0)
                 ^ shorter
                     .get(index % shorter.len().max(1))
                     .copied()
@@ -390,12 +377,9 @@ mod tests {
 
     #[test]
     fn explicit_off_flag_disables_auth() {
-        let (mode, _) = resolve_mode(
-            Some("off"),
-            Some("operator"),
-            Some("secret"),
-            || "generated".to_string(),
-        );
+        let (mode, _) = resolve_mode(Some("off"), Some("operator"), Some("secret"), || {
+            "generated".to_string()
+        });
         assert_eq!(mode, AuthMode::Disabled);
     }
 

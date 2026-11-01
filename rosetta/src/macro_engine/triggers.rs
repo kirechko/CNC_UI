@@ -51,7 +51,10 @@ mod tests {
 
     #[test]
     fn hotkey_matching_is_exact_and_case_sensitive() {
-        let triggers = vec![Trigger::Hotkey { keys: "Ctrl+Shift+Z".into(), require_confirm: true }];
+        let triggers = vec![Trigger::Hotkey {
+            keys: "Ctrl+Shift+Z".into(),
+            require_confirm: true,
+        }];
         assert!(find_trigger(&triggers, &TriggerEvent::Hotkey("Ctrl+Shift+Z".into())).is_some());
         assert!(find_trigger(&triggers, &TriggerEvent::Hotkey("ctrl+shift+z".into())).is_none());
         let found = find_trigger(&triggers, &TriggerEvent::Hotkey("Ctrl+Shift+Z".into())).unwrap();
@@ -61,8 +64,14 @@ mod tests {
     #[test]
     fn mcode_and_event_triggers_route_correctly() {
         let triggers = vec![
-            Trigger::MCode { code: 6, require_confirm: true },
-            Trigger::Event { name: "on_homed".into(), require_confirm: false },
+            Trigger::MCode {
+                code: 6,
+                require_confirm: true,
+            },
+            Trigger::Event {
+                name: "on_homed".into(),
+                require_confirm: false,
+            },
         ];
         assert!(matches!(
             find_trigger(&triggers, &TriggerEvent::MCode(6)),

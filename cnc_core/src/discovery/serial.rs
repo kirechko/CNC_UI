@@ -12,16 +12,17 @@
 //! Task: the same pass also recognizes **FluidNC on a COM port** (ESP32
 //! controllers plugged in over USB show up as `ttyUSB*`/`ttyACM*`). FluidNC
 //! speaks the GRBL-shaped realtime protocol, so recognition relies on its
-//! unmistakable text: the boot banner (`[Boot:FluidNC …]`) and the `$I`
-//! identity reply (`[VER:FluidNC v…]`) that the scanner requests once per
-//! port. When the captured banner also carries the controller's Wi-Fi
-//! address (`…IP:192.168.1.42]`), the device is registered under its
-//! *network* identity — `fluidnc:WebSocket:<ip>:80` — so selecting it in the
-//! machines dialog reuses the fully implemented WebSocket control path. A
-//! serial FluidNC without a discoverable IP is still listed (id
-//! `fluidnc:serial:<port>`) so the operator sees the machine; the adapter
-//! factory reports a clear error if it is selected, because serial control
-//! of FluidNC is not implemented.
+//! unmistakable text: the boot banner (`[Boot:FluidNC …]`), the `$I`
+//! identity reply (`[VER:FluidNC v…]`, `[MSG:Machine:…]`) the scanner
+//! requests once per port, and the Wi-Fi address the banner exposes
+//! (`…IP:192.168.1.42]`) — captured here only as informational metadata.
+//!
+//! A confirmed FluidNC port is registered under the *serial* identity
+//! `fluidnc:serial:<basename>` (task: FluidNC must be controllable over the
+//! COM port): the adapter factory opens it with the GRBL-family serial
+//! driver in FluidNC mode, so jog/status/program work entirely over the
+//! cable. The network scan lists the Wi-Fi row (`fluidnc:WebSocket:…`)
+//! separately; the machines dialog groups both under one machine header.
 //!
 //! Anything else (plain UARTs, GPS NMEA streams, silent adapters) fails the
 //! probe and is not listed. Firmware versions older than GRBL 1.x are
@@ -158,14 +159,21 @@ pub fn fluidnc_banner_version(line: &str) -> Option<String> {
     (!version.is_empty()).then(|| version.to_string())
 }
 
-/// Builds the informational serial FluidNC record (no network identity).
-fn fluidnc_serial_device(port_path: &str, version: Option<String>) -> DiscoveredDevice {
+/// Builds the serial FluidNC record: the row the machines dialog selects to
+/// control the controller over the COM port (task: FluidNC must be usable via
+/// serial). `machine_name` comes from the `[MSG:Machine:…]` identity line so
+/// grouping under the multi-interface header matches the network row.
+fn fluidnc_serial_device(
+    port_path: &str,
+    version: Option<String>,
+    machine_name: Option<String>,
+) -> DiscoveredDevice {
     let full_path =
         std::fs::canonicalize(port_path).unwrap_or_else(|_| Path::new(port_path).to_path_buf());
     DiscoveredDevice {
         id: fluidnc_serial_device_id(port_path),
         protocol: "FluidNC".into(),
-        machine_name: None,
+        machine_name,
         version,
         transport: DiscoveryTransport::Serial,
         endpoint: full_path.to_string_lossy().into_owned(),
@@ -258,9 +266,12 @@ fn list_serial_candidates() -> Vec<String> {
 }
 
 /// Blocking single-port GRBL/FluidNC probe (runs on `spawn_blocking`).
-/// Returns the discovery record when a supported controller proved itself;
-/// `None` for empty, busy, chatty or non-1.x ports.
-fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice> {
+/// Returns every discovery record a confirmed controller produces: GRBL and
+/// unrecognized ports yield none; a serial FluidNC yields its controllable
+/// `fluidnc:serial:<port>` row plus — when the banner exposes a Wi-Fi address
+/// — the `fluidnc:WebSocket:…` row for the same machine (the machines dialog
+/// groups both variants under one header).
+fn probe_grbl_port_sync(port_path: String, baud: u32) -> Vec<DiscoveredDevice> {
     // The probe holds the port only for the deadline window; a port owned by
     // a live adapter session fails the open (or resets the board) and is
     // pre-excluded by the caller via the serial device ids.
@@ -271,9 +282,13 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
         .open_native()
     {
         Ok(port) => port,
-        // A port held by another process (or a permission error) simply is
-        // not a confirmed machine for this scan pass.
-        Err(_) => return None,
+        // Make inaccessible candidate ports visible in logs. In particular,
+        // Linux commonly exposes `/dev/ttyACM*` as `root:dialout` with mode 0660;
+        // the scanner cannot identify FluidNC until the backend user can open it.
+        Err(error) => {
+            tracing::warn!(port = %port_path, %error, "cannot open serial discovery candidate");
+            return Vec::new();
+        }
     };
     // Drop whatever was buffered before we connected; it is not an answer
     // to our ping.
@@ -285,6 +300,10 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
     let mut chunk = [0_u8; 256];
     let mut pings = 0_u32;
     let mut status_seen = false;
+    // A GRBL-shaped boot banner is tentative until `$I` identity has a chance
+    // to answer: some FluidNC builds print that banner before `[VER:FluidNC]`.
+    let mut grbl_version: Option<String> = None;
+    let mut unsupported_grbl_banner = false;
     // FluidNC state captured while streaming (task: COM-port FluidNC
     // detection). Any `[VER:FluidNC…]`/`[Boot:FluidNC…]` line marks the
     // controller; the version is best-effort.
@@ -297,9 +316,13 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
         // open still reveals itself here. The first ping additionally
         // requests the `$I` identity, which FluidNC answers with the
         // `[VER:FluidNC …]` banner GRBL rejects with a plain error.
-        let request = if pings == 0 { b"?\n$I\n".as_slice() } else { b"?".as_slice() };
+        let request = if pings == 0 {
+            b"?\n$I\n".as_slice()
+        } else {
+            b"?".as_slice()
+        };
         if port.write_all(request).and_then(|_| port.flush()).is_err() {
-            return None;
+            return Vec::new();
         }
         pings += 1;
 
@@ -314,7 +337,7 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
         }
         if buffer.len() > SERIAL_PROBE_MAX_BUFFER {
             // Chatty non-controller device; stop collecting and bail out.
-            return None;
+            return Vec::new();
         }
         if collected.len() > SERIAL_PROBE_MAX_BUFFER {
             // Trim the banner memory to the newest half; old text was already
@@ -332,15 +355,16 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
                 .to_string();
 
             if let Some(version) = parse_banner_version(&line) {
-                if !is_supported_grbl_version(Some(&version)) {
+                if is_supported_grbl_version(Some(&version)) {
+                    grbl_version = Some(version);
+                } else {
+                    unsupported_grbl_banner = true;
                     tracing::warn!(
                         port = %port_path,
                         version = %version,
-                        "skipping serial port: GRBL firmware older than 1.x is not supported"
+                        "serial boot banner is older than supported GRBL; continuing to check for FluidNC identity"
                     );
-                    return None;
                 }
-                return Some(grbl_serial_device(&port_path, Some(version)));
             }
             // FluidNC identity/boot banner: unmistakable, checked before the
             // ambiguous status line because FluidNC shares the GRBL status
@@ -353,25 +377,30 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
                     fluidnc_seen = true;
                 }
             }
-            // Once the identity appeared, convert it into a device record:
-            // prefer the network identity when the banner exposes an IP, so
-            // selecting the machine reuses the full FluidNC control path over
-            // WebSocket. Without an IP the serial record still lists the
-            // machine for visibility.
+            // Once the identity appeared, publish the controllable serial row
+            // (task: FluidNC must work over the COM port). When the banner
+            // also exposes a Wi-Fi address, add the network variant of the
+            // same machine so both interfaces appear grouped in the dialog.
             if fluidnc_seen {
                 let identity_text = String::from_utf8_lossy(&collected).into_owned();
-                return Some(match extract_fluidnc_ipv4(&identity_text) {
-                    Some(address) => DiscoveredDevice::fluidnc(
+                let machine_name = machine_name_of(&identity_text);
+                let mut devices = vec![fluidnc_serial_device(
+                    &port_path,
+                    fluidnc_version.clone(),
+                    machine_name.clone(),
+                )];
+                if let Some(address) = extract_fluidnc_ipv4(&identity_text) {
+                    devices.push(DiscoveredDevice::fluidnc(
                         address,
                         super::DEFAULT_FLUIDNC_WEBSOCKET_PORT,
                         DiscoveryTransport::WebSocket,
                         FluidNcIdentity {
                             version: fluidnc_version.clone(),
-                            machine_name: machine_name_of(&identity_text),
+                            machine_name,
                         },
-                    ),
-                    None => fluidnc_serial_device(&port_path, fluidnc_version.clone()),
-                });
+                    ));
+                }
+                return devices;
             }
             // A pipe-separated `<...|...>` report is the 1.x status grammar.
             if line.starts_with('<') && line.ends_with('>') && line.contains('|') {
@@ -379,20 +408,26 @@ fn probe_grbl_port_sync(port_path: String, baud: u32) -> Option<DiscoveredDevice
             }
         }
 
-        // Two answered pings are enough to trust the status-only detection
-        // without burning the whole deadline on silent-but-opened ports.
-        if status_seen && pings >= 2 {
-            break;
-        }
+        // Do not early-return on the GRBL-shaped banner or status report. Wait
+        // through the bounded probe window so FluidNC's `$I` identity response
+        // can override the tentative GRBL classification.
     }
 
-    status_seen.then(|| grbl_serial_device(&port_path, None))
+    if grbl_version.is_some() || (status_seen && !unsupported_grbl_banner) {
+        tracing::debug!(port = %port_path, ?grbl_version, "serial controller identified as GRBL");
+        return vec![grbl_serial_device(&port_path, grbl_version)];
+    }
+    tracing::debug!(port = %port_path, "serial discovery probe found no supported controller identity");
+    Vec::new()
 }
 
 /// Extracts the `[MSG:Machine:<name>]` value from a captured banner stream.
 fn machine_name_of(text: &str) -> Option<String> {
     text.lines().find_map(|line| {
-        let value = line.trim().strip_prefix("[MSG:Machine:")?.strip_suffix(']')?;
+        let value = line
+            .trim()
+            .strip_prefix("[MSG:Machine:")?
+            .strip_suffix(']')?;
         (!value.trim().is_empty()).then(|| value.trim().to_string())
     })
 }
@@ -425,7 +460,9 @@ pub async fn discover_grbl_stream(
     );
 
     tokio::spawn(async move {
-        let mut set: JoinSet<Option<DiscoveredDevice>> = JoinSet::new();
+        // One probe may return several rows (serial FluidNC + its optional
+        // WebSocket twin), so the join payload is a vector, not an Option.
+        let mut set: JoinSet<Vec<DiscoveredDevice>> = JoinSet::new();
         let mut index = 0_usize;
 
         loop {
@@ -439,10 +476,11 @@ pub async fn discover_grbl_stream(
             }
             match set.join_next().await {
                 None => break,
-                Some(Ok(Some(device))) => {
-                    let _ = sender.send(device).await;
+                Some(Ok(devices)) => {
+                    for device in devices {
+                        let _ = sender.send(device).await;
+                    }
                 }
-                Some(Ok(None)) => {}
                 Some(Err(error)) => {
                     // A panicked probe thread must not abort the whole scan.
                     tracing::warn!(%error, "GRBL serial probe task failed");
@@ -467,6 +505,20 @@ pub async fn discover_grbl(excluded_ids: &[String]) -> CncResult<Vec<DiscoveredD
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ensures a GRBL-shaped boot line is not treated as FluidNC identity.
+    #[test]
+    fn grbl_boot_banner_remains_tentative_until_fluidnc_identity_is_checked() {
+        let banner = "Grbl 1.1h ['$' for help]";
+        let fluidnc_identity = "[VER:FluidNC@v1.3.11:Debug]";
+
+        assert_eq!(parse_banner_version(banner).as_deref(), Some("1.1h"));
+        assert_eq!(fluidnc_banner_version(banner), None);
+        assert_eq!(
+            fluidnc_banner_version(fluidnc_identity).as_deref(),
+            Some("1.3.11")
+        );
+    }
 
     #[test]
     fn banner_version_parses_the_firmware_token_only() {
@@ -506,7 +558,10 @@ mod tests {
             Some("192.168.1.42".parse().unwrap())
         );
         // No IP in the banner text: the serial record path must be used.
-        assert_eq!(extract_fluidnc_ipv4("[VER:FluidNC@v1.3.11:Debug]\nok\n"), None);
+        assert_eq!(
+            extract_fluidnc_ipv4("[VER:FluidNC@v1.3.11:Debug]\nok\n"),
+            None
+        );
     }
 
     #[test]

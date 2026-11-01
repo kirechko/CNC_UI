@@ -62,7 +62,14 @@ pub fn expand_program(
     // and is meaningless for pure expansion on this path).
     let mut emit = EmitRuntime::new();
     let cancel = CancellationToken::new();
-    let outcome = interpreter::run_macro(program, Vec::new(), &mut emit, &cancel, &mut |_| {}, &mut None)?;
+    let outcome = interpreter::run_macro(
+        program,
+        Vec::new(),
+        &mut emit,
+        &cancel,
+        &mut |_| {},
+        &mut None,
+    )?;
     match outcome {
         RunOutcome::Completed { .. } => Ok(emit.lines),
         RunOutcome::Aborted { reason } => Err(RosettaError::Validation {
@@ -109,8 +116,11 @@ mod tests {
                  body:\n  - !wait { cond: !status probe_trig }\n",
             )
             .unwrap();
-        let error = expand_program(&program, &CapabilityMatrix::new(), BackendType::Grbl).unwrap_err();
-        assert!(matches!(error, RosettaError::Capability { ref construct, .. } if construct == "WaitStatus"));
+        let error =
+            expand_program(&program, &CapabilityMatrix::new(), BackendType::Grbl).unwrap_err();
+        assert!(
+            matches!(error, RosettaError::Capability { ref construct, .. } if construct == "WaitStatus")
+        );
     }
 
     #[test]
@@ -121,7 +131,8 @@ mod tests {
                  body:\n  - !delay { ms: !num 500.0 }\n",
             )
             .unwrap();
-        let lines = expand_program(&program, &CapabilityMatrix::new(), BackendType::Emulator).unwrap();
+        let lines =
+            expand_program(&program, &CapabilityMatrix::new(), BackendType::Emulator).unwrap();
         assert_eq!(lines, vec!["G4 P500"]);
     }
 }

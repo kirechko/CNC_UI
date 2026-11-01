@@ -17,11 +17,11 @@ Web 服务器向网络上任何浏览器提供的同一套界面。它通过局�
 
 ```bash
 cargo run --bin cnc-emulator          # 读取 config/emulator.yaml
-cargo run --bin linuxcnc-ui           # 桌面窗口
+cargo run --bin cnc_ui           # 桌面窗口
 ```
 
-桌面应用通过本地套接字自动连接模拟器（`/tmp/linuxcnc-ui-emulator.sock`，可用
-`CNC_EMULATOR_SOCKET` 覆盖）。
+桌面应用通过 TCP 自动连接模拟器（默认 `127.0.0.1:8765`）。可通过
+`CNC_EMULATOR_ADDRESS` 为模拟器和 UI 配置相同的监听/连接地址。
 
 ### 1.2 Web 界面
 
@@ -36,8 +36,8 @@ cargo run --bin cnc-web               # 服务于 http://0.0.0.0:8080
 | `CNC_WEB_ADDRESS` | 绑定地址:端口 | `0.0.0.0:8080` |
 | `CNC_UI_AUTH_USER` + `CNC_UI_AUTH_PASSWORD` | 启用 HTTP Basic 认证 | 禁用 |
 | `CNC_UI_AUTH=on` / `off` | 强制开启（随机密码记录到日志）/ 显式关闭 | 自动 |
-| `CNC_UI_LOG_DB` | SQLite 数据库位置 | `~/.local/state/linuxcnc-ui/messages.sqlite3` |
-| `CNC_EMULATOR_SOCKET` | 模拟器套接字路径 | `/tmp/linuxcnc-ui-emulator.sock` |
+| `CNC_UI_LOG_DB` | SQLite 数据库位置 | `~/.local/state/cnc_ui/messages.sqlite3` |
+| `CNC_EMULATOR_ADDRESS` | 模拟器 TCP 地址 | `127.0.0.1:8765` |
 
 认证用一个用户名/密码保护整个 Web UI；浏览器在首个请求时弹出登录框。受信任
 的实验网络可不设置凭据，共享网络请务必设置。

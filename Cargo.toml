@@ -1,10 +1,19 @@
 [package]
-name = "linuxcnc-ui"
+name = "cnc_ui"
 version = "0.1.0"
 edition = "2021"
 
-default-run = "linuxcnc-ui"
+default-run = "cnc_ui"
 license = "GPL-3.0-or-later"
+
+[features]
+# Desktop uses Tauri; web and emulator are part of the same unified binary.
+default = ["desktop"]
+desktop = ["dep:tauri"]
+
+[[bin]]
+name = "cnc_ui"
+path = "src/main.rs"
 
 [workspace]
 members = ["cnc_core", "rosetta"]
@@ -12,6 +21,10 @@ resolver = "2"
 
 [dependencies]
 cnc_core = { path = "cnc_core" }
+# Rosetta macro IR + engine + transform pipeline (T26 integration). Used only
+# through the thin `src/rosetta_host/` glue module; the crate itself stays
+# free of application types (dependency-light by design, see rosetta/Cargo.toml).
+rosetta = { path = "rosetta" }
 serde_yaml_ng = "0.10"
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
@@ -19,11 +32,11 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 axum = "0.7"
 async-stream = "0.3"
 futures-util = "0.3"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync", "signal"] }
 tower-http = { version = "0.5", features = ["fs"] }
-tauri = "2"
-# statvfs for the free-space line of the local FILES panel (Linux target).
-libc = "0.2"
+tauri = { version = "2", optional = true }
+rand = "0.8"
+fs2 = "0.4"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [build-dependencies]

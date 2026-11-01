@@ -37,6 +37,23 @@ pub(super) fn handle_g_word(emulator: &mut Emulator, value: f64) -> Result<GWord
         0..=3 => Ok(GWordAction::Motion(value as i32)),
         4 => Ok(GWordAction::Dwell),
         17 | 21 => Ok(GWordAction::Handled),
+        // Cutter compensation is never active in the emulator, so G40 (cancel)
+        // is a modal no-op; G41/G42 stay honest rejections below.
+        40 => Ok(GWordAction::Handled),
+        // Feed modes: the emulator always interprets F as mm/min, which is
+        // exactly G94, so it is accepted as the (already active) default.
+        // G93 (inverse time) and G95 (feed per revolution) would silently
+        // distort programmed speeds, so they are rejected explicitly —
+        // matching the "unsupported G-code" policy of the parser.
+        94 => Ok(GWordAction::Handled),
+        93 => Err(api_error(
+            "unsupported_gcode",
+            "G93 inverse time feed is not modeled; use G94 (mm/min)",
+        )),
+        95 => Err(api_error(
+            "unsupported_gcode",
+            "G95 feed per revolution is not modeled; use G94 (mm/min)",
+        )),
         54 => {
             emulator.select_coordinate_system_from_gcode(CoordinateSystem::G54);
             Ok(GWordAction::Handled)

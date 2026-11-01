@@ -49,7 +49,7 @@ fn database_path() -> PathBuf {
                         .map(|home| home.join(".local").join("state"))
                 })
                 .unwrap_or_else(std::env::temp_dir);
-            state_dir.join("linuxcnc-ui").join("messages.sqlite3")
+            state_dir.join("cnc_ui").join("messages.sqlite3")
         })
 }
 

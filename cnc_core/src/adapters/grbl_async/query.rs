@@ -89,6 +89,14 @@ impl GrblAdapter {
     /// protocol: a lost status reply does not desynchronize the ACK queue.
     /// The first call after [`GrblAdapter::connect`] runs the startup
     /// handshake because opening the port resets Arduino boards.
+    ///
+    /// While the loop drains wire lines it also *routes* command replies:
+    /// during program streaming the acknowledged line's `ok` / `error:` /
+    /// `ALARM:` arrives asynchronously relative to our `?` request, and the
+    /// non-blocking scheduler resolves it through [`PendingProgramAck::route`]
+    /// instead of discarding it. This is what lets one status poll serve both
+    /// telemetry and the stop-and-wait ACK handshake without ever blocking on
+    /// the (potentially seconds-long) planner ack.
     pub(super) async fn query_status(session: &mut Session) -> CncResult<String> {
         if session.handshake_pending {
             Self::run_startup_handshake(session).await;
@@ -116,6 +124,12 @@ impl GrblAdapter {
                 };
                 if line.starts_with('<') && line.ends_with('>') {
                     return Ok(line);
+                }
+                // Hand the command-reply lines to the streaming scheduler;
+                // everything else (banner, `[MSG:...]`, stale `ok` with no
+                // pending line) is discarded exactly as before.
+                if let Some(pending) = session.pending_ack.as_mut() {
+                    pending.route(&line);
                 }
             }
         })

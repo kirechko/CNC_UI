@@ -22,7 +22,38 @@ use std::{
 use tokio::sync::{broadcast, mpsc, watch, Mutex};
 use tokio_tungstenite::connect_async;
 
+/// Builds the cached WebSocket URL only for a confirmed/default WebSocket port.
+/// Telnet endpoints are deliberately rejected instead of being remapped to port 80.
+pub(super) fn cached_websocket_url(endpoint: &str) -> Option<String> {
+    let (host, port) = endpoint.rsplit_once(':')?;
+    if port.parse::<u16>().ok()? != FLUIDNC_PORT {
+        return None;
+    }
+    let address = host.parse::<std::net::Ipv4Addr>().ok()?;
+    Some(format!("ws://{address}:{FLUIDNC_PORT}/"))
+}
+
 impl FluidNcWebSocketAdapter {
+    /// Create a FluidNC adapter that controls the machine over its Telnet endpoint.
+    pub fn connect_telnet(endpoint: impl Into<String>) -> CncResult<Self> {
+        let endpoint = endpoint.into();
+        let (host, port) = endpoint.rsplit_once(':').ok_or_else(|| {
+            ControllerError::new("connect", "FluidNC Telnet endpoint must be host:port")
+        })?;
+        if host.is_empty() || port.parse::<u16>().ok().filter(|port| *port != 0).is_none() {
+            return Err(ControllerError::new(
+                "connect",
+                "FluidNC Telnet endpoint must contain a valid host and port",
+            ));
+        }
+        // The Telnet endpoint is pinned and handled before discovery in
+        // `ensure_connected`; discovery-enabled construction permits a missing
+        // WebSocket URL without enabling a WebSocket fallback for this adapter.
+        let mut adapter = Self::construct(None, FluidNcWebSocketConfig::default(), true)?;
+        adapter.telnet_endpoint = Some(endpoint);
+        Ok(adapter)
+    }
+
     /// Create a FluidNC adapter with the proposed default runtime settings.
     pub fn connect(url: impl Into<String>) -> CncResult<Self> {
         Self::connect_with_config(url, FluidNcWebSocketConfig::default())
@@ -92,6 +123,7 @@ impl FluidNcWebSocketAdapter {
         let (status_tx, _) = watch::channel(disconnected_status());
         Ok(Self {
             url,
+            telnet_endpoint: None,
             discovery_enabled,
             config,
             discovered_devices: Arc::new(RwLock::new(Vec::new())),
@@ -104,6 +136,7 @@ impl FluidNcWebSocketAdapter {
             session: Mutex::new(Session {
                 socket: None,
                 rx_buffer: Vec::new(),
+                telnet_parse_state: super::TelnetParseState::Data,
                 work_offset: None,
                 reported_axis_count: 3,
                 active_coordinate_system: CoordinateSystem::G54,
@@ -158,15 +191,18 @@ impl FluidNcWebSocketAdapter {
         let _ = self.events.send(CncEvent::StatusUpdate);
     }
 
-    /// Cached discovery table for the UI. Entries of the auto-selected host are
-    /// hidden (that machine is already attached), but verified cross-protocol
-    /// capabilities of the connected controller are shown instead of scan rows.
+    /// Cached discovery table for the UI. Only auto-selected WebSocket hosts are
+    /// hidden; explicit Telnet/serial selections must remain discoverable so the
+    /// operator can inspect or reselect their exact transport.
     pub fn discovered_devices(&self) -> Vec<DiscoveredDevice> {
-        let selected_host: Option<std::net::Ipv4Addr> = self
+        let selected_ws_host = self
             .selected_device_id
             .read()
             .ok()
-            .and_then(|id| id.as_deref().and_then(device_id_host));
+            .and_then(|id| id.clone())
+            .filter(|id| id.starts_with("fluidnc:WebSocket:"))
+            .as_deref()
+            .and_then(device_id_host);
         let mut devices: Vec<DiscoveredDevice> = self
             .discovered_devices
             .read()
@@ -180,7 +216,7 @@ impl FluidNcWebSocketAdapter {
                             .map_or(device.endpoint.as_str(), |(host, _)| host)
                             .parse::<std::net::Ipv4Addr>()
                             .ok();
-                        selected_host != device_host
+                        selected_ws_host != device_host
                     })
                     .cloned()
                     .collect()
@@ -206,12 +242,51 @@ impl FluidNcWebSocketAdapter {
             .and_then(|id| id.clone())
     }
 
-    /// Bring the socket up if it is down. Direct-URL adapters dial the fixed
+    /// Bring the selected transport up if it is down. Direct-URL adapters dial the fixed
     /// endpoint; discovery adapters first retry cached priority targets (fast
     /// path) and only then run a fresh scan, taking the first confirmed
     /// WebSocket. Auto-connected sessions are not re-dialed after a loss.
     pub(super) async fn ensure_connected(&self, session: &mut Session) -> CncResult<()> {
         if session.socket.is_some() {
+            return Ok(());
+        }
+
+        if let Some(endpoint) = &self.telnet_endpoint {
+            // Explicit transport selection is a pin: reconnect only to that
+            // Telnet endpoint, and never fall through to WebSocket discovery.
+            if self
+                .auto_connected
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                return Err(ControllerError::new(
+                    "disconnected",
+                    "FluidNC Telnet connection was lost; reconnect manually",
+                ));
+            }
+            let stream = tokio::time::timeout(
+                self.config.connect_timeout,
+                tokio::net::TcpStream::connect(endpoint),
+            )
+            .await
+            .map_err(|_| ControllerError::new("timeout", "timed out connecting to FluidNC Telnet"))?
+            .map_err(|error| ControllerError::new("connect", error.to_string()))?;
+            stream
+                .set_nodelay(true)
+                .map_err(|error| ControllerError::new("connect", error.to_string()))?;
+            session.socket = Some(super::FluidNcConnection::Telnet(stream));
+            session.rx_buffer.clear();
+            session.telnet_parse_state = super::TelnetParseState::Data;
+            let id = format!("fluidnc:Telnet:{endpoint}");
+            if let Ok(mut connected) = self.connected_device_id.write() {
+                *connected = Some(id.clone());
+            }
+            if let Ok(mut selected) = self.selected_device_id.write() {
+                *selected = Some(id);
+            }
+            self.auto_connected
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            tracing::info!(%endpoint, "connected to FluidNC over Telnet");
+            let _ = self.events.send(CncEvent::Connected);
             return Ok(());
         }
 
@@ -237,7 +312,7 @@ impl FluidNcWebSocketAdapter {
                         ControllerError::new("timeout", "timed out connecting to FluidNC")
                     })?
                     .map_err(|error| ControllerError::new("connect", error.to_string()))?;
-            session.socket = Some(socket);
+            session.socket = Some(super::FluidNcConnection::WebSocket(socket));
             tracing::info!(%url, "connected to configured FluidNC WebSocket");
             let _ = self.events.send(CncEvent::Connected);
             session.rx_buffer.clear();
@@ -250,21 +325,18 @@ impl FluidNcWebSocketAdapter {
             .map(|targets| targets.clone())
             .unwrap_or_default();
         for endpoint in &priority_targets {
-            let Some((host, port)) = endpoint.rsplit_once(':') else {
+            // The cached fast path is strictly WebSocket-only. A Telnet endpoint
+            // must never be silently redirected to TCP port 80.
+            let Some(url) = cached_websocket_url(endpoint) else {
                 continue;
             };
-            // Cached Telnet entries (port 23) identify the same FluidNC host, whose
-            // WebSocket is served on FLUIDNC_PORT, so they are valid fast-path hosts.
-            if !matches!(port.parse::<u16>().ok(), Some(p) if p == FLUIDNC_PORT || p == 23) {
-                continue;
-            }
-            let Ok(address) = host.parse::<std::net::Ipv4Addr>() else {
-                continue;
-            };
-            let url = format!("ws://{address}:{FLUIDNC_PORT}/");
+            let address = endpoint
+                .rsplit_once(':')
+                .and_then(|(host, _)| host.parse::<std::net::Ipv4Addr>().ok())
+                .expect("cached WebSocket URL validated its IPv4 host");
             match tokio::time::timeout(self.config.connect_timeout, connect_async(&url)).await {
                 Ok(Ok((socket, _))) => {
-                    session.socket = Some(socket);
+                    session.socket = Some(super::FluidNcConnection::WebSocket(socket));
                     self.auto_connected
                         .store(true, std::sync::atomic::Ordering::SeqCst);
                     let id = format!("fluidnc:WebSocket:{address}:{FLUIDNC_PORT}");
@@ -313,6 +385,45 @@ impl FluidNcWebSocketAdapter {
                     devices.push(device.clone());
                 }
             }
+            // Automatic discovery prefers Telnet when both transports identify
+            // the same controller. The machine is then controlled on the exact
+            // port that the Telnet probe verified, not silently rerouted to 80.
+            if device.transport == DiscoveryTransport::Telnet {
+                let endpoint = device.endpoint.clone();
+                tracing::info!(%endpoint, "connecting to first confirmed FluidNC Telnet endpoint");
+                match tokio::time::timeout(
+                    self.config.connect_timeout,
+                    tokio::net::TcpStream::connect(&endpoint),
+                )
+                .await
+                {
+                    Ok(Ok(stream)) => {
+                        let _ = stream.set_nodelay(true);
+                        session.socket = Some(super::FluidNcConnection::Telnet(stream));
+                        session.telnet_parse_state = super::TelnetParseState::Data;
+                        self.auto_connected
+                            .store(true, std::sync::atomic::Ordering::SeqCst);
+                        if let Ok(mut connected) = self.connected_device_id.write() {
+                            *connected = Some(device.id.clone());
+                        }
+                        if let Ok(mut selected) = self.selected_device_id.write() {
+                            *selected = Some(device.id.clone());
+                        }
+                        drop(discoveries);
+                        tracing::info!(%endpoint, "connected to first discovered FluidNC over Telnet");
+                        let _ = self.events.send(CncEvent::Connected);
+                        session.rx_buffer.clear();
+                        return Ok(());
+                    }
+                    Ok(Err(error)) => {
+                        tracing::warn!(%endpoint, %error, "failed to connect to discovered FluidNC Telnet; trying next match");
+                    }
+                    Err(_) => {
+                        tracing::warn!(%endpoint, "timed out connecting to discovered FluidNC Telnet; trying next match");
+                    }
+                }
+                continue;
+            }
             if device.transport != DiscoveryTransport::WebSocket {
                 continue;
             }
@@ -323,7 +434,7 @@ impl FluidNcWebSocketAdapter {
             tracing::info!(%url, "connecting to first confirmed FluidNC WebSocket");
             match tokio::time::timeout(self.config.connect_timeout, connect_async(&url)).await {
                 Ok(Ok((socket, _))) => {
-                    session.socket = Some(socket);
+                    session.socket = Some(super::FluidNcConnection::WebSocket(socket));
                     self.auto_connected
                         .store(true, std::sync::atomic::Ordering::SeqCst);
                     if let Ok(mut connected) = self.connected_device_id.write() {
@@ -350,7 +461,7 @@ impl FluidNcWebSocketAdapter {
         }
         Err(ControllerError::new(
             "discovery",
-            "no usable FluidNC WebSocket endpoint found on TCP port 80",
+            "no usable FluidNC Telnet or WebSocket endpoint found",
         ))
     }
 

@@ -17,7 +17,10 @@ fn get_status(state: State<'_, AppState>) -> Result<StatusResponse, String> {
         controller.get_status_snapshot()
     };
     state.record_status(&status);
-    let mut response = StatusResponse::from(status);
+    let connected_device_id = state.connected_machine_id();
+    let devices = state.machine_snapshot();
+    let mut response =
+        StatusResponse::from(status).with_connection_info(&devices, connected_device_id.as_deref());
     if let Ok(latest) = state.latest_log_messages() {
         response.latest_critical = latest.critical;
         response.latest_other = latest.other;
@@ -143,6 +146,81 @@ fn get_macros(state: State<'_, AppState>) -> Result<Vec<MacroDefinition>, String
 fn put_macros(state: State<'_, AppState>, macros: Vec<MacroDefinition>) -> Result<(), String> {
     crate::web_server::validate_macros(&macros, desktop_language())?;
     state.replace_macros(&macros)
+}
+
+/// Starts a Rosetta macro run on the desktop (T26): dry or live, positional
+/// args follow the HTTP body contract; the run id tails through
+/// `get_macro_run_status`.
+#[tauri::command]
+fn run_macro(
+    state: State<'_, AppState>,
+    id: String,
+    dry: bool,
+    args: Vec<serde_json::Value>,
+) -> Result<String, String> {
+    state.run_macro(&id, dry, crate::web_server::json_args_to_values(args))
+}
+
+/// Tails a Rosetta macro run (status + log lines from `from`).
+#[tauri::command]
+fn get_macro_run_status(
+    state: State<'_, AppState>,
+    run_id: String,
+    from: usize,
+) -> Result<crate::rosetta_host::run::RunStatus, String> {
+    state
+        .macro_run_status(&run_id, from)
+        .ok_or_else(|| format!("unknown macro run \"{run_id}\""))
+}
+
+/// Cancels a running Rosetta macro.
+#[tauri::command]
+fn cancel_macro_run(state: State<'_, AppState>, run_id: String) -> Result<(), String> {
+    if state.cancel_macro_run(&run_id) {
+        Ok(())
+    } else {
+        Err(format!("unknown macro run \"{run_id}\""))
+    }
+}
+
+/// Capability validation of the loaded program (or an explicit `content`).
+#[tauri::command]
+fn validate_program(
+    state: State<'_, AppState>,
+    content: Option<String>,
+) -> Result<crate::web_server::ValidationReport, String> {
+    let source = match content {
+        Some(text) => text,
+        None => state
+            .loaded_program_text()
+            .ok_or_else(|| "no program is loaded".to_string())?,
+    };
+    state.validate_program(&source)
+}
+
+/// Transform preview (plan + was/became artifact) for the loaded program.
+#[tauri::command]
+fn transform_preview(
+    state: State<'_, AppState>,
+    content: Option<String>,
+) -> Result<crate::web_server::PreviewReport, String> {
+    let source = match content {
+        Some(text) => text,
+        None => state
+            .loaded_program_text()
+            .ok_or_else(|| "no program is loaded".to_string())?,
+    };
+    state.preview_transform(&source)
+}
+
+/// Gated transform apply: runs the plan, reloads the program.
+#[tauri::command]
+fn transform_apply(
+    state: State<'_, AppState>,
+    plan: rosetta::transform::model::TransformPlan,
+    approved: bool,
+) -> Result<rosetta::transform::Artifact, String> {
+    state.apply_transform(&plan, approved)
 }
 
 #[tauri::command]
@@ -454,6 +532,12 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             get_program,
             get_macros,
             put_macros,
+            run_macro,
+            get_macro_run_status,
+            cancel_macro_run,
+            validate_program,
+            transform_preview,
+            transform_apply,
             load_program,
             start_program,
             pause_program,

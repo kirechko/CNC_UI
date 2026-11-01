@@ -15,7 +15,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # The `linuxcnc-ui` Tauri binary links WebKitGTK/GTK system libraries;
+      # The `cnc_ui` Tauri binary links WebKitGTK/GTK system libraries;
       # `cargo check --all-targets` fails without them (Tauri v2 prerequisites).
       - name: Install Linux prerequisites
         run: |
@@ -28,6 +28,26 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo files
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check all targets
+        run: cargo check --all-targets
+
+      - name: Run tests
+        run: cargo test --all-targets
+
+  check-and-test-windows:
+    name: Check and test on Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

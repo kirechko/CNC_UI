@@ -8,19 +8,29 @@ use crate::{
 };
 
 impl GrblAdapter {
-    /// Parses a comma-separated `X,Y,Z` triplet, rejecting extra components
-    /// and non-finite values.
-    pub(super) fn parse_triplet(value: &str) -> Option<[f64; 3]> {
-        let mut values = value.split(',').map(str::parse::<f64>);
-        let result = [
-            values.next()?.ok()?,
-            values.next()?.ok()?,
-            values.next()?.ok()?,
-        ];
-        if values.next().is_some() || result.iter().any(|value| !value.is_finite()) {
-            return None;
+    /// Parses a comma-separated position tuple `X,Y,Z[,A[,B[,C]]]` into a
+    /// six-slot array with the trailing axes zero-filled.
+    ///
+    /// Stock GRBL always reports exactly three components; FluidNC firmware —
+    /// which this same serial driver serves (task: FluidNC over COM port) —
+    /// reports one component per configured axis, up to six (X/Y/Z/A/B/C).
+    /// Tuples shorter than three or longer than six components, non-numeric
+    /// parts or non-finite values are rejected.
+    pub(super) fn parse_position_tuple(value: &str) -> Option<[f64; 6]> {
+        let mut result = [0.0_f64; 6];
+        let mut seen = 0_usize;
+        for part in value.split(',') {
+            if seen == 6 {
+                return None;
+            }
+            let parsed: f64 = part.trim().parse().ok()?;
+            if !parsed.is_finite() {
+                return None;
+            }
+            result[seen] = parsed;
+            seen += 1;
         }
-        Some(result)
+        (seen >= 3).then_some(result)
     }
 
     /// Parses the combined `FS:feed,spindle` field into two non-negative
@@ -70,15 +80,35 @@ impl GrblAdapter {
         }
     }
 
+    /// Number of axes implied by the first `MPos:`/`WPos:` field of a
+    /// realtime report: GRBL always sends three components, serial FluidNC
+    /// sends one per configured axis up to six (task: FluidNC over a COM
+    /// port). `None` when the report carries no position field yet.
+    pub(super) fn reported_axis_count(status_response: &str) -> Option<usize> {
+        let body = status_response.strip_prefix('<')?.strip_suffix('>')?;
+        body.split('|').find_map(|field| {
+            let value = field
+                .strip_prefix("MPos:")
+                .or_else(|| field.strip_prefix("WPos:"))?;
+            let count = value.split(',').count();
+            (count >= 3 && count <= 6).then_some(count)
+        })
+    }
+
     /// Converts one status report line into a full [`MachineStatus`] snapshot.
     ///
     /// Work coordinates may be reported directly (`WPos`), derived from
     /// `MPos - WCO`, or reconstructed from the offset cached for the active
     /// coordinate system; every combination is validated so a malformed or
     /// overflowing reply becomes a protocol error instead of bogus numbers.
+    ///
+    /// Position fields carry three components on GRBL and up to six on
+    /// FluidNC (the same driver serves both — task: FluidNC over COM port);
+    /// `cached_work_offset` mirrors the six-slot layout, older GRBL caches
+    /// simply keeping the trailing axes zero.
     pub(super) fn parse_status(
         response: &str,
-        cached_work_offset: Option<[f64; 3]>,
+        cached_work_offset: Option<[f64; 6]>,
         active_coordinate_system: CoordinateSystem,
         spindle_command: SpindleCommand,
         program_name: Option<&str>,
@@ -100,9 +130,12 @@ impl GrblAdapter {
             ));
         }
 
-        let mut machine_position = None;
-        let mut work_position = None;
-        let mut work_offset = None;
+        // Positions travel as six-slot arrays (X,Y,Z,A,B,C): GRBL fills only
+        // the first three, serial FluidNC reports up to six (task: FluidNC
+        // over COM port), so rotary coordinates must survive the parse.
+        let mut machine_position: Option<[f64; 6]> = None;
+        let mut work_position: Option<[f64; 6]> = None;
+        let mut work_offset: Option<[f64; 6]> = None;
         let mut feed_rate = 0.0;
         let mut actual_rpm = 0.0;
         let mut feed_spindle_seen = false;
@@ -117,7 +150,7 @@ impl GrblAdapter {
                     ));
                 }
                 machine_position =
-                    Some(Self::parse_triplet(value).ok_or_else(|| {
+                    Some(Self::parse_position_tuple(value).ok_or_else(|| {
                         ControllerError::new("protocol", "invalid GRBL MPos field")
                     })?);
             } else if let Some(value) = field.strip_prefix("WPos:") {
@@ -128,7 +161,7 @@ impl GrblAdapter {
                     ));
                 }
                 work_position =
-                    Some(Self::parse_triplet(value).ok_or_else(|| {
+                    Some(Self::parse_position_tuple(value).ok_or_else(|| {
                         ControllerError::new("protocol", "invalid GRBL WPos field")
                     })?);
             } else if let Some(value) = field.strip_prefix("WCO:") {
@@ -136,7 +169,7 @@ impl GrblAdapter {
                     return Err(ControllerError::new("protocol", "duplicate GRBL WCO field"));
                 }
                 work_offset =
-                    Some(Self::parse_triplet(value).ok_or_else(|| {
+                    Some(Self::parse_position_tuple(value).ok_or_else(|| {
                         ControllerError::new("protocol", "invalid GRBL WCO field")
                     })?);
             } else if let Some(value) = field.strip_prefix("FS:") {
@@ -180,17 +213,22 @@ impl GrblAdapter {
             ));
         }
 
+        // All derive math is element-wise over six slots: GRBL's trailing
+        // rotary slots are zero, so the three-axis case behaves exactly as the
+        // old triplet math, while FluidNC rotary offsets survive.
         let offset = work_offset
             .or_else(|| match (machine_position, work_position) {
-                (Some(machine), Some(work)) => Some([
-                    machine[0] - work[0],
-                    machine[1] - work[1],
-                    machine[2] - work[2],
-                ]),
+                (Some(machine), Some(work)) => {
+                    let mut delta = [0.0_f64; 6];
+                    for (out, (m, w)) in delta.iter_mut().zip(machine.iter().zip(work.iter())) {
+                        *out = m - w;
+                    }
+                    Some(delta)
+                }
                 _ => None,
             })
             .or(cached_work_offset)
-            .unwrap_or([0.0; 3]);
+            .unwrap_or([0.0; 6]);
         if offset.iter().any(|value| !value.is_finite()) {
             return Err(ControllerError::new(
                 "protocol",
@@ -201,14 +239,14 @@ impl GrblAdapter {
         let machine = machine_position
             .or_else(|| {
                 work_position.map(|work| {
-                    [
-                        work[0] + offset[0],
-                        work[1] + offset[1],
-                        work[2] + offset[2],
-                    ]
+                    let mut sum = [0.0_f64; 6];
+                    for (out, (w, o)) in sum.iter_mut().zip(work.iter().zip(offset.iter())) {
+                        *out = w + o;
+                    }
+                    sum
                 })
             })
-            .unwrap_or([0.0; 3]);
+            .unwrap_or([0.0; 6]);
         if machine.iter().any(|value| !value.is_finite()) {
             return Err(ControllerError::new(
                 "protocol",
@@ -247,17 +285,17 @@ impl GrblAdapter {
                 x: machine[0],
                 y: machine[1],
                 z: machine[2],
-                a: 0.0,
-                b: 0.0,
-                c: 0.0,
+                a: machine[3],
+                b: machine[4],
+                c: machine[5],
             },
             work_offset: Position {
                 x: offset[0],
                 y: offset[1],
                 z: offset[2],
-                a: 0.0,
-                b: 0.0,
-                c: 0.0,
+                a: offset[3],
+                b: offset[4],
+                c: offset[5],
             },
             active_coordinate_system,
             coordinate_systems: Vec::new(),
@@ -284,6 +322,10 @@ impl GrblAdapter {
             mist_coolant_on: false,
             flood_coolant_on: false,
             max_spindle_rpm: 12_000.0,
+            probe_triggered: false,
+            probe_position: None,
+            selected_tool: None,
+            current_tool: None,
             loaded_program: program_name.map(str::to_owned),
             current_line,
             total_lines,

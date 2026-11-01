@@ -24,6 +24,11 @@ export function initMacrosUi() {
   const count = document.querySelector("#macros-count");
   const panelStatus = document.querySelector("#macro-status");
   const addButton = document.querySelector("#macro-add");
+  const macroButtons = document.querySelector("#macro-buttons-list");
+  const macroButtonPicker = document.querySelector("#macro-button-picker");
+  const macroButtonPickerForm = document.querySelector("#macro-button-picker-form");
+  const macroButtonPickerSelect = document.querySelector("#macro-button-picker-select");
+  const addMacroButton = document.querySelector("#macro-button-add");
 
   // The large modal editor dialog and every control it contains.
   const dialog = document.querySelector("#macro-dialog");
@@ -40,14 +45,108 @@ export function initMacrosUi() {
   const errorBox = document.querySelector("#macro-error");
   const dialogStatus = document.querySelector("#macro-dialog-status");
 
-  // Abort early when the markup is absent (for example in a stripped Tauri build).
+  // The macro section requires its editor controls, while shortcut markup is independently optional.
   if (!panel || !list || !count || !panelStatus || !addButton || !dialog || !editor ||
       !dialogTitle || !nameInput || !descriptionInput || !bodyInput || !invocationsBox ||
       !addInvocationButton || !deleteButton || !cancelButton || !closeDialogButton ||
       !errorBox || !dialogStatus) return;
 
-  /** Holds the current server snapshot and the ID being edited, if any. */
-  const state = { macros: [], editingId: null, busy: false };
+  /** Holds the current macro snapshot, editor ID, persistence lock, and configured quick-run buttons. */
+  const state = { macros: [], editingId: null, busy: false, buttons: loadMacroButtons() };
+
+  /** Reads the user's macro-button assignments from local storage without failing private contexts. */
+  function loadMacroButtons() {
+    try {
+      const value = JSON.parse(localStorage.getItem("cnc-ui-macro-buttons") || "[]");
+      return Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Persists button assignments locally; macro definitions themselves remain in the shared database. */
+  function saveMacroButtons() {
+    try {
+      localStorage.setItem("cnc-ui-macro-buttons", JSON.stringify(state.buttons));
+    } catch {
+      panelStatus.textContent = t("macros.buttons.storageError");
+    }
+  }
+
+  /** Renders one run button per configured macro and controls for adding/removing assignments. */
+  function renderMacroButtons() {
+    if (!macroButtons) return;
+    macroButtons.replaceChildren();
+    const previous = state.buttons.length;
+    state.buttons = state.buttons.filter((id) => state.macros.some((macro) => macro.id === id));
+    if (state.buttons.length !== previous) saveMacroButtons();
+    state.buttons.forEach((id, index) => {
+      const macro = state.macros.find((item) => item.id === id);
+      if (!macro) return;
+      const row = document.createElement("div");
+      row.className = "macro-button-row";
+      row.setAttribute("role", "listitem");
+      const run = document.createElement("button");
+      run.type = "button";
+      run.className = "macro-button-run";
+      run.setAttribute("aria-label", `${t("macros.runTitle")}: ${macro.name}`);
+      run.textContent = macro.name;
+      run.title = macro.description || macro.name;
+      // The shortcut button and the standard list runner share the same event contract.
+      run.addEventListener("click", () => window.dispatchEvent(new CustomEvent("cnc-macro-run", { detail: macro })));
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "macro-button-remove";
+      remove.textContent = "×";
+      remove.title = t("macros.buttons.removeTitle");
+      remove.setAttribute("aria-label", `${t("macros.buttons.removeTitle")}: ${macro.name}`);
+      remove.addEventListener("click", () => {
+        state.buttons.splice(index, 1);
+        saveMacroButtons();
+        renderMacroButtons();
+      });
+      row.append(run, remove);
+      macroButtons.append(row);
+    });
+  }
+
+  /** Creates and persists a button assignment for one macro selected by its id. */
+  function assignMacroButton(macroId) {
+    const macro = state.macros.find((item) => item.id === macroId);
+    if (!macro || state.buttons.includes(macro.id)) return;
+    state.buttons.push(macro.id);
+    saveMacroButtons();
+    renderMacroButtons();
+  }
+
+  /** Opens the in-page accessible chooser for selecting a macro shortcut. */
+  function addConfiguredMacroButton() {
+    const available = state.macros.filter((macro) => !state.buttons.includes(macro.id));
+    if (!available.length) return;
+    if (!macroButtonPicker || !macroButtonPickerForm || !macroButtonPickerSelect) {
+      panelStatus.textContent = t("macros.buttons.pickerUnavailable");
+      return;
+    }
+    macroButtonPickerSelect.replaceChildren();
+    available.forEach((macro) => {
+      const option = document.createElement("option");
+      option.value = macro.id;
+      option.textContent = macro.name;
+      macroButtonPickerSelect.append(option);
+    });
+    macroButtonPicker.returnValue = "";
+    macroButtonPicker.showModal();
+    macroButtonPickerSelect.focus();
+  }
+
+  /** Submits the picker selection, leaving all assignments unchanged when the user cancels. */
+  function submitMacroButtonPicker(event) {
+    event.preventDefault();
+    if (event.submitter?.value === "add") {
+      assignMacroButton(macroButtonPickerSelect.value);
+    }
+    macroButtonPicker.close();
+  }
 
   /** Creates a safe element with translated text and an optional CSS class. */
   function textElement(tag, className, text) {
@@ -135,6 +234,18 @@ export function initMacrosUi() {
         row.title = macro.description;
       }
 
+      // Rosetta runner entry (T26): ▶ opens the macro-run dialog through a
+      // window event, so this CRUD module stays decoupled from the runner.
+      const runButton = document.createElement("button");
+      runButton.type = "button";
+      runButton.className = "macro-row-run";
+      runButton.textContent = "▶";
+      runButton.title = t("macros.runTitle");
+      runButton.setAttribute("aria-label", `${t("macros.runTitle")}: ${macro.name}`);
+      runButton.addEventListener("click", () => {
+        window.dispatchEvent(new CustomEvent("cnc-macro-run", { detail: macro }));
+      });
+
       const openButton = document.createElement("button");
       openButton.type = "button";
       openButton.className = "macro-row-open";
@@ -143,7 +254,7 @@ export function initMacrosUi() {
       openButton.setAttribute("aria-label", `${t("macros.openTitle")}: ${macro.name}`);
       openButton.addEventListener("click", () => openEditor(macro));
 
-      row.append(name, openButton);
+      row.append(name, runButton, openButton);
       list.append(row);
     });
   }
@@ -203,6 +314,7 @@ export function initMacrosUi() {
       await invokeOrFetch("put_macros", { macros: nextMacros }, "/api/macros", "PUT");
       state.macros = nextMacros;
       renderList();
+      renderMacroButtons();
       setStatus(t("macros.saved"));
       return true;
     } catch (error) {
@@ -253,6 +365,7 @@ export function initMacrosUi() {
       const result = await invokeOrFetch("get_macros", null, "/api/macros");
       state.macros = Array.isArray(result) ? result : [];
       renderList();
+      renderMacroButtons();
       setStatus("");
     } catch (error) {
       list.replaceChildren(textElement("p", "macro-error", error?.message || t("macros.error.loadFailed")));
@@ -265,6 +378,7 @@ export function initMacrosUi() {
   /** Reapplies translated labels to dynamically generated macro controls after a locale change. */
   function refreshLocalizedUi() {
     renderList();
+    renderMacroButtons();
     if (dialog.open) {
       dialogTitle.textContent = t(state.editingId ? "macros.editTitle" : "macros.addTitle");
       invocationsBox.querySelectorAll(".macro-invocation-row").forEach((row) => {
@@ -281,6 +395,8 @@ export function initMacrosUi() {
   }
 
   addButton.addEventListener("click", () => openEditor());
+  addMacroButton?.addEventListener("click", addConfiguredMacroButton);
+  macroButtonPickerForm?.addEventListener("submit", submitMacroButtonPicker);
   addInvocationButton.addEventListener("click", () => invocationsBox.append(createInvocationRow()));
   deleteButton.addEventListener("click", removeCurrentMacro);
   cancelButton.addEventListener("click", closeEditor);
@@ -297,5 +413,6 @@ export function initMacrosUi() {
   });
   window.addEventListener("cnc-locale-changed", refreshLocalizedUi);
   renderList();
+  renderMacroButtons();
   if (!panel.hidden) loadMacros();
 }

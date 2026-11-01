@@ -235,7 +235,9 @@ impl TransformKind {
     pub fn default_reversible(&self) -> bool {
         !matches!(
             self,
-            TransformKind::CutterCompBake { .. } | TransformKind::LeadInOut { .. } | TransformKind::CornerRound { .. }
+            TransformKind::CutterCompBake { .. }
+                | TransformKind::LeadInOut { .. }
+                | TransformKind::CornerRound { .. }
         )
     }
 }
@@ -437,7 +439,11 @@ mod tests {
         // The built-in rules store ApplyTransform("Rotate") and
         // ApplyTransform("CutterCompBake") — these must be real ids.
         assert_eq!(
-            TransformKind::Rotate { angle_deg: 90.0, center: Point2::new(0.0, 0.0) }.name(),
+            TransformKind::Rotate {
+                angle_deg: 90.0,
+                center: Point2::new(0.0, 0.0)
+            }
+            .name(),
             "Rotate"
         );
         assert_eq!(
@@ -453,10 +459,15 @@ mod tests {
 
     #[test]
     fn families_and_defaults_partition_the_enum() {
-        let rotate = TransformKind::Translate { delta: Point3::new(1.0, 2.0, 3.0) };
+        let rotate = TransformKind::Translate {
+            delta: Point3::new(1.0, 2.0, 3.0),
+        };
         assert_eq!(rotate.family(), TransformFamily::Affine);
         assert!(rotate.default_requires_confirm());
-        let override_ = TransformKind::FeedSpeedOverride { feed_factor: 0.8, speed_factor: 1.0 };
+        let override_ = TransformKind::FeedSpeedOverride {
+            feed_factor: 0.8,
+            speed_factor: 1.0,
+        };
         assert_eq!(override_.family(), TransformFamily::Structural);
         assert!(!override_.default_requires_confirm());
         assert!(override_.default_reversible());

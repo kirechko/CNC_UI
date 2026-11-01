@@ -2,10 +2,13 @@
 //! writes, line extraction from the receive buffer and the single-command
 //! acknowledgement loop. The `CncApi` trait implementation lives in `api.rs`.
 
-use super::{FluidNcWebSocketAdapter, Session, MAX_RESPONSE_LINE};
+use super::{
+    FluidNcConnection, FluidNcWebSocketAdapter, Session, TelnetParseState, MAX_RESPONSE_LINE,
+};
 use crate::{CncResult, ControllerError};
 use futures_util::{SinkExt, StreamExt};
 use std::time::{Duration, Instant};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -35,15 +38,24 @@ impl FluidNcWebSocketAdapter {
         Self::trace_frame("send", "text", payload.as_bytes());
         tracing::debug!(command = %text, "sending FluidNC line");
         let result = match session.socket.as_mut() {
-            Some(socket) => timeout(self.config.ack_timeout, socket.send(Message::Text(payload)))
-                .await
-                .map_err(|_| {
-                    ControllerError::new("timeout", "timed out sending command to FluidNC")
-                })?
-                .map_err(|error| ControllerError::new("io", error.to_string())),
+            Some(FluidNcConnection::WebSocket(socket)) => {
+                timeout(self.config.ack_timeout, socket.send(Message::Text(payload)))
+                    .await
+                    .map_err(|_| {
+                        ControllerError::new("timeout", "timed out sending command to FluidNC")
+                    })?
+                    .map_err(|error| ControllerError::new("io", error.to_string()))
+            }
+            Some(FluidNcConnection::Telnet(stream)) => timeout(
+                self.config.ack_timeout,
+                stream.write_all(payload.as_bytes()),
+            )
+            .await
+            .map_err(|_| ControllerError::new("timeout", "timed out sending Telnet command"))?
+            .map_err(|error| ControllerError::new("io", error.to_string())),
             None => Err(ControllerError::new(
                 "connection",
-                "FluidNC WebSocket is disconnected",
+                "FluidNC is disconnected",
             )),
         };
 
@@ -59,7 +71,7 @@ impl FluidNcWebSocketAdapter {
             Self::trace_frame("send", "binary", &[byte]);
         }
         let result = match session.socket.as_mut() {
-            Some(socket) => timeout(
+            Some(FluidNcConnection::WebSocket(socket)) => timeout(
                 self.config.ack_timeout,
                 socket.send(Message::Binary(vec![byte])),
             )
@@ -68,9 +80,17 @@ impl FluidNcWebSocketAdapter {
                 ControllerError::new("timeout", "timed out sending realtime command to FluidNC")
             })?
             .map_err(|error| ControllerError::new("io", error.to_string())),
+            Some(FluidNcConnection::Telnet(stream)) => {
+                timeout(self.config.ack_timeout, stream.write_all(&[byte]))
+                    .await
+                    .map_err(|_| {
+                        ControllerError::new("timeout", "timed out sending Telnet realtime command")
+                    })?
+                    .map_err(|error| ControllerError::new("io", error.to_string()))
+            }
             None => Err(ControllerError::new(
                 "connection",
-                "FluidNC WebSocket is disconnected",
+                "FluidNC is disconnected",
             )),
         };
 
@@ -115,39 +135,129 @@ impl FluidNcWebSocketAdapter {
                 return Ok(line);
             }
 
-            let socket = session.socket.as_mut().ok_or_else(|| {
-                ControllerError::new("connection", "FluidNC WebSocket is disconnected")
-            })?;
-            let message = timeout(duration, socket.next())
-                .await
-                .map_err(|_| {
-                    ControllerError::new("timeout", "timed out waiting for FluidNC response")
-                })?
-                .ok_or_else(|| ControllerError::new("disconnected", "FluidNC WebSocket closed"))?
-                .map_err(|error| ControllerError::new("io", error.to_string()))?;
-
-            match message {
-                Message::Text(text) => {
-                    Self::trace_frame("recv", "text", text.as_bytes());
-                    tracing::debug!(response = %text, "received FluidNC text frame");
-                    let text = text.as_str();
-                    if !text.starts_with("currentID:") && !text.starts_with("CURRENT_ID:") {
-                        session.rx_buffer.extend_from_slice(text.as_bytes());
+            let mut chunk = [0_u8; 1024];
+            match session.socket.as_mut() {
+                Some(FluidNcConnection::WebSocket(socket)) => {
+                    let message = timeout(duration, socket.next())
+                        .await
+                        .map_err(|_| {
+                            ControllerError::new(
+                                "timeout",
+                                "timed out waiting for FluidNC response",
+                            )
+                        })?
+                        .ok_or_else(|| {
+                            ControllerError::new("disconnected", "FluidNC WebSocket closed")
+                        })?
+                        .map_err(|error| ControllerError::new("io", error.to_string()))?;
+                    match message {
+                        Message::Text(text) => {
+                            Self::trace_frame("recv", "text", text.as_bytes());
+                            if !text.starts_with("currentID:") && !text.starts_with("CURRENT_ID:") {
+                                session.rx_buffer.extend_from_slice(text.as_bytes());
+                            }
+                        }
+                        Message::Binary(bytes) => session.rx_buffer.extend_from_slice(&bytes),
+                        Message::Ping(_) | Message::Pong(_) => {}
+                        Message::Close(_) => {
+                            session.socket = None;
+                            return Err(ControllerError::new(
+                                "disconnected",
+                                "FluidNC WebSocket closed",
+                            ));
+                        }
+                        _ => {}
                     }
                 }
-                Message::Binary(bytes) => {
-                    Self::trace_binary_response(&bytes);
-                    session.rx_buffer.extend_from_slice(&bytes);
+                Some(FluidNcConnection::Telnet(stream)) => {
+                    let count = timeout(duration, stream.read(&mut chunk))
+                        .await
+                        .map_err(|_| {
+                            ControllerError::new(
+                                "timeout",
+                                "timed out waiting for FluidNC Telnet response",
+                            )
+                        })?
+                        .map_err(|error| ControllerError::new("io", error.to_string()))?;
+                    if count == 0 {
+                        session.socket = None;
+                        return Err(ControllerError::new(
+                            "disconnected",
+                            "FluidNC Telnet connection closed",
+                        ));
+                    }
+                    let mut payload = Vec::with_capacity(count);
+                    let mut replies = Vec::new();
+                    Self::parse_telnet_bytes(
+                        &chunk[..count],
+                        &mut session.telnet_parse_state,
+                        &mut payload,
+                        &mut replies,
+                    );
+                    if !replies.is_empty() {
+                        stream
+                            .write_all(&replies)
+                            .await
+                            .map_err(|error| ControllerError::new("io", error.to_string()))?;
+                    }
+                    session.rx_buffer.extend_from_slice(&payload);
                 }
-                Message::Ping(_) | Message::Pong(_) => {}
-                Message::Close(_) => {
-                    session.socket = None;
+                None => {
                     return Err(ControllerError::new(
-                        "disconnected",
-                        "FluidNC WebSocket closed",
-                    ));
+                        "connection",
+                        "FluidNC is disconnected",
+                    ))
                 }
-                _ => {}
+            }
+        }
+    }
+
+    /// Remove Telnet negotiation bytes while replying to unsupported options with WONT/DONT.
+    fn parse_telnet_bytes(
+        bytes: &[u8],
+        state: &mut TelnetParseState,
+        payload: &mut Vec<u8>,
+        replies: &mut Vec<u8>,
+    ) {
+        const IAC: u8 = 255;
+        const DONT: u8 = 254;
+        const DO: u8 = 253;
+        const WONT: u8 = 252;
+        const WILL: u8 = 251;
+        const SB: u8 = 250;
+        const SE: u8 = 240;
+        for byte in bytes.iter().copied() {
+            match *state {
+                TelnetParseState::Data if byte == IAC => *state = TelnetParseState::Iac,
+                TelnetParseState::Data => payload.push(byte),
+                TelnetParseState::Iac => match byte {
+                    IAC => {
+                        payload.push(IAC);
+                        *state = TelnetParseState::Data;
+                    }
+                    WILL | WONT | DO | DONT => *state = TelnetParseState::Negotiation(byte),
+                    SB => *state = TelnetParseState::Subnegotiation,
+                    _ => *state = TelnetParseState::Data,
+                },
+                TelnetParseState::Negotiation(verb) => {
+                    match verb {
+                        WILL => replies.extend_from_slice(&[IAC, DONT, byte]),
+                        DO => replies.extend_from_slice(&[IAC, WONT, byte]),
+                        _ => {}
+                    }
+                    *state = TelnetParseState::Data;
+                }
+                TelnetParseState::Subnegotiation if byte == IAC => {
+                    *state = TelnetParseState::SubnegotiationIac
+                }
+                TelnetParseState::Subnegotiation => {}
+                TelnetParseState::SubnegotiationIac if byte == SE => {
+                    *state = TelnetParseState::Data
+                }
+                TelnetParseState::SubnegotiationIac if byte == IAC => {
+                    *state = TelnetParseState::Subnegotiation
+                }
+                TelnetParseState::SubnegotiationIac => *state = TelnetParseState::Subnegotiation,
             }
         }
     }

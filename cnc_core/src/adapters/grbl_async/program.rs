@@ -1,10 +1,14 @@
 //! Stop-and-wait program streaming over the serial link plus the host-side
 //! program file loading that feeds it.
 
-use super::{GrblAdapter, Session, MAX_PROGRAM_BYTES};
+use super::{GrblAdapter, PendingProgramAck, Session, StreamReply, MAX_PROGRAM_BYTES};
 use crate::{CncResult, ControllerError};
 use std::path::Path;
-use tokio::{fs, io::AsyncReadExt};
+use std::time::Instant;
+use tokio::{
+    fs,
+    io::{AsyncReadExt, AsyncWriteExt},
+};
 
 impl GrblAdapter {
     /// Reads a whole G-code file from the host filesystem, validates every
@@ -31,7 +35,9 @@ impl GrblAdapter {
 
         let content = String::from_utf8(bytes)
             .map_err(|error| ControllerError::new("program_read", error.to_string()))?;
-        let lines = Self::parse_program_lines(&content)?;
+        // Validate under the target family's line budget (FluidNC programs can
+        // carry longer lines than stock GRBL accepts — task: FluidNC COM).
+        let lines = Self::parse_program_lines(&content, self.protocol)?;
         let name = path
             .file_name()
             .and_then(|name| name.to_str())
@@ -70,55 +76,170 @@ impl GrblAdapter {
             })
     }
 
-    /// Sends the next program line and advances the cursor.
+    /// Advances program streaming by one scheduler step, never blocking on
+    /// the planner acknowledgement.
     ///
-    /// Strict stop-and-wait flow control: over Serial only one line is sent, and the next
-    /// send_command call is possible only after GRBL returns an `ok` ACK or an error.
-    /// Therefore at most one line is unacknowledged and the RX buffer cannot overflow,
-    /// even at 115200+ baud. A fixed delay is not needed and does not replace the controller ACK.
-    pub(super) async fn stream_next_program_line(session: &mut Session) -> CncResult<()> {
+    /// Strict stop-and-wait flow control is preserved: at most ONE line is in
+    /// flight (`session.pending_ack`), and the next line is written only after
+    /// GRBL answered the previous one. The crucial difference from the old
+    /// blocking implementation is WHERE the answer is awaited: GRBL emits the
+    /// `ok` of a motion line only when room appears in the planner buffer —
+    /// which can take as long as one slow block (tens of seconds). Blocking on
+    /// it inside `status()` froze the whole 10 Hz poll, so coordinates and the
+    /// trajectory highlight advanced in multi-second jumps. Instead,
+    /// [`Self::query_status`] routes the `ok`/`error:`/`ALARM:` lines it
+    /// drains into the pending request, and this pump only *observes* the
+    /// recorded reply and acts on it:
+    ///
+    /// * no reply yet   → return immediately (keep polling, budget-guarded);
+    /// * `ok`           → advance the cursor and write the next line now;
+    /// * tolerated `error:20` on bare M7/M8/M9 → skip the line;
+    /// * any other reply / budget exhaustion → abort streaming with an error.
+    ///
+    /// Throughput is one line per scheduler pass, which is exactly the old
+    /// cadence whenever GRBL acknowledged promptly, and vastly smoother when
+    /// it does not.
+    ///
+    /// `allow_write` gates step 2 (sending the next line) by the machine
+    /// state observed in the *current* status report: Hold/Door/Alarm pause
+    /// forwarding, while replies of lines already in flight are still
+    /// resolved in any state, so an `ALARM:` on the wire aborts the program
+    /// even while the controller is not streamable.
+    pub(super) async fn pump_program_stream(
+        session: &mut Session,
+        allow_write: bool,
+    ) -> CncResult<()> {
         if !session.program_streaming {
             return Ok(());
         }
 
+        // Step 1: resolve an in-flight line, if any.
+        let resolve = match session.pending_ack.as_ref() {
+            None => None,
+            Some(pending) => match &pending.reply {
+                // The answer has not been observed yet: enforce the extended
+                // ACK budget, then leave the line in flight.
+                None => {
+                    if pending.sent_at.elapsed() >= super::PROGRAM_ACK_TIMEOUT {
+                        session.pending_ack = None;
+                        session.program_streaming = false;
+                        session.protocol_poisoned = true;
+                        return Err(ControllerError::new(
+                            "timeout",
+                            "timed out waiting for GRBL program acknowledgement; reconnect required",
+                        ));
+                    }
+                    return Ok(());
+                }
+                // Reply recorded by the status reader: consume it.
+                Some(reply) => Some((pending.line.clone(), reply.clone())),
+            },
+        };
+        if let Some((line, reply)) = resolve {
+            session.pending_ack = None;
+            match reply {
+                StreamReply::Ok => {
+                    session.current_line += 1;
+                    // Task T12: remember the modal motion group of the
+                    // acknowledged line so the status poll can show
+                    // G0/G1/G2/G3 instead of the generic "G-code".
+                    if let Some(mode) = Self::motion_mode_of(&line) {
+                        session.motion_mode = Some(mode.to_string());
+                    }
+                }
+                StreamReply::Error(detail) => {
+                    // Rebuild the same error shape the blocking path produced
+                    // so the tolerated-accessory rule keeps working verbatim:
+                    // unsupported coolant M-codes (stock GRBL without
+                    // COOLANT_CONTROL, error 20) are skipped; anything else
+                    // aborts the program.
+                    let error = ControllerError::new(
+                        "gcode_error",
+                        format!("GRBL rejected command ({detail}): {line}"),
+                    );
+                    if !Self::is_tolerated_accessory_rejection(&line, &error) {
+                        session.program_streaming = false;
+                        return Err(error);
+                    }
+                    tracing::warn!(
+                        "GRBL rejected the optional accessory command `{line}` ({}); skipping it",
+                        error.message
+                    );
+                    session.current_line += 1;
+                }
+                StreamReply::Alarm(code) => {
+                    session.program_streaming = false;
+                    return Err(ControllerError::new("alarm", format!("ALARM:{code}")));
+                }
+            }
+        }
+
+        // Step 2: nothing in flight — write the next line (at most one).
+        // Machine-state gate: forwarding only continues while the current
+        // report says the controller accepts blocks (Idle/Run/Check); Hold,
+        // Door, Jog and Alarm pause it exactly like the old blocking loop did
+        // (which simply never reached `stream_next_program_line`). Replies of
+        // lines already in flight were resolved above regardless of state.
+        if !allow_write {
+            return Ok(());
+        }
         let index = session.current_line as usize;
         if index >= session.program.len() {
             session.program_streaming = false;
             return Ok(());
         }
-
         let line = session.program[index].clone();
-        // Stop-and-wait over the serial link: GRBL acknowledges a motion line
-        // only once room appears in the planner buffer, so the wait can last
-        // as long as one buffered block. The extended program ACK budget keeps
-        // a slow controller from falsely poisoning the protocol.
-        if let Err(error) =
-            Self::send_command_with_timeout(session, &line, super::PROGRAM_ACK_TIMEOUT).await
-        {
-            // Unsupported coolant M-codes (stock GRBL without COOLANT_CONTROL)
-            // are skipped so the cut keeps running; everything else aborts.
-            if Self::is_tolerated_accessory_rejection(&line, &error) {
-                tracing::warn!(
-                    "GRBL rejected the optional accessory command `{line}` ({}); skipping it",
-                    error.message
-                );
-                session.current_line = (index + 1) as u32;
-                return Ok(());
-            }
+        Self::validate_command(&line)?;
+        if let Err(error) = session.port.write_all(line.as_bytes()).await {
+            session.protocol_poisoned = true;
             session.program_streaming = false;
-            return Err(error);
+            return Err(ControllerError::new("io", error.to_string()));
         }
-
-        session.current_line = (index + 1) as u32;
-        // Task T12: remember the modal motion group of the acknowledged line
-        // so the status poll can show G0/G1/G2/G3 instead of the generic
-        // "G-code" (GRBL's '?' report does not expose the modal group).
-        if let Some(mode) = Self::motion_mode_of(&line) {
-            session.motion_mode = Some(mode.to_string());
+        if let Err(error) = session.port.write_all(b"\n").await {
+            session.protocol_poisoned = true;
+            session.program_streaming = false;
+            return Err(ControllerError::new("io", error.to_string()));
         }
-        // Keep streaming active until the next Idle response:
+        session.pending_ack = Some(PendingProgramAck {
+            line,
+            sent_at: Instant::now(),
+            reply: None,
+        });
+        // Keep streaming active until the program is exhausted:
         // a GRBL ACK means the line was received, not that the motion has finished.
         Ok(())
+    }
+
+    /// Upper bound (1-based) of program lines allowed in the forward
+    /// progress search for the current physical tool position.
+    ///
+    /// GRBL emits `ok` only after the ENTIRE line has been enqueued into
+    /// the planner. Short lines fit at once, so their acknowledgement
+    /// arrives immediately and `current_line` (count of acknowledged lines)
+    /// tracks the tool. Long arcs (G2/G3) are different: GRBL decomposes
+    /// them into hundreds of tiny chord blocks bounded by `$119` arc
+    /// tolerance, and the planner buffer holds only 16 blocks, so writing
+    /// an arc line is throttled by the machine actually consuming earlier
+    /// chords. The `ok` of a full-circle arc therefore arrives only at
+    /// ~80-90% of the physical move.
+    ///
+    /// While a line is in flight (`has_pending_ack` is `true`), the tool is
+    /// already cutting it even though it has not been acknowledged, so its
+    /// 1-based number `current_line + 1` must join the search window.
+    /// Without this, `locate_forward` excludes the arc chords, every poll
+    /// falls back to the frozen `last_progress`, and the traversed part of
+    /// the arc jumps in one frame when the delayed `ok` finally arrives.
+    ///
+    /// Matching remains safe: a segment only wins when the tool lies within
+    /// `PATH_TOLERANCE_MM` of it, the search is forward-only (`floor`), and
+    /// among candidates the EARLIEST distance is chosen, so the highlight
+    /// can never run ahead of the physical tool.
+    pub(super) fn progress_line_window(current_line: u32, has_pending_ack: bool) -> u32 {
+        if has_pending_ack {
+            current_line + 1
+        } else {
+            current_line
+        }
     }
 
     /// Extracts the modal motion group (G0/G1/G2/G3) of one G-code line:

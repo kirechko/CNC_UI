@@ -10,8 +10,10 @@ mod console;
 mod control;
 mod files;
 mod macros;
+mod rosetta;
 
 pub(crate) use console::*;
 pub(crate) use control::*;
 pub(crate) use files::*;
 pub(crate) use macros::*;
+pub(crate) use rosetta::*;

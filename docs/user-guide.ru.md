@@ -21,11 +21,11 @@ COM-порты и поставляется с полноценным прогр�
 
 ```bash
 cargo run --bin cnc-emulator          # читает config/emulator.yaml
-cargo run --bin linuxcnc-ui           # окно приложения
+cargo run --bin cnc_ui           # окно приложения
 ```
 
-Десктоп автоматически подключается к эмулятору через локальный сокет
-(`/tmp/linuxcnc-ui-emulator.sock`, переопределяется `CNC_EMULATOR_SOCKET`).
+Десктоп автоматически подключается к эмулятору по TCP (`127.0.0.1:8765`). Адрес
+можно переопределить через `CNC_EMULATOR_ADDRESS` — одинаково для эмулятора и UI.
 
 ### 1.2 Веб-интерфейс
 
@@ -40,8 +40,8 @@ cargo run --bin cnc-web               # сервер на http://0.0.0.0:8080
 | `CNC_WEB_ADDRESS` | адрес:порт привязки | `0.0.0.0:8080` |
 | `CNC_UI_AUTH_USER` + `CNC_UI_AUTH_PASSWORD` | включить HTTP Basic-авторизацию | выключено |
 | `CNC_UI_AUTH=on` / `off` | принудительно включить (случайный пароль пишется в лог) / явно выключить | авто |
-| `CNC_UI_LOG_DB` | расположение базы SQLite | `~/.local/state/linuxcnc-ui/messages.sqlite3` |
-| `CNC_EMULATOR_SOCKET` | путь сокета эмулятора | `/tmp/linuxcnc-ui-emulator.sock` |
+| `CNC_UI_LOG_DB` | расположение базы SQLite | `~/.local/state/cnc_ui/messages.sqlite3` |
+| `CNC_EMULATOR_ADDRESS` | адрес TCP-эмулятора | `127.0.0.1:8765` |
 
 Авторизация защищает весь веб-интерфейс одной парой логин/пароль; браузер
 показывает окно входа при первом запросе. Оставьте учётные данные незаданными

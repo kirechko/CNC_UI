@@ -111,8 +111,15 @@ pub(super) fn api_worker(
                 // Remember which command starts or stops the program before `command` is moved.
                 let starts_program = matches!(command, Command::ProgramRun);
                 let stops_program =
-                    matches!(command, Command::ProgramAbort | Command::LoadProgram(_));
+                    matches!(command, Command::ProgramAbort | Command::LoadProgram(_, _));
+                let load_reply = match &command {
+                    Command::LoadProgram(_, reply) => Some(reply.clone()),
+                    _ => None,
+                };
                 let result = runtime.block_on(dispatch_command(&api, &shared_status, command));
+                if let Some(reply) = load_reply {
+                    let _ = reply.send(result.clone());
+                }
 
                 match result {
                     Ok(()) => {
@@ -162,7 +169,7 @@ async fn dispatch_command(
     command: Command,
 ) -> crate::cnc_api::CncResult<()> {
     match command {
-        Command::LoadProgram(path) => {
+        Command::LoadProgram(path, _) => {
             // Drop the previous toolpath first so a failed load never shows stale geometry.
             shared_status.lock().unwrap().toolpath = cnc_core::Toolpath::default();
             let result = api.load_program(&path).await;
@@ -340,7 +347,8 @@ fn poll_status(
             }
         }
         Err(error) => {
-            eprintln!("[CncApi] status {}: {}", error.code, error.message);
+            // Offline-at-startup is expected while discovery is running; keep
+            // the API/UI status updated without flooding the process console.
             record_adapter_message(
                 last_adapter_message,
                 "error",

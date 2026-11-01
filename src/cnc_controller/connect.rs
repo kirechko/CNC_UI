@@ -7,7 +7,6 @@ use super::worker::api_worker;
 use super::CNCController;
 use crate::cnc_api::{CncApi, CncResult};
 use cnc_core::adapters::emulator::EmAdapter;
-use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
@@ -15,12 +14,11 @@ use std::time::Duration;
 
 #[allow(dead_code)]
 impl CNCController {
-    /// Legacy constructor: keeps only the socket path and lets the worker
-    /// retry `EmAdapter::connect` every second until the emulator appears.
+    /// Legacy constructor: keeps the emulator TCP endpoint and retries until it appears.
     ///
     /// The UI window opens immediately because no network call happens here.
-    pub fn connect(socket_path: impl AsRef<Path>) -> CncResult<Self> {
-        let socket_path = socket_path.as_ref().to_path_buf();
+    pub fn connect(address: impl Into<String>) -> CncResult<Self> {
+        let address = address.into();
         let status = Arc::new(Mutex::new(initial_disconnected_status()));
         let worker_status = status.clone();
         let (commands, receiver) = mpsc::channel();
@@ -39,7 +37,7 @@ impl CNCController {
                     .expect("failed to create CNC API worker runtime");
 
                 loop {
-                    match EmAdapter::connect(&socket_path) {
+                    match EmAdapter::connect(address.clone()) {
                         Ok(api) => match runtime.block_on(api.status()) {
                             Ok(initial_status) => {
                                 worker_status.lock().unwrap().machine = initial_status;

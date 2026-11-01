@@ -148,6 +148,10 @@ impl FluidNcWebSocketAdapter {
             mist_coolant_on: false,
             flood_coolant_on: false,
             jog_rate: if jogging { feed_rate } else { 0.0 },
+            probe_triggered: false,
+            probe_position: None,
+            selected_tool: None,
+            current_tool: None,
             motion_mode: if jogging {
                 Some("Jog".into())
             } else if running {

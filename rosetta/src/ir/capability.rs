@@ -35,7 +35,9 @@ use crate::ir::toolpath::{Code, Toolpath};
 /// Backend families known to the system (ТЗ №1 §3.3). The `Default` is
 /// [`BackendType::Emulator`] — the safest choice for a freshly constructed
 /// emitter (no hardware assumptions, everything supported).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendType {
     LinuxCnc,
@@ -192,7 +194,12 @@ pub trait CapabilityRegistry {
     /// Can `backend` express `feature` when running a macro of `class`?
     /// (class parameter is the documented deviation; pass
     /// [`MacroClass::Reactive`] for controller-side execution semantics.)
-    fn supports_feature(&self, backend: BackendType, class: MacroClass, feature: Feature) -> Support;
+    fn supports_feature(
+        &self,
+        backend: BackendType,
+        class: MacroClass,
+        feature: Feature,
+    ) -> Support;
 
     /// Can `backend` run this G/M code natively?
     fn supports_code(&self, backend: BackendType, code: &Code) -> Support;
@@ -205,8 +212,11 @@ pub trait CapabilityRegistry {
 
     /// Scan every frame of `toolpath` against `backend` and return findings
     /// in source order (`CORE-T-04` / `TRF-C-04`).
-    fn scan_incompatibilities(&self, toolpath: &Toolpath, backend: BackendType)
-        -> Vec<Incompatibility>;
+    fn scan_incompatibilities(
+        &self,
+        toolpath: &Toolpath,
+        backend: BackendType,
+    ) -> Vec<Incompatibility>;
 }
 
 /// The built-in matrix: the default values of the ТЗ tables (§5 of ТЗ №1 and
@@ -290,7 +300,12 @@ impl CapabilityMatrix {
 }
 
 impl CapabilityRegistry for CapabilityMatrix {
-    fn supports_feature(&self, backend: BackendType, class: MacroClass, feature: Feature) -> Support {
+    fn supports_feature(
+        &self,
+        backend: BackendType,
+        class: MacroClass,
+        feature: Feature,
+    ) -> Support {
         use Feature::*;
         // Columns of the ТЗ №1 §5 table:
         //            LinuxCNC Klipper GRBL-gen GRBL-react Emulator
@@ -337,9 +352,11 @@ impl CapabilityRegistry for CapabilityMatrix {
             (BackendType::Klipper, _, ForeachArrays) => {
                 Support::Partial("jinja loops supported, arrays via lists".into())
             }
-            (BackendType::Grbl | BackendType::FluidNc | BackendType::Emulator, _, ForeachArrays) => {
-                Support::Full
-            }
+            (
+                BackendType::Grbl | BackendType::FluidNc | BackendType::Emulator,
+                _,
+                ForeachArrays,
+            ) => Support::Full,
             // Recursion: only host interpreters / expansions allow it.
             (BackendType::LinuxCnc | BackendType::Klipper, _, Recursion) => Support::None,
             (BackendType::Grbl | BackendType::FluidNc | BackendType::Emulator, _, Recursion) => {
@@ -375,10 +392,16 @@ impl CapabilityRegistry for CapabilityMatrix {
 
     fn resolution_for(&self, backend: BackendType, code: &Code) -> Option<Resolution> {
         // User-registered rules take precedence over the built-in table.
-        if let Some(rule) = self.rules.iter().rev().find(|r| r.backend == backend && r.code == *code) {
+        if let Some(rule) = self
+            .rules
+            .iter()
+            .rev()
+            .find(|r| r.backend == backend && r.code == *code)
+        {
             return Some(rule.resolution.clone());
         }
-        self.built_in_rule(backend, code).map(|rule| rule.resolution)
+        self.built_in_rule(backend, code)
+            .map(|rule| rule.resolution)
     }
 
     fn register_resolution(&mut self, rule: ResolutionRule) {
@@ -406,10 +429,9 @@ impl CapabilityRegistry for CapabilityMatrix {
                     _ => Severity::Info,
                 };
                 let detail = match support {
-                    Support::None => format!(
-                        "{backend} cannot execute {} natively",
-                        code.canonical()
-                    ),
+                    Support::None => {
+                        format!("{backend} cannot execute {} natively", code.canonical())
+                    }
                     Support::Partial(note) => note,
                     Support::Full => String::new(),
                 };
@@ -436,7 +458,11 @@ mod tests {
     fn wait_status_is_generative_grbl_forbidden_reactive_allowed() {
         let matrix = CapabilityMatrix::new();
         assert_eq!(
-            matrix.supports_feature(BackendType::Grbl, MacroClass::Generative, Feature::WaitStatus),
+            matrix.supports_feature(
+                BackendType::Grbl,
+                MacroClass::Generative,
+                Feature::WaitStatus
+            ),
             Support::None
         );
         assert_eq!(
@@ -521,7 +547,9 @@ mod tests {
             substitute: None,
         });
         // Unknown code is `Full` → no finding; a true blocker needs a None.
-        assert!(matrix.scan_incompatibilities(&stripped, BackendType::Grbl).is_empty());
+        assert!(matrix
+            .scan_incompatibilities(&stripped, BackendType::Grbl)
+            .is_empty());
         let mut blocker = Toolpath::default();
         blocker.codes.push(CodeFrame {
             line: 2,

@@ -233,9 +233,15 @@ pub enum Expr {
         lhs: Box<Expr>,
         rhs: Box<Expr>,
     },
-    Unary { op: UnOp, arg: Box<Expr> },
+    Unary {
+        op: UnOp,
+        arg: Box<Expr>,
+    },
     /// Built-in pure function call (`min`, `max`, `abs`, `sqrt`).
-    CallExpr { name: String, args: Vec<Expr> },
+    CallExpr {
+        name: String,
+        args: Vec<Expr>,
+    },
 }
 
 /// Statement node of the Macro IR (`CORE-M-01`). Every control-flow construct
@@ -263,22 +269,41 @@ pub enum Expr {
 pub enum Stmt {
     /// G-code line with `{variable}` interpolation (ТЗ №2 §5).
     #[serde(rename = "gcode")]
-    GCode { template: String },
-    Delay { ms: Expr },
+    GCode {
+        template: String,
+    },
+    Delay {
+        ms: Expr,
+    },
     /// Block until the host reports `state == "Idle"` (reactive only).
     /// Generative expansion renders it as an explicit `G4` dwell or errors.
-    Wait { cond: Expr },
-    SetVar { name: String, value: Expr },
+    Wait {
+        cond: Expr,
+    },
+    SetVar {
+        name: String,
+        value: Expr,
+    },
     If {
         cond: Expr,
         then: Vec<Stmt>,
         #[serde(default)]
         otherwise: Vec<Stmt>,
     },
-    While { cond: Expr, body: Vec<Stmt> },
-    Repeat { count: Expr, body: Vec<Stmt> },
+    While {
+        cond: Expr,
+        body: Vec<Stmt>,
+    },
+    Repeat {
+        count: Expr,
+        body: Vec<Stmt>,
+    },
     #[serde(rename = "foreach")]
-    ForEach { var: String, iter: Expr, body: Vec<Stmt> },
+    ForEach {
+        var: String,
+        iter: Expr,
+        body: Vec<Stmt>,
+    },
     /// Call a [`Subroutine`] by name.
     Call {
         name: String,
@@ -296,8 +321,12 @@ pub enum Stmt {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         value: Option<Expr>,
     },
-    Abort { reason: Expr },
-    Comment { text: String },
+    Abort {
+        reason: Expr,
+    },
+    Comment {
+        text: String,
+    },
 }
 
 /// Launch trigger of a macro (ТЗ №2 §4). Internally tagged by `type` exactly
@@ -347,9 +376,15 @@ impl Trigger {
     pub fn requires_confirm(&self) -> bool {
         match self {
             Trigger::Button { require_confirm } => *require_confirm,
-            Trigger::Hotkey { require_confirm, .. } => *require_confirm,
-            Trigger::MCode { require_confirm, .. } => *require_confirm,
-            Trigger::Event { require_confirm, .. } => *require_confirm,
+            Trigger::Hotkey {
+                require_confirm, ..
+            } => *require_confirm,
+            Trigger::MCode {
+                require_confirm, ..
+            } => *require_confirm,
+            Trigger::Event {
+                require_confirm, ..
+            } => *require_confirm,
         }
     }
 }
@@ -432,7 +467,9 @@ impl MacroProgram {
 fn collect_calls(stmt: &Stmt, out: &mut Vec<String>) {
     match stmt {
         Stmt::Call { name, .. } => out.push(name.clone()),
-        Stmt::If { then, otherwise, .. } => {
+        Stmt::If {
+            then, otherwise, ..
+        } => {
             for s in then.iter().chain(otherwise) {
                 collect_calls(s, out);
             }
@@ -501,9 +538,13 @@ triggers:
                     description: None,
                 }],
                 description: None,
-                body: vec![Stmt::GCode { template: "G1 Z-{depth}".into() }],
+                body: vec![Stmt::GCode {
+                    template: "G1 Z-{depth}".into(),
+                }],
             }],
-            triggers: vec![Trigger::Button { require_confirm: true }],
+            triggers: vec![Trigger::Button {
+                require_confirm: true,
+            }],
             body: vec![Stmt::ForEach {
                 var: "r".into(),
                 iter: Expr::Range {
@@ -511,7 +552,10 @@ triggers:
                     end: Box::new(Expr::Var("rows".into())),
                     step: None,
                 },
-                body: vec![Stmt::Call { name: "peck".into(), args: vec![Expr::Num(-5.0)] }],
+                body: vec![Stmt::Call {
+                    name: "peck".into(),
+                    args: vec![Expr::Num(-5.0)],
+                }],
             }],
         };
         let text = serde_yaml_ng::to_string(&program).unwrap();
@@ -531,8 +575,18 @@ triggers:
                 require_confirm: false,
             },
             params: vec![
-                ParamDecl { name: "a".into(), kind: ValueKind::Number, default: None, description: None },
-                ParamDecl { name: "a".into(), kind: ValueKind::Number, default: None, description: None },
+                ParamDecl {
+                    name: "a".into(),
+                    kind: ValueKind::Number,
+                    default: None,
+                    description: None,
+                },
+                ParamDecl {
+                    name: "a".into(),
+                    kind: ValueKind::Number,
+                    default: None,
+                    description: None,
+                },
             ],
             locals: vec![],
             subs: vec![],
@@ -548,10 +602,16 @@ triggers:
     fn calls_are_collected_recursively() {
         let stmts = vec![Stmt::If {
             cond: Expr::Bool(true),
-            then: vec![Stmt::Call { name: "peck".into(), args: vec![] }],
+            then: vec![Stmt::Call {
+                name: "peck".into(),
+                args: vec![],
+            }],
             otherwise: vec![Stmt::While {
                 cond: Expr::Bool(false),
-                body: vec![Stmt::Call { name: "home".into(), args: vec![] }],
+                body: vec![Stmt::Call {
+                    name: "home".into(),
+                    args: vec![],
+                }],
             }],
         }];
         let program = MacroProgram {

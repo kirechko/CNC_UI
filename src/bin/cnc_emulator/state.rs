@@ -20,6 +20,10 @@ mod tick;
 
 pub(super) struct Emulator {
     pub(super) status: MachineStatus,
+    /// Currently selected tool number, updated by T words and M6/M61 blocks.
+    pub(super) selected_tool: Option<u16>,
+    /// Tool currently mounted in the spindle after a completed M6/M61 block.
+    pub(super) current_tool: Option<u16>,
     pub(super) config: EmulatorConfig,
     pub(super) coordinate_offsets_path: PathBuf,
     pub(super) program: Vec<String>,
@@ -36,6 +40,8 @@ pub(super) struct Emulator {
     pub(super) homing_axis: Option<Axis>,
     pub(super) active_move_is_homing: bool,
     pub(super) pending_spindle: Option<(SpindleDirection, f64)>,
+    /// Stock boundary planes in machine coordinates for X/Y/Z probe simulation.
+    pub(super) probe_planes: [f64; 3],
     pub(super) last_rapid_z: Option<f64>,
     pub(super) stop_retract_active: bool,
     pub(super) jog_velocity: f64,
@@ -98,8 +104,14 @@ impl Emulator {
                 flood_coolant_on: false,
                 jog_rate: 0.0,
                 motion_mode: None,
+                selected_tool: None,
+                current_tool: None,
+                probe_triggered: false,
+                probe_position: None,
             },
             config,
+            selected_tool: None,
+            current_tool: None,
             coordinate_offsets_path,
             program: Vec::new(),
             dwell_remaining: 0.0,
@@ -114,6 +126,7 @@ impl Emulator {
             homing_axis: None,
             active_move_is_homing: false,
             pending_spindle: None,
+            probe_planes: [150.0, 200.0, 50.0],
             last_rapid_z: None,
             stop_retract_active: false,
             jog_velocity: 0.0,
@@ -178,10 +191,24 @@ impl Emulator {
         Ok(())
     }
 
+    /// Reports stock contact only if a single-axis probe move crosses a configured plane.
+    pub(super) fn probe_contact(&self, axis_index: usize, start: f64, target: f64) -> Option<f64> {
+        let plane = *self.probe_planes.get(axis_index)?;
+        let toward_plane = (target - start).signum() == (plane - start).signum();
+        let within_probe_travel = (plane - start).abs() <= (target - start).abs();
+        if toward_plane && within_probe_travel {
+            Some(plane)
+        } else {
+            None
+        }
+    }
+
+    /// Selects the active coordinate system from a G-code block.
     pub(super) fn select_coordinate_system_from_gcode(&mut self, system: CoordinateSystem) {
         self.select_coordinate_system(system);
     }
 
+    /// Persists changed coordinate offsets initiated by G-code.
     pub(super) fn persist_coordinate_offsets_from_gcode(&self) -> Result<(), WireError> {
         self.persist_coordinate_offsets()
     }

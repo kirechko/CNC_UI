@@ -213,6 +213,7 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
     }
 
     let line = emulator.program[index].clone();
+    let state_before = emulator.status.interpreter_state;
     match emulator.execute_gcode(&line) {
         Ok(()) => {
             crate::message_log::record(
@@ -221,6 +222,11 @@ pub(super) fn tick(emulator: &mut Emulator, dt: f64) {
                 &format!("Line {}: {}", index + 1, line),
             );
             emulator.status.current_line += 1;
+            if state_before == InterpreterState::Reading
+                && emulator.status.interpreter_state == InterpreterState::Paused
+            {
+                return;
+            }
             if emulator.status.current_line as usize >= emulator.program.len()
                 && emulator.active_move.is_none()
             {

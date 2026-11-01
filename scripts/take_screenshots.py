@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Capture the README screenshots of the CNC UI web app (task: characteristic
-screenshots). Requires the backend pair running:
+"""Capture README screenshots, including Persian RTL and grayscale UI variants.
 
-    cargo run --bin cnc-emulator
-    cargo run --bin cnc-web
+Requires the emulator and web server running:
+
+    cargo run --no-default-features --bin cnc_ui -- --web --emu
 
 Usage:  python3 scripts/take_screenshots.py [base-url]
 
@@ -21,6 +21,10 @@ from playwright.sync_api import sync_playwright
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
 OUT_DIR = Path(__file__).resolve().parent.parent / "docs" / "images"
 VIEWPORT = {"width": 1440, "height": 900}
+LOCALIZED_SHOTS = {
+    "fa": {"locale": "fa", "theme": "dark", "name": "main-dashboard-fa.png"},
+    "gray": {"locale": "en", "theme": "gray", "name": "main-dashboard-gray.png"},
+}
 
 
 def shot(page, name: str) -> None:
@@ -45,6 +49,7 @@ def main() -> int:
         page = browser.new_page(viewport=VIEWPORT, device_scale_factor=1)
         # The UI polls /api/status continuously, so `networkidle` never fires;
         # load the DOM and then wait for the connection chip explicitly.
+        page.add_init_script("localStorage.setItem('cnc-ui-theme', 'dark')")
         page.goto(BASE_URL, wait_until="domcontentloaded")
         wait_connected(page)
         # Let telemetry, toolpath load and jog dial render settle.
@@ -72,13 +77,46 @@ def main() -> int:
         shot(page, "macro-editor.png")
         page.evaluate("document.querySelector('#macro-dialog').close()")
 
+        # The quick-run section is a dynamic control: assign the first macro and
+        # capture configured shortcut buttons alongside the editable CRUD list.
+        page.evaluate("document.querySelector('#macro-button-add').click()")
+        page.wait_for_function("document.querySelector('#macro-button-picker')?.open === true")
+        page.select_option("#macro-button-picker-select", index=0)
+        page.locator("#macro-button-picker-form button[value=add]").evaluate("button => button.click()")
+        page.wait_for_timeout(300)
+        shot(page, "macro-buttons.png")
+
         # 4. Program editor with the auto-loaded test.gcode.
+        page.evaluate("document.querySelector('#macro-button-picker')?.close()")
         page.evaluate("document.querySelector('#open-program-editor').click()")
         page.wait_for_timeout(700)
         shot(page, "program-editor.png")
         page.evaluate("document.querySelector('#close-program-editor').click()")
 
-        # 5. Message log dialog (filters + calendar + rows).
+        # Restore a fresh English dashboard before locale/theme capture.
+        page.goto(f"{BASE_URL}?lang=en", wait_until="domcontentloaded")
+        wait_connected(page)
+
+        # 5. Capture representative Persian RTL and neutral grayscale dashboards.
+        for variant in LOCALIZED_SHOTS.values():
+            # Isolate saved theme preferences, so each screenshot reliably starts with its target theme.
+            variant_context = browser.new_context(viewport=VIEWPORT, device_scale_factor=1)
+            variant_context.add_init_script(
+                "localStorage.setItem('cnc-ui-theme', " + repr(variant["theme"]) + ")"
+            )
+            variant_page = variant_context.new_page()
+            variant_page.goto(f"{BASE_URL}?lang={variant['locale']}", wait_until="domcontentloaded")
+            wait_connected(variant_page)
+            variant_page.wait_for_timeout(1200)
+            shot(variant_page, variant["name"])
+            variant_context.close()
+
+        # Restore English + dark before capturing the message-log dialog.
+        page.evaluate("localStorage.setItem('cnc-ui-theme', 'dark')")
+        page.goto(f"{BASE_URL}?lang=en", wait_until="domcontentloaded")
+        page.wait_for_timeout(500)
+
+        # 6. Message log dialog (filters + calendar + rows).
         page.evaluate("document.querySelector('#message-log-dialog').showModal()")
         page.wait_for_timeout(800)
         shot(page, "message-log.png")

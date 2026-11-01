@@ -81,13 +81,18 @@ fn measure_stock_macro_bakes_rotation_into_toolpath() {
     );
     // The macro sent its own motion, read the probe, and asked for the bake.
     assert_eq!(runtime.sent.first().map(String::as_str), Some("G90 G0 Z5"));
-    assert!(events.iter().any(|e| e.message.contains("transform Rotate")));
+    assert!(events
+        .iter()
+        .any(|e| e.message.contains("transform Rotate")));
     // Rotate 90° CCW about (120, 40): (10,0) → (160, -70), (20,0) → (160, -60).
     let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
     let first = toolpath.segments[0].to;
     assert!(close(first.x, 160.0) && close(first.y, -70.0), "{first:?}");
     let second = toolpath.segments[1].to;
-    assert!(close(second.x, 160.0) && close(second.y, -60.0), "{second:?}");
+    assert!(
+        close(second.x, 160.0) && close(second.y, -60.0),
+        "{second:?}"
+    );
 
     // 3) Dry-run variant (ТЗ №2 §9.4) without a bridge must fail on the
     //    transform step: proof that InvokeTransform is gated, not silently
@@ -109,6 +114,95 @@ fn measure_stock_macro_bakes_rotation_into_toolpath() {
     ));
     // The logic up to the failure did run, but only as [DRY RUN] records.
     assert_eq!(dry.recorded, vec!["[DRY RUN] G90 G0 Z5"]);
+}
+
+/// Simulates repeated macro-driven probing and work-offset transforms against varied stock poses.
+#[test]
+fn randomized_oriented_box_probe_macro_measures_and_aligns_toolpath() {
+    use rosetta::ir::macro_ir::Value;
+    use rosetta::transform::affine::AffineTransform;
+    use rosetta::transform::model::{Region, Transform};
+
+    let macro_yaml = r#"meta: { id: measure_box, name: Measure oriented box, class: reactive }
+params:
+  - { name: safe_z, default: !num 25.0 }
+  - { name: reach, default: !num 40.0 }
+  - { name: probe_feed, default: !num 120.0 }
+locals:
+  - { name: ox, kind: number }
+  - { name: oy, kind: number }
+  - { name: angle, kind: number }
+body:
+  - !gcode { template: "G90 G0 Z{safe_z}" }
+  - !gcode { template: "G91 G38.2 X-{reach} F{probe_feed}" }
+  - !wait { cond: !status probe_trig }
+  - !set_var { name: ox, value: !status probe.x }
+  - !set_var { name: oy, value: !status probe.y }
+  - !set_var { name: angle, value: !status probe_angle }
+  - !invoke_transform { id: Translate, args: [ !var ox, !var oy ] }
+  - !invoke_transform { id: Rotate, args: [ !var angle, !num 0.0, !num 0.0 ] }
+"#;
+    let program = YamlFrontend.parse_macro(macro_yaml).unwrap();
+    let catalog = TransformRegistry::with_builtins();
+    let mut rng = 0xC0FFEE_u64;
+    let mut observed_poses = std::collections::HashSet::new();
+
+    for _ in 0..24 {
+        // Xorshift gives reproducible randomized positions and angles in unit tests.
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        let ox = 10.0 + (rng % 180) as f64;
+        let oy = 10.0 + ((rng >> 11) % 180) as f64;
+        let angle = ((rng >> 23) % 90) as f64 - 45.0;
+        let mut status = HashMap::new();
+        status.insert("probe_trig".into(), Value::Bool(true));
+        status.insert("probe.x".into(), Value::Num(ox));
+        status.insert("probe.y".into(), Value::Num(oy));
+        status.insert("probe_angle".into(), Value::Num(angle));
+        observed_poses.insert((ox as i32, oy as i32, angle as i32));
+        let mut runtime = ScriptedRuntime::new(status, MachineState::Idle);
+        let mut toolpath = GcodeIo::new().parse("G0 X0 Y0\nG1 X10 Y0\n").unwrap();
+        let mut invoked_transforms = Vec::new();
+        let mut apply = |id: &str, args: Vec<Value>| -> rosetta::RosettaResult<Option<Value>> {
+            invoked_transforms.push(id.to_owned());
+            let kind = catalog.build_from_args(id, &args)?;
+            let report = AffineTransform::new(kind).apply(&mut toolpath, &Region::Whole)?;
+            Ok(Some(Value::Num(report.affected_segments as f64)))
+        };
+        let mut transform: Option<&mut TransformHook<'_>> = Some(&mut apply);
+        let outcome = rosetta::macro_engine::interpreter::run_macro(
+            &program,
+            Vec::new(),
+            &mut runtime,
+            &CancellationToken::new(),
+            &mut |_| {},
+            &mut transform,
+        )
+        .unwrap();
+        assert!(
+            matches!(outcome, RunOutcome::Completed { .. }),
+            "{outcome:?}"
+        );
+        assert_eq!(
+            runtime.sent.len(),
+            2,
+            "the macro should send safe-height and probe commands"
+        );
+        assert_eq!(invoked_transforms, vec!["Translate", "Rotate"]);
+        let endpoint = toolpath.segments.last().unwrap().to;
+        let radians = angle.to_radians();
+        let expected = (
+            (10.0 + ox) * radians.cos() - oy * radians.sin(),
+            (10.0 + ox) * radians.sin() + oy * radians.cos(),
+        );
+        assert!((endpoint.x - expected.0).abs() < 1e-8, "{endpoint:?}");
+        assert!((endpoint.y - expected.1).abs() < 1e-8, "{endpoint:?}");
+    }
+    assert!(
+        observed_poses.len() >= 20,
+        "randomized inputs should cover distinct poses"
+    );
 }
 
 /// Canned probe status map shared by dry-run scenarios.
@@ -152,30 +246,50 @@ fn make_runnable_on_grbl_end_to_end() {
         .auto_plan(
             source,
             BackendType::Grbl,
-            ProgramRef { id: "pockets.nc".into(), label: None },
+            ProgramRef {
+                id: "pockets.nc".into(),
+                label: None,
+            },
             "make-runnable",
             "Make runnable on GRBL",
             rosetta::ir::capability::ConfirmPolicy::EachUnsafe,
         )
         .unwrap();
     assert_eq!(plan.steps.len(), 1, "{:?}", plan.steps); // only the G83 swap
-    // G41 needs parameters; M6 has no registered rule on the bare matrix.
+                                                         // G41 needs parameters; M6 has no registered rule on the bare matrix.
     assert_eq!(unresolved.len(), 2, "{unresolved:?}");
     assert!(unresolved.iter().any(|u| u.contains("G41")));
     assert!(unresolved.iter().any(|u| u.contains("M6")));
 
     // Step 3: with G41 removed by an explicit operator decision (strip),
     // the full pipeline produces a traced artifact.
-    plan.steps.push(TransformStep::new(TransformKind::StripUnsupported {
-        codes: vec![Code::G(41)],
-    }));
-    let artifact =
-        pipeline.run(source, &plan, PlanConfirmation::PlanLevel { approved: true }).unwrap();
-    assert!(artifact.emitted_text.contains("g83_peck_drill"), "{}", artifact.emitted_text);
-    assert!(!artifact.emitted_text.contains("G41"), "{}", artifact.emitted_text);
+    plan.steps
+        .push(TransformStep::new(TransformKind::StripUnsupported {
+            codes: vec![Code::G(41)],
+        }));
+    let artifact = pipeline
+        .run(
+            source,
+            &plan,
+            PlanConfirmation::PlanLevel { approved: true },
+        )
+        .unwrap();
+    assert!(
+        artifact.emitted_text.contains("g83_peck_drill"),
+        "{}",
+        artifact.emitted_text
+    );
+    assert!(
+        !artifact.emitted_text.contains("G41"),
+        "{}",
+        artifact.emitted_text
+    );
     // Tracing: original line 3 (G83) and line 4 (G41) are both accounted.
-    let traced: Vec<usize> =
-        artifact.traces.iter().flat_map(|t| t.affected_lines.clone()).collect();
+    let traced: Vec<usize> = artifact
+        .traces
+        .iter()
+        .flat_map(|t| t.affected_lines.clone())
+        .collect();
     assert!(traced.contains(&3) && traced.contains(&4), "{traced:?}");
     assert_eq!(artifact.source_text, source);
 
@@ -208,8 +322,16 @@ impl MacroExpander for PeckExpander {
         cycle: CycleCode,
         frame: &rosetta::ir::toolpath::CodeFrame,
     ) -> rosetta::RosettaResult<Vec<String>> {
-        let z = frame.words.iter().find(|(l, _)| *l == 'Z').map(|(_, v)| *v).unwrap_or(0.0);
-        Ok(vec![format!("({macro_id} emulates {cycle:?})"), format!("G1 Z{z}")])
+        let z = frame
+            .words
+            .iter()
+            .find(|(l, _)| *l == 'Z')
+            .map(|(_, v)| *v)
+            .unwrap_or(0.0);
+        Ok(vec![
+            format!("({macro_id} emulates {cycle:?})"),
+            format!("G1 Z{z}"),
+        ])
     }
 }
 
@@ -253,7 +375,10 @@ fn mcode_trigger_routes_tool_change_with_confirm_and_alarm_gate() {
         BackendType::Grbl,
     )
     .unwrap_err();
-    assert!(matches!(error, rosetta::RosettaError::Runtime { .. }), "{error}");
+    assert!(
+        matches!(error, rosetta::RosettaError::Runtime { .. }),
+        "{error}"
+    );
     assert!(runtime.sent.is_empty(), "nothing may reach the machine");
 }
 
@@ -266,7 +391,9 @@ fn invoker_routes_by_class_and_registry_is_the_source_of_truth() {
     let generative_src = "meta: { id: bolt_circle, name: Bolt circle, class: generative }\n\
         params:\n  - { name: r, default: !num 2.0 }\n\
         body:\n  - !repeat { count: !num 2.0, body: [ !gcode { template: \"G1 X{r}\" } ] }\n";
-    registry.register(YamlFrontend.parse_macro(generative_src).unwrap()).unwrap();
+    registry
+        .register(YamlFrontend.parse_macro(generative_src).unwrap())
+        .unwrap();
 
     let matrix = CapabilityMatrix::new();
     let id = "bolt_circle".to_owned();
@@ -281,7 +408,13 @@ fn invoker_routes_by_class_and_registry_is_the_source_of_truth() {
     let mut log = |_l: MacroLogLine| {};
     let missing = "missing_id".to_owned();
     let error = invoker
-        .invoke(&missing, Vec::new(), &mut runtime, &CancellationToken::new(), &mut log)
+        .invoke(
+            &missing,
+            Vec::new(),
+            &mut runtime,
+            &CancellationToken::new(),
+            &mut log,
+        )
         .unwrap_err();
     assert!(
         matches!(error, rosetta::RosettaError::NotFound { ref kind, ref id }

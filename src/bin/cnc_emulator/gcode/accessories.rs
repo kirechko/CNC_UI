@@ -1,9 +1,13 @@
-//! Handles G-code M-words and simulated spindle state transitions.
+//! Handles G-code M-words, tool selection, and simulated spindle state transitions.
 use super::super::protocol::{api_error, WireError};
 use super::super::state::Emulator;
-use crate::*;
+use crate::cnc_api::*;
 
-pub(super) fn handle_m_word(emulator: &mut Emulator, value: f64) -> Result<(), WireError> {
+pub(super) fn handle_m_word(
+    emulator: &mut Emulator,
+    value: f64,
+    q_word: Option<f64>,
+) -> Result<(), WireError> {
     match value as i32 {
         3 => emulator.set_spindle(SpindleDirection::Clockwise, None),
         4 => emulator.set_spindle(SpindleDirection::CounterClockwise, None),
@@ -23,6 +27,16 @@ pub(super) fn handle_m_word(emulator: &mut Emulator, value: f64) -> Result<(), W
         }
         30 => emulator.status.message = Some("Program end M30".into()),
         2 => emulator.status.message = Some("Program end M2".into()),
+        0 => {
+            emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Paused;
+            emulator.status.message = Some("Program paused for operator (M0)".into());
+        }
+        1 => {
+            emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Paused;
+            emulator.status.message = Some("Optional program stop (M1)".into());
+        }
+        6 => change_tool(emulator)?,
+        61 => select_current_tool(emulator, q_word)?,
         other => {
             return Err(api_error(
                 "unsupported_gcode",
@@ -33,6 +47,62 @@ pub(super) fn handle_m_word(emulator: &mut Emulator, value: f64) -> Result<(), W
     Ok(())
 }
 
+/// Validates a T word and records its tool number for the following M6 block.
+pub(super) fn select_tool(emulator: &mut Emulator, value: f64) -> Result<(), WireError> {
+    if !value.is_finite() || value < 0.0 || value.fract().abs() > 1e-6 || value > u16::MAX as f64 {
+        return Err(api_error(
+            "bad_tool",
+            "T must be an integer in the range 0..65535",
+        ));
+    }
+    let tool = value as u16;
+    emulator.selected_tool = Some(tool);
+    emulator.status.selected_tool = Some(tool);
+    emulator.status.message = Some(format!("Selected tool T{tool}"));
+    Ok(())
+}
+
+/// Simulates a tool change by mounting the most recently selected T word.
+pub(super) fn change_tool(emulator: &mut Emulator) -> Result<(), WireError> {
+    let was_reading =
+        emulator.status.interpreter_state == crate::cnc_api::InterpreterState::Reading;
+    if was_reading {
+        emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Paused;
+    }
+    let tool = emulator
+        .selected_tool
+        .ok_or_else(|| api_error("bad_tool_change", "M6 requires a preceding T word"))?;
+    emulator.current_tool = Some(tool);
+    emulator.status.current_tool = Some(tool);
+    if was_reading {
+        emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Reading;
+    }
+    emulator.status.message = Some(format!("Tool change complete: T{tool}"));
+    Ok(())
+}
+
+/// Implements LinuxCNC-style M61 Qn, which selects the mounted tool without a changer.
+pub(super) fn select_current_tool(
+    emulator: &mut Emulator,
+    q_word: Option<f64>,
+) -> Result<(), WireError> {
+    let value = q_word.ok_or_else(|| api_error("bad_tool", "M61 requires a Q tool number"))?;
+    if !value.is_finite() || value < 0.0 || value.fract().abs() > 1e-6 || value > u16::MAX as f64 {
+        return Err(api_error(
+            "bad_tool",
+            "M61 Q must be an integer in the range 0..65535",
+        ));
+    }
+    let tool = value as u16;
+    emulator.selected_tool = Some(tool);
+    emulator.current_tool = Some(tool);
+    emulator.status.selected_tool = Some(tool);
+    emulator.status.current_tool = Some(tool);
+    emulator.status.message = Some(format!("Current tool set to T{tool}"));
+    Ok(())
+}
+
+/// Applies a spindle direction/speed request while preserving the configured ramp behavior.
 pub(super) fn set_spindle(emulator: &mut Emulator, direction: SpindleDirection, rpm: Option<f64>) {
     let requested_rpm = rpm
         .unwrap_or(emulator.status.spindle.commanded_rpm)

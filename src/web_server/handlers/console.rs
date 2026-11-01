@@ -46,7 +46,10 @@ pub(crate) async fn get_status(
         controller.get_status_snapshot()
     };
     state.record_status(&status);
-    let mut response = StatusResponse::from(status);
+    let connected_device_id = state.connected_machine_id();
+    let devices = state.machine_snapshot();
+    let mut response =
+        StatusResponse::from(status).with_connection_info(&devices, connected_device_id.as_deref());
     if let Ok(latest) = state.latest_log_messages() {
         response.latest_critical = latest.critical;
         response.latest_other = latest.other;

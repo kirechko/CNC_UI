@@ -204,6 +204,18 @@ pub struct MachineStatus {
     #[serde(default)]
     pub motion_mode: Option<String>,
     pub max_spindle_rpm: f64,
+    /// Whether the emulator's virtual touch probe is currently contacting stock.
+    #[serde(default)]
+    pub probe_triggered: bool,
+    /// Last successful probe contact position in machine coordinates.
+    #[serde(default)]
+    pub probe_position: Option<Position>,
+    /// Selected tool awaiting an M6 block, when the backend exposes tool state.
+    #[serde(default)]
+    pub selected_tool: Option<u16>,
+    /// Tool mounted in the spindle, when reported by the backend.
+    #[serde(default)]
+    pub current_tool: Option<u16>,
     pub loaded_program: Option<String>,
     pub current_line: u32,
     pub total_lines: u32,

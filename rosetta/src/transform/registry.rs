@@ -66,7 +66,9 @@ pub struct TransformRegistry {
 impl TransformRegistry {
     /// Empty catalog.
     pub fn new() -> Self {
-        TransformRegistry { specs: BTreeMap::new() }
+        TransformRegistry {
+            specs: BTreeMap::new(),
+        }
     }
 
     /// The built-in catalog with every kind of ТЗ №3 §4 registered; the
@@ -109,9 +111,10 @@ impl TransformRegistry {
 
     /// Decode args into a kind and validate the id exists (`TRF-M-03`).
     pub fn build_from_args(&self, id: &str, args: &[Value]) -> RosettaResult<TransformKind> {
-        let spec = self
-            .get(id)
-            .ok_or_else(|| RosettaError::NotFound { kind: "transform".into(), id: id.into() })?;
+        let spec = self.get(id).ok_or_else(|| RosettaError::NotFound {
+            kind: "transform".into(),
+            id: id.into(),
+        })?;
         (spec.build)(args)
     }
 }
@@ -126,8 +129,14 @@ fn builtin_specs() -> Vec<TransformSpec> {
             description: "повернуть траекторию вокруг центра (angle, cx, cy)",
             build: |args| {
                 let angle = number(args, 0, "Rotate.angle_deg")?;
-                let center = Point2::new(number(args, 1, "Rotate.center_x")?, number(args, 2, "Rotate.center_y")?);
-                Ok(K::Rotate { angle_deg: angle, center })
+                let center = Point2::new(
+                    number(args, 1, "Rotate.center_x")?,
+                    number(args, 2, "Rotate.center_y")?,
+                );
+                Ok(K::Rotate {
+                    angle_deg: angle,
+                    center,
+                })
             },
         },
         TransformSpec {
@@ -172,7 +181,9 @@ fn builtin_specs() -> Vec<TransformSpec> {
                     "xy" | "yx" => MirrorAxes::Xy,
                     other => {
                         return Err(RosettaError::Validation {
-                            reason: format!("Mirror.axes must be \"x\", \"y\" or \"xy\", got \"{other}\""),
+                            reason: format!(
+                                "Mirror.axes must be \"x\", \"y\" or \"xy\", got \"{other}\""
+                            ),
                         })
                     }
                 };
@@ -215,11 +226,16 @@ fn builtin_specs() -> Vec<TransformSpec> {
             family: TransformFamily::Structural,
             description: "заменить цикл макросом-эмулятором (81..86/73/76, macro_id)",
             build: |args| {
-                let cycle = CycleCode::from_code(&Code::G(number(args, 0, "CycleSubstitute.cycle")? as u16))
-                    .ok_or_else(|| RosettaError::Validation {
-                        reason: "CycleSubstitute.cycle must be 73/76/81..86".into(),
-                    })?;
-                Ok(K::CycleSubstitute { from: cycle, to: text(args, 1, "CycleSubstitute.macro_id")? })
+                let cycle = CycleCode::from_code(&Code::G(
+                    number(args, 0, "CycleSubstitute.cycle")? as u16,
+                ))
+                .ok_or_else(|| RosettaError::Validation {
+                    reason: "CycleSubstitute.cycle must be 73/76/81..86".into(),
+                })?;
+                Ok(K::CycleSubstitute {
+                    from: cycle,
+                    to: text(args, 1, "CycleSubstitute.macro_id")?,
+                })
             },
         },
         TransformSpec {
@@ -251,12 +267,17 @@ fn builtin_specs() -> Vec<TransformSpec> {
             family: TransformFamily::Geometric,
             description: "запечь G41/G42 (\"left\"|\"right\", tool_radius [, lead_len])",
             build: |args| {
-                let side = match text(args, 0, "CutterCompBake.side")?.to_ascii_lowercase().as_str() {
+                let side = match text(args, 0, "CutterCompBake.side")?
+                    .to_ascii_lowercase()
+                    .as_str()
+                {
                     "left" | "g41" => CompSide::Left,
                     "right" | "g42" => CompSide::Right,
                     other => {
                         return Err(RosettaError::Validation {
-                            reason: format!("CutterCompBake.side must be left/right, got \"{other}\""),
+                            reason: format!(
+                                "CutterCompBake.side must be left/right, got \"{other}\""
+                            ),
                         })
                     }
                 };
@@ -265,7 +286,11 @@ fn builtin_specs() -> Vec<TransformSpec> {
                     length,
                     feed_factor: None,
                 });
-                Ok(K::CutterCompBake { side, tool_radius: number(args, 1, "CutterCompBake.tool_radius")?, lead })
+                Ok(K::CutterCompBake {
+                    side,
+                    tool_radius: number(args, 1, "CutterCompBake.tool_radius")?,
+                    lead,
+                })
             },
         },
         TransformSpec {
@@ -273,7 +298,10 @@ fn builtin_specs() -> Vec<TransformSpec> {
             family: TransformFamily::Geometric,
             description: "врезки/выезды (\"linear\"|\"arc\", length)",
             build: |args| {
-                let kind = match text(args, 0, "LeadInOut.kind")?.to_ascii_lowercase().as_str() {
+                let kind = match text(args, 0, "LeadInOut.kind")?
+                    .to_ascii_lowercase()
+                    .as_str()
+                {
                     "linear" => LeadKind::Linear,
                     "arc" => LeadKind::Arc,
                     other => {
@@ -283,7 +311,11 @@ fn builtin_specs() -> Vec<TransformSpec> {
                     }
                 };
                 Ok(K::LeadInOut {
-                    spec: LeadSpec { kind, length: number(args, 1, "LeadInOut.length")?, feed_factor: None },
+                    spec: LeadSpec {
+                        kind,
+                        length: number(args, 1, "LeadInOut.length")?,
+                        feed_factor: None,
+                    },
                 })
             },
         },
@@ -291,16 +323,22 @@ fn builtin_specs() -> Vec<TransformSpec> {
             id: "CornerRound".into(),
             family: TransformFamily::Geometric,
             description: "скругление острых углов (radius)",
-            build: |args| Ok(K::CornerRound { radius: number(args, 0, "CornerRound.radius")? }),
+            build: |args| {
+                Ok(K::CornerRound {
+                    radius: number(args, 0, "CornerRound.radius")?,
+                })
+            },
         },
     ]
 }
 
 /// Positional required number argument.
 fn number(args: &[Value], index: usize, what: &str) -> RosettaResult<f64> {
-    args.get(index).map(Value::as_num).ok_or_else(|| RosettaError::Validation {
-        reason: format!("{what}: missing numeric argument #{index}"),
-    })
+    args.get(index)
+        .map(Value::as_num)
+        .ok_or_else(|| RosettaError::Validation {
+            reason: format!("{what}: missing numeric argument #{index}"),
+        })
 }
 
 /// Positional optional number argument.
@@ -375,7 +413,14 @@ mod tests {
     #[test]
     fn catalog_ids_cover_resolution_rule_names() {
         let registry = TransformRegistry::with_builtins();
-        for id in ["Rotate", "Translate", "Scale", "Mirror", "UnitsConvert", "CutterCompBake"] {
+        for id in [
+            "Rotate",
+            "Translate",
+            "Scale",
+            "Mirror",
+            "UnitsConvert",
+            "CutterCompBake",
+        ] {
             assert!(registry.exists(id), "{id} missing");
         }
         assert!(!registry.exists("Teleport"));

@@ -213,7 +213,9 @@ pub fn parse_toolpath(source: &str) -> RosettaResult<Toolpath> {
                 });
             }
         }
-        let has_axes = AXIS_WORDS.iter().any(|(letter, _)| seen.contains_key(letter));
+        let has_axes = AXIS_WORDS
+            .iter()
+            .any(|(letter, _)| seen.contains_key(letter));
         if has_axes {
             let mode = state.mode.unwrap_or(SegmentKind::Linear);
             let center = if mode.is_arc() {
@@ -324,7 +326,11 @@ fn split_comments(line: &str) -> (String, Option<String>) {
         .filter(|text| !text.is_empty())
         .collect::<Vec<_>>()
         .join(" | ");
-    let comment = if joined.is_empty() { None } else { Some(joined) };
+    let comment = if joined.is_empty() {
+        None
+    } else {
+        Some(joined)
+    };
     (command, comment)
 }
 
@@ -333,7 +339,11 @@ fn resolve_target(pos: Point3, words: &HashMap<char, f64>, absolute: bool) -> Po
     let mut target = pos;
     for (letter, index) in AXIS_WORDS {
         if let Some(value) = words.get(&letter) {
-            let addressed = if absolute { *value } else { coord_at(pos, index) + value };
+            let addressed = if absolute {
+                *value
+            } else {
+                coord_at(pos, index) + value
+            };
             set_coord(&mut target, index, addressed);
         }
     }
@@ -370,7 +380,10 @@ pub fn emit_toolpath(toolpath: &Toolpath) -> RosettaResult<String> {
     // Segment view grouped by source line, order preserved per line.
     let mut segments_by_line: HashMap<usize, Vec<&Segment>> = HashMap::new();
     for segment in &toolpath.segments {
-        segments_by_line.entry(segment.line).or_default().push(segment);
+        segments_by_line
+            .entry(segment.line)
+            .or_default()
+            .push(segment);
     }
     let mut out = String::new();
     // Units header keeps the program self-describing.
@@ -442,7 +455,11 @@ fn render_segment(segment: &Segment, frame: &CodeFrame) -> RosettaResult<String>
         parts.push(format!("X{}", fmt_num(segment.to.x)));
         parts.push(format!("Y{}", fmt_num(segment.to.y)));
         parts.push(format!("Z{}", fmt_num(segment.to.z)));
-        for (letter, value) in [('A', segment.to.a), ('B', segment.to.b), ('C', segment.to.c)] {
+        for (letter, value) in [
+            ('A', segment.to.a),
+            ('B', segment.to.b),
+            ('C', segment.to.c),
+        ] {
             if let Some(angle) = value {
                 parts.push(format!("{letter}{}", fmt_num(angle)));
             }
@@ -548,7 +565,11 @@ mod tests {
         // TRF-M-06: CycleSubstitute keeps the frame (and its line number)
         // but emits the emulated replacement instead of the original text.
         let mut tp = parse_sample();
-        let m6 = tp.codes.iter().position(|f| f.mentions(&Code::M(6))).unwrap();
+        let m6 = tp
+            .codes
+            .iter()
+            .position(|f| f.mentions(&Code::M(6)))
+            .unwrap();
         tp.codes[m6].substitute = Some(vec!["(tool_change begin)".into(), "M6".into()]);
         let text = GcodeIo::new().emit(&tp).unwrap();
         assert!(text.contains("(tool_change begin)\nM6\n"), "text: {text}");
@@ -558,9 +579,14 @@ mod tests {
 
     #[test]
     fn inline_comments_and_lowercase_tokens_parse() {
-        let tp = GcodeIo::new().parse("g1 x2 (rapid-ish) y3 ; feed down\n").unwrap();
+        let tp = GcodeIo::new()
+            .parse("g1 x2 (rapid-ish) y3 ; feed down\n")
+            .unwrap();
         assert_eq!(tp.segments[0].to, Point3::new(2.0, 3.0, 0.0));
-        assert_eq!(tp.codes[0].comment.as_deref(), Some("rapid-ish | feed down"));
+        assert_eq!(
+            tp.codes[0].comment.as_deref(),
+            Some("rapid-ish | feed down")
+        );
     }
 
     #[test]

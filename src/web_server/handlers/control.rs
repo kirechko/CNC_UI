@@ -292,7 +292,14 @@ pub(crate) async fn jog_speed(
     State(state): State<SharedController>,
     Json(request): Json<JogSpeedRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let values = [request.xy, request.z, request.rotary, request.a, request.b, request.c];
+    let values = [
+        request.xy,
+        request.z,
+        request.rotary,
+        request.a,
+        request.b,
+        request.c,
+    ];
     if values
         .iter()
         .flatten()

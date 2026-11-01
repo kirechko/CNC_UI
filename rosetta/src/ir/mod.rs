@@ -29,4 +29,6 @@ pub use macro_ir::{
     BinOp, Expr, MacroClass, MacroId, MacroMeta, MacroProgram, ParamDecl, Stmt, Subroutine,
     TransformId, Trigger, UnOp, Value, ValueKind, VarDecl,
 };
-pub use toolpath::{Code, CodeFrame, Point2, Point3, Segment, SegmentId, SegmentKind, Toolpath, Units};
+pub use toolpath::{
+    Code, CodeFrame, Point2, Point3, Segment, SegmentId, SegmentKind, Toolpath, Units,
+};

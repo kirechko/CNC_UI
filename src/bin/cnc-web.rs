@@ -6,6 +6,9 @@ mod cnc_controller;
 mod i18n;
 #[path = "../message_log.rs"]
 mod message_log;
+// Rosetta glue layer: macro runtime/registry/transform bridge (T26).
+#[path = "../rosetta_host/mod.rs"]
+mod rosetta_host;
 // Directory module (mod.rs re-exports `run` and the shared models).
 #[path = "../web_server/mod.rs"]
 mod web_server;

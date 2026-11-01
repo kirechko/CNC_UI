@@ -46,10 +46,16 @@ pub(crate) fn percent_encode(value: &str) -> String {
     out
 }
 
-/// Issues one request and reads the complete response (until EOF).
+/// Issues one request and reads the complete response.
 ///
 /// `target` must already be percent-encoded and start with `/`. Headers are
 /// `(name, value)` pairs added after `Host`/`Connection`/`Content-Length`.
+///
+/// The whole socket exchange — connect, write *and* read — runs inside the
+/// caller's `overall_timeout`. (An earlier version awaited `exchange` first
+/// and only wrapped the already-finished value in `timeout`, so a controller
+/// that accepted the socket but stopped answering hung a file operation
+/// forever — the "no access to FluidNC files" symptom.)
 pub(crate) async fn request(
     address: &str,
     method: &str,
@@ -59,14 +65,18 @@ pub(crate) async fn request(
     overall_timeout: Duration,
 ) -> Result<HttpResponse, String> {
     let payload = build_request(address, method, target, headers, body);
-    let task = exchange(address, method, &payload).await;
-    timeout(overall_timeout, async { task })
+    timeout(overall_timeout, exchange(address, method, &payload))
         .await
         .map_err(|_| format!("request timed out after {}s", overall_timeout.as_secs()))?
 }
 
-/// Performs connect → write → read-to-EOF; separated so the blocking-style
-/// socket work can be raced against the overall timeout in [`request`].
+/// Performs connect → write → read. The read loop returns as soon as the
+/// buffered bytes form a *complete* response (headers + declared body, or the
+/// closing zero-size chunk); only a body of unknown length still waits for
+/// the server to close the connection. FluidNC's AsyncWebServer honors
+/// `Connection: close` on most builds, but a firmware that keeps the socket
+/// open after `Content-Length` is now served instantly instead of freezing
+/// the FILES panel until the overall timeout.
 async fn exchange(address: &str, method: &str, payload: &[u8]) -> Result<HttpResponse, String> {
     let stream = TcpStream::connect(address)
         .await
@@ -85,25 +95,126 @@ async fn exchange(address: &str, method: &str, payload: &[u8]) -> Result<HttpRes
         .flush()
         .await
         .map_err(|error| format!("{method} flush: {error}"))?;
-    // Half-close so a server waiting for more input terminates the response.
-    let _ = writer.shutdown().await;
+    // NOTE: no `writer.shutdown()` here. The ESPAsyncWebServer stack on
+    // FluidNC aborts an in-flight request when the client half-closes the
+    // socket before the response has been produced: the FIN is treated as a
+    // disconnect and the reply is dropped, which the client then reads as an
+    // empty response ("missing header terminator" — the reported FluidNC
+    // files bug). With `Connection: close` the server terminates the response
+    // by itself; `take_complete` detects the finished body and the socket is
+    // simply dropped when this function returns.
 
     let mut buffer = Vec::new();
     let mut chunk = [0_u8; 64 * 1024];
     loop {
+        // A self-delimiting body (Content-Length / closing chunk) finishes
+        // the exchange without waiting for EOF.
+        if let Some(response) =
+            take_complete(&buffer).map_err(|error| format!("{method} response: {error}"))?
+        {
+            return Ok(response);
+        }
         let read = reader
             .read(&mut chunk)
             .await
             .map_err(|error| format!("{method} read: {error}"))?;
         if read == 0 {
-            break;
+            // EOF: decode whatever arrived (unknown-length bodies end here).
+            return parse_response(&buffer).map_err(|error| format!("{method} response: {error}"));
         }
         if buffer.len() + read > MAX_RESPONSE_BYTES {
             return Err(format!("response larger than {MAX_RESPONSE_BYTES} bytes"));
         }
         buffer.extend_from_slice(&chunk[..read]);
     }
-    parse_response(&buffer).map_err(|error| format!("{method} response: {error}"))
+}
+
+/// Decodes a *complete* response from the bytes received so far.
+///
+/// `Ok(None)` means "more bytes needed" (headers still arriving, declared
+/// body truncated, chunk stream unterminated, or an unknown-length body that
+/// only ends at EOF). Malformed framing is a hard `Err`, never a wait — a
+/// garbage status line will never fix itself with more bytes.
+fn take_complete(raw: &[u8]) -> Result<Option<HttpResponse>, String> {
+    let Some((header_end, terminator_len)) = find_header_end(raw) else {
+        // Header block still incomplete; guard against a runaway server.
+        if raw.len() > MAX_RESPONSE_BYTES {
+            return Err(format!("response larger than {MAX_RESPONSE_BYTES} bytes"));
+        }
+        return Ok(None);
+    };
+    let head = std::str::from_utf8(&raw[..header_end])
+        .map_err(|_| "non-UTF-8 response header")?
+        .to_ascii_lowercase();
+    if head
+        .split('\n')
+        .next()
+        .and_then(|line| line.split(' ').nth(1))
+        .and_then(|code| code.trim().parse::<u16>().ok())
+        .is_none()
+    {
+        return Err("missing status line".to_string());
+    }
+    let rest = &raw[(header_end + terminator_len).min(raw.len())..];
+    let chunked = head
+        .lines()
+        .any(|line| line.starts_with("transfer-encoding:") && line.contains("chunked"));
+    if chunked {
+        // Complete once the terminating zero-size chunk line is present; the
+        // trailers after it are ignored, so no further wait is needed.
+        return if chunked_terminator_seen(rest)? {
+            Ok(Some(parse_response(raw)?))
+        } else {
+            Ok(None)
+        };
+    }
+    if let Some(length) =
+        header_value(&head, "content-length").and_then(|v| v.parse::<usize>().ok())
+    {
+        return Ok((rest.len() >= length)
+            .then(|| parse_response(raw))
+            .transpose()?);
+    }
+    // No length information at all: the body ends only at EOF, so the read
+    // loop keeps collecting until the peer closes the socket.
+    Ok(None)
+}
+
+/// Walks the chunk framing looking for the zero-size terminator without
+/// decoding payloads; `Ok(false)` while the stream is still incomplete.
+fn chunked_terminator_seen(data: &[u8]) -> Result<bool, String> {
+    let mut cursor = data;
+    loop {
+        let (line_end, line_terminator_len) = match find_line_end(cursor) {
+            Some(found) => found,
+            // Size line still arriving.
+            None => return Ok(false),
+        };
+        let size_text = std::str::from_utf8(&cursor[..line_end])
+            .map_err(|_| "non-UTF-8 chunk size")?
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim();
+        let size = usize::from_str_radix(size_text, 16)
+            .map_err(|_| format!("bad chunk size {size_text:?}"))?;
+        if size == 0 {
+            return Ok(true);
+        }
+        let payload_start = (line_end + line_terminator_len).min(cursor.len());
+        cursor = &cursor[payload_start..];
+        if cursor.len() < size {
+            return Ok(false);
+        }
+        cursor = &cursor[size..];
+        // Skip the CRLF/LF after the chunk payload when present; if absent
+        // the frame line is incomplete and the next walk simply waits.
+        if cursor.starts_with(b"\r\n") {
+            cursor = &cursor[2..];
+        } else if cursor.starts_with(b"\n") {
+            cursor = &cursor[1..];
+        }
+    }
 }
 
 /// Serializes a plain-HTTP/1.1 request with `Connection: close`.
@@ -138,8 +249,7 @@ fn build_request(
 /// bare `\n`. The parser therefore accepts BOTH `\r\n\r\n` and `\n\n` as the
 /// header terminator and treats bare-LF chunk lines like CRLF ones.
 fn parse_response(raw: &[u8]) -> Result<HttpResponse, String> {
-    let (header_end, terminator_len) =
-        find_header_end(raw).ok_or("missing header terminator")?;
+    let (header_end, terminator_len) = find_header_end(raw).ok_or("missing header terminator")?;
     let head = std::str::from_utf8(&raw[..header_end])
         .map_err(|_| "non-UTF-8 response header")?
         .to_ascii_lowercase();
@@ -272,6 +382,44 @@ mod tests {
         // UTF-8 multi-byte letters become their raw byte escapes.
         assert_eq!(percent_encode("über.nc"), "%C3%BCber.nc");
         assert_eq!(percent_encode("100%#"), "100%25%23");
+    }
+
+    #[test]
+    fn take_complete_waits_for_headers_and_body() {
+        // Half a header block: keep reading.
+        assert!(take_complete(b"HTTP/1.1 200 OK\r\nCont").unwrap().is_none());
+        // Headers + short of the declared body: still incomplete.
+        assert!(
+            take_complete(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhel")
+                .unwrap()
+                .is_none()
+        );
+        // Exactly complete: answered without waiting for the peer's EOF.
+        let done = take_complete(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello")
+            .unwrap()
+            .expect("complete");
+        assert_eq!(done.status, 200);
+        assert_eq!(done.body, b"hello");
+        // Unknown length (no Content-Length, not chunked): body ends at EOF.
+        assert!(
+            take_complete(b"HTTP/1.1 200 OK\r\nX-Note: none\r\n\r\npartial")
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn take_complete_detects_the_chunked_terminator() {
+        assert!(take_complete(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n"
+        )
+        .unwrap()
+        .is_none());
+        assert!(take_complete(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n0\r\n\r\n"
+        )
+        .unwrap()
+        .is_some());
     }
 
     #[test]

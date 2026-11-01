@@ -5,76 +5,64 @@
 //! lazily connecting emulator adapter and every other machine becomes
 //! reachable through the machines dialog at runtime.
 
-use std::os::unix::net::UnixStream;
-use std::path::{Path, PathBuf};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::cnc_api::CncApi;
 use crate::cnc_controller::CNCController;
 
-/// Default Unix socket of the bundled software emulator. `cnc-emulator` and
-/// the UI default to the same path, so the local machine is discoverable
-/// without any configuration file.
-const DEFAULT_EMULATOR_SOCKET: &str = "/tmp/linuxcnc-ui-emulator.sock";
+/// Default loopback endpoint for the bundled software emulator.
+const DEFAULT_EMULATOR_ADDRESS: &str = "127.0.0.1:8765";
 
-/// Emulator socket path, overridable through `CNC_EMULATOR_SOCKET` (tests run
-/// a dedicated emulator on a private socket).
-pub(crate) fn emulator_socket_path() -> PathBuf {
-    std::env::var_os("CNC_EMULATOR_SOCKET")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_EMULATOR_SOCKET))
+/// Emulator TCP endpoint, overridable through `CNC_EMULATOR_ADDRESS`.
+pub(crate) fn emulator_address() -> String {
+    std::env::var("CNC_EMULATOR_ADDRESS").unwrap_or_else(|_| DEFAULT_EMULATOR_ADDRESS.to_string())
 }
 
-/// Identifier shared by the discovery registry and
-/// `EmAdapter::connected_device_id`, so the UI can highlight the emulator row
-/// exactly like a FluidNC row.
-pub(crate) fn emulator_device_id(socket_path: &Path) -> String {
-    format!("emulator:unix_socket:{}", socket_path.display())
+/// Identifier shared by discovery and `EmAdapter::connected_device_id`.
+pub(crate) fn emulator_device_id(address: &str) -> String {
+    format!("emulator:tcp_socket:{address}")
 }
 
-/// Returns true when a process currently accepts connections on `path`.
-/// A stale socket file left behind by a crashed emulator fails fast instead of
-/// hanging the HTTP handler.
-pub(crate) fn probe_socket(path: &Path) -> bool {
-    let Ok(socket) = UnixStream::connect(path) else {
+/// Resolves the configured TCP endpoint and returns an address suitable for connect.
+fn resolve_emulator_address(endpoint: &str) -> Option<SocketAddr> {
+    endpoint.to_socket_addrs().ok()?.next()
+}
+
+/// Returns true when the emulator accepts a TCP connection at the configured endpoint.
+pub(crate) fn probe_emulator(endpoint: &str) -> bool {
+    let Some(address) = resolve_emulator_address(endpoint) else {
         return false;
     };
-    // The probe performs no I/O; the timeouts only bound the blocking socket
-    // calls Linux may still perform during connect on a full backlog.
-    let _ = socket.set_read_timeout(Some(Duration::from_millis(200)));
-    let _ = socket.set_write_timeout(Some(Duration::from_millis(200)));
-    drop(socket);
-    true
+    TcpStream::connect_timeout(&address, Duration::from_millis(200)).is_ok()
 }
 
-/// Builds the synthetic machine-list entry for the local emulator. The endpoint
-/// doubles as the connect target for `build_adapter_for_device`, so the entry
-/// is listed only while the emulator process actually answers on its socket.
+/// Builds the synthetic machine-list entry for the emulator when its TCP port is reachable.
 pub(crate) fn emulator_device() -> Option<cnc_core::discovery::DiscoveredDevice> {
-    let socket_path = emulator_socket_path();
-    if !probe_socket(&socket_path) {
+    let endpoint = emulator_address();
+    if !probe_emulator(&endpoint) {
         return None;
     }
     Some(cnc_core::discovery::DiscoveredDevice {
-        id: emulator_device_id(&socket_path),
+        id: emulator_device_id(&endpoint),
         protocol: "Emulator".into(),
         machine_name: Some("CNC Emulator".into()),
         version: None,
-        transport: cnc_core::discovery::DiscoveryTransport::UnixSocket,
-        endpoint: socket_path.to_string_lossy().into_owned(),
+        transport: cnc_core::discovery::DiscoveryTransport::TcpSocket,
+        endpoint,
     })
 }
 
 /// Boots the web backend with the local emulator preselected, so the UI shows
 /// live machine data as soon as `cnc-emulator` is running and a clean
-/// "offline" state otherwise. The emulator adapter opens its socket lazily,
+/// "offline" state otherwise. The emulator adapter opens its TCP connection lazily,
 /// therefore startup never fails because the emulator process is absent; the
 /// controller worker keeps polling status and recovers automatically once the
 /// emulator appears.
 pub(crate) fn default_controller() -> std::io::Result<CNCController> {
     let api: Arc<dyn CncApi> = Arc::new(
-        cnc_core::adapters::emulator::EmAdapter::connect(emulator_socket_path())
+        cnc_core::adapters::emulator::EmAdapter::connect(emulator_address())
             .map_err(|error| std::io::Error::other(format!("{}: {}", error.code, error.message)))?,
     );
     CNCController::connect_with_api(api)
@@ -82,30 +70,42 @@ pub(crate) fn default_controller() -> std::io::Result<CNCController> {
 }
 
 /// Constructs the adapter for a user-selected device. Emulator entries carry
-/// the Unix socket path in `endpoint`; FluidNC entries reuse the discovery
-/// adapter priority path so the worker keeps advertising the exact
-/// `connected_device_id` that the discovery list advertises; GRBL entries
-/// carry the full serial device path (e.g. `/dev/ttyUSB0`) probed by the
-/// serial scanner. Other protocols are rejected until their scanners ship.
+/// the TCP endpoint in `endpoint`; network FluidNC entries reuse the
+/// discovery adapter priority path so the worker keeps advertising the exact
+/// `connected_device_id` that the discovery list advertises; serial FluidNC
+/// entries (task: FluidNC over a COM port) open the GRBL-family serial driver
+/// in FluidNC mode on the device node; GRBL entries carry the full serial
+/// device path (e.g. `/dev/ttyUSB0`) probed by the serial scanner. Other
+/// protocols are rejected until their scanners ship.
 pub(crate) fn build_adapter_for_device(
     device: &cnc_core::discovery::DiscoveredDevice,
 ) -> Result<Arc<dyn CncApi>, String> {
     let adapter: Arc<dyn CncApi> = match (device.protocol.as_str(), device.transport) {
-        ("Emulator", cnc_core::discovery::DiscoveryTransport::UnixSocket) => Arc::new(
-            cnc_core::adapters::emulator::EmAdapter::connect(&device.endpoint)
+        ("Emulator", cnc_core::discovery::DiscoveryTransport::TcpSocket) => Arc::new(
+            cnc_core::adapters::emulator::EmAdapter::connect(device.endpoint.clone())
                 .map_err(|error| format!("{}: {}", error.code, error.message))?,
         ),
-        // FluidNC found on a COM port *without* a reported Wi-Fi address
-        // (task: serial FluidNC discovery lists it for visibility). Serial
-        // control of FluidNC is not implemented; selection fails with a clear
-        // message instead of opening the port and speaking GRBL to an ESP32.
-        ("FluidNC", cnc_core::discovery::DiscoveryTransport::Serial) => {
-            return Err(format!(
-                "FluidNC on the serial port `{}` is listed but not controllable yet; \
-                 give the controller a Wi-Fi address and reconnect it to the network",
-                device.endpoint
-            ));
-        }
+        // Task: FluidNC over a COM port. The firmware speaks the GRBL line
+        // protocol on its console UART, so control runs through the same
+        // serial driver in FluidNC family mode: correct `fluidnc:serial:…`
+        // identity for the machines dialog, 6-axis status parsing and
+        // FluidNC's 250-byte command budget. `endpoint` carries the
+        // canonical device node path written by the serial scanner;
+        // `machine_name` came from the `[MSG:Machine:…]` identity banner.
+        ("FluidNC", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
+            cnc_core::adapters::grbl::GrblAdapter::connect_fluidnc(
+                &device.endpoint,
+                cnc_core::discovery::grbl_baud_rate(),
+                device.machine_name.clone(),
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
+        ("FluidNC", cnc_core::discovery::DiscoveryTransport::Telnet) => Arc::new(
+            cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect_telnet(
+                device.endpoint.clone(),
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
         ("FluidNC", _) => Arc::new(
             cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketAdapter::connect_discovering_with_priority(
                 cnc_core::adapters::fluidnc_websocket::FluidNcWebSocketConfig::default(),

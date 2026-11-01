@@ -114,6 +114,69 @@ fn spindle_ramps_to_commanded_speed_and_reports_telemetry() {
     assert_eq!(telemetry["spindle"]["enabled"], true);
 }
 
+/// Exercises drilling moves, tool changes, and an operator pause in one emulator program.
+#[test]
+fn substituted_drilling_program_runs_with_simulated_tool_changes() {
+    let mut emulator = test_emulator();
+    emulator.status.position.z = 1.0;
+    // Plain G0/G1 blocks model the emitted replacement for a canned drill cycle.
+    emulator.program = vec![
+        "G21 G90".into(),
+        "T2 M6".into(),
+        "G0 X5 Y5 Z5".into(),
+        "G1 Z10 F120".into(),
+        "G0 Z5".into(),
+        "M0".into(),
+        "M30".into(),
+    ];
+    emulator.status.total_lines = emulator.program.len() as u32;
+    emulator.status.interpreter_state = crate::cnc_api::InterpreterState::Reading;
+
+    for _ in 0..10_000 {
+        emulator.tick(0.01);
+        if emulator.status.interpreter_state == crate::cnc_api::InterpreterState::Paused {
+            break;
+        }
+    }
+
+    assert_eq!(
+        emulator.status.interpreter_state,
+        crate::cnc_api::InterpreterState::Paused
+    );
+    assert_eq!(emulator.status.current_line, 6);
+    assert_eq!(
+        emulator.status.message.as_deref(),
+        Some("Program paused for operator (M0)")
+    );
+    assert_eq!(emulator.status.total_lines, 7);
+    assert_eq!(emulator.selected_tool, Some(2));
+    assert_eq!(emulator.current_tool, Some(2));
+    assert_eq!(emulator.status.selected_tool, Some(2));
+    assert_eq!(emulator.status.current_tool, Some(2));
+    assert_eq!(emulator.status.position.z, 5.0);
+}
+
+/// Confirms the probe reaches the emulated stock plane and reports its contact point.
+#[test]
+fn g38_probe_macro_measures_the_virtual_stock_surface() {
+    let mut emulator = test_emulator();
+    emulator.absolute_mode = false;
+    emulator.status.position.z = 60.0;
+    emulator.execute_gcode("G38.2 Z-20 F100").unwrap();
+
+    assert_eq!(emulator.active_move.as_ref().map(|_| true), Some(true));
+    assert!(emulator.status.probe_triggered);
+    let mut movement = emulator.active_move.take().unwrap();
+    for _ in 0..1000 {
+        let (position, complete) = movement.tick(0.01);
+        if complete {
+            assert!((position[2] - 50.0).abs() < 1e-6);
+            return;
+        }
+    }
+    panic!("probe movement did not reach the contact plane");
+}
+
 #[test]
 fn load_program_strips_semicolon_comments_but_keeps_parenthesis_comments() {
     let mut emulator = test_emulator();

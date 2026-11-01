@@ -102,6 +102,10 @@ pub(super) fn initial_disconnected_status() -> ControllerSnapshot {
             active_coordinate_system: crate::cnc_api::CoordinateSystem::G54,
             coordinate_systems: Vec::new(),
             feed_rate: 0.0,
+            probe_triggered: false,
+            probe_position: None,
+            selected_tool: None,
+            current_tool: None,
             spindle: crate::cnc_api::SpindleStatus {
                 commanded_rpm: 0.0,
                 actual_rpm: 0.0,

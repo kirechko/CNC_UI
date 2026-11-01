@@ -1,10 +1,14 @@
-//! Serves newline-delimited JSON requests over the emulator's Unix socket.
+//! Serves newline-delimited JSON requests over the emulator's TCP listener.
 use super::state::Emulator;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
-use std::sync::{Arc, Mutex};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
+use std::net::TcpStream;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
+use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Request {
@@ -32,10 +36,7 @@ pub(super) fn api_error(code: impl Into<String>, message: impl Into<String>) -> 
         message: message.into(),
     }
 }
-fn write_response(
-    stream: &mut UnixStream,
-    result: Result<Value, WireError>,
-) -> std::io::Result<()> {
+fn write_response(stream: &mut TcpStream, result: Result<Value, WireError>) -> std::io::Result<()> {
     let response = match result {
         Ok(result) => Response {
             ok: true,
@@ -53,7 +54,15 @@ fn write_response(
     stream.flush()
 }
 
-pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
+/// Processes newline-delimited requests until the client disconnects or shutdown is requested.
+pub(super) fn serve_client(
+    stream: TcpStream,
+    state: Arc<Mutex<Emulator>>,
+    should_stop: Arc<AtomicBool>,
+) {
+    let timeout = Some(Duration::from_millis(200));
+    let _ = stream.set_read_timeout(timeout);
+    let _ = stream.set_write_timeout(timeout);
     let reader_stream = match stream.try_clone() {
         Ok(s) => s,
         Err(e) => {
@@ -63,14 +72,20 @@ pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
     };
     let mut reader = BufReader::new(reader_stream);
     let mut writer = stream;
+    let mut line = String::new();
 
     loop {
-        let mut line = String::new();
+        if should_stop.load(Ordering::Acquire) {
+            return;
+        }
         match reader.read_line(&mut line) {
             Ok(0) => return,
             Ok(_) => {}
-            Err(e) => {
-                eprintln!("Socket read error: {e}");
+            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                continue;
+            }
+            Err(error) => {
+                eprintln!("Socket read error: {error}");
                 return;
             }
         }
@@ -97,5 +112,6 @@ pub(super) fn serve_client(stream: UnixStream, state: Arc<Mutex<Emulator>>) {
             eprintln!("Socket write error: {error}");
             return;
         }
+        line.clear();
     }
 }

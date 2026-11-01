@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use super::machine::{default_controller, emulator_device};
 use super::models::LoadedProgram;
 use crate::cnc_controller::CNCController;
+use crate::rosetta_host::run::RunRegistry;
 
 /// Shared backend state: controller handle, loaded program, message-log
 /// database, discovery registry and the cancellation flags of the *current*
@@ -41,6 +42,8 @@ pub(crate) struct AppState {
     /// worker threads keep observing the handles they were started with.
     pub(crate) command_cancel_requested: Mutex<Arc<AtomicBool>>,
     pub(crate) motion_stop_requested: Mutex<Arc<AtomicBool>>,
+    /// Active and recent Rosetta macro runs (log tailing, cancel, guards).
+    pub(crate) macro_runs: RunRegistry,
 }
 
 impl AppState {
@@ -62,11 +65,22 @@ impl AppState {
             discovery_in_flight: Arc::new(AtomicBool::new(false)),
             command_cancel_requested: Mutex::new(command_cancel_requested),
             motion_stop_requested: Mutex::new(motion_stop_requested),
+            macro_runs: RunRegistry::new(),
         };
+        // Rosetta integration (T26 §3.2): the optional `rosetta_yaml` column
+        // is added before anything reads or writes macro rows.
+        //
         // Task: Rosetta example macros and substitution presets must already
         // be in the database on the first start. Idempotent (INSERT OR IGNORE)
         // so user edits are never rolled back; `CNC_UI_NO_SEED=1` skips it for
         // tests that expect an empty panel.
+        {
+            let connection = state
+                .log
+                .lock()
+                .map_err(|_| io::Error::other("database lock poisoned"))?;
+            crate::rosetta_host::registry::ensure_schema(&connection).map_err(io::Error::other)?;
+        }
         if std::env::var_os("CNC_UI_NO_SEED").is_none() {
             let connection = state
                 .log
@@ -146,4 +160,5 @@ impl AppState {
 pub(crate) mod log_ops;
 pub(crate) mod macros;
 pub(crate) mod position;
+pub(crate) mod rosetta_ops;
 pub(crate) mod seed;

@@ -5,11 +5,15 @@ use super::accessories;
 use super::coordinates;
 use super::motion;
 use super::parser::parse_words;
+use crate::cnc_api::Axis;
 
 pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), WireError> {
     let words = parse_words(line);
     let mut motion_code = None;
     let mut dwell = false;
+    let mut tool_change = false;
+    let mut set_current_tool = false;
+    let mut q_word = None;
     let mut p_word = None;
     let mut x_word = None;
     let mut y_word = None;
@@ -23,6 +27,7 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
     for &(letter, value) in &words {
         match letter {
             'G' if (value - 10.0).abs() < 1e-6 => {}
+            'G' if (value - 38.2).abs() < 1e-6 => motion_code = Some(38),
             'G' => match coordinates::handle_g_word(emulator, value)? {
                 coordinates::GWordAction::Motion(code) => motion_code = Some(code),
                 coordinates::GWordAction::Dwell => dwell = true,
@@ -33,10 +38,13 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
             'Z' => z_word = Some(value),
             'A' => a_word = Some(value),
             'B' => b_word = Some(value),
+            'C' => {}
             'I' => i_word = Some(value),
             'J' => j_word = Some(value),
             'P' => p_word = Some(value),
+            'Q' => q_word = Some(value),
             'L' => l_word = Some(value),
+            'T' => accessories::select_tool(emulator, value)?,
             'F' if value.is_finite() && value > 0.0 => emulator.program_feed_mm_min = value,
             'F' => return Err(api_error("bad_feed", "F must be positive and finite")),
             'S' if value.is_finite() && value >= 0.0 => {
@@ -57,10 +65,22 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
                     "S must be finite and non-negative",
                 ))
             }
-            'M' => accessories::handle_m_word(emulator, value)?,
-            'N' | 'T' | 'H' => {}
+            'M' if (value - 6.0).abs() < 1e-6 => tool_change = true,
+            'M' if (value - 61.0).abs() < 1e-6 => set_current_tool = true,
+            'M' if (value - 0.0).abs() < 1e-6 || (value - 1.0).abs() < 1e-6 => {
+                accessories::handle_m_word(emulator, value, q_word)?;
+            }
+            'M' => accessories::handle_m_word(emulator, value, q_word)?,
+            'N' | 'H' => {}
             _ => {}
         }
+    }
+
+    if tool_change {
+        accessories::change_tool(emulator)?;
+    }
+    if set_current_tool {
+        accessories::select_current_tool(emulator, q_word)?;
     }
 
     if words
@@ -97,7 +117,102 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
         return Ok(());
     }
 
-    if let Some(code) = motion_code {
+    if motion_code == Some(38) {
+        let requested = [x_word, y_word, z_word, a_word, b_word];
+        let (index, distance) = requested
+            .iter()
+            .enumerate()
+            .find_map(|(index, value)| value.map(|distance| (index, distance)))
+            .ok_or_else(|| api_error("bad_probe", "G38.2 requires one axis target"))?;
+        if requested.iter().filter(|value| value.is_some()).count() != 1 {
+            return Err(api_error(
+                "bad_probe",
+                "G38.2 supports one axis per probe block",
+            ));
+        }
+        let start = emulator.position_array()[index];
+        emulator.status.probe_triggered = false;
+        emulator.status.probe_position = None;
+        let target = if emulator.absolute_mode {
+            distance
+                + match index {
+                    0 => emulator.status.work_offset.x,
+                    1 => emulator.status.work_offset.y,
+                    2 => emulator.status.work_offset.z,
+                    3 => emulator.status.work_offset.a,
+                    _ => emulator.status.work_offset.b,
+                }
+        } else {
+            start + distance
+        };
+        let axis = match index {
+            0 => Axis::X,
+            1 => Axis::Y,
+            2 => Axis::Z,
+            3 => Axis::A,
+            _ => Axis::B,
+        };
+        if !emulator.config.configured_axes().contains(&axis) {
+            return Err(api_error(
+                "probe_axis",
+                format!("axis {axis:?} is not configured for probing"),
+            ));
+        }
+        let (axis_min, axis_max, _, _) = emulator.config.axis_limits(axis);
+        if target < axis_min || target > axis_max {
+            return Err(api_error(
+                "probe_no_contact",
+                "G38.2 probe reached its travel limit without contact",
+            ));
+        }
+        let contact = emulator
+            .probe_contact(index, start, target)
+            .ok_or_else(|| api_error("probe_no_contact", "G38.2 probe did not touch the stock"))?;
+        emulator.status.probe_triggered = true;
+        let mut contact_position = emulator.status.position;
+        match index {
+            0 => contact_position.x = contact,
+            1 => contact_position.y = contact,
+            2 => contact_position.z = contact,
+            _ => {}
+        }
+        emulator.status.probe_position = Some(contact_position);
+        motion::execute_motion(
+            emulator,
+            motion::MotionWords {
+                code: 1,
+                x: (index == 0).then_some(if emulator.absolute_mode {
+                    contact - emulator.status.work_offset.x
+                } else {
+                    contact - start
+                }),
+                y: (index == 1).then_some(if emulator.absolute_mode {
+                    contact - emulator.status.work_offset.y
+                } else {
+                    contact - start
+                }),
+                z: (index == 2).then_some(if emulator.absolute_mode {
+                    contact - emulator.status.work_offset.z
+                } else {
+                    contact - start
+                }),
+                a: (index == 3).then_some(if emulator.absolute_mode {
+                    contact - emulator.status.work_offset.a
+                } else {
+                    contact - start
+                }),
+                b: (index == 4).then_some(if emulator.absolute_mode {
+                    contact - emulator.status.work_offset.b
+                } else {
+                    contact - start
+                }),
+                i: None,
+                j: None,
+            },
+        )?;
+        emulator.status.message = Some(format!("Probe contact at {:.3}", contact));
+        return Ok(());
+    } else if let Some(code) = motion_code {
         motion::execute_motion(
             emulator,
             motion::MotionWords {
@@ -123,6 +238,11 @@ pub(super) fn execute_gcode(emulator: &mut Emulator, line: &str) -> Result<(), W
         ));
     }
 
-    emulator.status.message = Some(format!("Executing: {line}"));
+    let program_stop = words.iter().any(|(letter, value)| {
+        *letter == 'M' && ((*value - 0.0).abs() < 1e-6 || (*value - 1.0).abs() < 1e-6)
+    });
+    if !program_stop {
+        emulator.status.message = Some(format!("Executing: {line}"));
+    }
     Ok(())
 }

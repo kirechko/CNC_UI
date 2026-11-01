@@ -1,7 +1,7 @@
 //! Calculates constrained moves and advances their simulated motion over time.
+use super::config::EmulatorConfig;
+use super::protocol::{api_error, WireError};
 use crate::cnc_api::Axis;
-use crate::config::EmulatorConfig;
-use crate::protocol::{api_error, WireError};
 
 #[derive(Clone, Copy)]
 pub(super) struct Motion {

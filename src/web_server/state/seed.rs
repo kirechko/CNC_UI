@@ -267,13 +267,7 @@ pub(crate) fn seed_if_absent(connection: &Connection) -> Result<(), String> {
             .execute(
                 "INSERT OR IGNORE INTO user_macros (id, name, description, body, invocations)
                  VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![
-                    item.id,
-                    item.name,
-                    item.description,
-                    item.body,
-                    invocations
-                ],
+                rusqlite::params![item.id, item.name, item.description, item.body, invocations],
             )
             .map_err(|error| format!("cannot seed macro {}: {error}", item.id))?;
     }
@@ -325,7 +319,9 @@ mod tests {
         assert_eq!(macros, example_macros().len() as i64);
 
         let settings: i64 = connection
-            .query_row("SELECT COUNT(*) FROM rosetta_settings", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM rosetta_settings", [], |row| {
+                row.get(0)
+            })
             .expect("count");
         assert_eq!(settings, substitution_presets().len() as i64);
     }
@@ -371,7 +367,10 @@ mod tests {
         // Bodies must fit the validator (<=65536 chars, no control chars).
         for item in example_macros() {
             assert!(item.body.len() <= 65_536);
-            assert!(!item.body.chars().any(|c| c.is_control() && !matches!(c, '\n' | '\t')));
+            assert!(!item
+                .body
+                .chars()
+                .any(|c| c.is_control() && !matches!(c, '\n' | '\t')));
             assert!(!item.id.is_empty() && item.id.len() <= 80);
         }
     }

@@ -20,7 +20,11 @@ pub enum RosettaError {
     /// A document/plan/argument failed semantic validation (types, duplicates).
     Validation { reason: String },
     /// The target backend cannot express a construct (capability check, `CORE-M-03`).
-    Capability { backend: String, construct: String, detail: String },
+    Capability {
+        backend: String,
+        construct: String,
+        detail: String,
+    },
     /// A referenced object (macro, subroutine, transform) does not exist.
     NotFound { kind: String, id: String },
     /// Feature intentionally not implemented yet; `phase` names the roadmap step.
@@ -50,7 +54,11 @@ impl fmt::Display for RosettaError {
                 }
             }
             RosettaError::Validation { reason } => write!(f, "validation error: {reason}"),
-            RosettaError::Capability { backend, construct, detail } => {
+            RosettaError::Capability {
+                backend,
+                construct,
+                detail,
+            } => {
                 write!(f, "{backend} cannot express {construct}: {detail}")
             }
             RosettaError::NotFound { kind, id } => write!(f, "{kind} \"{id}\" not found"),
@@ -70,7 +78,9 @@ impl std::error::Error for RosettaError {}
 impl From<std::io::Error> for RosettaError {
     /// Maps filesystem failures into the common `Io` variant.
     fn from(error: std::io::Error) -> Self {
-        RosettaError::Io { reason: error.to_string() }
+        RosettaError::Io {
+            reason: error.to_string(),
+        }
     }
 }
 
@@ -78,7 +88,10 @@ impl From<serde_yaml_ng::Error> for RosettaError {
     /// Maps YAML (de)serialization failures into `Parse` with line 0, because
     /// serde_yaml line positions are already inside its message text.
     fn from(error: serde_yaml_ng::Error) -> Self {
-        RosettaError::Parse { line: 0, reason: error.to_string() }
+        RosettaError::Parse {
+            line: 0,
+            reason: error.to_string(),
+        }
     }
 }
 
@@ -88,9 +101,15 @@ mod tests {
 
     #[test]
     fn parse_error_shows_location_and_reason() {
-        let error = RosettaError::Parse { line: 7, reason: "unknown word".into() };
+        let error = RosettaError::Parse {
+            line: 7,
+            reason: "unknown word".into(),
+        };
         assert_eq!(error.to_string(), "parse error at line 7: unknown word");
-        let unlocated = RosettaError::Parse { line: 0, reason: "bad yaml".into() };
+        let unlocated = RosettaError::Parse {
+            line: 0,
+            reason: "bad yaml".into(),
+        };
         assert_eq!(unlocated.to_string(), "parse error: bad yaml");
     }
 

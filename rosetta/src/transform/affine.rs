@@ -25,8 +25,7 @@
 use crate::error::{RosettaError, RosettaResult};
 use crate::ir::toolpath::{Code, Point2, Point3, Segment, SegmentKind, Toolpath, Units};
 use crate::transform::model::{
-    region_between_marks_unsupported, MirrorAxes, Region, Transform, TransformKind,
-    TransformReport,
+    region_between_marks_unsupported, MirrorAxes, Region, Transform, TransformKind, TransformReport,
 };
 use crate::util::almost_equal;
 
@@ -48,17 +47,36 @@ pub struct AffineMap {
 impl AffineMap {
     /// The identity map.
     pub fn identity() -> Self {
-        AffineMap { a: 1.0, b: 0.0, c: 0.0, d: 1.0, e: 0.0, f: 0.0, z_factor: 1.0, z_delta: 0.0 }
+        AffineMap {
+            a: 1.0,
+            b: 0.0,
+            c: 0.0,
+            d: 1.0,
+            e: 0.0,
+            f: 0.0,
+            z_factor: 1.0,
+            z_delta: 0.0,
+        }
     }
 
     /// Pure translation.
     pub fn translation(dx: f64, dy: f64, dz: f64) -> Self {
-        AffineMap { e: dx, f: dy, z_delta: dz, ..AffineMap::identity() }
+        AffineMap {
+            e: dx,
+            f: dy,
+            z_delta: dz,
+            ..AffineMap::identity()
+        }
     }
 
     /// Uniform scale around the origin.
     pub fn uniform_scale(s: f64) -> Self {
-        AffineMap { a: s, d: s, z_factor: s, ..AffineMap::identity() }
+        AffineMap {
+            a: s,
+            d: s,
+            z_factor: s,
+            ..AffineMap::identity()
+        }
     }
 
     /// Determinant of the XY linear part; negative ⇒ reflection.
@@ -79,18 +97,27 @@ impl AffineMap {
 
     /// The uniform XY scale factor of a similarity (`None` otherwise).
     pub fn uniform_factor(&self) -> Option<f64> {
-        self.is_similarity(1e-9).then(|| (self.a * self.a + self.c * self.c).sqrt())
+        self.is_similarity(1e-9)
+            .then(|| (self.a * self.a + self.c * self.c).sqrt())
     }
 
     /// Map a planar point.
     pub fn map_xy(&self, p: Point2) -> Point2 {
-        Point2::new(self.a * p.x + self.b * p.y + self.e, self.c * p.x + self.d * p.y + self.f)
+        Point2::new(
+            self.a * p.x + self.b * p.y + self.e,
+            self.c * p.x + self.d * p.y + self.f,
+        )
     }
 
     /// Map a space point including the scalar Z rule.
     pub fn map_point(&self, p: Point3) -> Point3 {
         let xy = self.map_xy(p.xy());
-        Point3 { x: xy.x, y: xy.y, z: p.z * self.z_factor + self.z_delta, ..p }
+        Point3 {
+            x: xy.x,
+            y: xy.y,
+            z: p.z * self.z_factor + self.z_delta,
+            ..p
+        }
     }
 
     /// Map a *vector* (no translation column) — arc offsets `I/J`.
@@ -117,9 +144,7 @@ impl AffineMap {
                     z_delta: 0.0,
                 }
             }
-            TransformKind::Translate { delta } => {
-                AffineMap::translation(delta.x, delta.y, delta.z)
-            }
+            TransformKind::Translate { delta } => AffineMap::translation(delta.x, delta.y, delta.z),
             TransformKind::Scale { factors, origin } => {
                 // x' = ox + sx*(x-ox) ⇒ a = sx, e = ox*(1-sx); same per axis.
                 AffineMap {
@@ -134,12 +159,22 @@ impl AffineMap {
                 }
             }
             TransformKind::Mirror { axes } => match axes {
-                MirrorAxes::X => AffineMap { a: -1.0, ..AffineMap::identity() },
-                MirrorAxes::Y => AffineMap { d: -1.0, ..AffineMap::identity() },
+                MirrorAxes::X => AffineMap {
+                    a: -1.0,
+                    ..AffineMap::identity()
+                },
+                MirrorAxes::Y => AffineMap {
+                    d: -1.0,
+                    ..AffineMap::identity()
+                },
                 // Mirroring both axes = 180° rotation, determinant +1: the
                 // arc direction is *preserved*, a classic gotcha covered by
                 // the det<0 rule below.
-                MirrorAxes::Xy => AffineMap { a: -1.0, d: -1.0, ..AffineMap::identity() },
+                MirrorAxes::Xy => AffineMap {
+                    a: -1.0,
+                    d: -1.0,
+                    ..AffineMap::identity()
+                },
             },
             TransformKind::UnitsConvert { from, to } => {
                 AffineMap::uniform_scale(from.factor_to(*to))
@@ -159,12 +194,14 @@ impl AffineMap {
         out.to = self.map_point(segment.to);
         let mut flipped = false;
         if segment.kind.is_arc() {
-            let scale = self.uniform_factor().ok_or_else(|| RosettaError::Geometry {
-                reason: format!(
-                    "segment {}: non-uniform affine map would turn the arc into an ellipse",
-                    segment.id
-                ),
-            })?;
+            let scale = self
+                .uniform_factor()
+                .ok_or_else(|| RosettaError::Geometry {
+                    reason: format!(
+                        "segment {}: non-uniform affine map would turn the arc into an ellipse",
+                        segment.id
+                    ),
+                })?;
             let center = segment.center.ok_or_else(|| RosettaError::Geometry {
                 reason: format!("segment {}: arc without center", segment.id),
             })?;
@@ -269,7 +306,9 @@ impl Transform for AffineTransform {
         }
         if self.kind_units_convert() {
             toolpath.units = units_target(&self.kind);
-            report.notes.push("program units header rewritten".to_owned());
+            report
+                .notes
+                .push("program units header rewritten".to_owned());
         }
         Ok(report)
     }
@@ -314,23 +353,32 @@ fn region_selects_frame(region: &Region, line: usize) -> bool {
 /// True when the frame is a canned-cycle line (its coordinates live only in
 /// words and must be rewritten by an affine map).
 fn frame_has_cycle(frame: &crate::ir::toolpath::CodeFrame) -> bool {
-    frame.codes.iter().any(|c| matches!(c, Code::G(73 | 76 | 81..=89)))
+    frame
+        .codes
+        .iter()
+        .any(|c| matches!(c, Code::G(73 | 76 | 81..=89)))
 }
 
 /// Rewrite X/Y/Z/I/J words of a cycle frame with `map`.
 fn rewrite_cycle_words(frame: &mut crate::ir::toolpath::CodeFrame, map: &AffineMap) {
     // Resolve the current triple with defaults so partial addressing still
     // maps like a point (missing axes are treated as the map of 0.0).
-    let get = |letter: char| frame.words.iter().find(|(l, _)| *l == letter).map(|(_, v)| *v);
+    let get = |letter: char| {
+        frame
+            .words
+            .iter()
+            .find(|(l, _)| *l == letter)
+            .map(|(_, v)| *v)
+    };
     let x = get('X').unwrap_or(0.0);
     let y = get('Y').unwrap_or(0.0);
     let z = get('Z').unwrap_or(0.0);
     let mapped = map.map_point(Point3::new(x, y, z));
     let i = get('I');
     let j = get('J');
-    let mapped_vec = i.or(j).map(|_| {
-        map.map_vector(Point2::new(i.unwrap_or(0.0), j.unwrap_or(0.0)))
-    });
+    let mapped_vec = i
+        .or(j)
+        .map(|_| map.map_vector(Point2::new(i.unwrap_or(0.0), j.unwrap_or(0.0))));
     for (letter, value) in &mut frame.words {
         match letter {
             'X' => *value = mapped.x,
@@ -380,7 +428,10 @@ mod tests {
         })
         .unwrap();
         let p = map.map_xy(Point2::new(10.0, 0.0));
-        assert!(almost_equal(p.x, 0.0, 1e-9) && almost_equal(p.y, 10.0, 1e-9), "{p:?}");
+        assert!(
+            almost_equal(p.x, 0.0, 1e-9) && almost_equal(p.y, 10.0, 1e-9),
+            "{p:?}"
+        );
         // Rotation around a nonzero center: (11,1) about (1,1) → (1, 11).
         let map = AffineMap::from_kind(&TransformKind::Rotate {
             angle_deg: 90.0,
@@ -388,14 +439,15 @@ mod tests {
         })
         .unwrap();
         let p = map.map_xy(Point2::new(11.0, 1.0));
-        assert!(almost_equal(p.x, 1.0, 1e-9) && almost_equal(p.y, 11.0, 1e-9), "{p:?}");
+        assert!(
+            almost_equal(p.x, 1.0, 1e-9) && almost_equal(p.y, 11.0, 1e-9),
+            "{p:?}"
+        );
     }
 
     #[test]
     fn rotate_toolpath_segments_and_reports_lines() {
-        let mut tp = GcodeIo::new()
-            .parse("G0 X10 Y0\nG1 X10 Y5 F100\n")
-            .unwrap();
+        let mut tp = GcodeIo::new().parse("G0 X10 Y0\nG1 X10 Y5 F100\n").unwrap();
         let report = rotate90().apply(&mut tp, &Region::Whole).unwrap();
         assert_eq!(report.affected_segments, 2);
         assert_eq!(report.affected_lines, vec![1, 2]);
@@ -408,13 +460,17 @@ mod tests {
     #[test]
     fn mirror_flips_arc_direction_xy_mirror_keeps_it() {
         let mut tp = GcodeIo::new().parse("G2 X10 Y0 I5 J0\n").unwrap();
-        let mirror_x = AffineTransform::new(TransformKind::Mirror { axes: MirrorAxes::X });
+        let mirror_x = AffineTransform::new(TransformKind::Mirror {
+            axes: MirrorAxes::X,
+        });
         let report = mirror_x.apply(&mut tp, &Region::Whole).unwrap();
         assert_eq!(tp.segments[0].kind, SegmentKind::ArcCcw);
         assert!(report.notes.iter().any(|n| n.contains("flipped")));
 
         let mut tp2 = GcodeIo::new().parse("G2 X10 Y0 I5 J0\n").unwrap();
-        let mirror_xy = AffineTransform::new(TransformKind::Mirror { axes: MirrorAxes::Xy });
+        let mirror_xy = AffineTransform::new(TransformKind::Mirror {
+            axes: MirrorAxes::Xy,
+        });
         mirror_xy.apply(&mut tp2, &Region::Whole).unwrap();
         // 180° rotation: a mirrored mirror keeps the original direction.
         assert_eq!(tp2.segments[0].kind, SegmentKind::ArcCw);
@@ -485,7 +541,10 @@ mod tests {
         let error = rotate90()
             .apply(
                 &mut tp,
-                &Region::BetweenMarks { start: "A".into(), end: "B".into() },
+                &Region::BetweenMarks {
+                    start: "A".into(),
+                    end: "B".into(),
+                },
             )
             .unwrap_err();
         assert!(matches!(error, RosettaError::Unsupported { .. }));

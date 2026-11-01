@@ -87,6 +87,39 @@ fn forward_search_ignores_earlier_pass_under_same_xy_column() {
     assert_eq!(progress.program_line, Some(7));
 }
 
+/// Regression for the GRBL/FluidNC arc highlight: a long G2/G3 is acknowledged
+/// only near its physical end (the firmware enqueues the arc chord by chord),
+/// so the adapter widens the search window to the in-flight line. Verify the
+/// two halves that widening relies on: a mid-arc tool position is invisible
+/// while the arc line is outside the window (the old frozen highlight), and is
+/// found with the correct cumulative distance once the line joins the window.
+#[test]
+fn forward_search_finds_mid_arc_when_line_in_window() {
+    let source = "G0 X8.4125\nG2 X8.4125 Y0 I-8.4125 J0\n";
+    let toolpath = crate::toolpath_parser::parse_toolpath(source);
+    let radius = 8.4125_f64;
+    // Tool one sixth of the way around the clockwise circle: start angle 0,
+    // CW sweep to -60 degrees.
+    let angle = -std::f64::consts::FRAC_PI_3;
+    let mid = pos(radius * angle.cos(), radius * angle.sin(), 0.0);
+
+    // The arc is program line 2: a window of acknowledged lines only (1)
+    // cannot see it, which is exactly the freeze the adapters must avoid.
+    assert!(toolpath.locate_forward(&mid, 0.0, 1).is_none());
+
+    // With the in-flight line included (window 2) the distance grows with
+    // the physical tool: line 1 length plus 1/6 of the circle circumference.
+    let found = toolpath.locate_forward(&mid, 0.0, 2).unwrap();
+    assert_eq!(found.program_line, Some(2));
+    let arc_length = std::f64::consts::TAU * radius;
+    let expected = 8.4125 + arc_length / 6.0;
+    assert!(
+        (found.path_distance_mm.unwrap() - expected).abs() < 0.5,
+        "mid-arc distance {:?} should be near {expected}",
+        found.path_distance_mm
+    );
+}
+
 #[test]
 fn forward_search_respects_max_program_line() {
     // Line 1 (`G0 Z10` from the origin) is too far from the lift top, and

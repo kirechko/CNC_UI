@@ -19,11 +19,11 @@ CNC UI یک پنل کنترل ماشین‌ابزار CNC با دو رابط ق�
 
 ```bash
 cargo run --bin cnc-emulator          # config/emulator.yaml را می‌خواند
-cargo run --bin linuxcnc-ui           # پنجره دسکتاپ
+cargo run --bin cnc_ui           # پنجره دسکتاپ
 ```
 
-برنامه دسکتاپ به‌صورت خودکار از طریق یک سوکت محلی به شبیه‌ساز وصل می‌شود
-(`/tmp/linuxcnc-ui-emulator.sock`، قابل بازنویسی با `CNC_EMULATOR_SOCKET`).
+برنامه دسکتاپ به‌صورت خودکار از طریق TCP به شبیه‌ساز وصل می‌شود
+(`127.0.0.1:8765`، قابل بازنویسی با `CNC_EMULATOR_ADDRESS`).
 
 ### ۱.۲ رابط وب
 
@@ -38,8 +38,8 @@ cargo run --bin cnc-web               # روی http://0.0.0.0:8080 سرو می�
 | `CNC_WEB_ADDRESS` | آدرس:پورت اتصال | `0.0.0.0:8080` |
 | `CNC_UI_AUTH_USER` + `CNC_UI_AUTH_PASSWORD` | فعال‌سازی احراز هویت HTTP Basic | غیرفعال |
 | `CNC_UI_AUTH=on` / `off` | اجباراً روشن (رمز تصادفی در لاگ نوشته می‌شود) / صراحتاً خاموش | خودکار |
-| `CNC_UI_LOG_DB` | مکان پایگاه داده SQLite | `~/.local/state/linuxcnc-ui/messages.sqlite3` |
-| `CNC_EMULATOR_SOCKET` | مسیر سوکت شبیه‌ساز | `/tmp/linuxcnc-ui-emulator.sock` |
+| `CNC_UI_LOG_DB` | مکان پایگاه داده SQLite | `~/.local/state/cnc_ui/messages.sqlite3` |
+| `CNC_EMULATOR_ADDRESS` | نشانی TCP شبیه‌ساز | `127.0.0.1:8765` |
 
 احراز هویت کل رابط وب را با یک جفت نام‌کاربری/رمز محافظت می‌کند؛ مرورگر در نخستین
 درخواست پنجره ورود نمایش می‌دهد. برای شبکه آزمایشگاهی مورد اعتماد رها کنید و در

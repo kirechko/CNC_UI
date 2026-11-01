@@ -1,0 +1,96 @@
+name: Unified Linux and Windows distributions
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux x86_64 unified executable archive
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install Tauri Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl wget file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+      - name: Build and package
+        run: bash scripts/package-linux.sh
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: cnc-ui-linux-x86_64
+          path: dist/cnc-ui-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows x86_64 unified executable archive
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Rust MSVC
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+      - name: Build and package
+        shell: pwsh
+        run: |
+          cargo build --release --bin cnc_ui
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $stage = "dist/windows-x86_64"
+          New-Item -ItemType Directory -Force "$stage/bin", "$stage/config/macros", "$stage/web", "$stage/data" | Out-Null
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/cnc_ui.exe "$stage/bin/"
+          Copy-Item config/emulator.yaml, config/rosetta.yaml "$stage/config/"
+          Copy-Item config/macros/* "$stage/config/macros/"
+          Copy-Item test.gcode, README.md, LICENSE "$stage/"
+          Copy-Item web/* "$stage/web/" -Recurse
+          @'
+          @echo off
+          setlocal
+          cd /d "%~dp0"
+          if not defined CNC_WEB_ADDRESS set CNC_WEB_ADDRESS=127.0.0.1:8080
+          if not defined CNC_EMULATOR_ADDRESS set CNC_EMULATOR_ADDRESS=127.0.0.1:8765
+          if not defined CNC_UI_AUTH set CNC_UI_AUTH=off
+          if not exist data mkdir data
+          echo CNC UI: http://%CNC_WEB_ADDRESS%
+          echo Press Ctrl+C to stop the web server and in-process emulator worker.
+          bin\cnc_ui.exe --web --emu
+          '@ | Set-Content -Encoding ASCII "$stage\run.bat"
+          @'
+          CNC UI unified Windows distribution
+
+          Run run.bat, then open http://127.0.0.1:8080 in a browser.
+          The same bin\cnc_ui.exe supports --desktop and --web modes,
+          with optional --emu to start and supervise an in-process emulator worker.
+          Windows desktop mode requires the Microsoft WebView2 runtime.
+
+          The demo launcher disables HTTP authentication. Do not expose this
+          control interface to untrusted networks.
+          '@ | Set-Content -Encoding UTF8 "$stage\README-RUN.txt"
+          Compress-Archive -Path "$stage" -DestinationPath dist\cnc-ui-windows-x86_64.zip -Force
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: cnc-ui-windows-x86_64
+          path: dist/cnc-ui-windows-x86_64.zip
+          if-no-files-found: error

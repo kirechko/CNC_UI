@@ -4,7 +4,28 @@
 //! parent module's private helpers into scope.
 
 use super::*;
-use crate::{machine_state, CncApi, MachineState};
+use crate::{
+    adapters::fluidnc_websocket::connect::cached_websocket_url, machine_state, CncApi, MachineState,
+};
+
+/// Verifies the cached adapter fast path accepts WebSocket endpoints only.
+#[test]
+fn cached_websocket_url_never_rewrites_telnet_endpoint() {
+    assert_eq!(
+        cached_websocket_url("192.168.4.190:80").as_deref(),
+        Some("ws://192.168.4.190:80/")
+    );
+    assert_eq!(cached_websocket_url("192.168.4.190:23"), None);
+    assert_eq!(cached_websocket_url("not-an-ip:80"), None);
+}
+
+/// Verifies Telnet construction accepts a TCP endpoint without a WebSocket URL.
+#[test]
+fn telnet_adapter_constructs_without_websocket_url() {
+    let adapter = FluidNcWebSocketAdapter::connect_telnet("192.168.4.190:23")
+        .expect("valid Telnet endpoint should construct an adapter");
+    assert!(adapter.connected_device_id().is_none());
+}
 
 #[test]
 fn channel_api_starts_with_disconnected_snapshot_and_subscriptions() {

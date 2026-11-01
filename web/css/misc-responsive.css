@@ -112,6 +112,7 @@
   .app-header { min-height: 48px; padding: 0 12px; }
   .brand-subtitle, .header-state { display: none; }
   .machine-chip { padding: 7px 8px; }
+  .header-connection-info { max-width: 36vw; font-size: 9px; }
   .app-main { padding: 5.5px; gap: 2.75px; }
 }
 
@@ -155,6 +156,7 @@
 
 @media (max-width: 380px) {
   .header-status { gap: 6px; }
+  .header-connection-info { max-width: 25vw; font-size: 8px; }
   .machine-chip { font-size: 10px; }
   .app-main { padding: 4px; }
   .panel-body { padding: 11px; }

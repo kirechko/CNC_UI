@@ -45,7 +45,18 @@ async fn revalidate_static_assets(
 
 /// Binds the axum router and serves the UI + JSON API forever.
 pub async fn run() -> io::Result<()> {
+    run_with_shutdown(std::future::pending()).await
+}
+
+/// Serves the UI and API until the supplied future signals application shutdown.
+pub async fn run_with_shutdown<F>(shutdown: F) -> io::Result<()>
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
     let controller = Arc::new(AppState::new()?);
+    // Discover hardware immediately in the background; serving the UI does not
+    // wait for slow serial or network probes to finish.
+    tokio::spawn(discovery::discover_and_connect_first(controller.clone()));
     let bind = std::env::var(ADDRESS_ENV).unwrap_or_else(|_| DEFAULT_ADDRESS.to_string());
     let listener = TcpListener::bind(&bind).await?;
     let address = listener.local_addr()?;
@@ -61,7 +72,9 @@ pub async fn run() -> io::Result<()> {
             eprintln!("Web server authorization: enabled for user '{username}' ({auth_reason}).");
         }
     } else {
-        eprintln!("Web server authorization: disabled ({auth_reason}); the UI is open on the network.");
+        eprintln!(
+            "Web server authorization: disabled ({auth_reason}); the UI is open on the network."
+        );
     }
 
     let static_files =
@@ -114,6 +127,24 @@ pub async fn run() -> io::Result<()> {
             "/api/macros",
             get(handlers::get_macros).put(handlers::put_macros),
         )
+        // Rosetta integration (T26): macro runs with log tailing, the
+        // capability validator and the transform preview/apply pair.
+        // Path parameters use the `:name` syntax of axum 0.7 / matchit 0.7.
+        .route("/api/macros/run", post(handlers::run_macro))
+        .route("/api/macros/run/:run_id", get(handlers::macro_run_status))
+        .route(
+            "/api/macros/run/:run_id/cancel",
+            post(handlers::cancel_macro_run),
+        )
+        .route("/api/program/validate", post(handlers::validate_program))
+        .route(
+            "/api/program/transform/preview",
+            post(handlers::preview_transform),
+        )
+        .route(
+            "/api/program/transform/apply",
+            post(handlers::apply_transform),
+        )
         .route("/api/files/sources", get(handlers::get_files_sources))
         .route("/api/files/list", get(handlers::get_files_list))
         .route("/api/files/content", get(handlers::get_files_content))
@@ -143,5 +174,7 @@ pub async fn run() -> io::Result<()> {
     if !auth_enabled {
         eprintln!("Warning: web controls have no authentication; use only on a trusted network.");
     }
-    axum::serve(listener, app).await
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
+        .await
 }

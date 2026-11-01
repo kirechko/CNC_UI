@@ -40,7 +40,10 @@ impl MachineState {
     /// Whether a macro run may start from this state (ТЗ №2 §9.2: reject
     /// `Alarm`/`Disconnected`, and E-Stop obviously).
     pub fn allows_start(self) -> bool {
-        matches!(self, MachineState::Idle | MachineState::Running | MachineState::Paused)
+        matches!(
+            self,
+            MachineState::Idle | MachineState::Running | MachineState::Paused
+        )
     }
 
     /// Whether an already-running engine must abort immediately (§9.1:
@@ -143,7 +146,10 @@ pub struct DryRunRuntime<'a> {
 impl<'a> DryRunRuntime<'a> {
     /// Wrap a live runtime for logic-only execution.
     pub fn new(inner: &'a mut dyn HostRuntime) -> Self {
-        DryRunRuntime { inner, recorded: Vec::new() }
+        DryRunRuntime {
+            inner,
+            recorded: Vec::new(),
+        }
     }
 }
 
@@ -206,7 +212,8 @@ impl HostRuntime for EmitRuntime {
     fn sleep_ms(&mut self, ms: u64) {
         // Materialize the delay as an explicit dwell so the flat program is
         // faithful to the macro semantics.
-        self.lines.push(format!("G4 P{}", crate::util::fmt_num(ms as f64)));
+        self.lines
+            .push(format!("G4 P{}", crate::util::fmt_num(ms as f64)));
     }
 
     fn machine_state(&mut self) -> MachineState {
@@ -230,7 +237,11 @@ pub struct ScriptedRuntime {
 impl ScriptedRuntime {
     /// Build a runtime serving `status` at `state` (default `Idle`).
     pub fn new(status: HashMap<String, Value>, state: MachineState) -> Self {
-        ScriptedRuntime { status, sent: Vec::new(), state }
+        ScriptedRuntime {
+            status,
+            sent: Vec::new(),
+            state,
+        }
     }
 }
 
@@ -244,7 +255,9 @@ impl HostRuntime for ScriptedRuntime {
         self.status
             .get(key)
             .cloned()
-            .ok_or_else(|| RosettaError::Runtime { reason: format!("unknown status field \"{key}\"") })
+            .ok_or_else(|| RosettaError::Runtime {
+                reason: format!("unknown status field \"{key}\""),
+            })
     }
 
     fn sleep_ms(&mut self, _ms: u64) {}

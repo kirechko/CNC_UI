@@ -149,6 +149,20 @@ button:disabled {
 
 .connection-chip-button:hover { filter: brightness(1.12); }
 
+/* Compact live endpoint label kept adjacent to the connection selector. */
+.header-connection-info {
+  max-width: min(34vw, 430px);
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-connection-info[hidden] { display: none; }
+
 .connection-chip.connection-online {
   border-color: color-mix(in srgb, var(--green) 35%, transparent);
   background: color-mix(in srgb, var(--green) 8%, transparent);
@@ -296,7 +310,12 @@ button:disabled {
 }
 
 .machines-dialog {
-  width: min(390px, calc(100vw - 32px));
+  /* Task: FluidNC rows were cut off — the hierarchy grouping indents the
+     subordinate interface rows by 14 px and the transport meta grows, so the
+     old 390 px dialog no longer fitted `fluidnc:WebSocket:192.168.1.120:80`
+     plus the "COM port" suffix. 470 px keeps single-interface rows readable
+     and leaves the indented group children inside the border. */
+  width: min(470px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -343,6 +362,7 @@ button:disabled {
 .machine-group-count { flex: 0 0 auto; }
 
 .machines-list .machine-entry-sub {
+  width: calc(100% - 14px);
   margin-left: 14px;
   position: relative;
 }

@@ -9,10 +9,12 @@ use super::DISCOVERY_MAX_PREFIX;
 use crate::{CncResult, ControllerError};
 use std::{collections::HashSet, net::Ipv4Addr};
 
-/// Maximum router hops walked by the UDP-traceroute heuristic before giving up.
+/// Maximum router hops walked by the Linux UDP-traceroute heuristic before giving up.
+#[cfg(target_os = "linux")]
 const DISCOVERY_MAX_TRACE_HOPS: u8 = 8;
 
 /// Per-hop receive timeout while listening for ICMP "time exceeded" errors.
+#[cfg(target_os = "linux")]
 const DISCOVERY_TRACE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Builds the ordered probe target list: priority endpoints first (deduped,

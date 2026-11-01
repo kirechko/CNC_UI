@@ -126,8 +126,17 @@ impl MacroEmitter for FlatEmitter {
             });
         }
         // CORE-M-03: refuse before touching any feature we cannot express.
-        for feature in [Feature::Sequence, Feature::Delay, Feature::Variables, Feature::IfElse] {
-            if !self.matrix.supports_feature(self.backend, MacroClass::Generative, feature).supported() {
+        for feature in [
+            Feature::Sequence,
+            Feature::Delay,
+            Feature::Variables,
+            Feature::IfElse,
+        ] {
+            if !self
+                .matrix
+                .supports_feature(self.backend, MacroClass::Generative, feature)
+                .supported()
+            {
                 return Err(RosettaError::Capability {
                     backend: self.backend.label().to_owned(),
                     construct: format!("{feature:?}"),
@@ -137,12 +146,13 @@ impl MacroEmitter for FlatEmitter {
         }
         // The offline expander lives next to the interpreter so both share
         // one expression evaluator (`macro_engine::generative`).
-        let lines = crate::macro_engine::generative::expand_program(
-            program,
-            &self.matrix,
-            self.backend,
-        )?;
-        Ok(EmittedMacro { backend: self.backend, lines, notes: Vec::new() })
+        let lines =
+            crate::macro_engine::generative::expand_program(program, &self.matrix, self.backend)?;
+        Ok(EmittedMacro {
+            backend: self.backend,
+            lines,
+            notes: Vec::new(),
+        })
     }
 }
 
@@ -224,7 +234,9 @@ mod tests {
             .parse_macro("meta: { id: x, name: X }\nbody:\n  - !gcode { template: G0 X1 }\n")
             .unwrap();
         assert_eq!(program.meta.id, "x");
-        assert!(YamlFrontend.parse_macro("meta: { id: '', name: X }\nbody: []").is_err());
+        assert!(YamlFrontend
+            .parse_macro("meta: { id: '', name: X }\nbody: []")
+            .is_err());
     }
 
     #[test]

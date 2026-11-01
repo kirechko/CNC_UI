@@ -56,6 +56,11 @@ fn create_tauri_icon(path: &Path) -> std::io::Result<()> {
 }
 
 fn main() {
+    // Skip Tauri asset generation for browser-only server binaries.
+    if std::env::var_os("CARGO_FEATURE_DESKTOP").is_none() {
+        return;
+    }
+
     let icon_path = Path::new("icons/icon.png");
     fs::create_dir_all(icon_path.parent().expect("icon path must have a parent"))
         .expect("failed to create Tauri icons directory");

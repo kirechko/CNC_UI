@@ -16,7 +16,7 @@ use crate::ir::capability::{BackendType, CapabilityMatrix, CapabilityRegistry, F
 use crate::ir::macro_ir::{Expr, MacroProgram, Stmt, Trigger};
 use crate::macro_engine::interpreter::{self, TransformHook};
 use crate::macro_engine::runtime::{
-    CancellationToken, HostRuntime, MachineState, MacroLogLine, MacroLogLevel, RunOutcome,
+    CancellationToken, HostRuntime, MachineState, MacroLogLevel, MacroLogLine, RunOutcome,
 };
 
 /// Outcome of the pre-start safety interrogation (`MAC` §9.2/§9.3).
@@ -38,7 +38,11 @@ pub struct SafetyReport {
 /// Confirmation is purely declarative here — the engine never blocks on a
 /// dialog itself, it only reports that one is required (§9.3: the UI owns
 /// the modal).
-pub fn prestart(program: &MacroProgram, trigger: Option<&Trigger>, state: MachineState) -> SafetyReport {
+pub fn prestart(
+    program: &MacroProgram,
+    trigger: Option<&Trigger>,
+    state: MachineState,
+) -> SafetyReport {
     let mut notes = Vec::new();
     let allowed = match state {
         MachineState::Disconnected => {
@@ -55,17 +59,26 @@ pub fn prestart(program: &MacroProgram, trigger: Option<&Trigger>, state: Machin
         }
         other => {
             if other == MachineState::Running {
-                notes.push("a job is streaming; the macro interleaves when the host queues it".to_owned());
+                notes.push(
+                    "a job is streaming; the macro interleaves when the host queues it".to_owned(),
+                );
             }
             true
         }
     };
-    let requires_confirm = program.meta.require_confirm
-        || trigger.map(Trigger::requires_confirm).unwrap_or(false);
+    let requires_confirm =
+        program.meta.require_confirm || trigger.map(Trigger::requires_confirm).unwrap_or(false);
     if requires_confirm && allowed {
-        notes.push(format!("macro \"{}\" requires confirmation", program.meta.id));
+        notes.push(format!(
+            "macro \"{}\" requires confirmation",
+            program.meta.id
+        ));
     }
-    SafetyReport { allowed, requires_confirm, notes }
+    SafetyReport {
+        allowed,
+        requires_confirm,
+        notes,
+    }
 }
 
 /// Collect the IR [`Feature`]s a program actually uses — the dynamic input
@@ -112,7 +125,11 @@ fn scan_stmt(stmt: &Stmt, out: &mut BTreeSet<Feature>) {
             out.insert(Feature::Variables);
             scan_expr(value, out);
         }
-        Stmt::If { cond, then, otherwise } => {
+        Stmt::If {
+            cond,
+            then,
+            otherwise,
+        } => {
             out.insert(Feature::IfElse);
             scan_expr(cond, out);
             for s in then.iter().chain(otherwise) {
@@ -366,7 +383,9 @@ mod tests {
         assert!(!prestart(&p, None, MachineState::EStop).allowed);
         assert!(prestart(&p, None, MachineState::Idle).allowed);
         // Confirmation is declarative, never blocking.
-        let trigger = Trigger::Button { require_confirm: true };
+        let trigger = Trigger::Button {
+            require_confirm: true,
+        };
         assert!(prestart(&p, Some(&trigger), MachineState::Idle).requires_confirm);
     }
 
@@ -376,7 +395,9 @@ mod tests {
         // interpreter at all.
         let p = program(
             MacroClass::Generative,
-            vec![Stmt::Wait { cond: Expr::Status("probe_trig".into()) }],
+            vec![Stmt::Wait {
+                cond: Expr::Status("probe_trig".into()),
+            }],
         );
         let mut rt = ScriptedRuntime::default();
         let cancel = CancellationToken::new();
@@ -391,13 +412,20 @@ mod tests {
             BackendType::Grbl,
         )
         .unwrap_err();
-        assert!(matches!(error, RosettaError::Capability { ref construct, .. } if construct == "WaitStatus"));
+        assert!(
+            matches!(error, RosettaError::Capability { ref construct, .. } if construct == "WaitStatus")
+        );
         assert!(rt.sent.is_empty());
     }
 
     #[test]
     fn execute_allows_reactive_wait_on_grbl_and_runs() {
-        let mut p = program(MacroClass::Reactive, vec![Stmt::GCode { template: "G0 X1".into() }]);
+        let mut p = program(
+            MacroClass::Reactive,
+            vec![Stmt::GCode {
+                template: "G0 X1".into(),
+            }],
+        );
         p.meta.require_confirm = false;
         let mut rt = ScriptedRuntime::default();
         let cancel = CancellationToken::new();
@@ -419,20 +447,28 @@ mod tests {
     #[test]
     fn scan_flags_recursion_and_arrays() {
         use crate::ir::macro_ir::Subroutine;
-        let mut p = program(MacroClass::Reactive, vec![Stmt::ForEach {
-            var: "i".into(),
-            iter: Expr::Range {
-                start: Box::new(Expr::Num(0.0)),
-                end: Box::new(Expr::Num(3.0)),
-                step: None,
-            },
-            body: vec![Stmt::Comment { text: "tick".into() }],
-        }]);
+        let mut p = program(
+            MacroClass::Reactive,
+            vec![Stmt::ForEach {
+                var: "i".into(),
+                iter: Expr::Range {
+                    start: Box::new(Expr::Num(0.0)),
+                    end: Box::new(Expr::Num(3.0)),
+                    step: None,
+                },
+                body: vec![Stmt::Comment {
+                    text: "tick".into(),
+                }],
+            }],
+        );
         p.subs = vec![Subroutine {
             name: "a".into(),
             params: Vec::new(),
             description: None,
-            body: vec![Stmt::Call { name: "a".into(), args: Vec::new() }],
+            body: vec![Stmt::Call {
+                name: "a".into(),
+                args: Vec::new(),
+            }],
         }];
         let features = scan_features(&p);
         assert!(features.contains(&Feature::ForeachArrays));

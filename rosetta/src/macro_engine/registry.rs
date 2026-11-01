@@ -42,7 +42,9 @@ pub struct MacroRegistry {
 impl MacroRegistry {
     /// An empty registry.
     pub fn new() -> Self {
-        MacroRegistry { programs: BTreeMap::new() }
+        MacroRegistry {
+            programs: BTreeMap::new(),
+        }
     }
 
     /// Insert `program`, running the locally decidable checks first
@@ -156,7 +158,9 @@ fn collect_transform_ids(block: &[crate::ir::macro_ir::Stmt], visit: &mut dyn Fn
     for stmt in block {
         match stmt {
             Stmt::InvokeTransform { id, .. } => visit(id.as_str()),
-            Stmt::If { then, otherwise, .. } => {
+            Stmt::If {
+                then, otherwise, ..
+            } => {
                 collect_transform_ids(then, visit);
                 collect_transform_ids(otherwise, visit);
             }
@@ -218,8 +222,14 @@ mod tests {
         let mut registry = MacroRegistry::new();
         let mut p = program("m");
         p.body = vec![
-            crate::ir::macro_ir::Stmt::Call { name: "ghost".into(), args: Vec::new() },
-            crate::ir::macro_ir::Stmt::InvokeTransform { id: "Nope".into(), args: Vec::new() },
+            crate::ir::macro_ir::Stmt::Call {
+                name: "ghost".into(),
+                args: Vec::new(),
+            },
+            crate::ir::macro_ir::Stmt::InvokeTransform {
+                id: "Nope".into(),
+                args: Vec::new(),
+            },
         ];
         registry.upsert(p).unwrap();
         let issues = registry.validate_references(&|id| id == "Rotate");

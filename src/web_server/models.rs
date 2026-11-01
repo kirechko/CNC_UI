@@ -251,10 +251,21 @@ pub(crate) fn axis_letter(axis: Axis) -> char {
     }
 }
 
+/// Active connection metadata displayed next to the connection status chip.
+#[derive(Serialize)]
+pub(crate) struct ConnectionInfo {
+    pub(crate) protocol: String,
+    pub(crate) transport: String,
+    pub(crate) address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) machine_name: Option<String>,
+}
+
 /// Flat status payload consumed by `web/js/main.js` (`refreshStatus`).
 #[derive(Serialize)]
 pub(crate) struct StatusResponse {
     pub(crate) connected: bool,
+    pub(crate) connection_info: Option<ConnectionInfo>,
     /// Machine state string; the `get_status` handler inspects it to decide
     /// whether the HTTP status trace should fire (READING/RUNNING states).
     pub(crate) state: String,
@@ -294,6 +305,25 @@ pub(crate) struct StatusResponse {
     pub(crate) latest_other: Option<LogEntry>,
 }
 
+impl StatusResponse {
+    /// Attaches the discovered endpoint metadata for the connected machine.
+    pub(crate) fn with_connection_info(
+        mut self,
+        devices: &[cnc_core::discovery::DiscoveredDevice],
+        connected_device_id: Option<&str>,
+    ) -> Self {
+        self.connection_info = connected_device_id
+            .and_then(|id| devices.iter().find(|device| device.id == id))
+            .map(|device| ConnectionInfo {
+                protocol: device.protocol.clone(),
+                transport: device.transport.label().into(),
+                address: device.endpoint.clone(),
+                machine_name: device.machine_name.clone(),
+            });
+        self
+    }
+}
+
 impl From<ControllerSnapshot> for StatusResponse {
     fn from(status: ControllerSnapshot) -> Self {
         let machine = status.machine;
@@ -312,6 +342,7 @@ impl From<ControllerSnapshot> for StatusResponse {
 
         Self {
             connected: machine.connected,
+            connection_info: None,
             state: state.into(),
             x: machine.position.x - machine.work_offset.x,
             y: machine.position.y - machine.work_offset.y,

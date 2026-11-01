@@ -7,7 +7,7 @@
 //! (continuous jog, program streaming, guards, parsing) is factored into
 //! `pub(super)` helpers that live in the sibling modules.
 
-use super::{wait_for_command_cancellation, ContinuousJog, GrblAdapter};
+use super::{wait_for_command_cancellation, ContinuousJog, GrblAdapter, SerialProtocol};
 use crate::discovery::{DiscoveredDevice, DiscoveryTransport};
 use crate::{
     Axis, AxisConfiguration, AxisUnits, CncApi, CncResult, ControllerError, CoordinateSystem,
@@ -20,21 +20,34 @@ use std::sync::Arc;
 
 #[async_trait::async_trait]
 impl CncApi for GrblAdapter {
-    /// GRBL is reached over a serial port, so exactly one "device" exists:
-    /// the endpoint the adapter was opened on.
+    /// The serial family (GRBL or FluidNC — task: FluidNC over COM port) is
+    /// reached over one port, so exactly one "device" exists: the endpoint the
+    /// adapter was opened on. The id prefix, protocol label and machine name
+    /// mirror the discovery scanner's record so the connected row highlights
+    /// in the machines dialog.
     fn discovered_devices(&self) -> Vec<DiscoveredDevice> {
         vec![DiscoveredDevice {
-            id: format!("grbl:serial:{}", self.serial_endpoint),
-            protocol: "GRBL".into(),
-            machine_name: None,
+            id: format!(
+                "{}:serial:{}",
+                self.protocol.id_prefix(),
+                self.serial_endpoint
+            ),
+            protocol: self.protocol.label().into(),
+            machine_name: self.machine_name.clone(),
             version: None,
             transport: DiscoveryTransport::Serial,
+            // Full device node path: the scanner stores the canonical path in
+            // `endpoint`, and the machines dialog shows it as the address.
             endpoint: self.serial_endpoint.clone(),
         }]
     }
 
     fn connected_device_id(&self) -> Option<String> {
-        Some(format!("grbl:serial:{}", self.serial_endpoint))
+        Some(format!(
+            "{}:serial:{}",
+            self.protocol.id_prefix(),
+            self.serial_endpoint
+        ))
     }
 
     /// Queries one realtime status report and, as a side effect, runs the
@@ -44,8 +57,17 @@ impl CncApi for GrblAdapter {
         let mut session = self.session.lock().await;
         let response = Self::query_status(&mut session).await?;
 
-        if session.program_streaming && Self::should_stream_program(&response) {
-            Self::stream_next_program_line(&mut session).await?;
+        // Streaming scheduler pass. The pump resolves any in-flight line
+        // acknowledgement that `query_status` routed from the wire in ANY
+        // machine state (a late `ok`/`error:`/`ALARM:` must never be lost),
+        // but only writes the next line while the controller reports
+        // Idle/Run/Check. Nothing here blocks: the old stop-and-wait send
+        // inside status() froze the whole poll for up to the planner-ack
+        // budget, which is what made the trajectory and coordinates advance
+        // in multi-second jumps on GRBL.
+        if session.program_streaming {
+            let allow_write = Self::should_stream_program(&response);
+            Self::pump_program_stream(&mut session, allow_write).await?;
         }
 
         if Self::is_idle_status(&response) {
@@ -96,19 +118,29 @@ impl CncApi for GrblAdapter {
             b: status.position.b - status.work_offset.b,
             c: status.position.c - status.work_offset.c,
         };
-        // GRBL acknowledges a line when it ENTERS the planner buffer, so
-        // `current_line` runs ahead of the physical tool. A plain `locate`
-        // would then jump the highlight onto later passes that cross the same
-        // coordinates. Forward-only search bounded by the acknowledged line
-        // keeps the traversed part monotonic, matching the FluidNC behavior.
+        // GRBL acknowledges a line when it ENTERS the planner buffer, but the
+        // answer for an arc block (G2/G3) is deferred until the WHOLE arc has
+        // been converted into planner segments and accepted: GRBL segments
+        // arcs internally (~$ARC_TOLERANCE per chord) and only drains its
+        // 16-block planner while the machine executes it. On a long arc the
+        // `ok` can therefore arrive at ~75-80% of the physical block, with
+        // the tool already far inside the line. A plain `locate` would jump
+        // the highlight onto later passes crossing the same coordinates, so
+        // the search stays forward-only and monotonic (floor = last reported
+        // distance), but its upper bound must include the in-flight line:
+        // the line written to GRBL whose `ok` has not been observed yet is
+        // exactly the line the tool is cutting. Excluding it froze the arc
+        // highlight until the delayed acknowledgement arrived (the 80% jump).
         status.progress = if session.program_streaming {
             let floor = session
                 .last_progress
                 .and_then(|progress| progress.path_distance_mm)
                 .unwrap_or(0.0);
+            let max_program_line =
+                Self::progress_line_window(session.current_line, session.pending_ack.is_some());
             match session
                 .toolpath
-                .locate_forward(&work_position, floor, session.current_line)
+                .locate_forward(&work_position, floor, max_program_line)
             {
                 Some(found) => {
                     session.last_progress = Some(found);
@@ -142,8 +174,17 @@ impl CncApi for GrblAdapter {
                     status.work_offset.x,
                     status.work_offset.y,
                     status.work_offset.z,
+                    status.work_offset.a,
+                    status.work_offset.b,
+                    status.work_offset.c,
                 ],
             );
+        }
+        // Remember how many position components the controller actually sends
+        // so `machine_configuration` reports exactly the configured axes
+        // (serial FluidNC: 3..6 axes — task: FluidNC over a COM port).
+        if let Some(count) = Self::reported_axis_count(&response) {
+            session.reported_axis_count = count;
         }
 
         Ok(status)
@@ -151,6 +192,12 @@ impl CncApi for GrblAdapter {
 
     /// Reads `$$` settings and maps the GRBL $1xx/$3x/$13x numbering into
     /// per-axis travel/velocity/acceleration and spindle RPM limits.
+    ///
+    /// For serial FluidNC (task: FluidNC over a COM port) the configuration
+    /// follows the WebSocket adapter's convention: $130-$135/$110-$115/
+    /// $120-$125/$100-$105 are the X/Y/Z/A/B/C slots and the number of
+    /// reported axes comes from the last `?` status poll, so a 4/5/6-axis
+    /// machine exposes its rotary axes to the UI.
     async fn machine_configuration(&self) -> CncResult<MachineConfiguration> {
         let mut session = self.session.lock().await;
         let settings = Self::query_settings(&mut session).await?;
@@ -163,33 +210,36 @@ impl CncApi for GrblAdapter {
         session.min_spindle_rpm = min_rpm;
         session.max_spindle_rpm = max_rpm;
 
+        let axis_definitions = [
+            (MachineAxis::X, AxisUnits::Linear),
+            (MachineAxis::Y, AxisUnits::Linear),
+            (MachineAxis::Z, AxisUnits::Linear),
+            (MachineAxis::A, AxisUnits::Angular),
+            (MachineAxis::B, AxisUnits::Angular),
+            (MachineAxis::C, AxisUnits::Angular),
+        ];
+        // GRBL boards are 3-axis by firmware design; serial FluidNC reports
+        // its real axis count via the MPos/WPos width of the status line.
+        let axis_count = match self.protocol {
+            SerialProtocol::Grbl => 3,
+            SerialProtocol::FluidNc => session.reported_axis_count.clamp(3, 6),
+        };
+        let axes = axis_definitions
+            .into_iter()
+            .take(axis_count)
+            .enumerate()
+            .map(|(index, (axis, units))| AxisConfiguration {
+                axis,
+                units,
+                max_travel: travel(130 + index as u16),
+                max_velocity: travel(110 + index as u16),
+                acceleration: travel(120 + index as u16),
+                steps_per_unit: travel(100 + index as u16),
+            })
+            .collect();
+
         Ok(MachineConfiguration {
-            axes: vec![
-                AxisConfiguration {
-                    axis: MachineAxis::X,
-                    units: AxisUnits::Linear,
-                    max_travel: travel(130),
-                    max_velocity: travel(110),
-                    acceleration: travel(120),
-                    steps_per_unit: travel(100),
-                },
-                AxisConfiguration {
-                    axis: MachineAxis::Y,
-                    units: AxisUnits::Linear,
-                    max_travel: travel(131),
-                    max_velocity: travel(111),
-                    acceleration: travel(121),
-                    steps_per_unit: travel(101),
-                },
-                AxisConfiguration {
-                    axis: MachineAxis::Z,
-                    units: AxisUnits::Linear,
-                    max_travel: travel(132),
-                    max_velocity: travel(112),
-                    acceleration: travel(122),
-                    steps_per_unit: travel(102),
-                },
-            ],
+            axes,
             spindle: SpindleConfiguration { min_rpm, max_rpm },
             settings,
         })
@@ -256,7 +306,7 @@ impl CncApi for GrblAdapter {
     }
 
     async fn set_axis_work_zero(&self, axis: Axis) -> CncResult<()> {
-        Self::ensure_supported_axis(axis)?;
+        Self::ensure_supported_axis(self.protocol, axis)?;
         let mut session = self.session.lock().await;
         Self::ensure_manual_command_allowed(session.program_streaming)?;
         Self::ensure_jog_idle(session.continuous_jog.is_some() || session.jog_chunk_active)?;
@@ -274,7 +324,7 @@ impl CncApi for GrblAdapter {
 
     /// One incremental step along a single axis, sent as a blocking `$J=` line.
     async fn jog_increment(&self, request: JogRequest) -> CncResult<()> {
-        Self::ensure_supported_axis(request.axis)?;
+        Self::ensure_supported_axis(self.protocol, request.axis)?;
 
         if ![-1, 1].contains(&request.direction)
             || !request.distance.is_finite()
@@ -312,7 +362,7 @@ impl CncApi for GrblAdapter {
         if direction == 0 {
             return self.cancel_jog().await;
         }
-        Self::ensure_supported_axis(axis)?;
+        Self::ensure_supported_axis(self.protocol, axis)?;
         if !feed_rate.is_finite() || feed_rate <= 0.0 {
             return Err(ControllerError::new(
                 "bad_jog",
@@ -474,7 +524,10 @@ impl CncApi for GrblAdapter {
 
         session.current_line = start_line;
         session.program_streaming = true;
-        Self::stream_next_program_line(&mut session).await
+        // Kick the non-blocking scheduler: this writes the very first line
+        // (the controller was just proven Idle), later lines advance on the
+        // 10 Hz status polls as planner acknowledgements arrive.
+        Self::pump_program_stream(&mut session, true).await
     }
 
     /// Feed hold (realtime `!`): GRBL keeps the program position.
@@ -493,6 +546,10 @@ impl CncApi for GrblAdapter {
     async fn program_abort(&self) -> CncResult<()> {
         let mut session = self.session.lock().await;
         session.program_streaming = false;
+        // A soft reset flushes the planner; whatever acknowledgement the last
+        // written line might still have produced will never arrive, so drop
+        // the pending bookkeeping together with the streaming state.
+        session.pending_ack = None;
         session.continuous_jog = None;
         session.jog_chunk_active = false;
         Self::send_realtime(&mut session, 0x18).await?;

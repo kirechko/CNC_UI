@@ -190,7 +190,7 @@ fn prevents_program_load_or_start_during_program_or_jog_motion() {
 #[test]
 fn rejects_programs_over_the_size_limit() {
     let content = " ".repeat(MAX_PROGRAM_BYTES + 1);
-    let error = GrblAdapter::parse_program_lines(&content).unwrap_err();
+    let error = GrblAdapter::parse_program_lines(&content, SerialProtocol::Grbl).unwrap_err();
 
     assert_eq!(error.code, "bad_program");
     assert!(error.message.contains("size limit"));
@@ -225,30 +225,43 @@ fn program_lines_drop_semicolon_comments_before_validation() {
     // `;` comments (even with non-ASCII text such as Cyrillic) are stripped
     // host-side: GRBL ignores them anyway, and the strict ASCII validator must
     // never see them, otherwise real-world programs fail to load.
-    let lines =
-        GrblAdapter::parse_program_lines("; Настройки\nG21 ; Миллиметры\nM7  ; охлаждение\nG0 X1")
-            .unwrap();
+    let lines = GrblAdapter::parse_program_lines(
+        "; Настройки\nG21 ; Миллиметры\nM7  ; охлаждение\nG0 X1",
+        SerialProtocol::Grbl,
+    )
+    .unwrap();
     assert_eq!(lines, ["G21", "M7", "G0 X1"]);
 
     // A `;` inside a parenthesis comment is not a line comment and stays, so
     // the whole line still fails the ASCII check exactly like before.
-    let error = GrblAdapter::parse_program_lines("G0 X1 (a ; b ü)").unwrap_err();
+    let error =
+        GrblAdapter::parse_program_lines("G0 X1 (a ; b ü)", SerialProtocol::Grbl).unwrap_err();
     assert_eq!(error.code, "bad_program");
 }
 
 #[test]
 fn validates_every_program_line_before_execution() {
-    let lines = GrblAdapter::parse_program_lines("\nG0 X1\n\nG1 X2\n").unwrap();
+    let lines =
+        GrblAdapter::parse_program_lines("\nG0 X1\n\nG1 X2\n", SerialProtocol::Grbl).unwrap();
     assert_eq!(lines, ["G0 X1", "G1 X2"]);
 
-    let error = GrblAdapter::parse_program_lines(&format!(
-        "G0 X1\n{}\nG1 X2",
-        "G".repeat(MAX_COMMAND_LENGTH + 1)
-    ))
+    let error = GrblAdapter::parse_program_lines(
+        &format!("G0 X1\n{}\nG1 X2", "G".repeat(MAX_COMMAND_LENGTH + 1)),
+        SerialProtocol::Grbl,
+    )
     .unwrap_err();
 
     assert_eq!(error.code, "bad_program");
     assert!(error.message.contains("line 2"));
+}
+
+/// Task (FluidNC over a COM port): the same loader must accept lines up to
+/// FluidNC's 250-byte budget while still enforcing the GRBL family limit.
+#[test]
+fn fluidnc_program_lines_tolerate_longer_commands() {
+    let long_line = "G".repeat(SerialProtocol::FluidNc.max_command_length());
+    assert!(GrblAdapter::parse_program_lines(&long_line, SerialProtocol::FluidNc).is_ok());
+    assert!(GrblAdapter::parse_program_lines(&long_line, SerialProtocol::Grbl).is_err());
 }
 
 #[test]
@@ -300,4 +313,65 @@ fn rejects_oversized_line_even_when_terminator_is_already_buffered() {
 
     let error = GrblAdapter::extract_line(&mut buffer).unwrap_err();
     assert_eq!(error.code, "protocol");
+}
+
+/// Fixture: a program line written at "now" with no reply observed yet.
+fn pending(line: &str) -> PendingProgramAck {
+    PendingProgramAck {
+        line: line.to_owned(),
+        sent_at: Instant::now(),
+        reply: None,
+    }
+}
+
+#[test]
+fn pending_ack_routes_ok_error_and_alarm_replies() {
+    let mut ack = pending("G1 X10 F100");
+    // Unsolicited chatter (status reports, [MSG] lines) is not consumed.
+    assert!(!ack.route("<Idle|MPos:1,2,3|FS:0,0>"));
+    assert!(!ack.route("[MSG:Workspace:0]"));
+    assert!(ack.reply.is_none());
+    // The real acknowledgement is recorded and claimed.
+    assert!(ack.route("ok"));
+    assert_eq!(ack.reply, Some(StreamReply::Ok));
+}
+
+#[test]
+fn pending_ack_records_error_and_alarm_details() {
+    let mut error_ack = pending("M7");
+    assert!(error_ack.route("error:20"));
+    assert_eq!(error_ack.reply, Some(StreamReply::Error("20".into())));
+
+    let mut alarm_ack = pending("G1 Z-1 F50");
+    assert!(alarm_ack.route("ALARM:1"));
+    assert_eq!(alarm_ack.reply, Some(StreamReply::Alarm("1".into())));
+}
+
+#[test]
+fn pending_ack_keeps_first_reply_and_ignores_later_ok_lines() {
+    let mut ack = pending("G1 X1");
+    assert!(ack.route("ok"));
+    // A stale extra `ok` must not overwrite the recorded reply but is still
+    // claimed as "belonging to the streamer" so it never leaks as chatter.
+    assert!(ack.route("ok"));
+    assert!(!ack.route("error:4"));
+    assert_eq!(ack.reply, Some(StreamReply::Ok));
+}
+
+/// Regression for the arc highlight freeze: GRBL emits the `ok` of a long
+/// G2/G3 only after most of its internal chord blocks fit into the 16-block
+/// planner, i.e. near ~80% of the physical arc. Until then the arc is the
+/// in-flight line and `current_line` (count of acknowledged lines) does not
+/// cover it. The progress window must therefore include the in-flight line,
+/// otherwise `locate_forward` cannot see the chords the tool is cutting and
+/// the traversed part jumps in one frame when the delayed `ok` arrives.
+#[test]
+fn progress_window_includes_the_in_flight_line() {
+    // Nothing acknowledged yet but the first line is already written:
+    // line 1 must be searchable.
+    assert_eq!(GrblAdapter::progress_line_window(0, true), 1);
+    // Four lines acknowledged, a fifth one in flight (the cutting arc).
+    assert_eq!(GrblAdapter::progress_line_window(4, true), 5);
+    // No line in flight: the window stops at the acknowledged count.
+    assert_eq!(GrblAdapter::progress_line_window(4, false), 4);
 }

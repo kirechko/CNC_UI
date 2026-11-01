@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use crate::error::{RosettaError, RosettaResult};
 use crate::ir::macro_ir::{BinOp, Expr, MacroProgram, ParamDecl, Stmt, UnOp, Value, ValueKind};
 use crate::macro_engine::runtime::{
-    CancellationToken, HostRuntime, MachineState, MacroLogLine, MacroLogLevel, RunOutcome,
+    CancellationToken, HostRuntime, MachineState, MacroLogLevel, MacroLogLine, RunOutcome,
 };
 
 /// Maximum subroutine-call nesting depth.
@@ -36,8 +36,7 @@ pub const MAX_WAIT_POLLS: u32 = 10_000;
 /// The signature every `InvokeTransform` bridge must satisfy
 /// (`MAC-T-03`): synchronous, returns `Ok(Some(value))` on success,
 /// `Err` on failure (`MAC-T-05`).
-pub type TransformHook<'h> =
-    dyn FnMut(&str, Vec<Value>) -> RosettaResult<Option<Value>> + 'h;
+pub type TransformHook<'h> = dyn FnMut(&str, Vec<Value>) -> RosettaResult<Option<Value>> + 'h;
 
 /// Non-local control-flow signal that must unwind statement execution:
 /// `Return`, `Abort` (`Stmt::Abort`), `Cancelled` (host stop / E-Stop), and
@@ -130,7 +129,9 @@ impl<'a, 'h> Engine<'a, 'h> {
         engine.log_line("start", MacroLogLevel::Info);
         let block = program.body.clone();
         match engine.exec_block(&block) {
-            Ok(()) => Ok(RunOutcome::Completed { value: engine.pending_return }),
+            Ok(()) => Ok(RunOutcome::Completed {
+                value: engine.pending_return,
+            }),
             Err(Signal::Return(value)) => Ok(RunOutcome::Completed { value: Some(value) }),
             Err(Signal::Abort(reason)) => {
                 engine.log_line(&format!("abort: {reason}"), MacroLogLevel::Error);
@@ -268,7 +269,11 @@ impl<'a, 'h> Engine<'a, 'h> {
                 self.set_var(name, value);
                 Ok(())
             }
-            Stmt::If { cond, then, otherwise } => {
+            Stmt::If {
+                cond,
+                then,
+                otherwise,
+            } => {
                 let taken = self.eval(cond).map_err(Signal::Error)?.is_truthy();
                 self.log_line(&format!("condition -> {taken}"), MacroLogLevel::Info);
                 self.exec_block(if taken { then } else { otherwise })
@@ -341,7 +346,10 @@ impl<'a, 'h> Engine<'a, 'h> {
                 Err(Signal::Return(value))
             }
             Stmt::Abort { reason } => {
-                let reason = self.eval(reason).map_err(Signal::Error)?.to_display_string();
+                let reason = self
+                    .eval(reason)
+                    .map_err(Signal::Error)?
+                    .to_display_string();
                 Err(Signal::Abort(reason))
             }
         }
@@ -382,10 +390,12 @@ impl<'a, 'h> Engine<'a, 'h> {
         let body = self
             .program
             .find_sub(name)
-            .ok_or_else(|| Signal::Error(RosettaError::NotFound {
-                kind: "subroutine".into(),
-                id: name.to_owned(),
-            }))?
+            .ok_or_else(|| {
+                Signal::Error(RosettaError::NotFound {
+                    kind: "subroutine".into(),
+                    id: name.to_owned(),
+                })
+            })?
             .clone();
         if self.depth + 1 > MAX_DEPTH {
             return Err(Signal::Error(RosettaError::Validation {
@@ -501,7 +511,9 @@ impl<'a, 'h> Engine<'a, 'h> {
                 reason: format!("range of {count} items exceeds the expansion budget"),
             });
         }
-        Ok((0..count).map(|i| Value::Num(start + i as f64 * step)).collect())
+        Ok((0..count)
+            .map(|i| Value::Num(start + i as f64 * step))
+            .collect())
     }
 
     /// Resolve the iteration source of `Stmt::ForEach`: arrays and ranges
@@ -599,11 +611,15 @@ fn eval_bin(op: BinOp, lhs: Value, rhs: Value) -> RosettaResult<Value> {
                 Sub => a - b,
                 Mul => a * b,
                 Div if b == 0.0 => {
-                    return Err(RosettaError::Runtime { reason: "division by zero".into() })
+                    return Err(RosettaError::Runtime {
+                        reason: "division by zero".into(),
+                    })
                 }
                 Div => a / b,
                 Mod if b == 0.0 => {
-                    return Err(RosettaError::Runtime { reason: "modulo by zero".into() })
+                    return Err(RosettaError::Runtime {
+                        reason: "modulo by zero".into(),
+                    })
                 }
                 Mod => a % b,
                 _ => unreachable!("comparison ops handled below"),
@@ -739,7 +755,11 @@ mod tests {
     }
 
     fn bin(op: BinOp, a: Expr, b: Expr) -> Expr {
-        Expr::Bin { op, lhs: Box::new(a), rhs: Box::new(b) }
+        Expr::Bin {
+            op,
+            lhs: Box::new(a),
+            rhs: Box::new(b),
+        }
     }
 
     #[test]
@@ -768,8 +788,12 @@ mod tests {
     fn reactive_if_else_selects_branch() {
         let p = program(vec![Stmt::If {
             cond: bin(BinOp::Gt, Expr::Num(3.0), Expr::Num(1.0)),
-            then: vec![Stmt::GCode { template: "M100".into() }],
-            otherwise: vec![Stmt::GCode { template: "M101".into() }],
+            then: vec![Stmt::GCode {
+                template: "M100".into(),
+            }],
+            otherwise: vec![Stmt::GCode {
+                template: "M101".into(),
+            }],
         }]);
         let (outcome, rt) = run(&p, vec![], HashMap::new(), None);
         assert!(outcome.is_ok());
@@ -784,12 +808,19 @@ mod tests {
         let p = program(vec![
             Stmt::While {
                 cond: bin(BinOp::Gt, Expr::Status("probe_trig".into()), Expr::Num(0.0)),
-                body: vec![Stmt::GCode { template: "G4 P0".into() }],
+                body: vec![Stmt::GCode {
+                    template: "G4 P0".into(),
+                }],
             },
-            Stmt::GCode { template: "G92 Z0".into() },
+            Stmt::GCode {
+                template: "G92 Z0".into(),
+            },
         ]);
         let (outcome, rt) = run(&p, vec![], status, None);
-        assert!(matches!(outcome.unwrap(), RunOutcome::Completed { value: None }));
+        assert!(matches!(
+            outcome.unwrap(),
+            RunOutcome::Completed { value: None }
+        ));
         assert_eq!(rt.sent, vec!["G92 Z0"]);
     }
 
@@ -798,8 +829,12 @@ mod tests {
         let mut status = HashMap::new();
         status.insert("idle".to_string(), Value::Bool(true));
         let p = program(vec![
-            Stmt::Wait { cond: Expr::Status("idle".into()) },
-            Stmt::GCode { template: "G0 X0".into() },
+            Stmt::Wait {
+                cond: Expr::Status("idle".into()),
+            },
+            Stmt::GCode {
+                template: "G0 X0".into(),
+            },
         ]);
         let (outcome, rt) = run(&p, vec![], status, None);
         assert!(outcome.is_ok());
@@ -814,7 +849,9 @@ mod tests {
         let cancel = CancellationToken::new();
         let mut log = |_line: MacroLogLine| {};
         let mut holder: Option<&mut TransformHook<'_>> = None;
-        let p = program(vec![Stmt::Wait { cond: Expr::Status("idle".into()) }]);
+        let p = program(vec![Stmt::Wait {
+            cond: Expr::Status("idle".into()),
+        }]);
         let error = run_macro(&p, vec![], &mut rt, &cancel, &mut log, &mut holder).unwrap_err();
         assert!(matches!(error, RosettaError::Runtime { .. }));
     }
@@ -822,8 +859,12 @@ mod tests {
     #[test]
     fn abort_yields_aborted_outcome_not_error() {
         let p = program(vec![
-            Stmt::Abort { reason: Expr::Str("no tool".into()) },
-            Stmt::GCode { template: "G1 X1".into() },
+            Stmt::Abort {
+                reason: Expr::Str("no tool".into()),
+            },
+            Stmt::GCode {
+                template: "G1 X1".into(),
+            },
         ]);
         let (outcome, rt) = run(&p, vec![], HashMap::new(), None);
         match outcome.unwrap() {
@@ -837,7 +878,9 @@ mod tests {
     fn cancellation_stops_run() {
         let p = program(vec![Stmt::Repeat {
             count: Expr::Num(1000.0),
-            body: vec![Stmt::GCode { template: "G4 P1".into() }],
+            body: vec![Stmt::GCode {
+                template: "G4 P1".into(),
+            }],
         }]);
         let mut rt = ScriptedRuntime::default();
         let cancel = CancellationToken::new();
@@ -853,14 +896,19 @@ mod tests {
     fn subroutine_return_captures_value_into_return_var() {
         use crate::ir::macro_ir::Subroutine;
         let mut p = program(vec![
-            Stmt::Call { name: "double".into(), args: vec![Expr::Num(21.0)] },
+            Stmt::Call {
+                name: "double".into(),
+                args: vec![Expr::Num(21.0)],
+            },
             Stmt::SetVar {
                 name: "result".into(),
                 value: Expr::Var("return".into()),
             },
             Stmt::If {
                 cond: bin(BinOp::Eq, Expr::Var("result".into()), Expr::Num(42.0)),
-                then: vec![Stmt::GCode { template: "M999".into() }],
+                then: vec![Stmt::GCode {
+                    template: "M999".into(),
+                }],
                 otherwise: vec![],
             },
         ]);
@@ -873,7 +921,9 @@ mod tests {
                 description: None,
             }],
             description: None,
-            body: vec![Stmt::Return { value: Some(bin(BinOp::Mul, Expr::Var("v".into()), Expr::Num(2.0))) }],
+            body: vec![Stmt::Return {
+                value: Some(bin(BinOp::Mul, Expr::Var("v".into()), Expr::Num(2.0))),
+            }],
         }];
         let (outcome, rt) = run(&p, vec![], HashMap::new(), None);
         assert!(outcome.is_ok());
@@ -883,8 +933,13 @@ mod tests {
     #[test]
     fn invoke_transform_uses_bridge_and_exposes_return() {
         let p = program(vec![
-            Stmt::InvokeTransform { id: "Rotate".into(), args: vec![Expr::Num(90.0)] },
-            Stmt::GCode { template: "M100 {return}".into() },
+            Stmt::InvokeTransform {
+                id: "Rotate".into(),
+                args: vec![Expr::Num(90.0)],
+            },
+            Stmt::GCode {
+                template: "M100 {return}".into(),
+            },
         ]);
         let mut calls: Vec<(String, Vec<Value>)> = Vec::new();
         let mut hook = |id: &str, args: Vec<Value>| -> RosettaResult<Option<Value>> {
@@ -916,7 +971,9 @@ mod tests {
     fn step_budget_kills_infinite_loop() {
         let p = program(vec![Stmt::While {
             cond: Expr::Bool(true),
-            body: vec![Stmt::Comment { text: "tick".into() }],
+            body: vec![Stmt::Comment {
+                text: "tick".into(),
+            }],
         }]);
         let (outcome, _rt) = run(&p, vec![], HashMap::new(), None);
         match outcome {
@@ -945,7 +1002,10 @@ mod tests {
             body: vec![],
         }]);
         let (outcome, _rt) = run(&p, vec![], HashMap::new(), None);
-        assert!(matches!(outcome.unwrap_err(), RosettaError::Validation { .. }));
+        assert!(matches!(
+            outcome.unwrap_err(),
+            RosettaError::Validation { .. }
+        ));
     }
 
     #[test]
@@ -957,7 +1017,9 @@ mod tests {
                 end: Box::new(Expr::Num(3.0)),
                 step: None,
             },
-            body: vec![Stmt::GCode { template: "G1 X{c}".into() }],
+            body: vec![Stmt::GCode {
+                template: "G1 X{c}".into(),
+            }],
         }]);
         let (outcome, rt) = run(&p, vec![], HashMap::new(), None);
         assert!(outcome.is_ok());
@@ -979,20 +1041,29 @@ mod tests {
         let mut holder: Option<&mut TransformHook<'_>> = None;
         let mut scope = Engine::new(&p, &mut rt, &cancel, &mut log, &mut holder);
         assert_eq!(scope.eval(&e).unwrap(), Value::Num(2.0));
-        e = Expr::Unary { op: UnOp::Not, arg: Box::new(Expr::Bool(false)) };
+        e = Expr::Unary {
+            op: UnOp::Not,
+            arg: Box::new(Expr::Bool(false)),
+        };
         assert_eq!(scope.eval(&e).unwrap(), Value::Bool(true));
     }
 
     #[test]
     fn interpolation_requires_balance_and_escapes() {
         // An unterminated placeholder must be a hard parse error...
-        let p = program(vec![Stmt::GCode { template: "G4 {x".into() }]);
+        let p = program(vec![Stmt::GCode {
+            template: "G4 {x".into(),
+        }]);
         // ...while a doubled brace is a literal escape and `{` inside plain
         // text that is not a `{name}` placeholder stays untouched only when
         // it is escaped; here the stray `{x` after the escape is unterminated
         // too, so this program must also fail.
-        let q = program(vec![Stmt::GCode { template: "G4 {{literal {x".into() }]);
-        let mut r = program(vec![Stmt::GCode { template: "G4 {x}".into() }]);
+        let q = program(vec![Stmt::GCode {
+            template: "G4 {{literal {x".into(),
+        }]);
+        let mut r = program(vec![Stmt::GCode {
+            template: "G4 {x}".into(),
+        }]);
         r.params = vec![ParamDecl {
             name: "x".into(),
             kind: ValueKind::Number,
@@ -1002,7 +1073,10 @@ mod tests {
         let (outcome, _rt) = run(&p, vec![], HashMap::new(), None);
         assert!(outcome.is_err(), "unterminated placeholder must fail");
         let (outcome, _rt) = run(&q, vec![], HashMap::new(), None);
-        assert!(outcome.is_err(), "escape must not hide an unterminated brace");
+        assert!(
+            outcome.is_err(),
+            "escape must not hide an unterminated brace"
+        );
         let (outcome, rt) = run(&r, vec![], HashMap::new(), None);
         assert!(outcome.is_ok());
         assert_eq!(rt.sent, vec!["G4 1"]);
