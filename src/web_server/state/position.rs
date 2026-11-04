@@ -175,8 +175,13 @@ impl AppState {
         Ok(())
     }
 
-    /// Starts the currently loaded program; `language` localizes client-facing errors.
-    pub(crate) fn start_loaded_program(&self, language: &str) -> Result<(), String> {
+    /// Starts the currently loaded program after static preflight has no blocking findings.
+    /// `language` localizes preflight, file and adapter errors. This is not a controller simulation.
+    pub(crate) fn start_loaded_program(
+        &self,
+        language: &str,
+        review_confirmed: bool,
+    ) -> Result<(), String> {
         let program = self
             .program
             .lock()
@@ -194,6 +199,36 @@ impl AppState {
                 "api.error.emptyProgram",
                 &[],
             ));
+        }
+
+        let profile_id = self
+            .active_profile_id
+            .lock()
+            .map_err(|_| "active profile lock poisoned".to_string())?
+            .clone();
+        let preflight = self.preflight_program(&program.content, profile_id.as_deref())?;
+        if preflight.blocked {
+            let first = preflight
+                .findings
+                .iter()
+                .find(|finding| {
+                    matches!(
+                        finding.severity,
+                        super::preflight::PreflightSeverity::Blocker
+                    )
+                })
+                .map(|finding| format!("line {:?}: {}", finding.line, finding.detail))
+                .unwrap_or_else(|| "known safety limits were exceeded".to_string());
+            return Err(format!("Preflight blocked Run: {first}"));
+        }
+        let unreviewed = preflight.findings.iter().any(|finding| {
+            matches!(
+                finding.severity,
+                super::preflight::PreflightSeverity::Warning
+            )
+        });
+        if unreviewed && !review_confirmed {
+            return Err("Preflight requires review: unknown limits or unverified controller capabilities remain. Review the Preflight panel and explicitly confirm before Run.".into());
         }
 
         let path = temp_program_path();

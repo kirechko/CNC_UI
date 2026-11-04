@@ -9,11 +9,19 @@
 mod console;
 mod control;
 mod files;
+mod machine_profiles;
 mod macros;
+mod preflight;
 mod rosetta;
+mod tool_library;
+mod tool_types;
 
 pub(crate) use console::*;
 pub(crate) use control::*;
 pub(crate) use files::*;
+pub(crate) use machine_profiles::*;
 pub(crate) use macros::*;
+pub(crate) use preflight::*;
 pub(crate) use rosetta::*;
+pub(crate) use tool_library::*;
+pub(crate) use tool_types::*;

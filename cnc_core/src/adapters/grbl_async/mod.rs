@@ -79,7 +79,10 @@ const MAX_COMMAND_LENGTH: usize = 80;
 /// Programs larger than this are rejected before streaming (GRBL buffer).
 const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
 /// Distance covered by one chunk of a continuous jog move, in millimeters.
-const JOG_CHUNK_MM: f64 = 10.0;
+///
+/// Keep this short: each `$J=` block must finish before another can be queued,
+/// so long chunks force a visible stop between repeated jog commands.
+const JOG_CHUNK_MM: f64 = 1.0;
 
 /// Reply state of one program line written to GRBL.
 ///

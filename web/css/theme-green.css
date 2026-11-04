@@ -35,6 +35,8 @@ html[data-theme="green"] {
   --text-chip: #3c4b42;
   --text-soft: #4f6056;
   --text-machine: #33453b;
+  --macro-tooltip-bg: #e5f1e9;
+  --macro-tooltip-border: #a8c4b0;
   --muted: #5d6f64;
   --muted-2: #7b8c81;
   --dot-idle: #8ba193;
@@ -52,6 +54,15 @@ html[data-theme="green"] {
   --accent-border: #94c8ab;
   --accent-border-soft: #aecfbc;
   --accent-border-bright: #58b281;
+  --rosetta-idle-bg: #dcece2;
+  --rosetta-idle-border: #a2c4ad;
+  --rosetta-idle-text: #42694f;
+  --rosetta-success-bg: #dcefe2;
+  --rosetta-success-border: #92b9a0;
+  --rosetta-success-text: #416a4e;
+  --rosetta-error-bg: #f4e4e3;
+  --rosetta-error-border: #d5aaa8;
+  --rosetta-error-text: #804b4b;
 
   --green: #0e8a52;
   --green-text: #0b6b41;

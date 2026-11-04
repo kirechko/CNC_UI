@@ -23,7 +23,7 @@
 
 .spindle-reading strong {
   color: var(--text-strong);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -117,7 +117,7 @@
   border-radius: 5px;
   background: var(--bg-inset);
   color: var(--text-primary);
-  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 12px var(--font-mono);
 }
 
 .spindle-manual-speed-control button {
@@ -133,7 +133,7 @@
   border-color: transparent;
   background: transparent;
   color: var(--text-secondary);
-  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 12px var(--font-mono);
   text-align: right;
 }
 
@@ -148,27 +148,48 @@
   display: flex;
   justify-content: space-between;
   color: var(--muted);
-  font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 10px var(--font-mono);
 }
 
 .laser-mode-control {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
-  color: var(--muted);
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-inset);
 }
 
-.laser-mode-control select {
-  min-height: 30px;
-  color: var(--text-strong);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
+.laser-mode-control[hidden] { display: none; }
+.laser-mode-indicator { display: grid; width: 28px; height: 26px; flex: 0 0 auto; place-items: center; border-radius: 5px; color: var(--muted); opacity: .4; }
+.laser-mode-indicator[hidden] { display: none !important; }
+.laser-mode-indicator[hidden] { display: none; }
+.laser-mode-indicator.on { color: #ff6262; opacity: 1; background: color-mix(in srgb, #ff3535 15%, var(--bg-inset)); box-shadow: inset 0 0 0 1px color-mix(in srgb, #ff3535 45%, transparent), 0 0 8px color-mix(in srgb, #ff3535 35%, transparent); }
+.laser-mode-indicator svg { width: 16px; height: 16px; }
+.laser-mode-option { position: relative; display: grid; width: 28px; height: 26px; place-items: center; border-radius: 5px; color: var(--muted); cursor: pointer; }
+.laser-mode-option:hover { color: var(--text-primary); background: var(--surface-hover); }
+.laser-mode-option:has(input:checked) { color: var(--accent-text); background: var(--accent-soft-bg); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.laser-mode-option:has(input:focus-visible) { outline: 2px solid var(--selection); outline-offset: 1px; }
+.laser-mode-option input { position: absolute; opacity: 0; pointer-events: none; }
+.laser-mode-option svg { width: 16px; height: 16px; }
 
 .spindle-control.laser-mode {
   border-radius: 8px;
 }
+
+/* Honor the hidden attribute even though spindle buttons otherwise use CSS grid. */
+.spindle-direction-button[hidden] { display: none !important; }
+
+/* Hide CW/CCW controls whenever the panel is operating as a laser. */
+.spindle-control.laser-mode #spindle-cw,
+.spindle-control.laser-mode #spindle-ccw { display: none !important; }
+.spindle-control.laser-mode .laser-toggle-button:not([hidden]) { display: grid; }
+.spindle-control.profile-laser-only .laser-mode-control { border-color: #b23b3b; }
+.laser-mode-indicator { cursor: help; }
+.spindle-control.profile-laser-only .spindle-speed-control { grid-template-columns: minmax(58px, auto) minmax(0, 1fr); }
+.spindle-control.profile-laser-only #spindle-step { color: #ff5a5a; }
 
 .spindle-control.laser-active {
   outline: 2px solid #ef4444;
@@ -252,7 +273,7 @@
 }
 
 .spindle-toggle-value {
-  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 12px var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 

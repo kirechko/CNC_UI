@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "Viwango vyote",
+  "log.severity.alarm": "Hitilafu ya",
+  "log.severity.error": "Onyo la",
+  "log.severity.warning": "Habari zinazohusiana na",
+  "log.severity.info": "Rekodi za",
+  "log.count": "{from}–{to} za {total}",
+  "log.error.load": "Imeshindwa kupakia kumbukumbu: {message}",
+  "log.column.time": "Time",
+  "log.column.severity": "Chanzo cha",
+  "log.column.source": "Ujumbe wa",
+  "log.column.message": "Message",
+  "log.empty.page": "Hakuna rekodi kwenye ukurasa huu.",
+  "calendar.weekday.mon": "Jumatatu",
+  "calendar.weekday.tue": "Jumanne",
+  "calendar.weekday.wed": "Jumatano",
+  "calendar.weekday.thu": "Alhamisi",
+  "calendar.weekday.fri": "Ijumaa",
+  "calendar.weekday.sat": "Sat",
+  "calendar.weekday.sun": "Jua"
+}

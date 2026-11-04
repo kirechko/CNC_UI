@@ -1,0 +1,316 @@
+
+    <dialog class="command-history-dialog" id="command-history-dialog">
+      <form class="command-history-content" id="command-history-form">
+        <h2 data-i18n="html.history.title">Search command history</h2>
+        <input id="command-history-search" type="search" autocomplete="off" data-i18n-placeholder="html.history.placeholder" placeholder="Type part of a command" data-i18n-title="html.history.searchTitle" title="Type part of a command to find it in the history">
+        <div class="command-history-result" id="command-history-result" aria-live="polite" data-i18n="command.history.prompt">Enter text to search.</div>
+        <div class="command-history-actions">
+          <button type="button" id="command-history-cancel" data-i18n="common.cancel" data-i18n-title="common.cancelTitle" title="Close without changes">Cancel</button>
+          <button type="submit" id="command-history-use" disabled data-i18n="html.history.insert" data-i18n-title="html.history.useTitle" title="Insert the found command into the command line">Insert command</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Large macro editor dialog (styled like the message-log dialog). The grid gives the
+         G-code body textarea the dominant share of the space; name, description, invocation
+         mappings and actions sit in compact rows around it. -->
+    <dialog class="macro-dialog" id="macro-dialog" aria-labelledby="macro-dialog-title">
+      <form class="macro-dialog-content" id="macro-editor">
+        <div class="macro-dialog-heading">
+          <h2 id="macro-dialog-title" data-i18n="macros.editTitle">Edit macro</h2>
+          <button type="button" id="macro-close" class="icon-close-button" data-i18n-aria-label="common.close" data-i18n-title="common.closeDialogTitle" aria-label="Close" title="Close the dialog"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <div class="macro-dialog-fields">
+          <label class="macro-field"><span data-i18n="macros.name">Name</span><input id="macro-name" type="text" maxlength="120" required data-i18n-title="macros.nameTitle" title="Short name shown in the macro list" aria-label="Macro name"></label>
+          <label class="macro-field"><span data-i18n="macros.folders.placement">Folder</span><select id="macro-folder-select"></select></label>
+          <label class="macro-field"><span data-i18n="macros.description">Description</span><input id="macro-description" type="text" maxlength="1000" data-i18n-title="macros.descriptionTitle" title="Description surfaced as a hint in the macro list" aria-label="Macro description"></label>
+          <label class="macro-field"><span data-i18n="macros.tags">Tags</span><input id="macro-tags" type="text" maxlength="1400" data-i18n-placeholder="macros.tagsPlaceholder" placeholder="probe, zero, toolpath" data-i18n-title="macros.tagsTitle" title="Comma-separated search tags"></label>
+        </div>
+        <label class="macro-field macro-body-field">
+          <span data-i18n="macros.body">G-code body</span>
+          <textarea id="macro-body" maxlength="65536" required spellcheck="false" data-i18n-placeholder="macros.bodyPlaceholder" placeholder="G-code commands, one per line" data-i18n-title="macros.bodyTitle" data-i18n-aria-label="macros.body" title="G-code executed by this macro" aria-label="G-code body"></textarea>
+        </label>
+        <div class="macro-invocations-heading">
+          <strong data-i18n="macros.invocations">Controller invocation metadata</strong>
+          <button id="macro-invocation-add" type="button" data-i18n="macros.addInvocation" data-i18n-title="macros.addInvocationTitle" title="Add a controller invocation mapping">Add mapping</button>
+        </div>
+        <div class="macro-invocations" id="macro-invocations"></div>
+        <div class="macro-editor-actions">
+          <div class="macro-editor-actions-left">
+            <button id="macro-delete" type="button" class="macro-delete-button" data-i18n="macros.remove" data-i18n-title="macros.removeTitle" title="Delete this macro">Delete</button>
+          </div>
+          <div class="macro-editor-actions-right">
+            <button id="macro-cancel" type="button" data-i18n="common.cancel" data-i18n-title="common.cancelTitle" title="Close without changes">Cancel</button>
+            <button id="macro-save" type="submit" data-i18n="macros.save" data-i18n-title="macros.saveTitle" title="Save the macro">Save</button>
+          </div>
+        </div>
+        <div class="macro-error" id="macro-error" role="alert" hidden></div>
+        <div class="macro-status" id="macro-dialog-status" role="status" aria-live="polite"></div>
+      </form>
+    </dialog>
+
+    <dialog class="program-editor-dialog" id="program-editor-dialog">
+      <section class="program-editor-content" aria-labelledby="program-editor-title">
+        <div class="program-editor-heading">
+          <h2 id="program-editor-title" data-i18n="html.editor.title">Editor</h2>
+          <button type="button" id="close-program-editor" class="icon-close-button" data-i18n-aria-label="common.close" data-i18n-title="html.editor.closeTitle" aria-label="Close" title="Close the editor"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <div class="program-editor-toolbar">
+          <button id="editor-load-program" type="button" data-i18n="html.editor.load" data-i18n-title="html.editor.loadTitle" title="Load a G-code file into the editor">Load</button>
+          <button id="editor-save-program" type="button" data-i18n="html.editor.save" data-i18n-title="html.editor.saveTitle" title="Save the editor contents to a file">Save file</button>
+          <button id="editor-cancel-changes" type="button" data-i18n="html.editor.discard" data-i18n-title="html.editor.discardTitle" title="Discard unsaved changes and restore the loaded program">Discard changes</button>
+        </div>
+        <div class="program-editor-source">
+          <pre class="program-editor-gutter" id="program-editor-gutter" aria-hidden="true">1</pre>
+          <textarea
+            class="program-editor-textarea"
+            id="program-editor"
+            spellcheck="false"
+            data-i18n-title="html.editor.textareaTitle"
+            data-i18n-aria-label="html.editor.aria"
+            aria-label="G-code program editor"
+            data-i18n-placeholder="html.editor.placeholder"
+            placeholder="Load a program or type G-code"
+            title="Edit the G-code program here"
+          ></textarea>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="position-dialog jog-steps-dialog" id="jog-speed-dialog" aria-labelledby="jog-speed-title">
+      <form class="position-dialog-content jog-speed-content" id="jog-speed-form">
+        <header class="jog-speed-heading">
+          <h2 id="jog-speed-title" data-i18n="html.jogSpeed.title">JOG settings</h2>
+          <button type="button" id="jog-speed-close" class="icon-close-button" data-i18n-title="html.jogSpeed.closeTitle" data-i18n-aria-label="html.jogSpeed.closeTitle" title="Close JOG settings" aria-label="Close JOG settings"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </header>
+
+        <section class="jog-settings-section">
+          <h3 data-i18n="html.jogSpeed.stepsXy">Steps XY, mm</h3>
+          <div class="jog-steps-fields">
+            <label><span data-i18n="html.jogSpeed.step1">Step 1</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step2">Step 2</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step3">Step 3</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step4">Step 4</span><input name="xyStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+          </div>
+        </section>
+
+        <section class="jog-settings-section">
+          <h3 data-i18n="html.jogSpeed.stepsZ">Steps Z, mm</h3>
+          <div class="jog-steps-fields">
+            <label><span data-i18n="html.jogSpeed.step1">Step 1</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step2">Step 2</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step3">Step 3</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+            <label><span data-i18n="html.jogSpeed.step4">Step 4</span><input name="zStep" type="number" min="0" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.stepFieldTitle" title="Jog step size, mm; enter four increasing values"></label>
+          </div>
+        </section>
+
+        <section class="jog-settings-section">
+          <h3 data-i18n="html.jogSpeed.speeds">Speeds</h3>
+          <div class="jog-steps-fields">
+            <label><span data-i18n="html.jogSpeed.feedXy">XY, mm/min</span><input name="xy" type="number" min="1" max="100000" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.feedTitle" title="Feed rate for continuous jog, mm/min (rotary axes: units/min)"></label>
+            <label><span data-i18n="html.jogSpeed.feedZ">Z, mm/min</span><input name="z" type="number" min="1" max="100000" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.feedTitle" title="Feed rate for continuous jog, mm/min (rotary axes: units/min)"></label>
+            <label><span data-i18n="html.jogSpeed.feedRotary">A–C, units/min</span><input name="rotary" type="number" min="1" max="100000" step="any" inputmode="decimal" required data-i18n-title="html.jogSpeed.feedTitle" title="Feed rate for continuous jog, mm/min (rotary axes: units/min)"></label>
+          </div>
+        </section>
+
+        <p class="error" id="jog-speed-error" hidden></p>
+        <div class="position-dialog-actions">
+          <button type="button" id="jog-speed-cancel" data-i18n="common.cancel" data-i18n-title="common.cancelTitle" title="Close without changes">Cancel</button>
+          <button type="submit" id="jog-speed-apply" data-i18n="common.apply" data-i18n-title="html.jogSpeed.applyTitle" title="Apply the jog speeds and step sizes">Apply</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="message-log-dialog" id="message-log-dialog">
+      <section class="message-log-content" aria-labelledby="message-log-title">
+        <div class="message-log-heading">
+          <h2 id="message-log-title" data-i18n="html.log.title">Message log</h2>
+          <button type="button" id="close-message-log" class="icon-close-button" data-i18n-title="html.log.closeTitle" data-i18n-aria-label="html.log.closeAria" title="Close the message log" aria-label="Close log"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <form class="message-log-filters" id="message-log-filters">
+          <select id="log-severity" data-i18n-title="html.log.severityFilterTitle" data-i18n-aria-label="html.log.severityFilter" title="Show only records of the selected severity" aria-label="Severity filter" style="grid-column: 2">
+            <option value="" data-i18n="log.severity.all">All severities</option>
+            <option value="alarm" data-i18n="log.severity.alarm">Alarm</option>
+            <option value="error" data-i18n="log.severity.error">Error</option>
+            <option value="warning" data-i18n="log.severity.warning">Warning</option>
+            <option value="info" data-i18n="log.severity.info">Info</option>
+          </select>
+          <input id="log-source" type="search" data-i18n-placeholder="html.log.source" placeholder="Source" data-i18n-title="html.log.sourceFilterTitle" data-i18n-aria-label="html.log.sourceFilter" title="Filter log records by source" aria-label="Source filter" style="grid-column: 3">
+          <input id="log-search" type="search" data-i18n-placeholder="html.log.messageText" placeholder="Message text" data-i18n-title="html.log.searchTitle" data-i18n-aria-label="html.log.searchText" title="Search for a text fragment in the message" aria-label="Search text" style="grid-column: 4">
+          <div class="log-date-picker" style="grid-column: 1">
+            <button
+              class="log-date-picker-button"
+              id="log-date-picker-button"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              data-i18n="html.log.anyDate"
+              data-i18n-title="html.log.datePickerTitle"
+              title="Select the date range for the log"
+            >Any date</button>
+            <div class="log-calendar" id="log-calendar" role="dialog" data-i18n-aria-label="html.log.selectPeriod" aria-label="Select log period" hidden>
+              <div class="log-calendar-heading">
+                <button type="button" id="log-calendar-prev" data-i18n-title="html.log.prevMonth" data-i18n-aria-label="html.log.prevMonth" title="Previous month" aria-label="Previous month">‹</button>
+                <span class="log-calendar-month" id="log-calendar-month"></span>
+                <button type="button" id="log-calendar-next" data-i18n-title="html.log.nextMonth" data-i18n-aria-label="html.log.nextMonth" title="Next month" aria-label="Next month">›</button>
+              </div>
+              <div class="log-calendar-grid" id="log-calendar-grid"></div>
+              <div class="log-calendar-footer">
+                <div class="log-calendar-date-times">
+                  <div class="log-calendar-date-time">
+                    <label for="log-calendar-start-time" data-i18n="html.log.startTime">Start time</label>
+                    <input id="log-calendar-start-time" type="time" value="00:00" data-i18n-title="html.log.startTime" data-i18n-aria-label="html.log.startTimeAria" title="Start time" aria-label="Period start time" disabled>
+                  </div>
+                  <div class="log-calendar-date-time">
+                    <label for="log-calendar-end-time" data-i18n="html.log.endTime">End time</label>
+                    <input id="log-calendar-end-time" type="time" value="23:59" data-i18n-title="html.log.endTime" data-i18n-aria-label="html.log.endTimeAria" title="End time" aria-label="Period end time" disabled>
+                  </div>
+                </div>
+                <div class="log-calendar-actions">
+                  <button type="button" id="log-calendar-clear" data-i18n="html.log.clear" data-i18n-title="html.log.clearTitle" title="Clear the selected date range">Clear</button>
+                  <button type="button" id="log-calendar-done" data-i18n="html.log.done" data-i18n-title="html.log.doneTitle" title="Apply the selected period to the filters">Done</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+        <div class="message-log-table-wrap">
+          <table class="message-log-table">
+            <colgroup>
+              <col style="width: 25%">
+              <col style="width: 18%">
+              <col style="width: 20%">
+              <col style="width: 37%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col" data-log-sort="timestamp"><button type="button" data-i18n="log.column.time" data-i18n-title="html.log.sortTime" data-i18n-aria-label="html.log.sortTime" title="Sort by time" aria-label="Sort by time">Time</button></th>
+                <th scope="col" data-log-sort="severity"><button type="button" data-i18n="log.column.severity" data-i18n-title="html.log.sortSeverity" data-i18n-aria-label="html.log.sortSeverity" title="Sort by severity" aria-label="Sort by severity">Severity</button></th>
+                <th scope="col" data-log-sort="source"><button type="button" data-i18n="log.column.source" data-i18n-title="html.log.sortSource" data-i18n-aria-label="html.log.sortSource" title="Sort by source" aria-label="Sort by source">Source</button></th>
+                <th scope="col" data-log-sort="message"><button type="button" data-i18n="log.column.message" data-i18n-title="html.log.sortMessage" data-i18n-aria-label="html.log.sortMessage" title="Sort by message" aria-label="Sort by message">Message</button></th>
+              </tr>
+            </thead>
+            <tbody id="message-log-rows"></tbody>
+          </table>
+        </div>
+        <div class="message-log-footer">
+          <span id="message-log-count" data-i18n="common.loading">Loading…</span>
+          <button type="button" id="message-log-copy-page" data-i18n="html.log.copyPage" data-i18n-title="html.log.copyPageTitle" title="Copy the current page to the clipboard">Copy page</button>
+          <label>
+            <span data-i18n="html.log.perPage">Per page</span>
+            <select class="message-log-page-size" id="message-log-page-size" data-i18n-title="html.log.recordsPerPage" data-i18n-aria-label="html.log.recordsPerPage" title="Records per page" aria-label="Records per page">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </label>
+          <div>
+            <!-- Pagination: the API returns 100 records per request; offset selects the page. -->
+            <button type="button" id="message-log-prev" data-i18n="html.log.previous" data-i18n-title="html.log.previousTitle" title="Show the previous page of records">Previous</button>
+            <button type="button" id="message-log-next" data-i18n="html.log.next" data-i18n-title="html.log.nextTitle" title="Show the next page of records">Next</button>
+          </div>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="message-log-text-dialog" id="message-log-text-dialog" aria-labelledby="message-log-text-title">
+      <section class="message-log-text-content">
+        <div class="message-log-text-heading">
+          <h2 id="message-log-text-title" data-i18n="html.log.textTitle">Current log page</h2>
+          <button type="button" id="message-log-text-close" class="icon-close-button" data-i18n-aria-label="common.close" data-i18n-title="common.closeDialogTitle" aria-label="Close" title="Close the dialog"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <textarea id="message-log-text" readonly data-i18n-title="html.log.textTitle" data-i18n-aria-label="html.log.textAria" title="Current log page" aria-label="Text of the current log page"></textarea>
+      </section>
+    </dialog>
+
+    <!-- Rosetta macro runner (T26): appears from the ▶ button of every macro
+         row. Dry-run is checked by default per ТЗ №2 §9.4; the live log tails
+         GET /api/macros/run/{id} every second while the run is active. -->
+    <dialog class="macro-run-dialog" id="macro-run-dialog" aria-labelledby="macro-run-title">
+      <section class="macro-run-content">
+        <div class="macro-run-heading">
+          <h2 id="macro-run-title" data-i18n="macros.run.title">Run macro</h2>
+          <button type="button" id="macro-run-close" class="icon-close-button" data-i18n-aria-label="common.close" data-i18n-title="common.closeDialogTitle" aria-label="Close" title="Close the dialog"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <p class="macro-run-subtitle" id="macro-run-macro">—</p>
+        <label class="macro-run-field"><input type="checkbox" id="macro-run-dry" checked data-i18n-title="macros.run.dryTitle" title="Record motion commands without moving the machine">
+          <span data-i18n="macros.run.dry">Dry run (no motion)</span></label>
+        <div class="macro-run-actions">
+          <button type="button" id="macro-run-start" class="primary" data-i18n="macros.run.start" data-i18n-title="macros.run.startTitle" title="Start the macro run">Run</button>
+          <button type="button" id="macro-run-cancel" data-i18n="macros.run.stop" data-i18n-title="macros.run.stopTitle" title="Cancel the running macro" disabled>Stop</button>
+          <span class="macro-run-state" id="macro-run-state" role="status" aria-live="polite"></span>
+        </div>
+        <div class="macro-run-log" id="macro-run-log" role="log" aria-live="polite"></div>
+        <p class="macro-run-error" id="macro-run-error" role="alert" hidden></p>
+      </section>
+    </dialog>
+
+    <!-- Rosetta transform preview (T26 §3.3): the «was / became» diff with
+         the plan trace; Apply re-runs the gated pipeline and reloads the
+         program, Cancel leaves the buffer untouched. -->
+    <dialog class="transform-dialog" id="transform-dialog" aria-labelledby="transform-title">
+      <section class="transform-content">
+        <div class="transform-heading">
+          <h2 id="transform-title" data-i18n="transform.title">Adapt program for the controller</h2>
+          <button type="button" id="transform-close" class="icon-close-button" data-i18n-aria-label="common.close" data-i18n-title="common.closeDialogTitle" aria-label="Close" title="Close the dialog"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <p class="transform-summary" id="transform-summary" role="status" aria-live="polite">—</p>
+        <div class="transform-diff">
+          <div class="transform-column">
+            <h3 data-i18n="transform.was">Original</h3>
+            <pre id="transform-source" class="transform-code"></pre>
+          </div>
+          <div class="transform-column">
+            <h3 data-i18n="transform.became">Becomes</h3>
+            <pre id="transform-output" class="transform-code"></pre>
+          </div>
+        </div>
+        <ul class="transform-traces" id="transform-traces"></ul>
+        <div class="transform-actions">
+          <button type="button" id="transform-apply" class="primary" data-i18n="transform.apply" data-i18n-title="transform.applyTitle" title="Apply the plan and reload the program">Apply</button>
+          <button type="button" id="transform-cancel" data-i18n="common.cancel" data-i18n-title="transform.cancelTitle" title="Keep the original program">Cancel</button>
+          <span class="transform-state" id="transform-state" role="status" aria-live="polite"></span>
+        </div>
+        <p class="transform-error" id="transform-error" role="alert" hidden></p>
+      </section>
+    </dialog>
+
+    <dialog id="preflight-dialog" class="transform-dialog preflight-dialog" aria-labelledby="preflight-title">
+      <section class="transform-content">
+        <header class="transform-heading">
+          <h2 id="preflight-title" data-i18n="preflight.dialogTitle">Preflight review</h2>
+          <button type="button" id="preflight-close" class="icon-close-button" data-i18n-aria-label="common.close" data-i18n-title="common.closeDialogTitle" aria-label="Close" title="Close the dialog"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </header>
+        <p id="preflight-summary" class="transform-summary"></p>
+        <ul id="preflight-findings" class="preflight-findings" aria-live="polite"></ul>
+        <p class="machine-data-warning" data-i18n="preflight.staticNote">This is static analysis, not a controller simulation. Inspect the machine and work area before running.</p>
+        <div class="transform-actions">
+          <button type="button" id="preflight-cancel" data-i18n="common.cancel">Cancel</button>
+          <button type="button" id="preflight-continue" class="primary" data-i18n="preflight.continue">Continue</button>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog id="rosetta-result-dialog" class="transform-dialog rosetta-result-dialog" aria-labelledby="rosetta-result-title">
+      <section class="transform-content rosetta-result-content">
+        <header class="transform-heading">
+          <h2 id="rosetta-result-title" data-i18n="transform.resultTitle">Program validation result</h2>
+          <button type="button" id="rosetta-result-close" class="icon-close-button" data-i18n-title="common.closeDialogTitle" data-i18n-aria-label="common.close" title="Close the dialog" aria-label="Close"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </header>
+        <pre class="rosetta-result-message" id="rosetta-result-message" role="status" aria-live="polite"></pre>
+      </section>
+    </dialog>
+
+    <dialog class="position-dialog" id="position-dialog">
+      <form class="position-dialog-content" method="dialog">
+        <h2 id="position-dialog-title" data-i18n="html.position.dialogTitle">Axis position</h2>
+        <label for="position-value" id="position-value-label" data-i18n="html.position.workCoordinate">Work coordinate</label>
+        <input id="position-value" type="number" step="any" inputmode="decimal" required data-i18n-title="html.position.workCoordinate" title="Work coordinate">
+        <div class="position-dialog-actions">
+          <button type="button" id="position-cancel" data-i18n="common.cancel" data-i18n-title="html.position.cancelTitle" title="Close without changes">Cancel</button>
+          <button type="button" id="position-set" class="primary" data-i18n="html.position.set" data-i18n-title="html.position.setTitle" title="Set the axis work coordinate">Set</button>
+          <button type="button" id="position-go" class="primary" data-i18n="html.position.go" data-i18n-title="html.position.goTitle" title="Move the axis to the specified work coordinate">Go</button>
+        </div>
+      </form>
+    </dialog>

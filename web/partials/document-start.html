@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Localized document title; applyTranslations() re-applies it on every locale switch. -->
+    <title data-i18n="app.title">FerroHUB — Jog</title>
+    <!-- Application stylesheets, split from the former app.css/themes.css.
+         Order preserves the original cascade: base chrome -> layout -> panels ->
+         theme token overrides (dark :root first, then [data-theme] overrides). -->
+    <link rel="stylesheet" href="./css/base.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/position.css">
+    <link rel="stylesheet" href="./css/position-telemetry.css">
+    <link rel="stylesheet" href="./css/jog.css">
+    <link rel="stylesheet" href="./css/jog-dial.css">
+    <link rel="stylesheet" href="./css/jog-keys.css">
+    <link rel="stylesheet" href="./css/spindle.css">
+    <link rel="stylesheet" href="./css/console-editor.css">
+    <link rel="stylesheet" href="./css/viewer.css">
+    <link rel="stylesheet" href="./css/message-log.css">
+    <link rel="stylesheet" href="./css/misc-responsive.css">
+    <link rel="stylesheet" href="./css/files.css">
+    <link rel="stylesheet" href="./css/macros.css">
+    <link rel="stylesheet" href="./css/macros-rosetta.css">
+    <link rel="stylesheet" href="./css/theme-dark.css">
+    <link rel="stylesheet" href="./css/theme-light.css">
+    <link rel="stylesheet" href="./css/theme-green.css">
+    <link rel="stylesheet" href="./css/theme-gray.css">
+    <link rel="stylesheet" href="./css/machine-data.css">
+    <script>
+      // Apply the stored theme before the first paint to avoid a flash of the
+      // wrong palette. Kept inline (blocking) on purpose: it must run earlier
+      // than any module. Values are validated against the known theme list.
+      (function () {
+        var themes = ["dark", "light", "green", "gray"];
+        var stored = null;
+        try { stored = localStorage.getItem("cnc-ui-theme"); } catch (e) { /* ignore */ }
+        document.documentElement.dataset.theme =
+          themes.indexOf(stored) !== -1 ? stored : "dark";
+      })();
+    </script>
+  </head>
+  <body>

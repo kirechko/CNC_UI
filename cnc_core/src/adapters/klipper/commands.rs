@@ -113,18 +113,21 @@ impl KlipperAdapter {
         Ok(())
     }
 
-    /// Sends the next short continuous-jog segment only when the toolhead has completed the prior segment.
+    /// Sends the next jog segment only after Moonraker reports the toolhead queue is empty.
     pub(super) async fn pump_continuous_jog(&self, session: &mut Session) -> CncResult<()> {
         if session.continuous_jog.is_none() {
             return Ok(());
         }
-        let is_idle = session
+        // `idle_timeout.state` describes the printer's idle timer, not whether
+        // the toolhead has finished queued motion. `print_stats.state` becomes
+        // `standby` after the prior G-code script drains from the toolhead queue.
+        let toolhead_idle = session
             .objects
-            .get("idle_timeout")
+            .get("print_stats")
             .and_then(|value| value.get("state"))
             .and_then(Value::as_str)
-            .is_some_and(|state| state.eq_ignore_ascii_case("Idle"));
-        if is_idle {
+            .is_some_and(|state| state.eq_ignore_ascii_case("standby"));
+        if toolhead_idle {
             self.send_next_jog_chunk(session).await?;
         }
         Ok(())

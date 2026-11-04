@@ -33,16 +33,21 @@ mod files;
 mod handlers;
 mod log_store;
 mod machine;
+pub(crate) mod machine_profiles;
 mod models;
 mod program;
 pub(crate) mod server;
 mod state;
+pub(crate) mod tool_library;
+pub(crate) mod tool_types;
 
 // Re-exports for `src/tauri_app.rs`: the Tauri desktop commands share the same
 // models and state operations as the axum handlers, so the names exported by
 // the original flat `web_server.rs` remain reachable through this module.
 // The axum binary reaches these items through the submodule paths directly,
 // so `unused_imports` is allowed for builds that exclude the Tauri binary.
+#[allow(unused_imports)]
+pub(crate) use machine_profiles::{MachineProfile, MachineProfileDocument};
 #[allow(unused_imports)]
 pub(crate) use models::{
     validate_macro_folder, validate_macros, LatestLogMessages, LoadedProgram, LogEntry, LogPage,
@@ -51,8 +56,14 @@ pub(crate) use models::{
 #[allow(unused_imports)]
 pub(crate) use program::{load_program, ProgramError};
 #[allow(unused_imports)]
+pub(crate) use state::preflight::{PreflightFinding, PreflightReport, PreflightSeverity};
+#[allow(unused_imports)]
 pub(crate) use state::rosetta_ops::{json_args_to_values, PreviewReport, ValidationReport};
 pub(crate) use state::AppState;
+#[allow(unused_imports)]
+pub(crate) use tool_library::{ToolLibraryDocument, ToolRecord};
+#[allow(unused_imports)]
+pub(crate) use tool_types::ToolTypeRecord;
 
 use std::sync::Arc;
 

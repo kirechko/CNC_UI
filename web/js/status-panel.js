@@ -35,6 +35,7 @@ export function createStatusPanel(app) {
     feed: document.querySelector("#telemetry-feed"),
     mode: document.querySelector("#telemetry-mode"),
     spindle: document.querySelector("#telemetry-spindle"),
+    spindleCaption: document.querySelector("#telemetry-spindle-caption"),
     mist: document.querySelector("#coolant-mist"),
     flood: document.querySelector("#coolant-flood"),
   };
@@ -60,8 +61,21 @@ export function createStatusPanel(app) {
     const speed = Number(status.movement_speed);
     telemetry.feed.textContent = Number.isFinite(speed) ? `${speed.toFixed(0)}` : "—";
     telemetry.mode.textContent = status.movement_mode || "—";
-    const rpm = Number(status.spindle_rpm);
-    telemetry.spindle.textContent = Number.isFinite(rpm) ? `${rpm.toFixed(0)}` : "—";
+    const profileType = app.getMachineProfile?.()?.machineType;
+    const laserMode = profileType === "laser" || (profileType !== "mill" && (status.spindle_mode === "laser_constant" || status.spindle_mode === "laser_dynamic"));
+    const output = Number(laserMode ? status.laser_power : status.spindle_rpm);
+    const modeIndicator = document.querySelector("#laser-mode-indicator");
+    if (modeIndicator) {
+      modeIndicator.hidden = !laserMode;
+      const dynamic = status.spindle_mode === "laser_dynamic";
+      modeIndicator.classList.toggle("on", dynamic);
+      const modeTitle = t(dynamic ? "html.spindle.dynamicPower" : "html.spindle.constantPower");
+      modeIndicator.title = modeTitle;
+      modeIndicator.setAttribute("aria-label", modeTitle);
+    }
+    telemetry.spindle.textContent = Number.isFinite(output) ? `${output.toFixed(0)}` : "—";
+    if (telemetry.spindleCaption) telemetry.spindleCaption.textContent = t(laserMode ? "html.position.telemetryLaser" : "html.position.telemetrySpindle");
+    telemetry.root.classList.toggle("laser-telemetry", laserMode);
     telemetry.mist.classList.toggle("on", Boolean(status.mist_coolant));
     telemetry.flood.classList.toggle("on", Boolean(status.flood_coolant));
   }
@@ -73,6 +87,40 @@ export function createStatusPanel(app) {
    * @param {boolean} connected - Whether the current status poll has a live link.
    * @returns {void}
    */
+  function showRecoveryNotice(kind, status) {
+    const notice = document.querySelector("#recovery-notice");
+    if (!notice) return;
+    notice.hidden = false;
+    notice.dataset.kind = kind;
+    notice.replaceChildren();
+    const message = document.createElement("span");
+    message.textContent = kind === "connection_lost"
+      ? "Connection lost. Machine position, program line and spindle/laser output are unknown. Reconnect and inspect the machine; automatic resume is disabled."
+      : `Reconnected: current controller state is ${status.state}; cached program line ${status.current_line} is not proof that continuation is safe. Reload or restart from the beginning only after operator review.`;
+    notice.append(message);
+    if (kind === "reconnected") {
+      const acknowledge = document.createElement("button");
+      acknowledge.id = "recovery-reconnect";
+      acknowledge.type = "button";
+      acknowledge.textContent = "Acknowledge";
+      acknowledge.addEventListener("click", () => { notice.hidden = true; });
+      notice.append(acknowledge);
+    }
+  }
+
+  /** Updates the conservative reconnect notice from one newly polled live status sample. */
+  function updateRecoveryNotice(status) {
+    const notice = document.querySelector("#recovery-notice");
+    if (!notice) return;
+    const previous = latestStatus;
+    if (previous?.connected === true && status.connected === false) {
+      showRecoveryNotice("connection_lost", previous);
+    } else if (previous?.connected === false && status.connected === true) {
+      showRecoveryNotice("reconnected", status);
+    }
+  }
+
+  /** Displays the active controller identity without making stale endpoint data appear live. */
   function updateConnectionInfo(info, connected) {
     if (!connectionInfo) return;
     if (!connected || !info) {
@@ -155,11 +203,18 @@ export function createStatusPanel(app) {
 
     try {
       const status = await requestStatus();
-      latestStatus = status;
+      const previousStatus = latestStatus;
       machineConnected = Boolean(status.connected);
+      if (previousStatus?.connected === true && !machineConnected) {
+        showRecoveryNotice("connection_lost", previousStatus);
+      } else if (previousStatus?.connected === false && machineConnected) {
+        showRecoveryNotice("reconnected", status);
+      }
+      latestStatus = status;
       machineState = status.state || "DISCONNECTED";
       connection.textContent = machineConnected ? t("ui.connected") : t("ui.noLink");
       updateConnectionInfo(status.connection_info, machineConnected);
+      updateRecoveryNotice(status);
       app.clock.update(status);
       connectionDot.classList.toggle("online", machineConnected);
       connectionDot.classList.toggle("offline", !machineConnected);
@@ -264,9 +319,14 @@ export function createStatusPanel(app) {
 
       document.querySelector("#message").textContent =
         status.error || app.spindleControls.commandError || status.message || t("ui.controllerReady");
+      const recoveryNotice = document.querySelector("#recovery-notice");
+      if (recoveryNotice?.dataset.kind === "reconnected") {
+        document.querySelector("#recovery-reconnect")?.remove();
+      }
       app.scene.applyStatus(status);
     } catch (error) {
       machineConnected = false;
+      showRecoveryNotice("connection_lost", null);
       app.scene.clearTool();
       connection.textContent = t("ui.connectionError");
       updateConnectionInfo(null, false);

@@ -37,6 +37,9 @@ export function initMessageLog({ getDateRange }) {
   const rows = document.querySelector("#message-log-rows");
   const count = document.querySelector("#message-log-count");
   const pageSizeSelect = document.querySelector("#message-log-page-size");
+  if (!dialog || !rows || !count || !pageSizeSelect) {
+    return { refresh() {}, refreshIfOpen() {} };
+  }
   let pageSize = Number(pageSizeSelect.value) || 100;
   let offset = 0;
   let sort = { column: null, direction: 0 };
@@ -137,6 +140,8 @@ export function initMessageLog({ getDateRange }) {
       document.querySelector("#message-log-next").disabled =
         offset + page.entries.length >= page.total;
     } catch (error) {
+      console.error("Failed to load message log page:", error);
+      rows.replaceChildren();
       count.textContent = t("log.error.load", { message: error.message });
     }
   }

@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "切换到正交投影",
+  "viewer.projection.toPerspective": "切换到透视投影",
+  "viewer.projection.perspectiveAria": "透视投影；切换到正交投影",
+  "viewer.projection.orthographicAria": "正交投影；切换到透视投影"
+}

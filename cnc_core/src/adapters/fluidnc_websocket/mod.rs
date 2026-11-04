@@ -36,7 +36,8 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 const MAX_RESPONSE_LINE: usize = 4096;
 const FLUIDNC_PORT: u16 = 80;
 const MAX_PROGRAM_BYTES: usize = 5 * 1024 * 1024;
-const JOG_CHUNK_MM: f64 = 10.0;
+/// Short continuous-jog segment to minimize the pause before the next Idle re-arm.
+const JOG_CHUNK_MM: f64 = 1.0;
 const EVENT_CAPACITY: usize = 256;
 /// Consecutive status-query timeouts tolerated before the WebSocket session is dropped.
 const STATUS_TIMEOUT_LIMIT: u32 = 3;

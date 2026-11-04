@@ -1,0 +1,18 @@
+{
+  "transform.title": "Adapt program for the controller",
+  "transform.summary": "Backend {backend}: {steps} automatic step(s), {findings} finding(s).",
+  "transform.was": "Original",
+  "transform.became": "Becomes",
+  "transform.lines": "lines",
+  "transform.apply": "Apply",
+  "transform.applyTitle": "Apply the plan and reload the program",
+  "transform.cancelTitle": "Keep the original program",
+  "transform.applying": "Applying…",
+  "transform.applied": "Applied. Program reloaded.",
+  "transform.suffix": "transformed",
+  "transform.clean": "Program is fully executable on {backend}.",
+  "transform.resultTitle": "Program validation result",
+  "transform.blocked": "{backend} cannot run this program and no automatic fix is registered:",
+  "transform.unsupported": "{backend} cannot run this program; nothing was auto-fixable:",
+  "transform.error.noProgram": "Load a program before validation."
+}

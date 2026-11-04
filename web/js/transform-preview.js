@@ -39,15 +39,44 @@ export function initTransformPreview({ getProgram, showProgram }) {
   const applyButton = document.querySelector("#transform-apply");
   const cancelButton = document.querySelector("#transform-cancel");
   const closeButton = document.querySelector("#transform-close");
+  const resultDialog = document.querySelector("#rosetta-result-dialog");
+  const resultMessage = document.querySelector("#rosetta-result-message");
+  const resultClose = document.querySelector("#rosetta-result-close");
   const stateLabel = document.querySelector("#transform-state");
   const errorBox = document.querySelector("#transform-error");
 
-  // Stripped builds without the dialog markup degrade to validation-only.
+  // Stripped builds without the transform preview markup degrade to validation-only.
   const hasDialog = dialog && summary && sourceBox && outputBox && tracesBox &&
     applyButton && cancelButton && closeButton && stateLabel && errorBox;
 
   /** The plan currently on display; Apply POSTs it back verbatim. */
   let current = null;
+  /** Keeps the preview modal open while Apply replaces the loaded program. */
+  let applyingTransform = false;
+
+  /** Resets the validator affordance and dismisses results tied to an old program. */
+  function resetValidationStatus() {
+    setValidationState("unchecked", t("html.viewer.validateTitle"));
+    if (resultDialog?.open) resultDialog.close();
+    if (resultMessage) {
+      resultMessage.textContent = "";
+      resultMessage.className = "rosetta-result-message";
+    }
+    current = null;
+    if (dialog?.open && !applyingTransform) dialog.close();
+  }
+
+  /** Shows a localized validation outcome in its own popup dialog. */
+  function showValidationResult(message, state = "") {
+    if (!resultDialog || !resultMessage) {
+      const note = document.querySelector("#job-note");
+      if (note) note.textContent = message;
+      return;
+    }
+    resultMessage.textContent = message;
+    resultMessage.className = `rosetta-result-message ${state}`.trim();
+    if (!resultDialog.open) resultDialog.showModal();
+  }
 
   /** One `pre` line highlight class from the plan trace (affected lines). */
   function renderCode(box, text, affected) {
@@ -103,10 +132,30 @@ export function initTransformPreview({ getProgram, showProgram }) {
     dialog.showModal();
   }
 
+  /** Updates only the validation button's color state and localized tooltip. */
+  function setValidationState(state, title) {
+    if (!validateButton) return;
+    validateButton.dataset.validationState = state;
+    validateButton.title = title;
+    validateButton.setAttribute("aria-label", title);
+    validateButton.dataset.tooltipTitle = title;
+  }
+
+  // The initial state is the neutral, unvalidated blue state.
+  resetValidationStatus();
+  window.addEventListener("cnc-program-loaded", resetValidationStatus);
+  window.addEventListener("cnc-locale-changed", () => {
+    const state = validateButton?.dataset.validationState ?? "unchecked";
+    if (state === "unchecked") resetValidationStatus();
+  });
+
   validateButton?.addEventListener("click", async () => {
     const program = getProgram();
+    setValidationState("checking", t("html.viewer.validateWorking"));
     if (!program) {
-      showError(t("transform.error.noProgram"));
+      const message = t("transform.error.noProgram");
+      setValidationState("unchecked", t("html.viewer.validateTitle"));
+      showValidationResult(message, "error");
       return;
     }
     validateButton.disabled = true;
@@ -118,8 +167,9 @@ export function initTransformPreview({ getProgram, showProgram }) {
         "POST",
       );
       if (report.clean) {
-        document.querySelector("#job-note").textContent =
-          t("transform.clean", { backend: report.backend });
+        const message = t("transform.clean", { backend: report.backend });
+        setValidationState("success", t("html.viewer.validateExecutable", { backend: report.backend }));
+        showValidationResult(message, "success");
         return;
       }
       const list = report.findings
@@ -128,8 +178,9 @@ export function initTransformPreview({ getProgram, showProgram }) {
       // Findings without any resolvable fix cannot be previewed meaningfully.
       const anythingResolvable = report.findings.some((finding) => finding.resolvable);
       if (!anythingResolvable || !hasDialog) {
-        document.querySelector("#job-note").textContent =
-          `${t("transform.blocked", { backend: report.backend })}\n${list}`;
+        const message = `${t("transform.blocked", { backend: report.backend })}\n${list}`;
+        setValidationState("error", t("html.viewer.validateNotExecutable"));
+        showValidationResult(message, "error");
         return;
       }
       const preview = await invokeOrFetch(
@@ -139,13 +190,17 @@ export function initTransformPreview({ getProgram, showProgram }) {
         "POST",
       );
       if (preview.plan.steps.length === 0) {
-        document.querySelector("#job-note").textContent =
-          `${t("transform.unsupported", { backend: report.backend })}\n${list}`;
+        const message = `${t("transform.unsupported", { backend: report.backend })}\n${list}`;
+        setValidationState("error", t("html.viewer.validateNotExecutable"));
+        showValidationResult(message, "error");
         return;
       }
+      setValidationState("error", t("html.viewer.validateNeedsChanges"));
       openPreview(preview);
     } catch (error) {
-      showError(error.message);
+      const failure = t("html.viewer.validateFailed", { message: error.message });
+      setValidationState("error", failure);
+      showValidationResult(failure, "error");
     } finally {
       validateButton.disabled = false;
     }
@@ -155,6 +210,7 @@ export function initTransformPreview({ getProgram, showProgram }) {
     applyButton.addEventListener("click", async () => {
       if (!current) return;
       applyButton.disabled = true;
+      applyingTransform = true;
       stateLabel.textContent = t("transform.applying");
       errorBox.hidden = true;
       try {
@@ -174,6 +230,8 @@ export function initTransformPreview({ getProgram, showProgram }) {
       } catch (error) {
         applyButton.disabled = false;
         showError(error.message);
+      } finally {
+        applyingTransform = false;
       }
     });
     cancelButton.addEventListener("click", () => dialog.close());
@@ -182,4 +240,9 @@ export function initTransformPreview({ getProgram, showProgram }) {
       current = null;
     });
   }
+
+  resultClose?.addEventListener("click", () => resultDialog?.close());
+  resultDialog?.addEventListener("click", (event) => {
+    if (event.target === resultDialog) resultDialog.close();
+  });
 }

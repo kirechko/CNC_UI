@@ -1,0 +1,18 @@
+{
+  "transform.title": "Menyesuaikan program untuk pengontrol",
+  "transform.summary": "Backend {backend}: Langkah otomatis {steps}, temuan {findings}.",
+  "transform.was": "Asli",
+  "transform.became": "Menjadi",
+  "transform.lines": "lines",
+  "transform.apply": "Berlaku",
+  "transform.applyTitle": "Terapkan rencana dan muat ulang program",
+  "transform.cancelTitle": "Simpan program aslinya",
+  "transform.applying": "Menerapkan…",
+  "transform.applied": "Diterapkan. Program dimuat ulang.",
+  "transform.suffix": "berubah",
+  "transform.clean": "sepenuhnya dapat dijalankan di {backend}.",
+  "transform.blocked": "{backend} tidak dapat menjalankan program ini dan tidak ada perbaikan otomatis yang terdaftar:",
+  "transform.unsupported": "{backend} tidak dapat menjalankan program ini; tidak ada yang dapat diperbaiki secara otomatis:",
+  "transform.error.noProgram": "Memuat program sebelum validasi.",
+  "transform.resultTitle": "Hasil validasi program"
+}

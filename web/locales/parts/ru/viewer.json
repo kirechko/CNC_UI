@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "Переключить на ортогональную проекцию",
+  "viewer.projection.toPerspective": "Переключить на перспективную проекцию",
+  "viewer.projection.perspectiveAria": "Перспективная проекция; переключить на ортогональную",
+  "viewer.projection.orthographicAria": "Ортогональная проекция; переключить на перспективную"
+}

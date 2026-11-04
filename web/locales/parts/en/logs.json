@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "All severities",
+  "log.severity.alarm": "Alarm",
+  "log.severity.error": "Error",
+  "log.severity.warning": "Warning",
+  "log.severity.info": "Info",
+  "log.count": "Records {from}–{to} of {total}",
+  "log.error.load": "Failed to load log: {message}",
+  "log.column.time": "Time",
+  "log.column.severity": "Severity",
+  "log.column.source": "Source",
+  "log.column.message": "Message",
+  "log.empty.page": "No records on this page.",
+  "calendar.weekday.mon": "Mon",
+  "calendar.weekday.tue": "Tue",
+  "calendar.weekday.wed": "Wed",
+  "calendar.weekday.thu": "Thu",
+  "calendar.weekday.fri": "Fri",
+  "calendar.weekday.sat": "Sat",
+  "calendar.weekday.sun": "Sun"
+}

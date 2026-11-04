@@ -1,0 +1,18 @@
+{
+  "transform.title": "سازگارسازی برنامه با کنترلر",
+  "transform.summary": "بک‌اند {backend}: {steps} گام خودکار، {findings} مورد.",
+  "transform.was": "اصلی",
+  "transform.became": "خروجی",
+  "transform.lines": "خطوط",
+  "transform.apply": "اعمال",
+  "transform.applyTitle": "اعمال طرح و بازنشانی برنامه",
+  "transform.cancelTitle": "حفظ برنامه اصلی",
+  "transform.applying": "در حال اعمال…",
+  "transform.applied": "اعمال شد. برنامه بازنشانی شد.",
+  "transform.suffix": "سازگارنشده",
+  "transform.clean": "برنامه کاملاً روی {backend} قابل اجرا است.",
+  "transform.blocked": "{backend} نمی‌تواند این برنامه را اجرا کند و اصلاح خودکاری ثبت نشده است:",
+  "transform.unsupported": "{backend} نمی‌تواند این برنامه را اجرا کند؛ اصلاح خودکاری یافت نشد:",
+  "transform.error.noProgram": "پیش از اعتبارسنجی یک برنامه بارگذاری کنید.",
+  "transform.resultTitle": "نتیجهٔ اعتبارسنجی برنامه"
+}

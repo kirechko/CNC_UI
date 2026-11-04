@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "Switch to orthographic projection",
+  "viewer.projection.toPerspective": "Switch to perspective projection",
+  "viewer.projection.perspectiveAria": "Perspective projection; switch to orthographic",
+  "viewer.projection.orthographicAria": "Orthographic projection; switch to perspective"
+}

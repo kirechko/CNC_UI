@@ -2,9 +2,8 @@
  * Macro panel UI: a compact list plus a large modal editor dialog.
  *
  * The sidebar panel (#macros-panel) renders one compact row per macro showing
- * only the name; the description is surfaced as a tooltip hint (the shared
- * styled-tooltip engine in tooltips.js renders the `title` attribute as a
- * floating bubble). A single button per row opens #macro-dialog — a modal
+ * only the name; descriptions use the shared styled tooltip bubble through a
+ * data attribute so they do not create a second native title tooltip. A single button per row opens #macro-dialog — a modal
  * dialog modeled after the message-log dialog — where the G-code body
  * textarea takes the dominant share of the space and the remaining fields
  * (name, description, per-controller invocation mappings, save/delete
@@ -12,6 +11,7 @@
  */
 import { invokeOrFetch } from "./api.js";
 import { t } from "./i18n.js";
+import { createMacroButtonsUi, loadMacroButtons } from "./macro-buttons-ui.js";
 
 /**
  * Initializes macro loading, compact list rendering, the dialog editor, and
@@ -26,9 +26,8 @@ export function initMacrosUi() {
   const panelStatus = document.querySelector("#macro-status");
   const addButton = document.querySelector("#macro-add");
   const addFolderButton = document.querySelector("#macro-folder-add");
-  const deleteFolderButton = document.querySelector("#macro-folder-delete");
-  const breadcrumb = document.querySelector("#macro-breadcrumb");
-  const folderList = document.querySelector("#macro-folder-list");
+  const tree = document.querySelector("#macro-tree");
+  const contextMenu = document.querySelector("#macro-context-menu");
   const macroButtons = document.querySelector("#macro-buttons-list");
   const macroButtonPicker = document.querySelector("#macro-button-picker");
   const macroButtonPickerForm = document.querySelector("#macro-button-picker-form");
@@ -59,101 +58,17 @@ export function initMacrosUi() {
       !errorBox || !dialogStatus) return;
 
   /** Holds macro data, navigation/filter state, editor state, and configured quick-run buttons. */
-  const state = { macros: [], folders: [], currentFolderId: null, query: "", editingId: null, busy: false, buttons: loadMacroButtons() };
-
-  /** Reads the user's macro-button assignments from local storage without failing private contexts. */
-  function loadMacroButtons() {
-    try {
-      const value = JSON.parse(localStorage.getItem("cnc-ui-macro-buttons") || "[]");
-      return Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
-    } catch {
-      return [];
-    }
-  }
-
-  /** Persists button assignments locally; macro definitions themselves remain in the shared database. */
-  function saveMacroButtons() {
-    try {
-      localStorage.setItem("cnc-ui-macro-buttons", JSON.stringify(state.buttons));
-    } catch {
-      panelStatus.textContent = t("macros.buttons.storageError");
-    }
-  }
-
-  /** Renders one run button per configured macro and controls for adding/removing assignments. */
-  function renderMacroButtons() {
-    if (!macroButtons) return;
-    macroButtons.replaceChildren();
-    const previous = state.buttons.length;
-    state.buttons = state.buttons.filter((id) => state.macros.some((macro) => macro.id === id));
-    if (state.buttons.length !== previous) saveMacroButtons();
-    state.buttons.forEach((id, index) => {
-      const macro = state.macros.find((item) => item.id === id);
-      if (!macro) return;
-      const row = document.createElement("div");
-      row.className = "macro-button-row";
-      row.setAttribute("role", "listitem");
-      const run = document.createElement("button");
-      run.type = "button";
-      run.className = "macro-button-run";
-      run.setAttribute("aria-label", `${t("macros.runTitle")}: ${macro.name}`);
-      run.textContent = macro.name;
-      run.title = macro.description || macro.name;
-      // The shortcut button and the standard list runner share the same event contract.
-      run.addEventListener("click", () => window.dispatchEvent(new CustomEvent("cnc-macro-run", { detail: macro })));
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "macro-button-remove";
-      remove.textContent = "×";
-      remove.title = t("macros.buttons.removeTitle");
-      remove.setAttribute("aria-label", `${t("macros.buttons.removeTitle")}: ${macro.name}`);
-      remove.addEventListener("click", () => {
-        state.buttons.splice(index, 1);
-        saveMacroButtons();
-        renderMacroButtons();
-      });
-      row.append(run, remove);
-      macroButtons.append(row);
-    });
-  }
-
-  /** Creates and persists a button assignment for one macro selected by its id. */
-  function assignMacroButton(macroId) {
-    const macro = state.macros.find((item) => item.id === macroId);
-    if (!macro || state.buttons.includes(macro.id)) return;
-    state.buttons.push(macro.id);
-    saveMacroButtons();
-    renderMacroButtons();
-  }
-
-  /** Opens the in-page accessible chooser for selecting a macro shortcut. */
-  function addConfiguredMacroButton() {
-    const available = state.macros.filter((macro) => !state.buttons.includes(macro.id));
-    if (!available.length) return;
-    if (!macroButtonPicker || !macroButtonPickerForm || !macroButtonPickerSelect) {
-      panelStatus.textContent = t("macros.buttons.pickerUnavailable");
-      return;
-    }
-    macroButtonPickerSelect.replaceChildren();
-    available.forEach((macro) => {
-      const option = document.createElement("option");
-      option.value = macro.id;
-      option.textContent = macro.name;
-      macroButtonPickerSelect.append(option);
-    });
-    macroButtonPicker.returnValue = "";
-    macroButtonPicker.showModal();
-    macroButtonPickerSelect.focus();
-  }
-
-  /** Submits the picker selection, leaving all assignments unchanged when the user cancels. */
-  function submitMacroButtonPicker(event) {
-    event.preventDefault();
-    if (event.submitter?.value === "add") {
-      assignMacroButton(macroButtonPickerSelect.value);
-    }
-    macroButtonPicker.close();
-  }
+  const state = { macros: [], folders: [], query: "", editingId: null, busy: false, buttons: loadMacroButtons(), expandedFolders: new Set() };
+  const { renderMacroButtons, addConfiguredMacroButton, submitMacroButtonPicker } = createMacroButtonsUi({
+    state,
+    macroButtons,
+    macroButtonPicker,
+    macroButtonPickerForm,
+    macroButtonPickerSelect,
+    addMacroButton,
+    panelStatus,
+    t,
+  });
 
   /** Creates a safe element with translated text and an optional CSS class. */
   function textElement(tag, className, text) {
@@ -215,52 +130,99 @@ export function initMacrosUi() {
     return row;
   }
 
-  /** Returns the breadcrumb chain from root through the selected folder. */
-  function folderChain(folderId) {
-    const chain = [];
-    let current = state.folders.find((folder) => folder.id === folderId);
-    while (current) {
-      chain.unshift(current);
-      current = state.folders.find((folder) => folder.id === current.parentId);
+  /** Deletes one empty folder after asking for explicit confirmation. */
+  async function deleteFolder(folder) {
+    if (!folder || !window.confirm(t("macros.folders.deleteConfirm", { name: folder.name }))) return;
+    try {
+      await invokeOrFetch("delete_macro_folder", { folder_id: folder.id }, `/api/macro-folders/${encodeURIComponent(folder.id)}`, "DELETE");
+      state.folders = state.folders.filter((item) => item.id !== folder.id);
+      if (state.currentFolderId === folder.id) state.currentFolderId = folder.parentId ?? null;
+      renderList();
+    } catch (error) {
+      panelStatus.textContent = error?.message || t("macros.folders.error.notEmpty");
     }
-    return chain;
   }
 
-  /** Renders directory navigation and the current folder's immediate children. */
-  function renderFolderNavigation() {
-    if (!folderList || !breadcrumb) return;
-    folderList.replaceChildren();
-    breadcrumb.replaceChildren();
-    const addCrumb = (label, folderId) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = label;
-      button.addEventListener("click", () => { state.currentFolderId = folderId; renderList(); });
-      breadcrumb.append(button);
-    };
-    addCrumb(t("macros.folders.root"), null);
-    folderChain(state.currentFolderId).forEach((folder) => addCrumb(folder.name, folder.id));
-    if (deleteFolderButton) {
-      deleteFolderButton.hidden = !state.currentFolderId;
-      deleteFolderButton.onclick = async () => {
-        const folder = state.folders.find((item) => item.id === state.currentFolderId);
-        if (!folder || !window.confirm(t("macros.folders.deleteConfirm", { name: folder.name }))) return;
-        try {
-          await invokeOrFetch("delete_macro_folder", { folder_id: folder.id }, `/api/macro-folders/${encodeURIComponent(folder.id)}`, "DELETE");
-          state.folders = state.folders.filter((item) => item.id !== folder.id);
-          state.currentFolderId = folder.parentId ?? null;
-          renderList();
-        } catch (error) { panelStatus.textContent = error?.message || t("macros.folders.error.notEmpty"); }
-      };
+  /** Creates a child folder, preserving the existing parent relationship API. */
+  async function createFolder(parentId) {
+    const name = window.prompt(t("macros.folders.prompt"));
+    if (!name?.trim()) return;
+    const folder = { id: createMacroId(), name: name.trim(), parentId: parentId ?? null };
+    try {
+      await invokeOrFetch("create_macro_folder", { folder }, "/api/macro-folders", "POST");
+      state.folders.push(folder);
+      if (parentId) state.expandedFolders.add(parentId);
+      state.expandedFolders.add(folder.id);
+      renderList();
+      panelStatus.textContent = t("macros.folders.created");
+    } catch (error) {
+      panelStatus.textContent = error?.message || t("macros.error.saveFailed");
     }
-    state.folders.filter((folder) => (folder.parentId ?? null) === state.currentFolderId).forEach((folder) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "macro-folder-entry";
-      button.textContent = `📁 ${folder.name}`;
-      button.addEventListener("click", () => { state.currentFolderId = folder.id; renderList(); });
-      folderList.append(button);
-    });
+  }
+
+  /** Rebuilds the folder tree and the editor's nested-folder selector. */
+  function renderFolderNavigation() {
+    if (tree) {
+      tree.replaceChildren();
+      const childFolders = new Map();
+      state.folders.forEach((folder) => {
+        const parent = folder.parentId ?? "";
+        childFolders.set(parent, [...(childFolders.get(parent) ?? []), folder]);
+      });
+      const macrosByFolder = new Map();
+      state.macros.forEach((macro) => {
+        const folder = macro.folderId ?? "";
+        macrosByFolder.set(folder, [...(macrosByFolder.get(folder) ?? []), macro]);
+      });
+      const hasChildren = (folderId) => (childFolders.get(folderId) ?? []).length > 0 || (macrosByFolder.get(folderId) ?? []).length > 0;
+      const buildChildren = (parentId, depth, parentNode) => {
+        const folders = childFolders.get(parentId) ?? [];
+        const macros = macrosByFolder.get(parentId) ?? [];
+        for (const folder of folders) {
+          const branch = document.createElement("div");
+          branch.className = "macro-tree-branch";
+          branch.setAttribute("role", "treeitem");
+          branch.setAttribute("aria-expanded", String(state.expandedFolders.has(folder.id)));
+          branch.dataset.folderId = folder.id;
+          branch.style.setProperty("--tree-depth", depth);
+          branch.addEventListener("contextmenu", (event) => showFolderMenu(event, folder));
+          const line = document.createElement("div");
+          line.className = "macro-tree-folder";
+          const toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "macro-tree-toggle";
+          const expandable = hasChildren(folder.id);
+          toggle.disabled = !expandable;
+          toggle.setAttribute("aria-label", t(state.expandedFolders.has(folder.id) ? "macros.tree.collapse" : "macros.tree.expand"));
+          toggle.textContent = expandable ? (state.expandedFolders.has(folder.id) ? "▾" : "▸") : "·";
+          toggle.addEventListener("click", () => {
+            if (!expandable) return;
+            state.expandedFolders.has(folder.id) ? state.expandedFolders.delete(folder.id) : state.expandedFolders.add(folder.id);
+            renderList();
+          });
+          const name = document.createElement("button");
+          name.type = "button";
+          name.className = "macro-tree-folder-name";
+          name.textContent = `📁 ${folder.name}`;
+          name.addEventListener("click", () => {
+            state.expandedFolders.has(folder.id) ? state.expandedFolders.delete(folder.id) : state.expandedFolders.add(folder.id);
+            renderList();
+          });
+          line.append(toggle, name);
+          branch.append(line);
+          if (state.expandedFolders.has(folder.id)) {
+            const children = document.createElement("div");
+            children.className = "macro-tree-children";
+            children.setAttribute("role", "group");
+            buildChildren(folder.id, depth + 1, children);
+            branch.append(children);
+          }
+          parentNode.append(branch);
+        }
+        for (const macro of macros) parentNode.append(createMacroTreeItem(macro, depth));
+      };
+      buildChildren("", 0, tree);
+    }
     if (folderSelect) {
       const selected = folderSelect.value;
       folderSelect.replaceChildren(new Option(t("macros.folders.root"), ""));
@@ -278,68 +240,66 @@ export function initMacrosUi() {
     }
   }
 
-  /**
-   * Renders the current directory or global search results, including macro hints
-   * and the action buttons for editing and running each match.
-   */
+  /** Builds a compact macro leaf; double-click opens its editor and the arrow runs it. */
+  function createMacroTreeItem(macro, depth) {
+    const row = document.createElement("div");
+    row.className = "macro-row macro-tree-macro";
+    row.setAttribute("role", "treeitem");
+    row.style.setProperty("--tree-depth", depth);
+    row.dataset.macroId = macro.id;
+    const name = textElement("span", "macro-row-name", macro.name);
+    const description = String(macro.description ?? "")
+      .replace("{rosetta.reactiveHint}", t("rosetta.reactiveHint"))
+      .replace("Rosetta reactive macro:", t("rosetta.reactiveHint"));
+    const hints = [description, ...(macro.tags ?? []).map((tag) => `#${tag}`)].filter(Boolean).join(" · ");
+    name.dataset.tooltipTitle = hints;
+    name.classList.add("macro-row-has-hint");
+    name.setAttribute("aria-label", `${macro.name}. ${hints}`);
+    row.addEventListener("dblclick", (event) => {
+      if (!event.target.closest("button")) openEditor(macro);
+    });
+    const runButton = document.createElement("button");
+    runButton.type = "button";
+    runButton.className = "macro-row-run icon-button";
+    runButton.dataset.tooltipTitle = t("macros.runTitle");
+    runButton.setAttribute("aria-label", `${t("macros.runTitle")}: ${macro.name}`);
+    runButton.innerHTML = '<svg aria-hidden="true" viewBox="0 0 16 16"><path d="M4 2.5v11L13 8z"/></svg>';
+    runButton.addEventListener("click", () => window.dispatchEvent(new CustomEvent("cnc-macro-run", { detail: macro })));
+    row.append(name, runButton);
+    return row;
+  }
+
+  /** Opens the small file-manager context menu for one folder branch. */
+  function showFolderMenu(event, folder) {
+    if (!contextMenu) return;
+    event.preventDefault();
+    contextMenu.dataset.folderId = folder.id;
+    contextMenu.hidden = false;
+    contextMenu.style.left = `${Math.min(event.clientX, window.innerWidth - 190)}px`;
+    contextMenu.style.top = `${Math.min(event.clientY, window.innerHeight - 100)}px`;
+  }
+
+  /** Renders the expanded folder tree or filtered macro search results. */
   function renderList() {
     list.replaceChildren();
     const query = state.query.trim().toLocaleLowerCase();
     const searching = query.length > 0;
-    if (!searching) renderFolderNavigation();
-    if (breadcrumb) breadcrumb.hidden = searching;
-    if (folderList) folderList.hidden = searching;
+    renderFolderNavigation();
+    if (tree) tree.hidden = searching;
+    list.hidden = !searching;
     if (addFolderButton) addFolderButton.disabled = searching;
-    if (deleteFolderButton) deleteFolderButton.disabled = searching;
-    const childFolders = searching ? [] : state.folders.filter((folder) => (folder.parentId ?? null) === state.currentFolderId);
     const visibleMacros = state.macros.filter((macro) => {
-      if (!searching && (macro.folderId ?? null) !== state.currentFolderId) return false;
-      if (!searching) return true;
+      if (!searching) return false;
       const haystack = [macro.name, macro.description, macro.body, ...(macro.tags ?? [])].join("\\n").toLocaleLowerCase();
       return haystack.includes(query);
     });
-    count.textContent = t(searching ? "macros.searchCount" : "macros.count", { count: visibleMacros.length });
-    if (visibleMacros.length === 0 && childFolders.length === 0) {
-      list.append(textElement("p", "macro-empty", t("macros.empty")));
+    count.textContent = t(searching ? "macros.searchCount" : "macros.count", { count: searching ? visibleMacros.length : state.macros.length });
+    if (visibleMacros.length === 0 && searching) {
+      list.append(textElement("p", "macro-empty", t("macros.searchEmpty")));
       return;
     }
 
-    visibleMacros.forEach((macro) => {
-      const row = document.createElement("div");
-      row.className = "macro-row";
-      row.setAttribute("role", "listitem");
-
-      const name = textElement("span", "macro-row-name", macro.name);
-      // The description and tags stay available as hints without expanding the compact row.
-      const hints = [macro.description, ...(macro.tags ?? []).map((tag) => `#${tag}`)].filter(Boolean).join(" · ");
-      if (hints) {
-        name.title = hints;
-        row.title = hints;
-      }
-
-      // Rosetta runner entry (T26): ▶ opens the macro-run dialog through a
-      // window event, so this CRUD module stays decoupled from the runner.
-      const runButton = document.createElement("button");
-      runButton.type = "button";
-      runButton.className = "macro-row-run";
-      runButton.textContent = "▶";
-      runButton.title = t("macros.runTitle");
-      runButton.setAttribute("aria-label", `${t("macros.runTitle")}: ${macro.name}`);
-      runButton.addEventListener("click", () => {
-        window.dispatchEvent(new CustomEvent("cnc-macro-run", { detail: macro }));
-      });
-
-      const openButton = document.createElement("button");
-      openButton.type = "button";
-      openButton.className = "macro-row-open";
-      openButton.textContent = t("macros.edit");
-      openButton.title = t("macros.openTitle");
-      openButton.setAttribute("aria-label", `${t("macros.openTitle")}: ${macro.name}`);
-      openButton.addEventListener("click", () => openEditor(macro));
-
-      row.append(name, runButton, openButton);
-      list.append(row);
-    });
+    if (searching) visibleMacros.forEach((macro) => list.append(createMacroTreeItem(macro, 0)));
   }
 
   /** Opens the dialog editor for a new macro or populates it from an existing definition. */
@@ -449,6 +409,7 @@ export function initMacrosUi() {
     if (state.busy) return;
     state.busy = true;
     setStatus(t("macros.loading"));
+    list.replaceChildren();
     try {
       const [result, folders] = await Promise.all([
         invokeOrFetch("get_macros", null, "/api/macros"),
@@ -461,6 +422,7 @@ export function initMacrosUi() {
       renderMacroButtons();
       setStatus("");
     } catch (error) {
+      console.error("Failed to load macros and folders:", error);
       list.replaceChildren(textElement("p", "macro-error", error?.message || t("macros.error.loadFailed")));
       setStatus("");
     } finally {
@@ -493,18 +455,20 @@ export function initMacrosUi() {
     renderList();
   });
   addButton.addEventListener("click", () => openEditor());
-  addFolderButton?.addEventListener("click", async () => {
-    const name = window.prompt(t("macros.folders.prompt"));
-    if (!name?.trim()) return;
-    const folder = { id: createMacroId(), name: name.trim(), parentId: state.currentFolderId };
-    try {
-      await invokeOrFetch("create_macro_folder", { folder }, "/api/macro-folders", "POST");
-      state.folders.push(folder);
-      renderList();
-      panelStatus.textContent = t("macros.folders.created");
-    } catch (error) {
-      panelStatus.textContent = error?.message || t("macros.error.saveFailed");
-    }
+  addFolderButton?.addEventListener("click", () => void createFolder(null));
+  contextMenu?.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-macro-action]")?.dataset.macroAction;
+    if (!action) return;
+    const folder = state.folders.find((item) => item.id === contextMenu.dataset.folderId);
+    contextMenu.hidden = true;
+    if (action === "create-folder") void createFolder(folder?.id ?? null);
+    else if (action === "delete-folder") void deleteFolder(folder);
+  });
+  document.addEventListener("click", (event) => {
+    if (contextMenu && !contextMenu.contains(event.target)) contextMenu.hidden = true;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && contextMenu) contextMenu.hidden = true;
   });
   addMacroButton?.addEventListener("click", addConfiguredMacroButton);
   macroButtonPickerForm?.addEventListener("submit", submitMacroButtonPicker);
@@ -519,6 +483,7 @@ export function initMacrosUi() {
     errorBox.textContent = "";
     state.editingId = null;
   });
+
   window.addEventListener("cnc-sidebar-tab-changed", (event) => {
     if (event.detail?.tab === "macros") loadMacros();
   });

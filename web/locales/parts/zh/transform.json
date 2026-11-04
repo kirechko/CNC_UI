@@ -1,0 +1,18 @@
+{
+  "transform.title": "为控制器适配程序",
+  "transform.summary": "后端 {backend}：自动步骤 {steps} 个，发现 {findings} 项。",
+  "transform.was": "原始",
+  "transform.became": "结果",
+  "transform.lines": "行",
+  "transform.apply": "应用",
+  "transform.applyTitle": "应用计划并重新加载程序",
+  "transform.cancelTitle": "保留原始程序",
+  "transform.applying": "正在应用…",
+  "transform.applied": "已应用，程序已重新加载。",
+  "transform.suffix": "已适配",
+  "transform.clean": "程序可在 {backend} 上完整执行。",
+  "transform.blocked": "{backend} 无法执行该程序，且没有注册自动修复：",
+  "transform.unsupported": "{backend} 无法执行该程序；没有可自动修复项：",
+  "transform.error.noProgram": "请先加载程序再验证。",
+  "transform.resultTitle": "程序验证结果"
+}

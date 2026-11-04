@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "सभी गंभीरता",
+  "log.severity.alarm": "अलार्म",
+  "log.severity.error": "त्रुटि",
+  "log.severity.warning": "चेतावनी",
+  "log.severity.info": "जानकारी",
+  "log.count": "{total} के {from}-{to} रिकॉर्ड करता है",
+  "log.error.load": "लॉग लोड करने में विफल: {message}",
+  "log.column.time": "समय",
+  "log.column.severity": "गंभीरता",
+  "log.column.source": "स्रोत",
+  "log.column.message": "संदेश",
+  "log.empty.page": "इस पृष्ठ पर कोई रिकॉर्ड नहीं है।",
+  "calendar.weekday.mon": "सोम",
+  "calendar.weekday.tue": "मंगल",
+  "calendar.weekday.wed": "बुध",
+  "calendar.weekday.thu": "गुरु",
+  "calendar.weekday.fri": "शुक्र",
+  "calendar.weekday.sat": "शनि",
+  "calendar.weekday.sun": "सन"
+}

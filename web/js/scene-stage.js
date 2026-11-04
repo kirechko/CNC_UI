@@ -53,6 +53,7 @@ export function initSceneStage(app) {
   const toolPosition = [0, 0, 0];
   let toolSpindleRpm = 0;
   let toolRotationPhase = 0;
+  let liveLaserIntensity = 0;
 
   // Stock visibility and the loaded 3D mesh are private to the stage; the
   // stock toggle button and file loader below mutate them.
@@ -67,12 +68,15 @@ export function initSceneStage(app) {
     viewerEmpty,
     getProgram: () => app.getProgram(),
     getStockMesh: () => loadedStockMesh,
+    getMachineProfile: () => app.getMachineProfile?.() ?? null,
+    getTools: () => app.getMachineTools?.() ?? [],
     isStockVisible: () => stockVisible,
     getCamera: () => camera,
     getStatus: () => app.getStatus(),
     getToolPosition: () => toolPosition,
     isConnected: () => app.getConnected(),
     getToolRotationPhase: () => toolRotationPhase,
+    getLaserIntensity: () => liveLaserIntensity,
     renderOrientationCube: () => orientationCubeRenderer.render(),
   });
 
@@ -99,7 +103,7 @@ export function initSceneStage(app) {
 
   function setView(axis, sign = 1) {
     if (axis === "Z") {
-      camera.yaw = -0.72;
+      camera.yaw = 0;
       camera.pitch = sign > 0 ? Math.PI / 2 - 0.001 : -Math.PI / 2 + 0.001;
     } else if (axis === "X") {
       camera.yaw = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -173,8 +177,9 @@ export function initSceneStage(app) {
   const viewerToolbar = initViewerToolbar({ camera, render: drawToolpath });
 
   /**
-   * Mirrors machine position and spindle RPM from a status snapshot into the
-   * scene, then syncs the rotation animation and repaints. Called at the tail
+   * Mirrors machine position and spindle/laser telemetry from one status snapshot
+   * into the scene, then syncs the rotation animation and repaints.
+   * Called at the tail
    * of every successful status poll.
    * @param {object} status - Status snapshot from the backend.
    */
@@ -183,6 +188,14 @@ export function initSceneStage(app) {
     toolPosition[1] = Number(status.y) || 0;
     toolPosition[2] = Number(status.z) || 0;
     toolSpindleRpm = Math.max(0, Number(status.spindle_rpm) || 0);
+    const isLaserMode = status.spindle_mode === "laser_constant" || status.spindle_mode === "laser_dynamic";
+    const laserPower = Number(status.laser_power);
+    const laserMaximum = Number(status.spindle_max_rpm);
+    liveLaserIntensity = isLaserMode && status.spindle_enabled === true
+      && Number.isFinite(laserPower) && laserPower > 0
+      && Number.isFinite(laserMaximum) && laserMaximum > 0
+      ? Math.min(1, laserPower / laserMaximum)
+      : 0;
     toolAnimation.sync();
     drawToolpath();
   }
@@ -193,7 +206,9 @@ export function initSceneStage(app) {
    */
   function clearTool() {
     toolSpindleRpm = 0;
+    liveLaserIntensity = 0;
     toolAnimation.sync();
+    sceneViewer.drawTool();
   }
 
   return {

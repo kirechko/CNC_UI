@@ -1,0 +1,18 @@
+{
+  "transform.title": "kwa kidhibiti",
+  "transform.summary": "Nyuma {backend}: Hatua za kiotomatiki za {steps}), Utafutaji wa {findings}.",
+  "transform.was": "Asili",
+  "transform.became": "Inakuwa",
+  "transform.lines": "Tumia",
+  "transform.apply": "Apply",
+  "transform.applyTitle": "Tumia mpango na upakie upya programu",
+  "transform.cancelTitle": "Weka programu asili",
+  "transform.applying": "Inatumika...",
+  "transform.applied": "Imetumika. Mpango umepakiwa upya.",
+  "transform.suffix": "imebadilishwa",
+  "transform.clean": "unaweza kutekelezwa kikamilifu kwenye {backend}.",
+  "transform.blocked": "{backend} haiwezi kuendesha programu hii na hakuna marekebisho ya kiotomatiki yaliyosajiliwa:",
+  "transform.unsupported": "{backend} haiwezi kuendesha programu hii; hakuna kitu kilichoweza kurekebishwa kiotomatiki:",
+  "transform.error.noProgram": "Pakia programu kabla ya kuthibitishwa.",
+  "transform.resultTitle": "Matokeo ya uthibitishaji wa programu"
+}

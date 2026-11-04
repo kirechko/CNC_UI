@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "모든 심각도",
+  "log.severity.alarm": "알람",
+  "log.severity.error": "오류",
+  "log.severity.warning": "경고",
+  "log.severity.info": "정보",
+  "log.count": "는 {total}의 {from}–{to}를 기록합니다.",
+  "log.error.load": "로그 로드 실패: {message}",
+  "log.column.time": "시간",
+  "log.column.severity": "심각도",
+  "log.column.source": "소스",
+  "log.column.message": "메시지",
+  "log.empty.page": "이 페이지에 기록이 없습니다.",
+  "calendar.weekday.mon": "월",
+  "calendar.weekday.tue": "화",
+  "calendar.weekday.wed": "수요일",
+  "calendar.weekday.thu": "목",
+  "calendar.weekday.fri": "금요일",
+  "calendar.weekday.sat": "토",
+  "calendar.weekday.sun": "썬"
+}

@@ -1,0 +1,18 @@
+{
+  "transform.title": "Programa Adapt para o controlador",
+  "transform.summary": "Backend {backend}: etapa(s) automática(s) {steps}, descoberta(s) {findings}.",
+  "transform.was": "Original",
+  "transform.became": "se torna",
+  "transform.lines": "lines",
+  "transform.apply": "Aplicar",
+  "transform.applyTitle": "Aplique o plano e recarregue o programa",
+  "transform.cancelTitle": "Mantenha o programa original",
+  "transform.applying": "Aplicando…",
+  "transform.applied": "aplicado. Programa recarregado.",
+  "transform.suffix": "transformado",
+  "transform.clean": "é totalmente executável em {backend}.",
+  "transform.blocked": "{backend} não pode executar este programa e nenhuma correção automática foi registrada:",
+  "transform.unsupported": "{backend} não pode executar este programa; nada foi corrigido automaticamente:",
+  "transform.error.noProgram": "Carrega um programa antes da validação.",
+  "transform.resultTitle": "Resultado da validação do programa"
+}

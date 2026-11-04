@@ -89,6 +89,29 @@ fn gcode_error_capture_clears_cached_laser_command() {
     assert!(!super::rpc::capture_gcode_error(&mut session, "ok"));
 }
 
+/// Prevents treating Klipper's idle timer state as proof that the toolhead has finished jogging.
+#[test]
+fn continuous_jog_waits_for_print_stats_standby_not_idle_timer() {
+    let adapter = super::KlipperAdapter::connect(super::KlipperConfig::default())
+        .expect("construct Klipper adapter without opening a network connection");
+    let mut session = session_with(&[
+        ("idle_timeout", json!({"state": "Idle"})),
+        ("print_stats", json!({"state": "printing"})),
+    ]);
+    session.continuous_jog = Some((crate::Axis::X, 1, 600.0));
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("create test runtime");
+    runtime
+        .block_on(adapter.pump_continuous_jog(&mut session))
+        .expect("non-standby status should not send another jog segment");
+    assert_eq!(session.continuous_jog, Some((crate::Axis::X, 1, 600.0)));
+    assert_eq!(session.objects["idle_timeout"]["state"], "Idle");
+    assert_eq!(session.objects["print_stats"]["state"], "printing");
+}
+
 #[test]
 fn subscription_includes_discovered_macros_and_output_objects() {
     let names = vec![

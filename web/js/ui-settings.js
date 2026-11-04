@@ -105,10 +105,11 @@ export function initUiSettings({
   // such as the canvas repaint hook are registered against a known theme.
   syncAll();
 
-  button.addEventListener("click", () => {
+  function open() {
     syncAll();
-    dialog.showModal();
-  });
+    if (!dialog.open) dialog.showModal();
+  }
+  button.addEventListener("click", () => open());
 
   if (closeButton) {
     closeButton.addEventListener("click", () => dialog.close());
@@ -130,10 +131,7 @@ export function initUiSettings({
   }
 
   return {
-    open: () => {
-      syncAll();
-      dialog.showModal();
-    },
+    open,
     close: () => dialog.close(),
   };
 }

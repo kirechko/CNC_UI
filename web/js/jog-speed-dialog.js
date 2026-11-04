@@ -111,6 +111,7 @@ export async function sendJogSpeeds(values) {
  * @param {HTMLFormElement} options.form - Form with speed inputs (xy, z, rotary) and step inputs (xyStep, zStep).
  * @param {HTMLButtonElement} options.openButton - Button that opens the dialog.
  * @param {HTMLButtonElement} options.cancelButton - Button that closes the dialog without applying.
+ * @param {HTMLButtonElement} [options.closeButton] - Icon close control that discards changes and closes the dialog.
  * @param {HTMLElement} options.errorElement - Element that shows validation or send errors.
  * @param {Function} options.getSpeeds - Returns the currently active speeds.
  * @param {Function} options.getSteps - Returns the currently active steps as {xy: number[], z: number[]}.
@@ -121,6 +122,7 @@ export function initJogSpeedDialog({
   form,
   openButton,
   cancelButton,
+  closeButton,
   errorElement,
   getSpeeds,
   getSteps,
@@ -165,6 +167,9 @@ export function initJogSpeedDialog({
   });
 
   cancelButton.addEventListener("click", () => {
+    dialog.close();
+  });
+  closeButton?.addEventListener("click", () => {
     dialog.close();
   });
 

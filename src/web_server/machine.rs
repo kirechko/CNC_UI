@@ -72,11 +72,9 @@ pub(crate) fn default_controller() -> std::io::Result<CNCController> {
 /// Constructs the adapter for a user-selected device. Emulator entries carry
 /// the TCP endpoint in `endpoint`; network FluidNC entries reuse the
 /// discovery adapter priority path so the worker keeps advertising the exact
-/// `connected_device_id` that the discovery list advertises; serial FluidNC
-/// entries (task: FluidNC over a COM port) open the GRBL-family serial driver
-/// in FluidNC mode on the device node; GRBL entries carry the full serial
-/// device path (e.g. `/dev/ttyUSB0`) probed by the serial scanner. Other
-/// protocols are rejected until their scanners ship.
+/// `connected_device_id` that the discovery list advertises; serial devices
+/// carry the canonical path probed by the firmware-specific scanner. Protocols
+/// without their own scanner can still be selected from explicit machine rows.
 pub(crate) fn build_adapter_for_device(
     device: &cnc_core::discovery::DiscoveredDevice,
 ) -> Result<Arc<dyn CncApi>, String> {
@@ -120,6 +118,23 @@ pub(crate) fn build_adapter_for_device(
             )
             .map_err(|error| format!("{}: {}", error.code, error.message))?,
         ),
+        ("Duet3D" | "RepRapFirmware", cnc_core::discovery::DiscoveryTransport::WebSocket)
+        | ("Duet3D" | "RepRapFirmware", cnc_core::discovery::DiscoveryTransport::TcpSocket) => {
+            let base_url = if device.endpoint.starts_with("http://") || device.endpoint.starts_with("https://") {
+                device.endpoint.clone()
+            } else {
+                format!("http://{}", device.endpoint)
+            };
+            let mut config = cnc_core::adapters::rep_rap_firmware::RepRapFirmwareConfig::new(base_url);
+            config.password = std::env::var("CNC_DUET_PASSWORD").ok();
+            Arc::new(cnc_core::adapters::rep_rap_firmware::RepRapFirmwareAdapter::connect(config)
+                .map_err(|error| format!("{}: {}", error.code, error.message))?)
+        }
+        ("UCCNC", cnc_core::discovery::DiscoveryTransport::TcpSocket) => {
+            Arc::new(cnc_core::adapters::uccnc_bridge::UccncBridgeAdapter::connect(
+                cnc_core::adapters::uccnc_bridge::UccncBridgeConfig::new(device.endpoint.clone()),
+            ).map_err(|error| format!("{}: {}", error.code, error.message))?)
+        }
         // The scanner stores the canonical full path in `endpoint`, while the
         // adapter derives its `connected_device_id` from the device-node
         // basename; both sides key on that basename, so the selected row
@@ -127,6 +142,36 @@ pub(crate) fn build_adapter_for_device(
         // scanner rate (`CNC_GRBL_BAUD` override, 115200 by default).
         ("GRBL", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
             cnc_core::adapters::grbl::GrblAdapter::connect(
+                &device.endpoint,
+                cnc_core::discovery::grbl_baud_rate(),
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
+        ("GRBL-Mega", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
+            cnc_core::adapters::grbl_mega::GrblMegaAdapter::connect(
+                &device.endpoint,
+                cnc_core::discovery::grbl_baud_rate(),
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
+        ("Marlin", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
+            cnc_core::adapters::serial_compat::SerialCompatAdapter::connect(
+                &device.endpoint,
+                cnc_core::discovery::grbl_baud_rate(),
+                cnc_core::adapters::serial_compat::SerialDialect::Marlin,
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
+        ("TinyG" | "TinyG2", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
+            cnc_core::adapters::serial_compat::SerialCompatAdapter::connect(
+                &device.endpoint,
+                cnc_core::discovery::grbl_baud_rate(),
+                cnc_core::adapters::serial_compat::SerialDialect::TinyG,
+            )
+            .map_err(|error| format!("{}: {}", error.code, error.message))?,
+        ),
+        ("Smoothieboard", cnc_core::discovery::DiscoveryTransport::Serial) => Arc::new(
+            cnc_core::adapters::smoothie::SmoothieAdapter::connect(
                 &device.endpoint,
                 cnc_core::discovery::grbl_baud_rate(),
             )

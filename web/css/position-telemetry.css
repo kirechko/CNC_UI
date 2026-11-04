@@ -1,0 +1,160 @@
+
+/* -------------------------------------------------------------------------
+ * Telemetry strip below the Zero all / Home all buttons (task T12/T13):
+ * live feed/motion mode, spindle RPM and coolant state from the status
+ * snapshot. Three compact cells share one row; each cell is a caption
+ * (muted, uppercase) plus a monospace value. Hidden until the backend
+ * supplies the matching fields.
+ * ---------------------------------------------------------------------- */
+.position-telemetry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--panel-gap);
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.position-telemetry[hidden] {
+  display: none;
+}
+
+.telemetry-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.telemetry-caption {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.telemetry-value {
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Laser power uses a restrained red accent without changing the rest of the telemetry layout. */
+.position-telemetry.laser-telemetry #telemetry-spindle { color: #ff5252; }
+
+/* Motion-mode chip: the current G-code modal group (G0/G1/G2/G3/Jog). */
+.telemetry-value.motion-mode {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+/* Coolant indicator lamps (task T13): dim when off, cyan/blue glow when on. */
+.telemetry-coolant {
+  display: flex;
+  gap: 6px;
+}
+
+.coolant-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  opacity: 0.45;
+}
+
+.coolant-lamp .coolant-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+
+.coolant-lamp.on {
+  opacity: 1;
+  color: var(--accent-bright);
+}
+
+.coolant-lamp.on .coolant-dot {
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.coolant-lamp.mist.on {
+  color: color-mix(in srgb, var(--accent-bright) 60%, white);
+}
+
+.position-meta {
+  display: flex;
+  height: 32.25px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5.5px;
+  padding-top: 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.position-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.position-meta strong {
+  color: var(--text-strong);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.position-dialog {
+  width: min(360px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 55%);
+}
+
+.position-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+
+#message-log-empty-dialog {
+  min-height: 240px;
+}
+
+.position-dialog-content {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.position-dialog h2 { margin: 0; font-size: 16px; }
+.position-dialog label { color: var(--muted); font-size: 12px; }
+.position-dialog input {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-inset);
+  color: var(--text-primary);
+  font: 16px var(--font-mono);
+}
+
+.position-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 7px;
+}
+
+.position-dialog-actions button { min-height: 38px; font-size: 12px; }
+.position-dialog-actions .primary { border-color: var(--accent); background: var(--btn-primary-bg); }

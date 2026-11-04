@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "직교 투영으로 전환",
+  "viewer.projection.toPerspective": "투시 투영으로 전환",
+  "viewer.projection.perspectiveAria": "원근 투영; 직교로 전환",
+  "viewer.projection.orthographicAria": "직교 투영; 관점으로 전환"
+}

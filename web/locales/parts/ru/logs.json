@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "Все важности",
+  "log.severity.alarm": "Авария",
+  "log.severity.error": "Ошибка",
+  "log.severity.warning": "Предупреждение",
+  "log.severity.info": "Информация",
+  "log.count": "Записи {from}–{to} из {total}",
+  "log.error.load": "Не удалось загрузить журнал: {message}",
+  "log.column.time": "Время",
+  "log.column.severity": "Важность",
+  "log.column.source": "Источник",
+  "log.column.message": "Сообщение",
+  "log.empty.page": "На этой странице нет записей.",
+  "calendar.weekday.mon": "Пн",
+  "calendar.weekday.tue": "Вт",
+  "calendar.weekday.wed": "Ср",
+  "calendar.weekday.thu": "Чт",
+  "calendar.weekday.fri": "Пт",
+  "calendar.weekday.sat": "Сб",
+  "calendar.weekday.sun": "Вс"
+}

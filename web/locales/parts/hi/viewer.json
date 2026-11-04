@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "ऑर्थोग्राफ़िक प्रक्षेपण पर स्विच करें",
+  "viewer.projection.toPerspective": "परिप्रेक्ष्य प्रक्षेपण पर स्विच करें",
+  "viewer.projection.perspectiveAria": "परिप्रेक्ष्य प्रक्षेपण; ऑर्थोग्राफ़िक पर स्विच करें",
+  "viewer.projection.orthographicAria": "ऑर्थोग्राफ़िक प्रक्षेपण; परिप्रेक्ष्य पर स्विच करें"
+}

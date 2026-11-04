@@ -23,6 +23,8 @@ pub(crate) mod linuxcnc_bridge;
 pub(crate) struct AppState {
     pub(crate) controller: Mutex<CNCController>,
     pub(crate) program: Mutex<Option<LoadedProgram>>,
+    /// Legacy-compatible cache of the durable local profile choice, not controller configuration.
+    pub(crate) active_profile_id: Mutex<Option<String>>,
     pub(crate) log: Mutex<Connection>,
     pub(crate) last_logged_status: Mutex<Option<String>>,
     /// Latest FluidNC/network discovery registry. The local emulator entry is
@@ -64,6 +66,7 @@ impl AppState {
         let state = Self {
             controller: Mutex::new(controller),
             program: Mutex::new(None),
+            active_profile_id: Mutex::new(None),
             log: Mutex::new(super::log_store::open_log()?),
             last_logged_status: Mutex::new(None),
             machines: Mutex::new(Vec::new()),
@@ -89,6 +92,9 @@ impl AppState {
                 .map_err(|_| io::Error::other("database lock poisoned"))?;
             crate::rosetta_host::registry::ensure_schema(&connection).map_err(io::Error::other)?;
             macros::ensure_folder_schema(&connection).map_err(io::Error::other)?;
+            super::machine_profiles::ensure_schema(&connection).map_err(io::Error::other)?;
+            super::tool_library::ensure_schema(&connection).map_err(io::Error::other)?;
+            super::tool_types::ensure_schema(&connection).map_err(io::Error::other)?;
         }
         if std::env::var_os("CNC_UI_NO_SEED").is_none() {
             let connection = state
@@ -100,6 +106,17 @@ impl AppState {
                 eprintln!("Could not seed Rosetta examples: {error}");
             }
         }
+        let selected = {
+            let connection = state
+                .log
+                .lock()
+                .map_err(|_| io::Error::other("database lock poisoned"))?;
+            super::machine_profiles::active_profile_id(&connection).map_err(io::Error::other)?
+        };
+        *state
+            .active_profile_id
+            .lock()
+            .map_err(|_| io::Error::other("active profile lock poisoned"))? = selected;
         state.load_default_program();
         Ok(state)
     }
@@ -116,9 +133,8 @@ impl AppState {
             .flatten()
     }
 
-    /// Full machine list served to the UI: the live emulator entry first,
-    /// then the last GRBL serial scan result, followed by the FluidNC
-    /// devices cached in the discovery registry.
+    /// Full machine list served to the UI: live emulator, discovered serial
+    /// firmware devices, and entries from the network discovery registry.
     pub(crate) fn machine_snapshot(&self) -> Vec<cnc_core::discovery::DiscoveredDevice> {
         let mut devices = emulator_device().into_iter().collect::<Vec<_>>();
         if let Ok(serial) = self.serial_machines.lock() {
@@ -167,7 +183,12 @@ impl AppState {
 // Sub-implementation files of AppState; `position::temp_program_path` is also
 // used by the program-upload module.
 pub(crate) mod log_ops;
+pub(crate) mod machine_metadata;
+pub(crate) mod machine_profiles_ops;
 pub(crate) mod macros;
 pub(crate) mod position;
+pub(crate) mod preflight;
 pub(crate) mod rosetta_ops;
 pub(crate) mod seed;
+pub(crate) mod tool_library_ops;
+pub(crate) mod tool_types_ops;

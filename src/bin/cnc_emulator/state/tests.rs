@@ -57,6 +57,81 @@ fn small_floating_point_tolerance_is_allowed() {
         .is_ok());
 }
 
+/// Proves a held continuous jog advances in small monotonic steps and ramps down smoothly on release.
+#[test]
+fn continuous_jog_moves_smoothly_and_decelerates_after_release() {
+    use crate::cnc_api::InterpreterState;
+
+    let mut emulator = test_emulator();
+    emulator
+        .handle(Request {
+            method: "jog_continuous".into(),
+            args: serde_json::json!({"axis": "X", "direction": 1, "feed_rate": 1200.0}),
+        })
+        .unwrap();
+
+    let mut previous_x = emulator.status.position.x;
+    let mut deltas = Vec::new();
+    for _ in 0..60 {
+        emulator.tick(0.01);
+        let x = emulator.status.position.x;
+        let delta = x - previous_x;
+        assert!(
+            delta > 0.0,
+            "held jog must advance monotonically; delta={delta}"
+        );
+        assert!(
+            delta <= 0.201,
+            "tick produced an unexpectedly large jump: {delta}"
+        );
+        deltas.push(delta);
+        previous_x = x;
+    }
+    assert!(deltas[0] < deltas[10], "jog should ramp up: {deltas:?}");
+    assert_eq!(emulator.status.interpreter_state, InterpreterState::Idle);
+    assert_eq!(emulator.status.motion_mode.as_deref(), Some("Jog"));
+
+    emulator
+        .handle(Request {
+            method: "jog_continuous".into(),
+            args: serde_json::json!({"axis": "X", "direction": 0, "feed_rate": 1200.0}),
+        })
+        .unwrap();
+    let stop_start = emulator.status.position.x;
+    let stop_velocity = emulator.jog_velocity;
+    let mut previous_delta = f64::INFINITY;
+    let mut saw_deceleration = false;
+    for _ in 0..1000 {
+        emulator.tick(0.01);
+        let delta = emulator.status.position.x - previous_x;
+        assert!(delta >= -1e-9, "decelerating jog reversed unexpectedly");
+        assert!(
+            delta <= previous_delta + 1e-9,
+            "stop ramp accelerated: {delta} > {previous_delta}"
+        );
+        if delta < previous_delta {
+            saw_deceleration = true;
+        }
+        previous_delta = delta;
+        previous_x = emulator.status.position.x;
+        if emulator.jog_stop.is_none() {
+            break;
+        }
+    }
+
+    assert!(
+        saw_deceleration,
+        "release should reduce the per-tick motion"
+    );
+    assert!(emulator.jog_stop.is_none(), "deceleration should finish");
+    assert!(emulator.status.position.x > stop_start);
+    assert!(
+        emulator.status.position.x - stop_start <= stop_velocity.powi(2) / (2.0 * 100.0) + 0.02
+    );
+    assert_eq!(emulator.status.jog_rate, 0.0);
+    assert_eq!(emulator.status.motion_mode, None);
+}
+
 #[test]
 fn incremental_jog_motion_ramps_up_under_configured_acceleration() {
     let mut emulator = test_emulator();

@@ -117,6 +117,7 @@ export function initJogDial(app, ctx, jogMotion) {
     form: document.querySelector("#jog-speed-form"),
     openButton: document.querySelector("#jog-speed-open"),
     cancelButton: document.querySelector("#jog-speed-cancel"),
+    closeButton: document.querySelector("#jog-speed-close"),
     errorElement: document.querySelector("#jog-speed-error"),
     getSpeeds: () => ctx.speeds,
     getSteps: () => ({ xy: ctx.xySteps, z: ctx.zSteps }),

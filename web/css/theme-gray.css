@@ -58,6 +58,15 @@ html[data-theme="gray"] {
   --accent-border: #a6a6a6;
   --accent-border-soft: #bdbdbd;
   --accent-border-bright: #7f7f7f;
+  --rosetta-idle-bg: #e0e7eb;
+  --rosetta-idle-border: #aebfc8;
+  --rosetta-idle-text: #4f626b;
+  --rosetta-success-bg: #e1ebe5;
+  --rosetta-success-border: #b2c1b8;
+  --rosetta-success-text: #526158;
+  --rosetta-error-bg: #f2e4e1;
+  --rosetta-error-border: #d7b8b3;
+  --rosetta-error-text: #795751;
 
   /* The "active/OK" green role degrades to gray: idle states must not shine. */
   --green: #4d4d4d;
@@ -80,7 +89,7 @@ html[data-theme="gray"] {
   --jog-x-border-hover: #c05f58;
 
   /* Amber/warning and copper accents flatten into grays as well. */
-  --amber: #585858;
+  --amber: #4b4b4b;
   --amber-text: #4b4b4b;
   --amber-border: #b5b5b5;
   --orange: #5c5c5c;
@@ -90,10 +99,14 @@ html[data-theme="gray"] {
   --copper-hover: #6b6b6b;
 
   /* Axis letters: a brightness ramp instead of red/green/blue/purple. */
-  --axis-x: #3f3f3f;
-  --axis-y: #6f6f6f;
-  --axis-z: #9a9a9a;
-  --axis-a: #b8b8b8;
+  --axis-x: #4b4b4b;
+  --axis-y: #4b4b4b;
+  --axis-z: #4b4b4b;
+  --axis-a: #4b4b4b;
+  --amber: #4b4b4b;
+  --axis-c: #4b4b4b;
+  --macro-tooltip-bg: #e5ece9;
+  --macro-tooltip-border: #aabbb5;
 
   --tooltip-border: #9a9a9a;
   --tooltip-text: #303030;

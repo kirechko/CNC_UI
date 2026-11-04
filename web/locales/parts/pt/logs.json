@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "Todas as gravidades",
+  "log.severity.alarm": "Erro",
+  "log.severity.error": "Aviso",
+  "log.severity.warning": "Informações sobre",
+  "log.severity.info": "Hora",
+  "log.count": "registra {from} – {to} de {total}",
+  "log.error.load": "Falha ao carregar log: {message}",
+  "log.column.time": "Mensagem",
+  "log.column.severity": "Fonte",
+  "log.column.source": "Mensagem",
+  "log.column.message": "Message",
+  "log.empty.page": "Não há registros nesta página.",
+  "calendar.weekday.mon": "Seg.",
+  "calendar.weekday.tue": "Terça",
+  "calendar.weekday.wed": "Quarta",
+  "calendar.weekday.thu": "Qui",
+  "calendar.weekday.fri": "sexta-feira",
+  "calendar.weekday.sat": "Sábado",
+  "calendar.weekday.sun": "Sol"
+}

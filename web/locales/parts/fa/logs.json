@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "همه سطوح",
+  "log.severity.alarm": "هشدار بحرانی",
+  "log.severity.error": "خطا",
+  "log.severity.warning": "اخطار",
+  "log.severity.info": "اطلاعات",
+  "log.count": "رکوردهای {from} تا {to} از {total}",
+  "log.error.load": "بارگذاری گزارش ناموفق بود: {message}",
+  "log.column.time": "زمان",
+  "log.column.severity": "سطح",
+  "log.column.source": "منبع",
+  "log.column.message": "پیام",
+  "log.empty.page": "رکوردی در این صفحه وجود ندارد.",
+  "calendar.weekday.mon": "دوش",
+  "calendar.weekday.tue": "سه‌ش",
+  "calendar.weekday.wed": "چهش",
+  "calendar.weekday.thu": "پنش",
+  "calendar.weekday.fri": "جمع",
+  "calendar.weekday.sat": "شنب",
+  "calendar.weekday.sun": "یکش"
+}

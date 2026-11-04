@@ -24,7 +24,8 @@ pub use scan::{discover_fluidnc, discover_fluidnc_stream, fluidnc_websocket_addr
 // re-exported so callers keep using `cnc_core::discovery::*` paths.
 pub use serial::{
     discover_grbl, discover_grbl_stream, fluidnc_serial_device_id, grbl_baud_rate,
-    grbl_serial_device, grbl_serial_device_id, parse_banner_version,
+    grbl_mega_serial_device, grbl_mega_serial_device_id, grbl_serial_device, grbl_serial_device_id,
+    parse_banner_version,
 };
 
 mod probe;

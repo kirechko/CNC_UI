@@ -109,7 +109,7 @@ fn axis_jog_command_preserves_metric_units_and_numeric_precision() {
 fn xy_jog_command_explicitly_uses_metric_units() {
     let command = GrblAdapter::format_xy_jog_command(1, -1, 1200.0).unwrap();
 
-    assert_eq!(command, "$J=G21 G91 X7.0711 Y-7.0711 F1200");
+    assert_eq!(command, "$J=G21 G91 X0.7071 Y-0.7071 F1200");
     assert!(GrblAdapter::format_xy_jog_command(0, 0, 1200.0).is_err());
 }
 

@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "Semua tingkat keparahan",
+  "log.severity.alarm": "Alarm",
+  "log.severity.error": "Peringatan",
+  "log.severity.warning": "Informasi",
+  "log.severity.info": "Pesan",
+  "log.count": "Merekam {from}–{to} dari {total}",
+  "log.error.load": "Gagal memuat log: {message}",
+  "log.column.time": "Waktu",
+  "log.column.severity": "Keparahan",
+  "log.column.source": "Pesan",
+  "log.column.message": "Message",
+  "log.empty.page": "Tidak ada catatan di halaman ini.",
+  "calendar.weekday.mon": "Sen",
+  "calendar.weekday.tue": "Sel",
+  "calendar.weekday.wed": "Rabu",
+  "calendar.weekday.thu": "Kam",
+  "calendar.weekday.fri": "Jum",
+  "calendar.weekday.sat": "Sabtu",
+  "calendar.weekday.sun": "Matahari"
+}

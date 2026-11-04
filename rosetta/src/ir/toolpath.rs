@@ -156,6 +156,38 @@ pub enum Code {
 }
 
 impl Code {
+    /// Returns whether a G-code is part of Rosetta's recognized common command vocabulary.
+    /// Unknown G-codes must not be treated as executable merely because they parse numerically.
+    pub fn is_recognized_g_code(&self) -> bool {
+        match self {
+            Code::G(number) => matches!(
+                *number,
+                0..=5 | 10 | 17..=21 | 28 | 30 | 31 | 33 | 38 | 40..=43 | 49..=59 | 61 | 64
+                    | 68 | 69 | 73..=89 | 90..=99
+            ),
+            Code::Other(token) => matches!(
+                token.as_str(),
+                "G5.1"
+                    | "G30.1"
+                    | "G33.1"
+                    | "G38.2"
+                    | "G38.3"
+                    | "G38.4"
+                    | "G38.5"
+                    | "G43.1"
+                    | "G51.1"
+                    | "G59.1"
+                    | "G59.2"
+                    | "G59.3"
+                    | "G61.1"
+                    | "G92.1"
+                    | "G92.2"
+                    | "G92.3"
+            ),
+            Code::M(_) => true,
+        }
+    }
+
     /// Parse a bare code token such as `"G81"` or `"M6"` (case-insensitive).
     pub fn parse(token: &str) -> Option<Self> {
         let upper = token.trim().to_ascii_uppercase();
@@ -302,6 +334,25 @@ mod tests {
         assert_eq!((min_x, min_y, min_z), (0.0, 0.0, -2.0));
         assert_eq!((max_x, max_y, max_z), (10.0, 5.0, 0.0));
         assert!(Toolpath::default().bounds().is_none());
+    }
+
+    #[test]
+    fn common_g_code_vocabulary_recognizes_supported_codes_and_rejects_unknowns() {
+        for code in [
+            Code::G(0),
+            Code::G(4),
+            Code::G(17),
+            Code::G(54),
+            Code::G(81),
+            Code::G(90),
+            Code::Other("G38.2".into()),
+            Code::Other("G43.1".into()),
+        ] {
+            assert!(code.is_recognized_g_code(), "{code}");
+        }
+        for code in [Code::G(7656), Code::G(8768), Code::Other("G38.9".into())] {
+            assert!(!code.is_recognized_g_code(), "{code}");
+        }
     }
 
     #[test]

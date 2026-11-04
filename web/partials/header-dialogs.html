@@ -1,0 +1,227 @@
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img" focusable="false">
+            <path d="M7 7h18v4H11v10h14v4H7z" fill="currentColor"></path>
+            <path d="M14 13h11v4H14z" fill="currentColor"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-name">FerroHUB</div>
+          <div class="brand-subtitle" data-i18n="html.brand.subtitle">Machine control</div>
+        </div>
+      </div>
+
+      <div class="header-status">
+        <span class="header-connection-info" id="connection-info" aria-live="polite"></span>
+        <button class="machine-chip connection-chip connection-chip-button" id="connection-machines-button" type="button" aria-haspopup="dialog" aria-controls="machines-dialog" data-i18n-title="html.machines.showTitle" title="Show discovered machines">
+          <span class="status-dot" id="connection-dot" aria-hidden="true"></span>
+          <span id="connection" data-i18n="ui.connecting">Connecting…</span>
+        </button>
+        <div class="machine-chip header-state" id="state">—</div>
+        <button class="header-settings-button" id="ui-settings-button" type="button" aria-haspopup="dialog" aria-controls="ui-settings-dialog" data-i18n-title="html.settings.title" data-i18n-aria-label="html.settings.title" title="Interface settings" aria-label="Interface settings">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <div class="shortcut-info-wrap">
+          <button class="header-settings-button shortcut-info-button" id="shortcut-info-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="shortcut-info-popover" data-i18n-title="shortcuts.infoTitle" data-i18n-aria-label="shortcuts.infoTitle" title="Keyboard shortcuts" aria-label="Keyboard shortcuts"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.7 9a2.35 2.35 0 1 1 4.1 1.55c-1.2 1.1-1.8 1.45-1.8 3.05"></path><path d="M12 17.2h.01"></path></svg></button>
+          <section class="shortcut-info-popover" id="shortcut-info-popover" role="dialog" aria-label="Keyboard shortcuts" hidden>
+            <h2 data-i18n="shortcuts.infoTitle">Keyboard shortcuts</h2>
+            <div id="shortcut-info-list"></div>
+            <button id="shortcut-info-settings" type="button" data-i18n="shortcuts.edit">Edit shortcuts</button>
+          </section>
+        </div>
+      </div>
+    </header>
+
+    <dialog class="machines-dialog" id="machines-dialog" aria-labelledby="machines-dialog-title">
+      <section class="machines-dialog-content">
+        <div class="machines-dialog-heading">
+          <h2 id="machines-dialog-title" data-i18n="html.machines.title">Discovered machines</h2>
+          <button class="machines-dialog-close icon-close-button" id="machines-dialog-close" type="button" data-i18n-title="common.closeDialogTitle" data-i18n-aria-label="common.close" title="Close the dialog" aria-label="Close"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <div class="machines-dialog-actions">
+          <button id="machines-refresh" type="button" data-i18n-title="html.machines.refreshLabel" data-i18n-aria-label="html.machines.refreshLabel" title="Start a new machine search" aria-label="Start a new machine search">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 7v5h-5"></path>
+              <path d="M19 12a7 7 0 1 1-2-5"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="machines-list" id="machines-list" aria-live="polite">
+          <p class="machines-empty" data-i18n="ui.machines.loading">Loading list…</p>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="ui-settings-dialog" id="ui-settings-dialog" aria-labelledby="ui-settings-title">
+      <section class="ui-settings-content">
+        <div class="ui-settings-heading">
+          <h2 id="ui-settings-title" data-i18n="html.settings.title">Interface settings</h2>
+          <button class="ui-settings-close icon-close-button" id="ui-settings-close" type="button" data-i18n-title="common.closeDialogTitle" data-i18n-aria-label="common.close" title="Close the dialog" aria-label="Close"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 3 10 10M13 3 3 13"/></svg></button>
+        </div>
+        <div class="settings-tabs" role="tablist" data-i18n-aria-label="html.settings.tabsAria" aria-label="Settings sections" data-i18n-compact-group>
+          <button id="settings-general-tab" class="settings-tab active" type="button" role="tab" aria-selected="true" aria-controls="settings-general-panel" data-i18n="html.settings.generalTab">General</button>
+          <button id="settings-shortcuts-tab" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-shortcuts-panel" data-i18n="html.settings.shortcutsTab">Shortcuts</button>
+          <button id="settings-machine-data-tab" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="settings-machine-data-panel" data-i18n="html.settings.profilesToolsTab">Profiles / Tools</button>
+        </div>
+        <div id="settings-general-panel" class="settings-tab-panel" role="tabpanel" aria-labelledby="settings-general-tab">
+        <fieldset class="ui-settings-fieldset">
+          <legend data-i18n="html.settings.theme">Theme</legend>
+          <div class="theme-options" role="radiogroup" data-i18n-aria-label="html.settings.theme" aria-label="Theme">
+            <label class="theme-option" data-i18n-title="html.settings.selectDark" title="Use the dark theme">
+              <input type="radio" name="ui-theme" value="dark">
+              <span class="theme-preview theme-preview-dark" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeDark">Dark</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeDarkHint">Default dark workspace palette</span>
+              </span>
+            </label>
+            <label class="theme-option" data-i18n-title="html.settings.selectLight" title="Use the light theme">
+              <input type="radio" name="ui-theme" value="light">
+              <span class="theme-preview theme-preview-light" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeLight">Light</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeLightHint">Bright surfaces for daylight</span>
+              </span>
+            </label>
+            <label class="theme-option" data-i18n-title="html.settings.selectGreen" title="Use the green theme">
+              <input type="radio" name="ui-theme" value="green">
+              <span class="theme-preview theme-preview-green" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeGreen">Green</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeGreenHint">Bright surfaces with a green tint</span>
+              </span>
+            </label>
+            <label class="theme-option" data-i18n-title="html.settings.selectGray" title="Use the gray theme">
+              <input type="radio" name="ui-theme" value="gray">
+              <span class="theme-preview theme-preview-gray" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="theme-option-text">
+                <span class="theme-option-name" data-i18n="html.settings.themeGray">Gray</span>
+                <span class="theme-option-desc" data-i18n="html.settings.themeGrayHint">Light grayscale; red marks alarms only</span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+        <fieldset class="ui-settings-fieldset language-settings-fieldset">
+          <legend data-i18n="html.settings.language">Language</legend>
+          <!-- Option labels stay in their native language: the picker must be
+               usable before the page is translated, so they are never i18n'd. -->
+          <select id="ui-language" class="ui-language-select" data-i18n-title="html.settings.languageTitle" data-i18n-aria-label="html.settings.language" title="Choose the interface language" aria-label="Language">
+            <option value="en">English</option>
+            <option value="ru">Русский</option>
+            <option value="zh">中文</option>
+            <option value="fa">فارسی</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="id">Bahasa Indonesia</option>
+            <option value="hi">हिन्दी</option>
+            <option value="pt">Português</option>
+            <option value="sw">Kiswahili</option>
+            <option value="ko">한국어</option>
+          </select>
+        </fieldset>
+        </div>
+        <section id="settings-shortcuts-panel" class="settings-shortcuts-panel" role="tabpanel" aria-labelledby="settings-shortcuts-tab" hidden>
+          <p class="machine-data-warning" data-i18n="shortcuts.help">Shortcuts are ignored while typing. Abort remains bound to Escape.</p>
+          <label class="shortcut-layout-option"><input id="shortcut-layout-independent" type="checkbox"><span data-i18n="shortcuts.layoutIndependent">Match the same physical key across keyboard layouts</span></label>
+          <div id="shortcut-list" class="shortcut-list" aria-live="polite"></div>
+          <button id="shortcut-reset" type="button" data-i18n="shortcuts.reset">Reset defaults</button>
+        </section>
+        <section id="settings-machine-data-panel" class="settings-tab-panel machine-data-content" role="tabpanel" aria-labelledby="settings-machine-data-tab" hidden>
+          <div id="machine-data-editor-view">
+            <p class="machine-data-warning" data-i18n="machineData.warning">Profiles and tools are advisory metadata. Selection does not configure the controller or send commands.</p>
+            <div class="machine-data-toolbar">
+              <label for="machine-data-type" data-i18n="machineData.collection">Collection</label>
+              <select id="machine-data-type"><option value="profile" data-i18n="html.settings.profiles">Machine profiles</option><option value="tool" data-i18n="html.settings.tools">Tool library</option></select>
+              <button id="machine-data-new" type="button" data-i18n="machineData.new">New</button>
+              <button id="machine-data-manage-tool-types" type="button" data-i18n="toolTypes.manage">Manage tool types</button>
+              <button id="machine-data-export" type="button" data-i18n="machineData.export">Export JSON</button>
+              <label class="machine-data-import-label" for="machine-data-import" data-i18n="machineData.import">Import JSON</label>
+              <input id="machine-data-import" type="file" accept="application/json,.json" hidden>
+              <button id="machine-data-help-open" type="button" data-i18n="machineData.helpButton">Help</button>
+            </div>
+            <div class="profile-selector-actions">
+              <span id="active-profile-summary" data-i18n="machineData.noProfile">No profile selected</span>
+              <button id="profile-selector-open" type="button" data-i18n-title="machineData.chooseProfile" data-i18n-aria-label="machineData.chooseProfile" title="Choose working profile" aria-label="Choose working profile"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h6"/></svg></button>
+            </div>
+            <div id="active-profile-details" class="active-profile-details" aria-live="polite"></div>
+            <section id="tool-type-manager" class="tool-type-manager" hidden aria-label="Tool type manager">
+              <h3 data-i18n="toolTypes.title">Tool types</h3>
+              <div id="tool-type-list" class="machine-data-list" aria-live="polite"></div>
+              <form id="tool-type-form" class="tool-type-form">
+                <input name="id" type="hidden">
+                <label><span data-i18n="machineData.profileName">Name</span><input name="name" maxlength="80" required></label>
+                <label><span data-i18n="toolTypes.cuttingType">Cutting type</span><select name="cuttingType" required><option value="milling">Milling</option><option value="drilling">Drilling</option><option value="laser">Laser</option><option value="probing">Probing</option><option value="other">Other</option></select></label>
+                <label><span data-i18n="toolTypes.geometryModel">Geometry model</span><select name="geometryModel" required><option value="cylindrical">Cylindrical</option><option value="ball_nose">Ball nose</option><option value="tapered">Tapered</option><option value="v_bit">V-bit</option><option value="drill">Drill</option><option value="laser_spot">Laser spot</option><option value="probe_tip">Probe tip</option><option value="none">None</option></select></label>
+                <button type="submit" data-i18n="toolTypes.save">Save type</button><button id="tool-type-manager-close" type="button" data-i18n="common.close">Close</button>
+              </form>
+            </section>
+            <div id="machine-data-list" class="machine-data-list" aria-live="polite"></div>
+            <form id="machine-data-form" class="machine-data-form">
+              <input name="id" type="hidden">
+              <fieldset class="machine-data-group" data-profile-fields>
+                <legend data-i18n="machineData.profileFields">Profile metadata</legend>
+                <label><span data-i18n="machineData.profileName">Profile name</span><input name="name" maxlength="120" required></label>
+                <label><span data-i18n="machineData.machineType">Machine type</span><select name="category"><option value="mill" data-i18n="machineData.mill">Mill</option><option value="laser" data-i18n="machineData.laser">Laser</option><option value="hybrid" data-i18n="machineData.hybrid">Hybrid</option></select></label>
+                <label><span data-i18n="machineData.priorityMachineType">Machine type source priority</span><select data-source-priority="machineType"><option value="profile_first" data-i18n="machineData.profileFirst">Prefer profile</option><option value="controller_first" data-i18n="machineData.controllerFirst">Prefer controller</option></select></label>
+                <label><span data-i18n="machineData.units">Units</span><select name="units"><option value="millimeters" data-i18n="machineData.millimeters">Millimeters</option><option value="inches" data-i18n="machineData.inches">Inches</option></select></label>
+                <label><span data-i18n="machineData.priorityUnits">Units source priority</span><select data-source-priority="units"><option value="profile_first" data-i18n="machineData.profileFirst">Prefer profile</option><option value="controller_first" data-i18n="machineData.controllerFirst">Prefer controller</option></select></label>
+                <label><span data-i18n="machineData.priorityAxes">Axis set source priority</span><select data-source-priority="axes"><option value="profile_first" data-i18n="machineData.profileFirst">Prefer profile</option><option value="controller_first" data-i18n="machineData.controllerFirst">Prefer controller</option></select></label>
+                <fieldset><legend data-i18n="machineData.knownTravel">Known travel (blank means unknown)</legend>
+                  <label><span data-i18n="machineData.priorityTravel">Travel source priority</span><select data-source-priority="travel"><option value="profile_first" data-i18n="machineData.profileFirst">Prefer profile</option><option value="controller_first" data-i18n="machineData.controllerFirst">Prefer controller</option></select></label>
+                  <label><span data-i18n="machineData.xMinimum">X minimum</span><input name="xMin" type="number" step="any"></label><label><span data-i18n="machineData.xMaximum">X maximum</span><input name="xMax" type="number" step="any"></label>
+                  <label><span data-i18n="machineData.yMinimum">Y minimum</span><input name="yMin" type="number" step="any"></label><label><span data-i18n="machineData.yMaximum">Y maximum</span><input name="yMax" type="number" step="any"></label>
+                  <label><span data-i18n="machineData.zMinimum">Z minimum</span><input name="zMin" type="number" step="any"></label><label><span data-i18n="machineData.zMaximum">Z maximum</span><input name="zMax" type="number" step="any"></label>
+                </fieldset>
+                <fieldset><legend data-i18n="machineData.axisSpeeds">Maximum axis speeds</legend>
+                  <label><span data-i18n="machineData.prioritySpeeds">Speed source priority</span><select data-source-priority="speeds"><option value="profile_first" data-i18n="machineData.profileFirst">Prefer profile</option><option value="controller_first" data-i18n="machineData.controllerFirst">Prefer controller</option></select></label>
+                  <label><span data-i18n="machineData.speedX">X speed</span><input name="speedX" type="number" min="0.000001" step="any"></label><label><span data-i18n="machineData.speedY">Y speed</span><input name="speedY" type="number" min="0.000001" step="any"></label><label><span data-i18n="machineData.speedZ">Z speed</span><input name="speedZ" type="number" min="0.000001" step="any"></label>
+                </fieldset>
+                <fieldset><legend data-i18n="machineData.powerLimits">Spindle / laser metadata</legend>
+                  <label><span data-i18n="machineData.priorityPower">Process limits source priority</span><select data-source-priority="power"><option value="profile_first" data-i18n="machineData.profileFirst">Prefer profile</option><option value="controller_first" data-i18n="machineData.controllerFirst">Prefer controller</option></select></label>
+                  <label><span data-i18n="machineData.powerKind">Process type</span><select name="powerKind"><option value="spindle" data-i18n="machineData.spindle">Spindle</option><option value="laser" data-i18n="machineData.laserPower">Laser power</option></select></label>
+                  <label><span data-i18n="machineData.minimum">Minimum</span><input name="powerMin" type="number" min="0" step="any"></label><label><span data-i18n="machineData.maximum">Maximum</span><input name="powerMax" type="number" min="0" step="any"></label>
+                </fieldset>
+                <label><span data-i18n="machineData.toolReference">Associated local tool</span><select name="toolReference"><option value="" data-i18n="machineData.noTool">No tool associated</option></select></label>
+              </fieldset>
+              <fieldset class="machine-data-group" data-tool-fields>
+                <legend data-i18n="machineData.toolFields">Tool metadata</legend>
+                <label><span data-i18n="machineData.toolNumber">Tool number</span><input name="toolNumber" type="number" min="1" max="999999" required></label>
+                <label><span data-i18n="machineData.toolType">Tool type</span><select name="toolTypeId" required></select></label>
+                <label><span data-i18n="machineData.diameter">Diameter</span><input name="diameter" type="number" min="0" step="any"></label>
+                <label><span data-i18n="machineData.toolLength">Length</span><input name="length" type="number" min="0" step="any"></label>
+                <label><span data-i18n="machineData.material">Material / note</span><input name="material" maxlength="120"></label>
+                <label><span data-i18n="machineData.recommendedRpm">Recommended RPM</span><input name="rpm" type="number" min="0" step="any"></label>
+                <label><span data-i18n="machineData.recommendedFeed">Recommended feed</span><input name="feed" type="number" min="0" step="any"></label>
+                <label><span data-i18n="machineData.photoReference">Photo reference (text only)</span><input name="photo" maxlength="2048"></label>
+              </fieldset>
+              <button type="submit" data-i18n="machineData.save">Save local record</button>
+            </form>
+            <section class="machine-data-snapshot" aria-labelledby="machine-data-snapshot-title">
+              <h3 id="machine-data-snapshot-title" data-i18n="machineData.snapshot">Read-only source / resolved snapshot</h3>
+              <p data-i18n="machineData.snapshotHelp">Controller values are cached observations; profile values remain advisory. This view never configures or commands the controller.</p>
+              <div id="machine-data-snapshot" aria-live="polite"></div>
+            </section>
+            <p id="machine-data-status" role="status" aria-live="polite"></p>
+          </div>
+          <section id="machine-data-help-view" class="machine-data-help" hidden aria-labelledby="machine-data-help-title">
+            <header class="machine-data-heading"><h3 id="machine-data-help-title" data-i18n="machineData.helpTitle">Profiles and tools: guidance</h3><button id="machine-data-help-close" type="button" data-i18n="machineData.helpBack">Back to manager</button></header>
+            <p data-i18n="machineData.helpIntro">Profiles and tools are local user-authored records used for preflight and operator reference only.</p>
+            <ul><li data-i18n="machineData.helpUnknown">Leave unknown travel or speed fields blank; unknown is not a safety limit.</li><li data-i18n="machineData.helpSelection">The active profile is persisted for preflight. Selecting it does not identify a physical machine or configure controller settings.</li><li data-i18n="machineData.helpTools">Tool references link records by local id; no tool-change or spindle command is sent.</li><li data-i18n="machineData.helpImports">JSON import/export preserves metadata. Photo references are text only; geometry/model upload is not part of this feature.</li></ul>
+          </section>
+        </section>
+      </section>
+    </dialog>
+
+    <dialog class="profile-selector-dialog" id="profile-selector-dialog" aria-labelledby="profile-selector-title">
+      <section class="profile-selector-content">
+        <header class="machine-data-heading">
+          <h2 id="profile-selector-title" data-i18n="machineData.chooseProfile">Choose working profile</h2>
+          <button id="profile-selector-close" type="button" data-i18n="common.close">Close</button>
+        </header>
+        <p class="machine-data-warning" data-i18n="machineData.activeProfileWarning">Selection is local preflight metadata; controller settings are not changed.</p>
+        <div id="profile-selector-list" class="machine-data-list" aria-live="polite"></div>
+      </section>
+    </dialog>

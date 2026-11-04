@@ -1,0 +1,359 @@
+    <main class="app-main">
+      <aside class="left-column" data-i18n-aria-label="html.aria.machineControl" aria-label="Machine control">
+        <section class="panel">
+          <div class="panel-heading position-panel-heading">
+            <span class="panel-title" data-i18n="html.panel.position">POSITION</span>
+            <div class="section-heading">
+              <button class="position-mode-toggle active" id="wpos-toggle" type="button" data-i18n-title="html.position.wposTitle" title="Show work coordinates" aria-pressed="true"><span class="position-toggle-full">WPOS</span><span class="position-toggle-short" aria-hidden="true">W</span></button>
+              <button class="position-mode-toggle" id="mpos-toggle" type="button" data-i18n-title="html.position.mposTitle" title="Show machine coordinates" aria-pressed="false"><span class="position-toggle-full">MPOS</span><span class="position-toggle-short" aria-hidden="true">M</span></button>
+              <select id="coordinate-system" class="coordinate-select" data-i18n-title="html.position.coordinateSystemTitle" data-i18n-aria-label="html.position.coordinateSystem" title="Pick the coordinate system (G54–G59) used for zeroing and work offsets" aria-label="Coordinate system">
+              <option value="g54">G54</option>
+              <option value="g55">G55</option>
+              <option value="g56">G56</option>
+              <option value="g57">G57</option>
+              <option value="g58">G58</option>
+              <option value="g59">G59</option>
+              <option value="g59_1">G59.1</option>
+              <option value="g59_2">G59.2</option>
+              <option value="g59_3">G59.3</option>
+              </select>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="position-axes">
+              <div id="axis-rows"></div>
+            </div>
+            <div class="position-actions" data-i18n-compact-group>
+              <button id="zero-all" type="button" data-i18n-title="html.position.zeroAllTitle" title="Set the work zero of all axes in the selected coordinate system">
+                <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7">
+                  <circle cx="10" cy="10" r="7"></circle>
+                  <circle cx="10" cy="10" r="1.6" fill="currentColor" stroke="none"></circle>
+                </svg>
+                <span data-i18n="html.position.zeroAll" data-i18n-compact="html.position.zeroAllShort">Zero all</span>
+              </button>
+              <button id="home-all" type="button" data-i18n-title="html.position.homeAllTitle" title="Home all axes">
+                <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2.5 9.2 10 3l7.5 6.2"></path>
+                  <path d="M4.5 8v8.5h11V8M8 16.5v-5h4v5"></path>
+                </svg>
+                <span data-i18n="html.position.homeAll" data-i18n-compact="html.position.homeAllShort">Home all</span>
+              </button>
+            </div>
+            <!-- Telemetry strip (task: show motion speeds with the current
+                 mode and spindle RPM below the Zero all / Home all buttons).
+                 Values are refreshed by status-panel.js on every poll; the
+                 whole row stays hidden until the first status arrives. -->
+            <div class="position-telemetry" id="position-telemetry" hidden>
+              <span class="telemetry-cell" id="telemetry-feed-cell">
+                <span class="telemetry-caption" data-i18n="html.position.telemetryFeed">Feed</span>
+                <span class="telemetry-value" id="telemetry-feed">—</span>
+                <span class="telemetry-value motion-mode" id="telemetry-mode">—</span>
+              </span>
+              <span class="telemetry-cell" id="telemetry-spindle-cell">
+                <span class="telemetry-caption" id="telemetry-spindle-caption" data-i18n="html.position.telemetrySpindle">Spindle</span>
+                <span class="telemetry-value" id="telemetry-spindle">—</span>
+              </span>
+              <!-- Coolant lamps (task: coolant indication): mist M7 / flood M8,
+                   lit while the corresponding telemetry bit is set. -->
+              <span class="telemetry-coolant" id="telemetry-coolant">
+                <span class="coolant-lamp mist" id="coolant-mist" data-i18n-title="html.position.coolantMistTitle" title="Mist coolant (M7/M9)" data-i18n-aria-label="html.position.coolantMist" aria-label="Mist coolant">
+                  <span class="coolant-dot" aria-hidden="true"></span>
+                  <span data-i18n="html.position.coolantMistShort">Mist</span>
+                </span>
+                <span class="coolant-lamp flood" id="coolant-flood" data-i18n-title="html.position.coolantFloodTitle" title="Flood coolant (M8/M9)" data-i18n-aria-label="html.position.coolantFlood" aria-label="Flood coolant">
+                  <span class="coolant-dot" aria-hidden="true"></span>
+                  <span data-i18n="html.position.coolantFloodShort">Flood</span>
+                </span>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <div class="row-splitter" data-row-splitter="left" role="separator" tabindex="0" aria-orientation="horizontal" data-i18n-aria-label="html.layout.resizeLeftRight" aria-label="Resize position and jog panels" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
+        <section class="panel jog-panel">
+          <div class="panel-heading">
+            <span class="panel-title" data-i18n="html.panel.jog">JOG</span>
+            <div class="jog-mode-switch" role="group" data-i18n-aria-label="html.jog.controlType" aria-label="Control type">
+              <button class="jog-mode-button active" id="jog-dial-mode" type="button" data-i18n-title="html.jog.dial" data-i18n-aria-label="html.jog.dial" title="Dial control" aria-label="Dial control" aria-pressed="true">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <path d="M12 3v4M21 12h-4M12 21v-4M3 12h4"></path>
+                </svg>
+              </button>
+              <button class="jog-mode-button" id="jog-keys-mode" type="button" data-i18n-title="html.jog.buttons" data-i18n-aria-label="html.jog.buttons" title="Button control" aria-label="Button control" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                  <path d="M6 9h1m3 0h1m3 0h1m3 0h1M7 12h1m3 0h1m3 0h1m-9 3h10"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="jog-mode-switch" role="group" data-i18n-aria-label="html.jog.movementMode" aria-label="Movement mode">
+              <button class="jog-mode-button active" id="jog-incremental-mode" type="button" data-i18n-title="html.jog.incremental" data-i18n-aria-label="html.jog.incremental" title="Incremental movement" aria-label="Incremental movement" aria-pressed="true">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 12h12m-4-4 4 4-4 4"></path>
+                  <circle cx="19" cy="12" r="2"></circle>
+                </svg>
+              </button>
+              <button class="jog-mode-button" id="jog-continuous-mode" type="button" data-i18n-title="html.jog.continuousTitle" data-i18n-aria-label="html.jog.continuous" title="Continuous movement while the button is held" aria-label="Continuous movement" aria-pressed="false">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 7v5h-5M4 17v-5h5"></path>
+                  <path d="M5.6 9A7 7 0 0 1 18 6l2 6M4 12l2 6a7 7 0 0 0 12.4-3"></path>
+                </svg>
+              </button>
+            </div>
+              <button class="jog-step-custom-button" id="jog-speed-open" type="button" data-i18n-title="html.jog.speedSettingsTitle" title="JOG speed settings" data-i18n-aria-label="html.jog.speedSettingsAria" aria-label="Configure JOG speeds">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path>
+                  <circle cx="16" cy="7" r="2"></circle>
+                  <circle cx="8" cy="17" r="2"></circle>
+                </svg>
+              </button>
+          </div>
+          <div class="panel-body">
+            <div id="jog-keys-panel" hidden>
+            <div class="jog-step-row">
+              <div>
+                <label for="distance" data-i18n="html.jog.xyStep">XY STEP</label>
+                <select id="distance" class="step-select" data-i18n-title="html.jog.xyStepTitle" title="Select the jog step size for the XY axes, mm">
+                  <option value="0.1">0.1 mm</option>
+                  <option value="1" selected>1 mm</option>
+                  <option value="10">10 mm</option>
+                  <option value="100">100 mm</option>
+                </select>
+              </div>
+              <div>
+                <label for="distance-z" data-i18n="html.jog.zStep">Z STEP</label>
+                <select id="distance-z" class="step-select" data-i18n-title="html.jog.zStepTitle" title="Select the jog step size for the Z axis, mm">
+                  <option value="0.1">0.1 mm</option>
+                  <option value="1" selected>1 mm</option>
+                  <option value="10">10 mm</option>
+                  <option value="100">100 mm</option>
+                </select>
+              </div>
+              <!-- Step selects for the rotary axes (task: the keypad JOG must
+                   offer A–C buttons and step lists when those axes exist).
+                   Individual blocks are shown/hidden by jog-rotary-columns.js
+                   from the machine configuration, exactly like the dial
+                   rotary columns; captions and tooltips are localized there
+                   too because the axis letter is a runtime parameter. -->
+              <div class="jog-rotary-step-selects" id="jog-rotary-step-selects" hidden>
+                <div class="jog-rotary-step-select" data-rotary-step-select="A" hidden>
+                  <label for="distance-a">A STEP</label>
+                  <select id="distance-a" class="step-select">
+                    <option value="0.1">0.1°</option>
+                    <option value="1" selected>1°</option>
+                    <option value="5">5°</option>
+                    <option value="10">10°</option>
+                    <option value="45">45°</option>
+                    <option value="90">90°</option>
+                  </select>
+                </div>
+                <div class="jog-rotary-step-select" data-rotary-step-select="B" hidden>
+                  <label for="distance-b">B STEP</label>
+                  <select id="distance-b" class="step-select">
+                    <option value="0.1">0.1°</option>
+                    <option value="1" selected>1°</option>
+                    <option value="5">5°</option>
+                    <option value="10">10°</option>
+                    <option value="45">45°</option>
+                    <option value="90">90°</option>
+                  </select>
+                </div>
+                <div class="jog-rotary-step-select" data-rotary-step-select="C" hidden>
+                  <label for="distance-c">C STEP</label>
+                  <select id="distance-c" class="step-select">
+                    <option value="0.1">0.1°</option>
+                    <option value="1" selected>1°</option>
+                    <option value="5">5°</option>
+                    <option value="10">10°</option>
+                    <option value="45">45°</option>
+                    <option value="90">90°</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="jog-keys-layout">
+              <div class="jog-grid" data-i18n-aria-label="html.jog.incrementalXY" aria-label="Incremental XY axis movement">
+                <button class="jog-button xy" data-x-direction="-1" data-y-direction="1" data-i18n-aria-label="html.jog.keyXMinusYPlus.aria" data-i18n-title="html.jog.keyXMinusYPlus.title" aria-label="Move X minus and Y plus" title="Diagonal jog: X− / Y+">X−Y+</button>
+                <button class="jog-button xy" data-axis="Y" data-direction="1" data-i18n-aria-label="html.jog.keyYPlus.aria" data-i18n-title="html.jog.keyYPlus.title" aria-label="Move Y plus" title="Move the Y axis in the positive direction">Y+</button>
+                <button class="jog-button xy" data-x-direction="1" data-y-direction="1" data-i18n-aria-label="html.jog.keyXPlusYPlus.aria" data-i18n-title="html.jog.keyXPlusYPlus.title" aria-label="Move X plus and Y plus" title="Diagonal jog: X+ / Y+">X+Y+</button>
+
+                <button class="jog-button x" data-axis="X" data-direction="-1" data-i18n-aria-label="html.jog.keyXMinus.aria" data-i18n-title="html.jog.keyXMinus.title" aria-label="Move X minus" title="Move the X axis in the negative direction">X−</button>
+                <button class="jog-button jog-stop-key" type="button" data-jog-stop data-i18n-title="html.jog.stop" data-i18n-aria-label="html.jog.stop" title="Stop jog movement" aria-label="Stop jog movement">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                  </svg>
+                </button>
+                <button class="jog-button x" data-axis="X" data-direction="1" data-i18n-aria-label="html.jog.keyXPlus.aria" data-i18n-title="html.jog.keyXPlus.title" aria-label="Move X plus" title="Move the X axis in the positive direction">X+</button>
+
+                <button class="jog-button xy" data-x-direction="-1" data-y-direction="-1" data-i18n-aria-label="html.jog.keyXMinusYMinus.aria" data-i18n-title="html.jog.keyXMinusYMinus.title" aria-label="Move X minus and Y minus" title="Diagonal jog: X− / Y−">X−Y−</button>
+                <button class="jog-button xy" data-axis="Y" data-direction="-1" data-i18n-aria-label="html.jog.keyYMinus.aria" data-i18n-title="html.jog.keyYMinus.title" aria-label="Move Y minus" title="Move the Y axis in the negative direction">Y−</button>
+                <button class="jog-button xy" data-x-direction="1" data-y-direction="-1" data-i18n-aria-label="html.jog.keyXPlusYMinus.aria" data-i18n-title="html.jog.keyXPlusYMinus.title" aria-label="Move X plus and Y minus" title="Diagonal jog: X+ / Y−">X+Y−</button>
+              </div>
+              <div class="jog-keys-z" data-i18n-aria-label="html.jog.zAxisMovement" aria-label="Z axis movement">
+                <button class="jog-button z" data-axis="Z" data-direction="1" data-i18n-aria-label="html.jog.keyZPlus.aria" data-i18n-title="html.jog.keyZPlus.title" aria-label="Move Z plus" title="Move the Z axis in the positive direction">Z+</button>
+                <button class="jog-button z" data-axis="Z" data-direction="-1" data-i18n-aria-label="html.jog.keyZMinus.aria" data-i18n-title="html.jog.keyZMinus.title" aria-label="Move Z minus" title="Move the Z axis in the negative direction">Z−</button>
+              </div>
+              <!-- Rotary keypad columns (task): plain +/− buttons for A–C; the
+                       step comes from the selects above. Visibility follows the
+                       machine configuration exactly like the dial rotary
+                       columns. -->
+              <div class="jog-keys-rotary" id="jog-keys-rotary" hidden>
+                <div class="jog-keys-rotary-col" data-rotary-key="A" hidden>
+                  <button class="jog-button rotary" data-axis="A" data-direction="1">A+</button>
+                  <button class="jog-button rotary" data-axis="A" data-direction="-1">A−</button>
+                </div>
+                <div class="jog-keys-rotary-col" data-rotary-key="B" hidden>
+                  <button class="jog-button rotary" data-axis="B" data-direction="1">B+</button>
+                  <button class="jog-button rotary" data-axis="B" data-direction="-1">B−</button>
+                </div>
+                <div class="jog-keys-rotary-col" data-rotary-key="C" hidden>
+                  <button class="jog-button rotary" data-axis="C" data-direction="1">C+</button>
+                  <button class="jog-button rotary" data-axis="C" data-direction="-1">C−</button>
+                </div>
+              </div>
+            </div>
+
+            </div>
+            <div id="jog-dial-panel">
+              <div class="jog-dial-layout">
+                <div class="jog-dial-control">
+                  <canvas class="jog-dial-canvas" id="jog-dial" tabindex="0" role="img" data-i18n-aria-label="html.jog.dialAria" data-i18n-title="html.jog.dialTitle" aria-label="XY jog dial: pick a sector for the direction; in incremental mode the rings set the step, in continuous mode hold the button and move the pointer" title="XY jog: the rings set the step; click a sector to move"></canvas>
+                  <button class="jog-stop-button jog-dial-stop" type="button" data-jog-stop data-i18n-title="html.jog.stop" data-i18n-aria-label="html.jog.stop" title="Stop jog movement" aria-label="Stop jog movement">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                    </svg>
+                  </button>
+                </div>
+                <div class="jog-dial-z jog-dial-z-steps" id="jog-dial-z-steps" data-i18n-aria-label="html.jog.incrementalZ" aria-label="Incremental Z axis movement">
+                  <span class="jog-dial-z-label" aria-hidden="true">Z</span>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="100" data-i18n-aria-label="html.jog.zPlus100.aria" data-i18n-title="html.jog.zPlus100.title" aria-label="Move Z plus 100 millimeters" title="Move Z up 100 mm">100</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="10" data-i18n-aria-label="html.jog.zPlus10.aria" data-i18n-title="html.jog.zPlus10.title" aria-label="Move Z plus 10 millimeters" title="Move Z up 10 mm">10</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="1" data-i18n-aria-label="html.jog.zPlus1.aria" data-i18n-title="html.jog.zPlus1.title" aria-label="Move Z plus 1 millimeter" title="Move Z up 1 mm">1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="1" data-distance="0.1" data-i18n-aria-label="html.jog.zPlus01.aria" data-i18n-title="html.jog.zPlus01.title" aria-label="Move Z plus 0.1 millimeters" title="Move Z up 0.1 mm">0.1</button>
+                  <span class="jog-dial-gap" aria-hidden="true"></span>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="0.1" data-i18n-aria-label="html.jog.zMinus01.aria" data-i18n-title="html.jog.zMinus01.title" aria-label="Move Z minus 0.1 millimeters" title="Move Z down 0.1 mm">−0.1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="1" data-i18n-aria-label="html.jog.zMinus1.aria" data-i18n-title="html.jog.zMinus1.title" aria-label="Move Z minus 1 millimeter" title="Move Z down 1 mm">−1</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="10" data-i18n-aria-label="html.jog.zMinus10.aria" data-i18n-title="html.jog.zMinus10.title" aria-label="Move Z minus 10 millimeters" title="Move Z down 10 mm">−10</button>
+                  <button type="button" data-dial-axis="Z" data-direction="-1" data-distance="100" data-i18n-aria-label="html.jog.zMinus100.aria" data-i18n-title="html.jog.zMinus100.title" aria-label="Move Z minus 100 millimeters" title="Move Z down 100 mm">−100</button>
+                </div>
+                <div class="jog-dial-z jog-dial-z-continuous" id="jog-dial-z-continuous" data-i18n-aria-label="html.jog.continuousZ" aria-label="Continuous Z axis movement" hidden>
+                  <span class="jog-dial-z-label" aria-hidden="true">Z</span>
+                  <button type="button" data-dial-continuous-axis="Z" data-direction="1" data-i18n-aria-label="html.jog.zUpHoldAria" data-i18n-title="html.jog.zUpHoldTitle" aria-label="Continuously move Z up while the button is held" title="Hold to move Z up continuously">▲</button>
+                  <button type="button" data-dial-continuous-axis="Z" data-direction="-1" data-i18n-aria-label="html.jog.zDownHoldAria" data-i18n-title="html.jog.zDownHoldTitle" aria-label="Continuously move Z down while the button is held" title="Hold to move Z down continuously">▼</button>
+                </div>
+                <div class="jog-rotary-columns" id="jog-rotary-columns" hidden>
+                  <div class="jog-rotary-col" data-rotary-column="A" hidden>
+                    <!-- Plain text header, exactly like the Z column label: the
+                         unit comes from the machine configuration (angular axes
+                         show °, linear axes mm) and is not user-toggleable. -->
+                    <span class="jog-rotary-head" aria-hidden="true">A · °</span>
+                    <!-- The per-axis ARIA label for rotary columns is set by jog-rotary-columns.js with t("html.jog.rotary.stepsAria"). -->
+                    <div class="jog-rotary-steps" data-rotary-steps="A" aria-label="Incremental axis A movement">
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="100" aria-label="Move A plus 100" title="Move A plus 100">+100</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="10" aria-label="Move A plus 10" title="Move A plus 10">+10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="1" aria-label="Move A plus 1" title="Move A plus 1">+1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="1" data-distance="0.1" aria-label="Move A plus 0.1" title="Move A plus 0.1">+0.1</button>
+                      <span class="jog-dial-gap" aria-hidden="true"></span>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="0.1" aria-label="Move A minus 0.1" title="Move A minus 0.1">−0.1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="1" aria-label="Move A minus 1" title="Move A minus 1">−1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="10" aria-label="Move A minus 10" title="Move A minus 10">−10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="A" data-direction="-1" data-distance="100" aria-label="Move A minus 100" title="Move A minus 100">−100</button>
+                    </div>
+                    <div class="jog-rotary-continuous" data-rotary-continuous="A" hidden>
+                      <button type="button" data-dial-continuous-axis="A" data-direction="1" aria-label="Continuously move A plus while held" title="Hold to move A plus">▲</button>
+                      <button type="button" data-dial-continuous-axis="A" data-direction="-1" aria-label="Continuously move A minus while held" title="Hold to move A minus">▼</button>
+                    </div>
+                  </div>
+                  <div class="jog-rotary-col" data-rotary-column="B" hidden>
+                    <!-- Plain text header (see axis A column above). -->
+                    <span class="jog-rotary-head" aria-hidden="true">B · °</span>
+                    <div class="jog-rotary-steps" data-rotary-steps="B" aria-label="Incremental axis B movement">
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="100" aria-label="Move B plus 100" title="Move B plus 100">+100</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="10" aria-label="Move B plus 10" title="Move B plus 10">+10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="1" aria-label="Move B plus 1" title="Move B plus 1">+1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="1" data-distance="0.1" aria-label="Move B plus 0.1" title="Move B plus 0.1">+0.1</button>
+                      <span class="jog-dial-gap" aria-hidden="true"></span>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="0.1" aria-label="Move B minus 0.1" title="Move B minus 0.1">−0.1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="1" aria-label="Move B minus 1" title="Move B minus 1">−1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="10" aria-label="Move B minus 10" title="Move B minus 10">−10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="B" data-direction="-1" data-distance="100" aria-label="Move B minus 100" title="Move B minus 100">−100</button>
+                    </div>
+                    <div class="jog-rotary-continuous" data-rotary-continuous="B" hidden>
+                      <button type="button" data-dial-continuous-axis="B" data-direction="1" aria-label="Continuously move B plus while held" title="Hold to move B plus">▲</button>
+                      <button type="button" data-dial-continuous-axis="B" data-direction="-1" aria-label="Continuously move B minus while held" title="Hold to move B minus">▼</button>
+                    </div>
+                  </div>
+                  <div class="jog-rotary-col" data-rotary-column="C" hidden>
+                    <!-- Plain text header (see axis A column above). -->
+                    <span class="jog-rotary-head" aria-hidden="true">C · °</span>
+                    <div class="jog-rotary-steps" data-rotary-steps="C" aria-label="Incremental axis C movement">
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="100" aria-label="Move C plus 100" title="Move C plus 100">+100</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="10" aria-label="Move C plus 10" title="Move C plus 10">+10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="1" aria-label="Move C plus 1" title="Move C plus 1">+1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="1" data-distance="0.1" aria-label="Move C plus 0.1" title="Move C plus 0.1">+0.1</button>
+                      <span class="jog-dial-gap" aria-hidden="true"></span>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="0.1" aria-label="Move C minus 0.1" title="Move C minus 0.1">−0.1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="1" aria-label="Move C minus 1" title="Move C minus 1">−1</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="10" aria-label="Move C minus 10" title="Move C minus 10">−10</button>
+                      <button type="button" class="jog-rotary-step" data-axis="C" data-direction="-1" data-distance="100" aria-label="Move C minus 100" title="Move C minus 100">−100</button>
+                    </div>
+                    <div class="jog-rotary-continuous" data-rotary-continuous="C" hidden>
+                      <button type="button" data-dial-continuous-axis="C" data-direction="1" aria-label="Continuously move C plus while held" title="Hold to move C plus">▲</button>
+                      <button type="button" data-dial-continuous-axis="C" data-direction="-1" aria-label="Continuously move C minus while held" title="Hold to move C minus">▼</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+        <!-- Per-axis JOG feed-rate controls (task: between the dial and the
+             spindle speed settings add XY/Z/A/B/C speed pickers with presets
+             generated by the spindle algorithm and an edit option). The row is
+             filled and its visibility driven by web/js/jog-axis-speeds.js from
+             the machine configuration. -->
+        <div class="jog-axis-speeds" id="jog-axis-speeds" role="group"
+             data-i18n-aria-label="html.jog.axisSpeedsAria" aria-label="Jog feed rates per axis group"></div>
+        <!-- Shared output panel; laser-only controls remain hidden for standard spindle profiles. -->
+        <section class="spindle-control" id="spindle-control">
+            <span class="laser-mode-indicator" id="laser-mode-indicator" data-i18n-title="html.spindle.dynamicPower" data-i18n-aria-label="html.spindle.dynamicPower" aria-label="Dynamic laser power mode" title="Dynamic laser power mode" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h4l3-10 4 12 3-8h4"/></svg>
+            </span>
+            <div class="spindle-speed-control" id="spindle-speed-control">
+              <label for="spindle-speed-slider" id="spindle-value-label" data-i18n="html.spindle.rpm">RPM</label>
+              <input id="spindle-speed-slider" type="range" min="0" max="24000" step="100" value="0" data-i18n-title="html.spindle.sliderTitle" data-i18n-aria-label="html.spindle.slider" title="Drag to set the spindle speed in RPM" aria-label="Spindle speed slider">
+              <div class="spindle-speed-picker">
+                <button class="spindle-step-button" id="spindle-step" type="button" data-i18n-title="html.spindle.presetTitle" data-i18n-aria-label="html.spindle.presetAria" title="Pick a preset spindle speed" aria-label="Set spindle speed; open preset list" aria-haspopup="listbox" aria-expanded="false">0</button>
+                <div class="spindle-speed-options" id="spindle-speed-options" role="group" data-i18n-aria-label="spindle.speedLabel" aria-label="Spindle speed" hidden>
+                  <div class="spindle-speed-presets" id="spindle-speed-presets" role="listbox" data-i18n-aria-label="html.spindle.presets" aria-label="Preset spindle speeds"></div>
+                  <label class="spindle-manual-speed-label" for="spindle-manual-speed" id="spindle-manual-speed-label" data-i18n="html.spindle.customSpeed">Custom speed, RPM</label>
+                  <div class="spindle-manual-speed-control">
+                    <input id="spindle-manual-speed" type="number" min="0" step="any" inputmode="decimal" data-i18n-title="html.spindle.manualTitle" data-i18n-aria-label="html.spindle.manualAria" title="Enter the spindle speed manually, RPM" aria-label="Enter spindle speed manually">
+                    <button id="spindle-manual-speed-apply" type="button" data-i18n="common.apply" data-i18n-title="html.spindle.manualApplyTitle" title="Apply the entered spindle speed">Apply</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="spindle-actions">
+              <button class="spindle-direction-button" id="spindle-cw" type="button" data-i18n-aria-label="spindle.startClockwise" data-i18n-title="spindle.startClockwise" aria-label="Start spindle clockwise" title="Start spindle clockwise">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 11a8 8 0 0 0-14.8-4L4 9"></path>
+                  <path d="M4 4v5h5"></path>
+                </svg>
+              </button>
+              <button class="spindle-direction-button laser-toggle-button" id="laser-toggle" type="button" data-i18n-title="spindle.laserToggle" data-i18n-aria-label="spindle.laserToggle" aria-label="Toggle laser" title="Toggle laser" hidden>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 4 7 8-7 8V4Z"/><path d="M5 4v16M3 4h4M3 20h4"/></svg>
+              </button>
+              <button class="spindle-direction-button" id="spindle-ccw" type="button" data-i18n-aria-label="spindle.startCounterClockwise" data-i18n-title="spindle.startCounterClockwise" aria-label="Start spindle counterclockwise" title="Start spindle counterclockwise">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 11a8 8 0 0 1 14.8-4L20 9"></path>
+                  <path d="M20 4v5h-5"></path>
+                </svg>
+              </button>
+            </div>
+        </section>
+          </div>
+        </section>
+
+      </aside>

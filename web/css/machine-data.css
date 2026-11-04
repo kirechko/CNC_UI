@@ -1,0 +1,91 @@
+.recovery-notice {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  padding: 0.8rem 1rem;
+  color: var(--text);
+  background: var(--warning-surface, #fff0c2);
+  border: 2px solid var(--warning, #a66a00);
+  font-weight: 700;
+}
+
+.machine-data-content { display: grid; gap: 14px; padding: 4px 0; color: var(--text-primary); }
+.ui-settings-dialog:has(#settings-machine-data-panel:not([hidden])) { width: min(920px, calc(100vw - 32px)); max-height: min(92vh, 1000px); overflow: auto; }
+.ui-settings-dialog:has(#settings-machine-data-panel:not([hidden])) .ui-settings-content { min-width: 0; }
+.machine-data-content[hidden], .machine-data-help[hidden] { display: none !important; }
+.machine-data-content > div, .machine-data-help { min-width: 0; }
+.machine-data-group { display: contents; }
+.machine-data-form > .machine-data-group > legend { grid-column: 1 / -1; color: var(--text-primary); font-weight: 700; }
+.machine-data-priority-control { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(160px, 1fr) minmax(150px, 0.8fr); align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-chip); }
+.machine-data-priority-control[data-effective-source="profile"] { border-left: 3px solid var(--accent-border); }
+.machine-data-priority-control[data-effective-source="controller"] { border-left: 3px solid var(--status-good, #438b66); }
+.profile-selector-actions { display: flex; align-items: center; gap: 8px; }
+.profile-selector-actions > span { flex: 1; font-weight: 700; }
+.profile-selector-actions button { display: grid; width: 34px; height: 34px; place-items: center; padding: 6px; }
+.profile-selector-actions svg { width: 20px; height: 20px; }
+.active-profile-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 6px; }
+.profile-field-value { padding: 7px 9px; border-radius: 5px; color: var(--text-primary); font-size: 11px; }
+.profile-field-value.source-profile { background: color-mix(in srgb, #e4b84b 23%, var(--bg-inset)); border-left: 3px solid #d2a12b; }
+.profile-field-value.source-controller { background: color-mix(in srgb, #55ad76 23%, var(--bg-inset)); border-left: 3px solid #479463; }
+.profile-field-value.source-unknown { background: var(--bg-inset); border-left: 3px solid var(--border); }
+.active-profile-details[data-empty="true"]:empty::after { content: "No profile selected; showing controller-reported values where available."; color: var(--text-secondary); font-size: 11px; }
+.machine-data-priority-control[data-effective-source="unknown"] { border-left: 3px solid var(--muted); }
+.machine-data-source-value { border-radius: 3px; }
+.machine-data-source-value.source-profile { color: var(--accent-text); }
+.machine-data-source-value.source-controller { color: var(--status-good, #438b66); }
+.machine-data-source-value.source-unknown { color: var(--muted); }
+.machine-data-form > .machine-data-group > fieldset { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; grid-column: 1 / -1; padding: 8px; }
+.machine-data-form > .machine-data-group > fieldset > legend { padding: 0 4px; color: var(--text-secondary); }
+.machine-data-form > .machine-data-group > fieldset > label { min-width: 0; }
+.machine-data-snapshot { display: grid; gap: 6px; min-width: 0; }
+.machine-data-snapshot h3, .machine-data-help h3 { margin: 0; font-size: 13px; }
+.machine-data-snapshot > p, .machine-data-help p, .machine-data-help li { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.machine-data-snapshot-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.machine-data-snapshot-table th, .machine-data-snapshot-table td { padding: 5px; border: 1px solid var(--border); text-align: left; }
+.machine-data-snapshot-table th { background: var(--bg-chip); }
+.machine-data-conflict { margin: 0; padding: 6px; border-left: 3px solid var(--warning, #a66a00); background: var(--warning-surface, #fff0c2); }
+.machine-data-help ul { display: grid; gap: 8px; padding-left: 20px; }
+.machine-data-heading, .machine-data-toolbar, .machine-data-row { display: flex; align-items: center; gap: 8px; }
+.profile-selector-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-inset); }
+.profile-selector-dialog { width: min(520px, calc(100vw - 32px)); max-height: min(85vh, 700px); overflow: auto; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); box-shadow: 0 20px 60px rgb(0 0 0 / 50%); }
+.profile-selector-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.profile-selector-content { display: grid; gap: 12px; padding: 16px; }
+.machine-data-heading { justify-content: space-between; }
+.machine-data-heading h2 { margin: 0; font-size: 16px; }
+.machine-data-warning { margin: 0; padding: 10px; border-left: 3px solid var(--accent-border); border-radius: 4px; background: var(--bg-chip); color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.machine-data-list { display: grid; gap: 6px; max-height: 180px; overflow: auto; }
+.machine-data-row { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-inset); font-size: 12px; }
+.machine-data-row span { flex: 1; min-width: 0; }
+.machine-data-row button, .machine-data-toolbar button, .machine-data-form button, .machine-data-import-label { min-height: 30px; padding: 0 9px; font: 11px var(--font-sans); }
+.machine-data-form [data-profile-fields] > label, .machine-data-form [data-tool-fields] > label { display: grid; gap: 4px; min-width: 0; color: var(--text-secondary); font-size: 11px; }
+.machine-data-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
+.machine-data-form label { display: grid; gap: 4px; color: var(--text-secondary); font-size: 11px; }
+.machine-data-form input, .machine-data-form select, .machine-data-toolbar select, .machine-data-content > label select { min-width: 0; min-height: 31px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-inset); color: var(--text-primary); font: 12px var(--font-sans); }
+.machine-data-form fieldset { display: flex; gap: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.machine-data-form fieldset label { flex: 1; min-width: 0; }
+.machine-data-form button[type="submit"] { grid-column: 1 / -1; }
+.machine-data-import-label { display: inline-flex; align-items: center; cursor: pointer; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); }
+.tool-type-manager { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-inset); }
+.tool-type-manager[hidden] { display: none; }
+.tool-type-manager h3 { margin: 0; font-size: 13px; }
+.tool-type-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; }
+.tool-type-form label { display: grid; gap: 4px; color: var(--text-secondary); font-size: 11px; }
+.tool-type-form input, .tool-type-form select { min-width: 0; min-height: 31px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-inset); color: var(--text-primary); font: 12px var(--font-sans); }
+.tool-type-form button { min-height: 30px; }
+#machine-data-status { min-height: 1.2em; margin: 0; color: var(--muted); font-size: 11px; }
+.shortcut-list { display: grid; gap: .45rem; }
+.shortcut-row { display: flex; justify-content: space-between; align-items: center; gap: .8rem; padding: .45rem; border-bottom: 1px solid var(--border); }
+.shortcut-row button { min-width: 120px; font-family: var(--font-mono); }
+
+@media (max-width: 720px) {
+  .machine-data-toolbar { gap: 6px; }
+  .profile-selector-actions { align-items: stretch; }
+  .profile-selector-actions > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+  .machine-data-priority-control { grid-template-columns: minmax(0, 1fr); }
+  .machine-data-toolbar { flex-wrap: wrap; }
+  .tool-type-form { grid-template-columns: 1fr; }
+  .machine-data-form { grid-template-columns: 1fr; }
+  .machine-data-form > .machine-data-group > fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .machine-data-snapshot { overflow-x: auto; }
+  .machine-data-snapshot-table { min-width: 650px; }
+}

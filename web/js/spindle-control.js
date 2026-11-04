@@ -9,14 +9,16 @@ export function initSpindleControls({ refreshStatus }) {
   const speedSlider = document.querySelector("#spindle-speed-slider");
   const clockwiseButton = document.querySelector("#spindle-cw");
   const counterClockwiseButton = document.querySelector("#spindle-ccw");
+  const laserToggle = document.querySelector("#laser-toggle");
   const stepButton = document.querySelector("#spindle-step");
-  const laserModeControl = document.querySelector("#laser-mode-control");
-  const laserModeSelect = document.querySelector("#laser-mode");
+  const laserModeIndicator = document.querySelector("#laser-mode-indicator");
   const valueLabel = document.querySelector("#spindle-value-label");
   const speedOptions = document.querySelector("#spindle-speed-options");
   const presetsContainer = document.querySelector("#spindle-speed-presets");
   const manualSpeedInput = document.querySelector("#spindle-manual-speed");
   const manualSpeedApply = document.querySelector("#spindle-manual-speed-apply");
+  const panel = document.querySelector("#spindle-control");
+  const machineData = { profile: null, controllerLaser: false };
 
   let direction = "stopped";
   let pendingDirection = null;
@@ -26,12 +28,16 @@ export function initSpindleControls({ refreshStatus }) {
   let maximumRpm = 0;
   let laserMode = false;
   let laserPowerMaximum = 0;
+  let minimumPower = 0;
+  let currentPowerUnit = "";
   let selectedLaserMode = "constant";
 
   function syncSpeed(value) {
+    const outputMinimum = laserMode ? minimumPower : minimumRpm;
+    const outputMaximum = laserMode ? laserPowerMaximum : maximumRpm;
     const rpm = Math.max(
-      minimumRpm,
-      Math.min(maximumRpm, Math.round(Number(value) || minimumRpm)),
+      outputMinimum,
+      Math.min(outputMaximum, Math.round(Number(value) || outputMinimum)),
     );
     speedSlider.value = String(rpm);
     stepButton.textContent = String(rpm);
@@ -40,17 +46,19 @@ export function initSpindleControls({ refreshStatus }) {
   speedSlider.addEventListener("input", () => syncSpeed(speedSlider.value));
 
   function speedPresets() {
-    const rounding = maximumRpm <= 9000 ? 100 : 1000;
-    const values = [minimumRpm];
+    const outputMinimum = laserMode ? minimumPower : minimumRpm;
+    const outputMaximum = laserMode ? laserPowerMaximum : maximumRpm;
+    const rounding = laserMode ? 1 : outputMaximum <= 9000 ? 100 : 1000;
+    const values = [outputMinimum];
 
     for (let index = 1; index <= 4; index++) {
-      const evenlySpaced = minimumRpm + (maximumRpm - minimumRpm) * index / 5;
+      const evenlySpaced = outputMinimum + (outputMaximum - outputMinimum) * index / 5;
       values.push(Math.round(evenlySpaced / rounding) * rounding);
     }
 
-    values.push(maximumRpm);
+    values.push(outputMaximum);
     return [...new Set(values.map((value) =>
-      Math.max(minimumRpm, Math.min(maximumRpm, value)),
+      Math.max(outputMinimum, Math.min(outputMaximum, value)),
     ))].sort((a, b) => a - b);
   }
 
@@ -61,8 +69,10 @@ export function initSpindleControls({ refreshStatus }) {
 
   function openSpeedOptions() {
     presetsContainer.replaceChildren();
-    manualSpeedInput.min = String(minimumRpm);
-    manualSpeedInput.max = String(maximumRpm);
+    const outputMinimum = laserMode ? minimumPower : minimumRpm;
+    const outputMaximum = laserMode ? laserPowerMaximum : maximumRpm;
+    manualSpeedInput.min = String(outputMinimum);
+    manualSpeedInput.max = String(outputMaximum);
     manualSpeedInput.value = speedSlider.value;
     manualSpeedInput.setCustomValidity("");
 
@@ -95,17 +105,19 @@ export function initSpindleControls({ refreshStatus }) {
   function applyManualSpeed() {
     const rawValue = manualSpeedInput.value.trim();
     const rpm = Number(rawValue);
+    const outputMinimum = laserMode ? minimumPower : minimumRpm;
+    const outputMaximum = laserMode ? laserPowerMaximum : maximumRpm;
 
     if (
       !rawValue ||
       !Number.isFinite(rpm) ||
-      rpm < minimumRpm ||
-      rpm > maximumRpm
+      rpm < outputMinimum ||
+      rpm > outputMaximum
     ) {
       manualSpeedInput.setCustomValidity(
         t("spindle.speedRange", {
-          min: minimumRpm.toFixed(0),
-          max: maximumRpm.toFixed(0),
+          min: (laserMode ? minimumPower : minimumRpm).toFixed(0),
+          max: (laserMode ? laserPowerMaximum : maximumRpm).toFixed(0),
         }),
       );
       manualSpeedInput.reportValidity();
@@ -139,28 +151,7 @@ export function initSpindleControls({ refreshStatus }) {
     }
   });
 
-  laserModeSelect.addEventListener("change", async () => {
-    const previousMode = selectedLaserMode;
-    selectedLaserMode = laserModeSelect.value;
-    try {
-      await invokeOrFetch("set_laser_mode", { mode: selectedLaserMode }, "/api/laser/mode", "POST");
-      commandError = null;
-      await refreshStatus();
-    } catch (error) {
-      selectedLaserMode = previousMode;
-      laserModeSelect.value = previousMode;
-      commandError = t("spindle.error", { message: error.message });
-      await refreshStatus();
-    }
-  });
-
   async function commandSpindle(requestedDirection) {
-    if (
-      laserMode &&
-      direction !== "cw" &&
-      !window.confirm(t("spindle.laserSafetyConfirm"))
-    ) return;
-    // In laser mode one button is used for both enable and M5 stop; direction has no meaning.
     const requested = laserMode ? "cw" : requestedDirection.toLowerCase();
     const nextDirection = direction === requested ? "stopped" : requested;
     const enabled = nextDirection !== "stopped";
@@ -179,6 +170,7 @@ export function initSpindleControls({ refreshStatus }) {
           enabled,
           direction: laserMode ? "CW" : requestedDirection,
           mode: laserMode ? selectedLaserMode : undefined,
+          profileId: machineData.profile?.id,
         },
         "/api/spindle",
         "POST",
@@ -194,6 +186,7 @@ export function initSpindleControls({ refreshStatus }) {
 
   clockwiseButton.addEventListener("click", () => commandSpindle("CW"));
   counterClockwiseButton.addEventListener("click", () => commandSpindle("CCW"));
+  laserToggle?.addEventListener("click", () => commandSpindle("CW"));
 
   function updateButtons() {
     const clockwiseActive = direction === "cw";
@@ -207,6 +200,7 @@ export function initSpindleControls({ refreshStatus }) {
 
     clockwiseButton.classList.toggle("active-cw", clockwiseActive);
     counterClockwiseButton.classList.toggle("active-ccw", counterClockwiseActive);
+    laserToggle?.classList.toggle("running", laserMode && clockwiseActive);
     // Do not replace the SVG on every telemetry update: pointerdown/click must
     // stay on the same DOM element, otherwise the browser may cancel the click.
     if (clockwiseButton.dataset.iconState !== clockwiseIconState) {
@@ -222,15 +216,18 @@ export function initSpindleControls({ refreshStatus }) {
 
     // Labels are resolved from the dictionary; the same text is used for
     // the accessible name and the tooltip.
-    const clockwiseLabel = clockwiseActive
-      ? t("spindle.stop")
-      : t("spindle.startClockwise");
+    const clockwiseLabel = laserMode ? t(clockwiseActive ? "spindle.laserStop" : "spindle.laserToggle") : (clockwiseActive ? t("spindle.stop") : t("spindle.startClockwise"));
     const counterClockwiseLabel = counterClockwiseActive
       ? t("spindle.stop")
       : t("spindle.startCounterClockwise");
     clockwiseButton.setAttribute("aria-label", clockwiseLabel);
     counterClockwiseButton.setAttribute("aria-label", counterClockwiseLabel);
     clockwiseButton.title = clockwiseLabel;
+    if (laserToggle) {
+      const laserLabel = laserMode ? t(clockwiseActive ? "spindle.laserStop" : "spindle.laserToggle") : clockwiseLabel;
+      laserToggle.setAttribute("aria-label", laserLabel);
+      laserToggle.title = laserLabel;
+    }
     counterClockwiseButton.title = counterClockwiseLabel;
   }
 
@@ -238,16 +235,33 @@ export function initSpindleControls({ refreshStatus }) {
   function update(status) {
     spindleRunning = Boolean(status.spindle_enabled);
     // This flat capability flag lets the panel degrade to ordinary RPM controls per device.
-    laserMode = Boolean(status.laser_mode_available);
+    machineData.controllerLaser = Boolean(status.laser_mode_available);
+    const profileType = machineData.profile?.machineType;
+    laserMode = profileType === "laser" || (profileType !== "mill" && machineData.controllerLaser);
     const reportedMode = String(status.spindle_mode || "standard");
+    currentPowerUnit = status.configuration?.spindle?.laser?.max_power != null ? "S" : "";
     selectedLaserMode = reportedMode === "laser_dynamic" ? "dynamic" : "constant";
-    laserPowerMaximum = Math.max(0, Number(status.spindle_max_rpm) || 0);
+    laserPowerMaximum = Math.max(0, Number(status.configuration?.spindle?.laser?.max_power ?? status.spindle_max_rpm) || 0);
+    minimumPower = Math.max(0, Number(status.configuration?.spindle?.laser?.min_power ?? 0) || 0);
     minimumRpm = Math.max(0, Number(status.spindle_min_rpm) || 0);
     maximumRpm = Math.max(0, Number(status.spindle_max_rpm) || 0);
-    laserModeControl.hidden = !laserMode;
-    laserModeSelect.value = selectedLaserMode;
+    if (laserModeIndicator) {
+      const dynamic = reportedMode === "laser_dynamic";
+      laserModeIndicator.hidden = !laserMode;
+      laserModeIndicator.classList.toggle("on", dynamic);
+      const hint = t(dynamic ? "html.spindle.dynamicPower" : "html.spindle.constantPower");
+      laserModeIndicator.title = hint;
+      laserModeIndicator.setAttribute("aria-label", hint);
+    }
     // Use power terminology only when this machine's configuration advertises a laser.
-    valueLabel.textContent = laserMode ? t("html.spindle.power") : t("html.spindle.rpm");
+    const profileSelected = Boolean(machineData.profile);
+    const laserOutput = laserMode;
+    const unitsLabel = currentPowerUnit ? ` ${currentPowerUnit}` : "";
+    const powerLabel = `${t("html.spindle.power")}${unitsLabel}`;
+    valueLabel.textContent = laserOutput ? powerLabel : t("html.spindle.rpm");
+    document.querySelector("#spindle-manual-speed-label")?.replaceChildren(document.createTextNode(laserOutput ? t("html.spindle.customPower", { unit: currentPowerUnit }) : t("html.spindle.customSpeed")));
+    stepButton.title = laserOutput ? t("html.spindle.powerPresetTitle", { unit: currentPowerUnit }) : t("html.spindle.presetTitle");
+    laserModeIndicator?.classList.toggle("profile-laser-mode", laserMode && !machineData.controllerLaser);
     manualSpeedInput.setAttribute(
       "aria-label",
       laserMode ? t("html.spindle.power") : t("html.spindle.manualAria"),
@@ -256,14 +270,17 @@ export function initSpindleControls({ refreshStatus }) {
       ? "html.spindle.powerSliderTitle"
       : "html.spindle.sliderTitle";
     speedSlider.max = String(laserMode ? laserPowerMaximum : maximumRpm);
+    speedSlider.min = String(laserMode ? minimumPower : minimumRpm);
+    manualSpeedInput.min = speedSlider.min;
     manualSpeedInput.max = speedSlider.max;
-    laserModeSelect.disabled = spindleRunning;
     clockwiseButton.hidden = laserMode;
     counterClockwiseButton.hidden = laserMode;
-    document.querySelector("#spindle-control").classList.toggle("laser-active", laserMode && spindleRunning);
-    document.querySelector("#spindle-control").classList.toggle("laser-mode", laserMode);
+    if (laserToggle) laserToggle.hidden = !laserMode;
+    panel?.classList.toggle("laser-active", laserMode && spindleRunning);
+    panel?.classList.toggle("laser-mode", laserMode);
+    panel?.classList.toggle("profile-laser-only", profileSelected && machineData.profile?.machineType === "laser");
 
-    speedSlider.min = String(minimumRpm);
+    speedSlider.min = String(laserMode ? minimumPower : minimumRpm);
     speedSlider.max = String(laserMode ? laserPowerMaximum : maximumRpm);
     speedSlider.step = "any";
 
@@ -271,12 +288,14 @@ export function initSpindleControls({ refreshStatus }) {
       ? Number(status.laser_power)
       : Number(status.spindle_commanded_rpm);
     const currentSetpoint = Number(speedSlider.value);
+    const outputMinimum = laserMode ? minimumPower : minimumRpm;
+    const outputMaximum = laserMode ? laserPowerMaximum : maximumRpm;
     const nextSetpoint =
       spindleRunning && Number.isFinite(reportedSetpoint) && reportedSetpoint > 0
         ? reportedSetpoint
-        : Number.isFinite(currentSetpoint) && currentSetpoint >= minimumRpm
-          ? Math.min(currentSetpoint, maximumRpm)
-          : minimumRpm;
+        : Number.isFinite(currentSetpoint) && currentSetpoint >= outputMinimum
+          ? Math.min(currentSetpoint, outputMaximum)
+          : outputMinimum;
     speedSlider.value = String(nextSetpoint);
     stepButton.textContent = String(nextSetpoint);
 
@@ -296,15 +315,47 @@ export function initSpindleControls({ refreshStatus }) {
 
     direction = pendingDirection || (spindleRunning ? reportedDirection : "stopped");
     updateButtons();
+    if (laserToggle) {
+      laserToggle.hidden = !laserMode;
+      const laserLabel = direction === "cw" ? t("spindle.laserStop") : t("spindle.laserToggle");
+      laserToggle.title = laserLabel;
+      laserToggle.setAttribute("aria-label", laserLabel);
+      laserToggle.classList.toggle("running", direction === "cw");
+    }
     speedSlider.disabled =
       !status.connected ||
-      maximumRpm <= 0 ||
+      outputMaximum <= 0 ||
       spindleRunning ||
       direction !== "stopped";
   }
 
   return {
     update,
+    setMachineProfile(profile) {
+      machineData.profile = profile;
+      laserMode = profile?.machineType === "laser" || (profile?.machineType !== "mill" && machineData.controllerLaser);
+      if (laserModeIndicator) laserModeIndicator.hidden = !laserMode;
+      if (profile?.machineType === "laser") {
+        clockwiseButton.hidden = true;
+        if (laserToggle) laserToggle.hidden = false;
+        counterClockwiseButton.hidden = true;
+        valueLabel.textContent = `${t("html.spindle.power")}${currentPowerUnit ? ` ${currentPowerUnit}` : ""}`;
+        document.querySelector("#spindle-manual-speed-label")?.replaceChildren(document.createTextNode(t("html.spindle.customPower", { unit: currentPowerUnit })));
+        stepButton.title = t("html.spindle.powerPresetTitle", { unit: currentPowerUnit });
+        panel?.classList.add("laser-mode", "profile-laser-only");
+        laserModeIndicator?.classList.add("profile-laser-only");
+      } else {
+        laserModeIndicator?.classList.remove("on");
+        clockwiseButton.hidden = false;
+        counterClockwiseButton.hidden = false;
+        if (laserToggle) laserToggle.hidden = !laserMode;
+        valueLabel.textContent = t("html.spindle.rpm");
+        document.querySelector("#spindle-manual-speed-label")?.replaceChildren(document.createTextNode(t("html.spindle.customSpeed")));
+        stepButton.title = t("html.spindle.presetTitle");
+        panel?.classList.remove("profile-laser-only");
+        laserModeIndicator?.classList.remove("profile-laser-only");
+      }
+    },
     get commandError() {
       return commandError;
     },

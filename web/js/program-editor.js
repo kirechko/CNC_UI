@@ -27,6 +27,8 @@ export function setProgramEditorBaseline(content) {
 
   editor.value = content;
   editor.dataset.originalContent = content;
+  const gutter = document.querySelector("#program-editor-gutter");
+  if (gutter) gutter.textContent = Array.from({ length: Math.max(1, content.split("\n").length) }, (_, index) => String(index + 1)).join("\n");
 }
 
 /**
@@ -36,6 +38,7 @@ export function setProgramEditorBaseline(content) {
  */
 export function initProgramEditor({ getProgram, logEvent, logError }) {
   const editor = document.querySelector(EDITOR_ID);
+  const gutter = document.querySelector("#program-editor-gutter");
   const dialog = document.querySelector("#program-editor-dialog");
   const openButton = document.querySelector("#open-program-editor");
   const closeButton = document.querySelector("#close-program-editor");
@@ -45,8 +48,20 @@ export function initProgramEditor({ getProgram, logEvent, logError }) {
 
   if (!editor || !dialog) return;
 
+  /** Keeps the visible line-number gutter aligned to editor content and scrolling. */
+  function refreshLineNumbers() {
+    if (!gutter) return;
+    const lineCount = Math.max(1, editor.value.split("\n").length);
+    gutter.textContent = Array.from({ length: lineCount }, (_, index) => String(index + 1)).join("\n");
+    gutter.scrollTop = editor.scrollTop;
+  }
+  editor.addEventListener("input", refreshLineNumbers);
+  editor.addEventListener("scroll", () => { if (gutter) gutter.scrollTop = editor.scrollTop; });
+  refreshLineNumbers();
+
   openButton?.addEventListener("click", () => {
     editor.dataset.originalContent = editor.value;
+    refreshLineNumbers();
     dialog.showModal();
     editor.focus();
   });
@@ -61,6 +76,7 @@ export function initProgramEditor({ getProgram, logEvent, logError }) {
     }
 
     setProgramEditorBaseline(program.content);
+    refreshLineNumbers();
     await logEvent("info", t("program.editor.loaded", { name: program.name }));
   });
 
@@ -111,11 +127,13 @@ export function initProgramEditor({ getProgram, logEvent, logError }) {
 
   cancelButton?.addEventListener("click", async () => {
     editor.value = editor.dataset.originalContent || "";
+    refreshLineNumbers();
     await logEvent("info", t("program.editor.discarded"));
   });
 
   dialog.addEventListener("cancel", () => {
     editor.value = editor.dataset.originalContent || "";
+    refreshLineNumbers();
   });
 
   // Leaving the dialog always drops the file-manager save-back hook, so the

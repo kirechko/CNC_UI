@@ -7,6 +7,11 @@ const KEY_BINDINGS = new Map([
   ["PageDown", ["Z", -1]],
 ]);
 
+/**
+ * Installs context-bound keyboard jogging without commandeering system shortcut behavior.
+ * @param {object} options - Machine-state and JOG action callbacks.
+ * @returns {void}
+ */
 export function initJogKeyboard({
   isConnected,
   getMotionMode,
@@ -43,9 +48,7 @@ export function initJogKeyboard({
     }
 
     const button = getJogButtons().find(
-      (item) =>
-        item.dataset.axis === axis &&
-        Number(item.dataset.direction) === direction,
+      (item) => item.dataset.axis === axis && Number(item.dataset.direction) === direction,
     );
     if (button) void jog(button);
   });
@@ -56,15 +59,12 @@ export function initJogKeyboard({
 
     event.preventDefault();
     activeKeys.delete(event.code);
-    if (getMotionMode() === "continuous") {
-      stopContinuousJog(binding[0]);
-    }
+    if (getMotionMode() === "continuous") stopContinuousJog(binding[0]);
   });
 
+  /** Releases all held keys after focus loss so a continuous jog cannot remain logically stuck. */
   function releaseActiveKeys() {
-    const activeAxes = new Set(
-      [...activeKeys.values()].map(([axis]) => axis),
-    );
+    const activeAxes = new Set([...activeKeys.values()].map(([axis]) => axis));
     activeKeys.clear();
     if (activeAxes.size > 0) stopContinuousJog();
   }

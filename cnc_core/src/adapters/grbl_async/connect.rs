@@ -31,9 +31,8 @@ impl GrblAdapter {
         Self::connect_with_protocol(port_name, baud_rate, SerialProtocol::FluidNc, machine_name)
     }
 
-    /// Shared port open for both firmware families; see
-    /// [`Self::connect`]/[`Self::connect_fluidnc`] for the public entry points.
-    fn connect_with_protocol(
+    /// Opens the GRBL-family serial transport with an explicit firmware protocol and identity.
+    pub fn connect_with_protocol(
         port_name: &str,
         baud_rate: u32,
         protocol: SerialProtocol,

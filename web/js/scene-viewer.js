@@ -32,6 +32,9 @@ export function initSceneViewer({
   getToolPosition,
   isConnected,
   getToolRotationPhase,
+  getLaserIntensity,
+  getMachineProfile,
+  getTools,
   renderOrientationCube,
 }) {
   /**
@@ -42,6 +45,14 @@ export function initSceneViewer({
     const program = getProgram();
     const stockMesh = getStockMesh();
     const bounds = calculateSceneBounds(program?.segments || [], stockMesh);
+    const machineProfile = getMachineProfile?.();
+    const machineType = machineProfile?.machineType;
+    const isLaserMachine = machineType === "laser"
+      || (machineType !== "mill" && getStatus()?.laser_mode_available === true);
+    const selectedTool = machineProfile?.toolReference
+      ? getTools?.().find((tool) => tool.id === machineProfile.toolReference) ?? null
+      : null;
+    const toolGeometry = selectedTool?.geometry ?? selectedTool?.geometryModel ?? null;
 
     renderTool({
       canvas: toolCanvas,
@@ -51,6 +62,9 @@ export function initSceneViewer({
       rotationPhase: getToolRotationPhase(),
       bounds,
       camera,
+      laserIntensity: getLaserIntensity(),
+      isLaserMachine,
+      toolGeometry,
     });
   }
 
@@ -106,14 +120,23 @@ export function initSceneViewer({
       drawStock(trajectoryContext, project, stockBounds, angleA, angleB, stockMesh);
     }
 
+    const profileType = getMachineProfile?.()?.machineType;
+    const laserMode = profileType === "laser"
+      || (profileType === "hybrid" && (status?.spindle_mode === "laser_constant" || status?.spindle_mode === "laser_dynamic"))
+      || (profileType == null && (status?.spindle_mode === "laser_constant" || status?.spindle_mode === "laser_dynamic"));
     drawTrajectorySegments({
       context: trajectoryContext,
       segments,
       progress: status?.progress ?? null,
       project,
+      laserMode,
+      laserPowerMaximum: status?.configuration?.spindle?.laser?.max_power ?? status?.spindle_max_rpm,
     });
 
     drawAxes(trajectoryContext, project, bounds);
+    document.querySelector("#viewer-stage")?.classList.toggle("laser-mode", laserMode);
+    const laserLegend = document.querySelector(".viewer-legend-laser");
+    if (laserLegend) laserLegend.hidden = !laserMode;
     renderOrientationCube();
     drawTool();
   }

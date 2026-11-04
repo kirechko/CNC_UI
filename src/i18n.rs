@@ -12,13 +12,20 @@ use std::sync::OnceLock;
 pub(crate) const DEFAULT_LANGUAGE: &str = "en";
 
 /// Languages with an embedded dictionary, in the order used for `Accept-Language` matching.
-pub(crate) const SUPPORTED_LANGUAGES: [&str; 4] = ["en", "ru", "zh", "fa"];
+pub(crate) const SUPPORTED_LANGUAGES: [&str; 10] =
+    ["en", "ru", "zh", "fa", "vi", "id", "hi", "pt", "sw", "ko"];
 
 /// Raw dictionary sources embedded at compile time.
 const EN_JSON: &str = include_str!("../web/locales/en.json");
 const RU_JSON: &str = include_str!("../web/locales/ru.json");
 const ZH_JSON: &str = include_str!("../web/locales/zh.json");
 const FA_JSON: &str = include_str!("../web/locales/fa.json");
+const VI_JSON: &str = include_str!("../web/locales/vi.json");
+const ID_JSON: &str = include_str!("../web/locales/id.json");
+const HI_JSON: &str = include_str!("../web/locales/hi.json");
+const PT_JSON: &str = include_str!("../web/locales/pt.json");
+const SW_JSON: &str = include_str!("../web/locales/sw.json");
+const KO_JSON: &str = include_str!("../web/locales/ko.json");
 
 /// Parsed dictionaries keyed by language code; built once on first use.
 static DICTIONARIES: OnceLock<HashMap<&'static str, HashMap<String, String>>> = OnceLock::new();
@@ -28,11 +35,17 @@ static DICTIONARIES: OnceLock<HashMap<&'static str, HashMap<String, String>>> = 
 /// Invalid embedded JSON is a build-time defect, so parsing failure panics with a clear message.
 fn dictionaries() -> &'static HashMap<&'static str, HashMap<String, String>> {
     DICTIONARIES.get_or_init(|| {
-        let sources: [(&'static str, &str); 4] = [
+        let sources: [(&'static str, &str); 10] = [
             ("en", EN_JSON),
             ("ru", RU_JSON),
             ("zh", ZH_JSON),
             ("fa", FA_JSON),
+            ("vi", VI_JSON),
+            ("id", ID_JSON),
+            ("hi", HI_JSON),
+            ("pt", PT_JSON),
+            ("sw", SW_JSON),
+            ("ko", KO_JSON),
         ];
         sources
             .into_iter()
@@ -70,6 +83,12 @@ pub(crate) fn raw_dictionary(language: &str) -> Option<&'static str> {
         "ru" => Some(RU_JSON),
         "zh" => Some(ZH_JSON),
         "fa" => Some(FA_JSON),
+        "vi" => Some(VI_JSON),
+        "id" => Some(ID_JSON),
+        "hi" => Some(HI_JSON),
+        "pt" => Some(PT_JSON),
+        "sw" => Some(SW_JSON),
+        "ko" => Some(KO_JSON),
         // `normalize` only returns codes from SUPPORTED_LANGUAGES, so this
         // arm exists purely to keep the match exhaustive.
         _ => None,
@@ -177,6 +196,55 @@ mod tests {
     #[test]
     fn unsupported_languages_fall_back_to_english() {
         assert_eq!(negotiate(Some("de"), Some("fr")), DEFAULT_LANGUAGE);
+    }
+
+    /// Verifies that each supported locale is recognized from its regional language tag.
+    #[test]
+    fn every_supported_locale_accepts_a_regional_language_tag() {
+        for language in SUPPORTED_LANGUAGES {
+            assert_eq!(normalize(&format!("{language}-XX")), Some(language));
+            assert_eq!(raw_dictionary(language).is_some(), true);
+        }
+    }
+
+    /// Verifies that all locale dictionaries expose the same keys and placeholders as English.
+    #[test]
+    fn locale_keys_and_placeholders_match_english() {
+        let english = dictionaries().get(DEFAULT_LANGUAGE).unwrap();
+        for language in SUPPORTED_LANGUAGES {
+            let dictionary = dictionaries().get(language).unwrap();
+            assert_eq!(
+                dictionary.len(),
+                english.len(),
+                "key count differs for {language}"
+            );
+            for (key, english_text) in english {
+                let translated_text = dictionary
+                    .get(key)
+                    .unwrap_or_else(|| panic!("missing {key:?} in {language}"));
+                assert_eq!(
+                    placeholder_names(english_text),
+                    placeholder_names(translated_text),
+                    "placeholder mismatch for {key:?} in {language}"
+                );
+            }
+        }
+    }
+
+    /// Extracts named template placeholders so locale dictionaries can be checked for parity.
+    fn placeholder_names(text: &str) -> Vec<&str> {
+        let mut names = Vec::new();
+        let mut rest = text;
+        while let Some(start) = rest.find('{') {
+            let after = &rest[start + 1..];
+            let Some(end) = after.find('}') else {
+                break;
+            };
+            names.push(&after[..end]);
+            rest = &after[end + 1..];
+        }
+        names.sort_unstable();
+        names
     }
 
     /// Verifies that placeholders are substituted and unknown ones are kept.

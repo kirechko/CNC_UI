@@ -1,0 +1,18 @@
+{
+  "transform.title": "Chương trình thích ứng cho bộ điều khiển",
+  "transform.summary": "{backend}: (các) bước tự động {steps}, (các) phát hiện {findings}.",
+  "transform.was": "Bản gốc",
+  "transform.became": "trở thành",
+  "transform.lines": "Áp dụng",
+  "transform.apply": "Apply",
+  "transform.applyTitle": "Áp dụng gói và tải lại chương trình",
+  "transform.cancelTitle": "Giữ chương trình gốc",
+  "transform.applying": "Đang áp dụng…",
+  "transform.applied": "được áp dụng. Chương trình được tải lại.",
+  "transform.suffix": "đã biến đổi",
+  "transform.clean": "hoàn toàn có thể thực thi được trên {backend}.",
+  "transform.blocked": "{backend} không thể chạy chương trình này và không có bản sửa lỗi tự động nào được đăng ký:",
+  "transform.unsupported": "{backend} không thể chạy chương trình này; không có gì có thể tự động sửa được:",
+  "transform.error.noProgram": "Tải chương trình trước khi xác thực.",
+  "transform.resultTitle": "Kết quả xác thực chương trình"
+}

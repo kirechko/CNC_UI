@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "Tất cả mức độ nghiêm trọng",
+  "log.severity.alarm": "Lỗi",
+  "log.severity.error": "Cảnh báo",
+  "log.severity.warning": "Thông tin",
+  "log.severity.info": "Tin nhắn",
+  "log.count": "Ghi lại {from}–{to} của {total}",
+  "log.error.load": "Không tải được nhật ký: {message}",
+  "log.column.time": "Mức độ nghiêm trọng của",
+  "log.column.severity": "Nguồn",
+  "log.column.source": "Tin nhắn",
+  "log.column.message": "Message",
+  "log.empty.page": "Không có bản ghi nào trên trang này.",
+  "calendar.weekday.mon": "Môn",
+  "calendar.weekday.tue": "Thứ ba",
+  "calendar.weekday.wed": "Thứ tư",
+  "calendar.weekday.thu": "Thu",
+  "calendar.weekday.fri": "Thứ Sáu",
+  "calendar.weekday.sat": "Thứ bảy",
+  "calendar.weekday.sun": "Mặt trời"
+}

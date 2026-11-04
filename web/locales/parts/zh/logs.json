@@ -1,0 +1,21 @@
+{
+  "log.severity.all": "所有级别",
+  "log.severity.alarm": "报警",
+  "log.severity.error": "错误",
+  "log.severity.warning": "警告",
+  "log.severity.info": "信息",
+  "log.count": "记录 {from}–{to}，共 {total} 条",
+  "log.error.load": "无法加载日志：{message}",
+  "log.column.time": "时间",
+  "log.column.severity": "级别",
+  "log.column.source": "来源",
+  "log.column.message": "消息",
+  "log.empty.page": "此页没有记录。",
+  "calendar.weekday.mon": "一",
+  "calendar.weekday.tue": "二",
+  "calendar.weekday.wed": "三",
+  "calendar.weekday.thu": "四",
+  "calendar.weekday.fri": "五",
+  "calendar.weekday.sat": "六",
+  "calendar.weekday.sun": "日"
+}

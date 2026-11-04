@@ -1,0 +1,18 @@
+{
+  "transform.title": "Адаптация программы под контроллер",
+  "transform.summary": "Контроллер {backend}: {steps} автошаг(ов), {findings} замечание(й).",
+  "transform.was": "Оригинал",
+  "transform.became": "Результат",
+  "transform.lines": "строки",
+  "transform.apply": "Применить",
+  "transform.applyTitle": "Применить план и перезагрузить программу",
+  "transform.cancelTitle": "Оставить исходную программу",
+  "transform.applying": "Применение…",
+  "transform.applied": "Применено. Программа перезагружена.",
+  "transform.suffix": "после адаптации",
+  "transform.clean": "Программа полностью выполняется на {backend}.",
+  "transform.blocked": "{backend} не может выполнить программу, автосовместимых замен нет:",
+  "transform.unsupported": "{backend} не может выполнить программу; авторазрешений не найдено:",
+  "transform.error.noProgram": "Загрузите программу перед проверкой.",
+  "transform.resultTitle": "Проверка программы Rosetta"
+}

@@ -3,8 +3,10 @@
 /* Application stylesheet extracted from index.html: theme variables, layout, components, and responsive rules. */
 :root {
   --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--font-ui);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-size-xs: 10px;
+  --font-size-xxs: 9px;
   --font-size-sm: 12px;
   --font-size-md: 14px;
   --font-size-lg: 16px;
@@ -70,6 +72,11 @@ button:focus-visible, select:focus-visible {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.settings-tab-panel[hidden],
+.settings-shortcuts-panel[hidden] {
+  display: none !important;
 }
 
 .app-header {
@@ -174,7 +181,7 @@ button:disabled {
   color: var(--red);
 }
 
-/* Square gear button next to the status chips; matches the chip geometry. */
+/* Header shortcut entry point shares the settings button's square geometry. */
 .header-settings-button {
   display: grid;
   place-items: center;
@@ -195,12 +202,64 @@ button:disabled {
   color: var(--text-primary);
 }
 
+.shortcut-info-wrap { position: relative; }
+.shortcut-info-button { font-size: 14px; font-weight: 800; }
+.shortcut-info-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 38%);
+}
+.shortcut-info-popover[hidden] { display: none; }
+.shortcut-info-popover h2 { margin: 0 0 8px; font-size: 14px; }
+.shortcut-info-popover p { display: flex; justify-content: space-between; gap: 12px; margin: 0; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.shortcut-info-popover kbd { flex: none; color: var(--accent-text); font: 12px var(--font-mono); }
+.shortcut-info-popover > button { width: 100%; min-height: 32px; margin-top: 10px; font: inherit; }
+.shortcut-info-button svg { width: 17px; height: 17px; }
+
+.icon-close-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  color: var(--text-secondary);
+}
+.icon-close-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+.settings-tabs { display: flex; gap: 5px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+@media (max-width: 520px) {
+  .app-header { gap: 7px; padding-inline: 8px; }
+  .header-status { gap: 6px; }
+  .shortcut-info-button { flex: none; }
+  .settings-tabs { flex-wrap: wrap; }
+  .settings-tab { min-width: min(30%, 96px); padding-inline: 5px; font-size: var(--font-size-xs); }
+}
+.settings-tab { flex: 1; min-height: 32px; color: var(--muted); background: transparent; border-color: transparent; }
+.settings-tab.active { color: var(--accent-text); background: var(--accent-soft-bg); border-color: var(--accent-border-soft); }
+.settings-tab-panel { min-width: 0; }
+.language-settings-fieldset { margin-top: 8px; }
+.settings-shortcuts-panel { display: grid; gap: 10px; }
+.shortcut-layout-option { display: flex; align-items: flex-start; gap: 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+.shortcut-layout-option input { margin-top: 2px; }
+
 .header-settings-button:focus-visible { outline: 2px solid var(--selection); outline-offset: 2px; }
 .header-settings-button svg { width: 16px; height: 16px; }
 
 /* Interface settings dialog: same chrome as the machines dialog. */
 .ui-settings-dialog {
-  width: min(430px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 10px;

@@ -72,6 +72,8 @@ export function initTooltips() {
         element.dataset.tooltipTitle = fresh;
         if (element === activeElement && !bubble.hidden) {
           bubble.textContent = fresh;
+          const macroHint = element.classList.contains("macro-row-has-hint") || element.classList.contains("macro-row-run");
+          bubble.classList.toggle("macro-tooltip", macroHint);
           positionBubble(element);
         }
       }
@@ -254,6 +256,8 @@ export function initTooltips() {
       showTimer = null;
       const text = element.dataset.tooltipTitle;
       if (!text) return;
+      const macroHint = element.classList.contains("macro-row-has-hint") || element.classList.contains("macro-row-run");
+      bubble.classList.toggle("macro-tooltip", macroHint);
       bubble.textContent = text;
       // Join the anchor's painting layer (modal dialog or body) BEFORE the
       // first measurement so positionBubble sees the final containing block.

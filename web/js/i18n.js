@@ -26,6 +26,12 @@ export const LOCALES = Object.freeze([
   { code: "ru", name: "Русский" },
   { code: "zh", name: "中文" },
   { code: "fa", name: "فارسی" },
+  { code: "vi", name: "Tiếng Việt" },
+  { code: "id", name: "Bahasa Indonesia" },
+  { code: "hi", name: "हिन्दी" },
+  { code: "pt", name: "Português" },
+  { code: "sw", name: "Kiswahili" },
+  { code: "ko", name: "한국어" },
 ]);
 
 /** localStorage key that remembers the locale picked in the settings dialog. */

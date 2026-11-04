@@ -1,0 +1,227 @@
+
+      <div class="col-splitter" data-splitter="left" role="separator" tabindex="0" aria-orientation="vertical" data-i18n-aria-label="html.layout.resizeLeftColumn" aria-label="Resize left column" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
+
+      <div id="recovery-notice" class="recovery-notice" role="alert" aria-live="assertive" hidden></div>
+      <section class="center-column" data-i18n-aria-label="html.layout.centerAria" aria-label="Program viewer and job control">
+        <section class="panel viewer-panel">
+          <div class="panel-heading">
+            <span class="panel-title" data-i18n="html.panel.viewer">G-CODE VIEWER</span>
+            <div class="viewer-toolbar">
+              <input id="program-file" type="file" accept=".nc,.ngc,.gcode" hidden>
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.toolpathGroup" aria-label="Toolpath">
+                <button class="toolbar-button toolbar-icon-button" id="load-program" type="button" data-i18n-aria-label="html.viewer.loadAria" data-i18n-title="html.viewer.loadTitle" aria-label="Load G-code" title="Load G-code program">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 3h10l4 4v14H5z"></path>
+                    <path d="M14 3v5h5M8 13h8M8 17h5"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="job-run" type="button" data-i18n-aria-label="html.viewer.startAria" data-i18n-title="html.viewer.startTitle" aria-label="Start program" title="Start or resume the program" disabled>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M7 4.8v14.4L19 12 7 4.8Z"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="job-pause" type="button" data-i18n-aria-label="html.viewer.pauseAria" data-i18n-title="html.viewer.pauseTitle" aria-label="Pause program" title="Pause the program" disabled>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="5" width="4" height="14" rx="1"></rect>
+                    <rect x="14" y="5" width="4" height="14" rx="1"></rect>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="job-abort" type="button" data-i18n-aria-label="html.viewer.stopAria" data-i18n-title="html.viewer.stopTitle" aria-label="Stop program" title="Stop the program" disabled>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                  </svg>
+                </button>
+              </div>
+
+              <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
+
+              <!-- Rosetta capability check (T26 §3.4): scans the loaded program
+                   against the connected backend and offers the preview dialog
+                   when automatic resolutions exist. -->
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.rosettaGroup" aria-label="Program analysis">
+                <button class="toolbar-button toolbar-icon-button rosetta-validation-status" id="validate-program" type="button" data-i18n-aria-label="html.viewer.validateAria" data-i18n-title="html.viewer.validateTitle" aria-label="Validate program for the connected controller" title="Check the loaded program against controller capabilities with Rosetta" data-i18n-compact-group data-validation-state="unchecked">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3 4 6v6c0 4.4 3.2 7.9 8 9 4.8-1.1 8-4.6 8-9V6l-8-3Z"></path>
+                    <path d="m9 12 2 2 4-4.5"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
+
+              <input id="stock-file" type="file" accept=".stl,.obj,.json,model/stl,model/obj,application/json" hidden>
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.stockGroup" aria-label="Stock">
+                <button class="toolbar-button toolbar-icon-button active" id="stock-toggle" type="button" data-i18n-aria-label="html.viewer.stockToggle" data-i18n-title="html.viewer.stockToggle" aria-label="Show/hide stock" title="Show/hide stock" aria-pressed="true">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                    <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="load-stock" type="button" data-i18n-aria-label="html.viewer.loadStock" data-i18n-title="html.viewer.loadStock" aria-label="Load stock geometry" title="Load stock geometry">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                    <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                    <path d="M12 15V8m-3 3 3-3 3 3"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <span class="toolbar-separator" role="separator" aria-orientation="vertical"></span>
+
+              <div class="toolbar-group" role="group" data-i18n-aria-label="html.viewer.sceneGroup" aria-label="Scene">
+                <button class="toolbar-button toolbar-icon-button active projection-toggle" id="projection-toggle" type="button" data-perspective="true" data-i18n-title="viewer.projection.toOrthographic" data-i18n-aria-label="viewer.projection.perspectiveAria" title="Switch to orthographic projection" aria-label="Perspective projection; switch to orthographic" aria-pressed="true">
+                  <svg class="perspective-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                    <path d="M4 8 9 4h6l5 4v13H4V8Z"></path>
+                    <path d="M4 8h16M9 4v4m6-4v4M9 8v13m6-13v13"></path>
+                  </svg>
+                  <svg class="ortho-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+                    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+                    <path d="m4.3 7.6 7.7 4.5 7.7-4.5M12 12.1V21"></path>
+                  </svg>
+                </button>
+                <button class="toolbar-button toolbar-icon-button" id="fit-program" type="button" data-i18n-aria-label="html.viewer.fit" data-i18n-title="html.viewer.fit" aria-label="Fit scene to window" title="Fit scene to window">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"></path>
+                    <path d="M9 9h6v6H9z"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="viewer-stage" id="viewer-stage">
+            <canvas class="trajectory-canvas" id="trajectory-canvas" data-i18n-aria-label="html.viewer.toolpathCanvas" aria-label="3D G-code toolpath"></canvas>
+            <canvas class="tool-canvas" id="tool-canvas" aria-hidden="true"></canvas>
+            <canvas class="orientation-cube" id="orientation-cube" data-i18n-aria-label="html.viewer.orientationCube" aria-label="Orientation cube: click an axis label to pick a view"></canvas>
+            <div class="empty-viewer" id="viewer-empty">
+              <div class="viewer-icon" aria-hidden="true">⌘</div>
+              <strong data-i18n="html.viewer.emptyTitle">Toolpath viewer</strong>
+              <span data-i18n="html.viewer.emptyText">Load a G-code file, or place test.gcode next to the app for automatic loading.</span>
+            </div>
+            <!-- Toolpath color legend (task: explain the line colors in 3D).
+                 Colors are painted into the swatches by scene-stage.js from the
+                 same theme tokens the trajectory renderer uses, so the legend
+                 always matches the drawing; locale labels via data-i18n. -->
+            <div class="viewer-legend" id="viewer-legend"
+                 data-i18n-aria-label="html.viewer.legendAria"
+                 data-i18n-title="html.viewer.legendTitle"
+                 role="note" aria-label="Toolpath line color legend"
+                 title="What the toolpath line colors mean">
+              <span class="viewer-legend-item">
+                <span class="viewer-legend-swatch rapid" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendRapid">Rapid G0</span>
+              </span>
+              <span class="viewer-legend-item">
+                <span class="viewer-legend-swatch linear" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendLinear">Feed G1</span>
+              </span>
+              <span class="viewer-legend-item">
+                <span class="viewer-legend-swatch arc" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendArc">Arcs G2/G3</span>
+              </span>
+              <span class="viewer-legend-item viewer-legend-laser">
+                <span class="viewer-legend-swatch" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendLaser">Laser path</span>
+              </span>
+              <span class="viewer-legend-item viewer-legend-completed">
+                <span class="viewer-legend-swatch" aria-hidden="true"></span>
+                <span data-i18n="html.viewer.legendCompleted">Completed</span>
+              </span>
+            </div>
+          </div>
+          <div class="viewer-footer">
+            <div class="viewer-message-summary" aria-live="polite">
+              <div class="toolpath-time" id="toolpath-time" hidden data-i18n-title="html.viewer.timeTitle" title="Remaining / total, estimated from G-code feed rates">—</div>
+              <span class="job-current-line" id="job-current-line" hidden></span>
+              <div class="viewer-message-line critical" id="latest-critical-message">—</div>
+              <div class="viewer-message-line" id="latest-other-message" data-i18n="ui.noMessages">No messages</div>
+            </div>
+            <button class="message-log-button" id="open-message-log" type="button" data-i18n="html.viewer.log" data-i18n-title="html.viewer.logTitle" title="Open the message log">Log</button>
+          </div>
+        </section>
+
+
+        <div hidden>
+          <span id="preflight-report" data-i18n="preflight.reviewRequired">Preflight review is required before running.</span>
+          <span id="job-caption" data-i18n="job.caption.noProgram">No program loaded</span>
+          <p class="job-note" id="job-note" data-i18n="html.job.noteInitial">Load a program first, or wait for test.gcode to load automatically.</p>
+        </div>
+      </section>
+
+      <div class="col-splitter" data-splitter="right" role="separator" tabindex="0" aria-orientation="vertical" data-i18n-aria-label="html.layout.resizeRightColumn" aria-label="Resize right column" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
+
+      <aside class="right-column" data-i18n-aria-label="html.layout.rightAria" aria-label="Files and messages">
+        <section class="panel">
+          <div class="panel-tabs" role="tablist" data-i18n-aria-label="html.layout.tabsAria" aria-label="Sidebar">
+            <button class="tab-button" id="macros-tab" type="button" role="tab" aria-selected="false" aria-controls="sidebar-content" data-i18n="html.sidebar.macros" data-i18n-title="html.sidebar.macrosTitle" title="Show the macros panel">MACROS</button>
+            <button class="tab-button active" id="files-tab" type="button" role="tab" aria-selected="true" aria-controls="sidebar-content" data-i18n="html.sidebar.files" data-i18n-title="html.sidebar.filesTitle" title="Show the file manager panel">FILES</button>
+          </div>
+          <div id="sidebar-content" role="tabpanel" aria-labelledby="files-tab">
+            <div id="files-panel" class="sidebar-panel" role="region" aria-label="Files"></div>
+            <!-- The macro panel separates quick-run button assignments from the editable macro list. -->
+            <section id="macros-panel" class="sidebar-panel macros-panel" role="region" aria-label="Macros" hidden>
+              <div class="macros-toolbar">
+                <span class="macros-count" id="macros-count" aria-live="polite"></span>
+                <button class="macros-folder-add" id="macro-folder-add" type="button" data-i18n="macros.folders.add" data-i18n-title="macros.folders.addTitle" title="Create a folder">New folder</button>
+                <button class="macros-add-button" id="macro-add" type="button" data-i18n="macros.add" data-i18n-title="macros.addTitle" title="Add macro">Add macro</button>
+              </div>
+              <label class="macro-search-field">
+                <span data-i18n="macros.search">Search macros</span>
+                <input id="macro-search" type="search" autocomplete="off" data-i18n-placeholder="macros.searchPlaceholder" placeholder="Name, description, tags, or G-code">
+              </label>
+              <div class="macro-tree" id="macro-tree" role="tree" data-i18n-aria-label="macros.treeAria" aria-label="Macro folders and macros"></div>
+              <div class="macro-context-menu" id="macro-context-menu" role="menu" hidden>
+                <button type="button" role="menuitem" data-macro-action="create-folder" data-i18n="macros.context.newFolder">New subfolder</button>
+                <button type="button" role="menuitem" data-macro-action="delete-folder" data-i18n="macros.folders.delete">Delete folder</button>
+              </div>
+              <section class="macro-buttons-section" aria-labelledby="macro-buttons-title">
+                <div class="macro-buttons-heading">
+                  <strong id="macro-buttons-title" data-i18n="macros.buttons.title">Macro buttons</strong>
+                  <button class="macro-button-add" id="macro-button-add" type="button" data-i18n="macros.buttons.add" data-i18n-title="macros.buttons.addTitle" title="Add a macro button">Add button</button>
+                </div>
+                <div class="macro-buttons-list" id="macro-buttons-list" role="list" aria-live="polite"></div>
+              </section>
+              <dialog class="macro-button-picker" id="macro-button-picker" aria-labelledby="macro-button-picker-title">
+                <form method="dialog" id="macro-button-picker-form">
+                  <h2 id="macro-button-picker-title" data-i18n="macros.buttons.chooseTitle">Choose a macro</h2>
+                  <label for="macro-button-picker-select" data-i18n="macros.buttons.choosePrompt">Select a macro to add:</label>
+                  <select id="macro-button-picker-select" required></select>
+                  <div class="macro-button-picker-actions">
+                    <button type="submit" value="cancel" data-i18n="common.cancel">Cancel</button>
+                    <button type="submit" value="add" class="primary" data-i18n="macros.buttons.add">Add button</button>
+                  </div>
+                </form>
+              </dialog>
+              <div class="macro-list" id="macro-list" role="list" aria-live="polite"></div>
+              <div class="macro-status" id="macro-status" role="status" aria-live="polite"></div>
+            </section>
+          </div>
+        </section>
+
+        <div class="row-splitter" data-row-splitter="right" role="separator" tabindex="0" aria-orientation="horizontal" data-i18n-aria-label="html.layout.resizeMacrosCommands" aria-label="Resize macros and commands panels" data-i18n-title="html.layout.splitterHint" title="Drag to resize, double-click to reset"></div>
+        <section class="panel machine-console-panel">
+          <div class="panel-heading">
+            <span class="panel-title" data-i18n="html.panel.commands">COMMANDS</span>
+          </div>
+          <div class="panel-body machine-console">
+            <button class="tab-button active editor-open-button" id="open-program-editor" type="button" data-i18n="html.commands.editor" data-i18n-title="html.commands.editorTitle" title="Open the G-code editor">Editor</button>
+            <form class="machine-console-command" id="machine-command-form">
+              <div class="machine-command-input-wrap" id="machine-command-input-wrap">
+                <span class="command-search-indicator" id="command-search-indicator" aria-hidden="true"></span>
+                <input id="machine-command-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="html.commands.placeholder" placeholder="Machine command, for example G0 X0 or $$" data-i18n-title="html.commands.inputTitle" data-i18n-aria-label="html.commands.inputAria" title="Type a machine command; press Enter to run it" aria-label="Machine command">
+              </div>
+              <button type="submit" id="machine-command-run" data-i18n-title="html.commands.runTitle" data-i18n-aria-label="html.commands.run" title="Run command (Enter)" aria-label="Run command">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 12h13"></path>
+                  <path d="m12 6 6 6-6 6"></path>
+                  <path d="M19 5v14"></path>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <div hidden>
+          <div id="message" data-i18n="html.status.waiting">Waiting for controller status…</div>
+        </div>
+      </aside>
+    </main>

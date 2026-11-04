@@ -28,6 +28,8 @@ export function initProgramPanel(app) {
    * @param {string} content - Program G-code text.
    */
   async function showProgram(name, content) {
+    // Reset the validator immediately, before the toolpath request finishes.
+    window.dispatchEvent(new CustomEvent("cnc-program-loaded", { detail: { name, content } }));
     let toolpath = { segments: [], total_length_mm: 0 };
     try {
       toolpath = await invokeOrFetch("get_toolpath", null, "/api/toolpath");

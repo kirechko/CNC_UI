@@ -210,7 +210,7 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
         MacroDefinition {
             id: "z_probe_zero".into(),
             name: "Z zero (simple probe)".into(),
-            description: "Rosetta reactive macro: touch-probe Z zero with G38.2 and G10 L20. \
+            description: "{rosetta.reactiveHint} touch-probe Z zero with G38.2 and G10 L20. \
                           Source: config/macros/z_probe_zero.yaml"
                 .into(),
             body: Z_PROBE_ZERO_BODY.into(),
@@ -221,7 +221,7 @@ pub(crate) fn example_macros() -> Vec<MacroDefinition> {
         MacroDefinition {
             id: "probe_and_align".into(),
             name: "3D probe align (blank)".into(),
-            description: "Rosetta reactive macro: measure blank corner/edge with a 3D touch probe, \
+            description: "{rosetta.reactiveHint} measure blank corner/edge with a 3D touch probe, \
                           then align the loaded toolpath via Transform (Rotate+Translate). \
                           Source: config/macros/probe_and_align.yaml"
                 .into(),

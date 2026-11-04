@@ -1,0 +1,18 @@
+{
+  "transform.title": "एडाप्ट प्रोग्राम",
+  "transform.summary": "बैकएंड {backend}: {steps} स्वचालित चरण, {findings} खोज।",
+  "transform.was": "मूल",
+  "transform.became": "बन जाता है",
+  "transform.lines": "लाइनें",
+  "transform.apply": "लागू करें",
+  "transform.applyTitle": "योजना लागू करें और प्रोग्राम पुनः लोड करें",
+  "transform.cancelTitle": "मूल प्रोग्राम रखें",
+  "transform.applying": "लागू हो रहा है…",
+  "transform.applied": "लागू। प्रोग्राम पुनः लोड किया गया.",
+  "transform.suffix": "रूपांतरित",
+  "transform.clean": "प्रोग्राम {backend} पर पूरी तरह से निष्पादन योग्य है।",
+  "transform.blocked": "{backend} इस प्रोग्राम को नहीं चला सकता और कोई स्वचालित सुधार पंजीकृत नहीं है:",
+  "transform.unsupported": "{backend} इस प्रोग्राम को नहीं चला सकता; कुछ भी स्वतः-ठीक करने योग्य नहीं था:",
+  "transform.error.noProgram": "सत्यापन से पहले एक प्रोग्राम लोड करें।",
+  "transform.resultTitle": "प्रोग्राम सत्यापन परिणाम"
+}

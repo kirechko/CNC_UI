@@ -37,6 +37,9 @@ import { initLayoutRowSplitters } from "./layout-row-splitters.js";
 import { initTooltips } from "./tooltips.js";
 import { initCompactLabels } from "./compact-labels.js";
 import { initUiSettings } from "./ui-settings.js";
+import { initMachineDataDialog } from "./machine-data-dialog.js";
+import { initShortcutSettings } from "./shortcut-settings.js";
+import { initGlobalShortcuts } from "./global-shortcuts.js";
 
 // Load the requested locale (?lang=xx, default en) before any UI text is shown.
 // English is always loaded as the fallback dictionary inside loadLocale().
@@ -57,14 +60,25 @@ initTooltips();
 // kept so a locale switch can re-evaluate the shortened captions.
 const compactLabels = initCompactLabels({ root: document });
 
-// Open the interface settings dialog from the header gear button. The theme
-// itself was already applied before first paint by the inline <head> script;
-// this module only handles the dialog and live theme switching.
+// Initialize the shortcuts tab inside interface settings and then wire shared preferences.
+initShortcutSettings();
 initUiSettings();
 
 // The shared application bag. Controllers fill their own slice as the script
 // runs top-to-bottom; everything else reads through lazy getters/closures.
 const app = {};
+app.machineProfile = null;
+app.machineTools = [];
+app.getMachineProfile = () => app.machineProfile;
+app.getMachineTools = () => app.machineTools;
+app.setMachineProfile = (profile, tools = []) => {
+  app.machineProfile = profile;
+  app.machineTools = tools;
+  app.scene?.draw();
+  app.scene?.drawTool();
+  app.spindleControls?.setMachineProfile(profile);
+};
+const machineData = initMachineDataDialog({ setMachineProfile: app.setMachineProfile });
 
 // Mirror uncaught UI errors and console warnings into the backend message log.
 // `getStatus` resolves lazily because the status panel is created further
@@ -112,6 +126,7 @@ app.jobControls = initJobControls({
   getMachineState: () => app.getMachineState(),
   refreshStatus: () => app.refreshStatus(),
 });
+initGlobalShortcuts(app);
 
 // MDI command console with history and autocomplete.
 const commandConsole = initCommandConsole({
@@ -173,6 +188,7 @@ app.positionReadouts = createPositionReadoutUpdater(document.querySelector("#axi
 
 // Spindle speed/direction controls.
 app.spindleControls = initSpindleControls({ refreshStatus: () => app.refreshStatus() });
+void machineData.refresh();
 
 // JOG motion core: incremental jog, continuous hold-to-move and stop-all.
 app.jogMotion = initJogMotion(app, app.jog);
@@ -252,5 +268,9 @@ app.status.setJogEnabled(false);
 commandConsole.loadHistory();
 app.program.loader.loadDefault();
 app.refreshStatus();
-window.setInterval(() => app.refreshStatus(), 50);
+// Poll at the adapter's 100 ms status cadence so continuous JOG telemetry and
+// the displayed machine position do not appear in coarse one-second jumps.
+window.setInterval(() => {
+  void app.refreshStatus().catch((error) => console.error("Status polling failed:", error));
+}, 100);
 window.setInterval(() => app.clock.render(), 250);

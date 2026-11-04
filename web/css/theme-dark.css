@@ -53,6 +53,8 @@
   --text-chip: #b8c2c5;
   --text-soft: #aeb9bc;
   --text-machine: #a0aaae;
+  --macro-tooltip-bg: #29383b;
+  --macro-tooltip-border: #687f7d;
   --muted: #879398;
   --muted-2: #687479;
   --dot-idle: #657176;
@@ -71,6 +73,15 @@
   --accent-border: #31556a;
   --accent-border-soft: #344e5b;
   --accent-border-bright: #4d9bc2;
+  --rosetta-idle-bg: #243944;
+  --rosetta-idle-border: #4d7589;
+  --rosetta-idle-text: #b8d8e6;
+  --rosetta-success-bg: #263c32;
+  --rosetta-success-border: #668f77;
+  --rosetta-success-text: #c2e2ce;
+  --rosetta-error-bg: #443132;
+  --rosetta-error-border: #a57578;
+  --rosetta-error-text: #f0cccd;
 
   /* Status: green (ok / feed / enabled) */
   --green: #64c99a;

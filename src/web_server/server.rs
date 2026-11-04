@@ -19,7 +19,7 @@ const DEFAULT_ADDRESS: &str = "0.0.0.0:8080";
 /// Environment override used by tests and by developers who need a second
 /// instance on a different port (e.g. `CNC_WEB_ADDRESS=127.0.0.1:8021`).
 const ADDRESS_ENV: &str = "CNC_WEB_ADDRESS";
-const WEB_ROOT: &str = "web";
+const WEB_ROOT: &str = "web-dist";
 
 /// Forces browsers to revalidate UI assets on every load.
 ///
@@ -97,6 +97,10 @@ where
         )
         .route("/api/toolpath", get(handlers::get_toolpath))
         .route("/api/program/run", post(handlers::start_program))
+        .route(
+            "/api/program/run-confirmed",
+            post(handlers::start_program_confirmed),
+        )
         .route("/api/program/pause", post(handlers::pause_program))
         .route("/api/program/resume", post(handlers::resume_program))
         .route("/api/program/abort", post(handlers::abort_program))
@@ -123,6 +127,43 @@ where
             "/api/macros",
             get(handlers::get_macros).put(handlers::put_macros),
         )
+        .route(
+            "/api/machine-profiles",
+            get(handlers::get_machine_profiles).put(handlers::put_machine_profile),
+        )
+        .route(
+            "/api/machine-profiles/active",
+            get(handlers::get_active_machine_profile).put(handlers::select_machine_profile),
+        )
+        .route(
+            "/api/machine-profiles/resolved",
+            get(handlers::get_resolved_machine_configuration),
+        )
+        .route(
+            "/api/machine-profiles/export",
+            get(handlers::export_machine_profiles),
+        )
+        .route(
+            "/api/machine-profiles/import",
+            post(handlers::import_machine_profiles),
+        )
+        .route(
+            "/api/machine-profiles/:id",
+            delete(handlers::delete_machine_profile),
+        )
+        .route(
+            "/api/tools",
+            get(handlers::get_tools).put(handlers::put_tool),
+        )
+        .route("/api/tools/export", get(handlers::export_tools))
+        .route("/api/tools/import", post(handlers::import_tools))
+        .route("/api/tools/:id", delete(handlers::delete_tool))
+        .route(
+            "/api/tool-types",
+            get(handlers::get_tool_types).put(handlers::put_tool_type),
+        )
+        .route("/api/tool-types/:id", delete(handlers::delete_tool_type))
+        .route("/api/program/preflight", post(handlers::preflight_program))
         .route(
             "/api/macro-folders",
             get(handlers::get_macro_folders).post(handlers::post_macro_folder),

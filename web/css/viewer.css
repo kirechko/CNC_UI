@@ -1,6 +1,8 @@
 /* Viewer stage: toolbar, canvases, orientation cube, empty state and the
    footer message/toolpath-time summary. */
 .viewer-toolbar { display: flex; align-items: center; gap: 7px; }
+.job-current-line { color: var(--muted); font: 10px var(--font-mono); white-space: nowrap; }
+.job-current-line[hidden] { display: none; }
 .toolbar-button {
   min-height: 29px;
   padding: 0 9px;
@@ -12,6 +14,46 @@
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.rosetta-result-message { max-height: min(60vh, 520px); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); font: 12px/1.55 var(--font-sans); }
+.rosetta-result-message.success { color: var(--green-text); }
+.rosetta-result-message.error { color: var(--red-text); }
+.rosetta-validation-status[data-validation-state="unchecked"] {
+  border-color: var(--rosetta-idle-border, var(--accent-border));
+  background: var(--rosetta-idle-bg, var(--accent-soft-bg));
+  color: var(--rosetta-idle-text, var(--accent-text));
+}
+.rosetta-validation-status[data-validation-state="checking"] {
+  border-color: var(--rosetta-idle-border, var(--accent-border));
+  background: var(--rosetta-idle-bg, var(--accent-soft-bg));
+  color: var(--rosetta-idle-text, var(--accent-text));
+}
+.rosetta-validation-status[data-validation-state="success"] {
+  border-color: var(--rosetta-success-border, var(--green-border));
+  background: var(--rosetta-success-bg, var(--green-bg));
+  color: var(--rosetta-success-text, var(--green-text));
+}
+.rosetta-validation-status[data-validation-state="error"] {
+  border-color: var(--rosetta-error-border, var(--red-border));
+  background: var(--rosetta-error-bg, var(--red-bg));
+  color: var(--rosetta-error-text, var(--red-text));
+}
+.rosetta-validation-status:hover:not(:disabled)[data-validation-state="unchecked"],
+.rosetta-validation-status:hover:not(:disabled)[data-validation-state="checking"] {
+  border-color: var(--rosetta-idle-border, var(--accent-border));
+  background: var(--rosetta-idle-bg, var(--accent-soft-bg));
+  color: var(--rosetta-idle-text, var(--accent-text));
+}
+.rosetta-validation-status:hover:not(:disabled)[data-validation-state="success"] {
+  border-color: var(--rosetta-success-border, var(--green-border));
+  background: var(--rosetta-success-bg, var(--green-bg));
+  color: var(--rosetta-success-text, var(--green-text));
+}
+.rosetta-validation-status:hover:not(:disabled)[data-validation-state="error"] {
+  border-color: var(--rosetta-error-border, var(--red-border));
+  background: var(--rosetta-error-bg, var(--red-bg));
+  color: var(--rosetta-error-text, var(--red-text));
 }
 
 .toolbar-separator {
@@ -117,11 +159,15 @@
 .viewer-legend {
   position: absolute;
   z-index: 2;
-  left: 10px;
+  right: 10px;
   bottom: 10px;
-  display: grid;
-  gap: 4px;
-  padding: 8px 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: clamp(8px, 2vw, 20px);
+  padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-page) 78%, transparent);
@@ -132,11 +178,26 @@
   pointer-events: none;
 }
 
+.viewer-legend-completed { color: var(--accent-bright); }
+.viewer-legend-completed .viewer-legend-swatch { background: var(--accent-bright); }
+.viewer-legend-laser .viewer-legend-swatch { background: #51565c; }
+.viewer-legend-laser.viewer-legend-completed .viewer-legend-swatch { background: #000; }
+.viewer-stage.laser-mode .viewer-legend-laser { color: #51565c; }
+.viewer-stage.laser-mode .viewer-legend-completed { color: #111; }
+.viewer-stage.laser-mode .viewer-legend-completed .viewer-legend-swatch { background: #000; }
+
 .viewer-legend-item {
   display: flex;
   align-items: center;
   gap: 7px;
   white-space: nowrap;
+}
+
+@media (max-width: 460px) {
+  .viewer-legend { gap: 7px; padding-inline: 6px; font-size: 9px; }
+  .viewer-legend { right: 6px; bottom: 6px; left: 6px; flex-wrap: wrap; row-gap: 5px; }
+  .viewer-legend-swatch { width: 15px; }
+  .viewer-legend-item { gap: 4px; }
 }
 
 .viewer-legend-swatch {

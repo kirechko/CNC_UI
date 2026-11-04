@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "Chuyển sang phép chiếu trực giao",
+  "viewer.projection.toPerspective": "Chuyển sang chế độ chiếu phối cảnh",
+  "viewer.projection.perspectiveAria": "; chuyển sang chính tả",
+  "viewer.projection.orthographicAria": "Phép chiếu chính tả; chuyển sang quan điểm"
+}

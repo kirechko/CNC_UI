@@ -1,0 +1,6 @@
+{
+  "viewer.projection.toOrthographic": "تغییر به تصویر ارتوگرافیک",
+  "viewer.projection.toPerspective": "تغییر به تصویر پرسپکتیو",
+  "viewer.projection.perspectiveAria": "تصویر پرسپکتیو؛ تغییر به ارتوگرافیک",
+  "viewer.projection.orthographicAria": "تصویر ارتوگرافیک؛ تغییر به پرسپکتیو"
+}

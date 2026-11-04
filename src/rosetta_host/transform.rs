@@ -219,6 +219,21 @@ mod tests {
     }
 
     #[test]
+    fn validate_reports_unknown_numeric_g_code_as_blocker_with_source_line() {
+        let bridge = TransformBridge::new();
+        let findings = bridge
+            .validate("G21\nG8768\n", BackendType::Emulator)
+            .expect("unknown G-code should be retained for capability analysis");
+        let finding = findings
+            .iter()
+            .find(|finding| finding.code == rosetta::ir::toolpath::Code::G(8768))
+            .expect("unknown G-code finding");
+        assert_eq!(finding.line, 2);
+        assert_eq!(finding.severity, rosetta::ir::capability::Severity::Blocker);
+        assert!(finding.resolution.is_none());
+    }
+
+    #[test]
     fn preview_substitutes_cycle_through_registry_expander() {
         let bridge = TransformBridge::new();
         let registry = registry_with_peck();

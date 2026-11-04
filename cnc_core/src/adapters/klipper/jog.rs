@@ -3,8 +3,8 @@
 use super::{KlipperAdapter, Session};
 use crate::{CncResult, JogRequest};
 
-/// Maximum queued movement duration; releasing jog stops adding chunks within this interval.
-const JOG_CHUNK_SECONDS: f64 = 0.15;
+/// Maximum queued movement duration; shorter segments reduce the release latency and stop pulsing.
+const JOG_CHUNK_SECONDS: f64 = 0.05;
 
 impl KlipperAdapter {
     /// Queues one short relative segment and leaves the next segment for the following status cycle.

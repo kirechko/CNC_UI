@@ -51,7 +51,7 @@ pub(super) fn program_run(emulator: &mut Emulator, args: Value) -> Result<Value,
         ));
     }
     let start = args.get("start_line").and_then(Value::as_u64).unwrap_or(0) as usize;
-    if emulator.program.is_empty() || start > emulator.program.len() {
+    if emulator.program.is_empty() || start >= emulator.program.len() {
         return Err(api_error(
             "bad_program",
             "no program loaded or invalid start line",

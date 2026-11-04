@@ -1,0 +1,37 @@
+# Isolated laser-emulator profile for exercising the laser UI.
+# Start with: cargo run --bin cnc-emulator -- 127.0.0.1:8766 config/emulator-laser.yaml
+# Native laser S-word units are 0..255; this is simulated output only.
+axes:
+  x:
+    min_mm: 0.0
+    max_mm: 300.0
+    max_velocity_mm_min: 15000.0
+    acceleration_mm_s2: 1000.0
+  y:
+    min_mm: 0.0
+    max_mm: 400.0
+    max_velocity_mm_min: 15000.0
+    acceleration_mm_s2: 1000.0
+  z:
+    min_mm: 0.0
+    max_mm: 100.0
+    max_velocity_mm_min: 5000.0
+    acceleration_mm_s2: 500.0
+  a:
+    min_degrees: -180.0
+    max_degrees: 180.0
+    max_velocity_degrees_min: 3600.0
+    acceleration_degrees_s2: 600.0
+
+spindle:
+  # Kept for the shared legacy RPM fields; laser power uses laser.max_power.
+  min_rpm: 0.0
+  max_rpm: 24000.0
+  acceleration_rpm_per_sec: 3000.0
+  mode: laser_constant
+  laser:
+    min_power: 0.0
+    max_power: 255.0
+    pwm_frequency_hz: 5000.0
+    dynamic_power_supported: true
+    auto_shutoff_on_pause: true
